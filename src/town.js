@@ -21,7 +21,7 @@ const { trees } = buildTerrain(scene, heightAt, seed, { clear: (x, z) => Math.hy
 // Your routers run to the keep; raiders run back to their camp and leave.
 const battle = new Battle(heightAt, seed, { deploy: false, homes: [{ x: 0, z: 0 }, { x: 0, z: -225 }], disbandAtHome: [false, true] });
 const rand = rng(seed + 7);
-const town = new Town(battle, heightAt, trees, rand);
+const town = new Town(battle, heightAt, trees, rand, { timedRaids: true });
 const view = new BattleView(scene, battle, heightAt, { capacity: 400, keeps: false });
 const townView = new TownView(scene, town, heightAt, rand);
 
@@ -67,7 +67,7 @@ function frame(now) {
       battle.step(h);
       town.update(h);
       aiClock -= h;
-      if (aiClock <= 0) { aiClock = 1; town.thinkRaiders(); }
+      if (aiClock <= 0) { aiClock = 1; town.thinkAttackers(); }
       left -= h;
     }
   }

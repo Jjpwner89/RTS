@@ -92,7 +92,16 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 
 ## Built so far
 
-`index.html` is a menu that leads to both prototypes.
+`index.html` is a menu that leads to every prototype.
+
+**Campaign** (`world.html`), 2026-11-18, the first playtest of the world map:
+- Four places joined by roads. Your seat, Ashford, is in the south and House Varn's seat, Blackmoor, in the north. Between them are two free villages, Hollin and Stowe, each defended by about 40 militia and bowmen.
+- Real time with pause on the map too. Click to select, right-click a place to march there, and double-click one of your villages to go into it. **M** returns to the map.
+- Your villages are the full village game and keep running while you are away. Muster the garrison from the map, or select regiments in a village and press *March out*. An army that marches into one of your villages joins its garrison, and levies become that village's villagers.
+- Attacking a place, or meeting an enemy army, asks you to fight it out (a field battle with your army and theirs; defenders of a place hold near its keep) or auto-resolve. Losers fall back to their nearest holding. A captured free village keeps its people and a few buildings.
+- House Varn is abstract for now: a garrison at Blackmoor that grows over time, faster for each village it holds. It sends one expedition at a time. It takes the free villages first, leaves yours alone for six minutes, then raids or assaults whichever of your villages is weakest. Attacks on your villages happen inside the village, coming in by the road from the attacker's side. If you are away, the garrison fights on its own. If a keep falls, the village goes to Varn and your survivors run home.
+- Take Blackmoor to win; lose every village and army to lose.
+- The timed bandit raids are gone from the campaign; they stay in the standalone village as practice.
 
 **Village** (`town.html`), 2026-11-18, the first point of interest:
 - A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
@@ -114,10 +123,10 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 
 ## Proposed next steps
 
-1. **Play the village and tune it**: the pace of the economy, raid strength, and choosing which recipe a workshop makes.
-2. **A small world map** with a handful of POIs: march an army from one to another and zoom between the two layers.
-3. **A rival AI faction** that builds and attacks.
-4. Later: sieges and walls, more unit types, saves, and the full climb.
+1. **Play the campaign and tune it**: when House Varn moves, how big its armies are, and how fast your villages can answer.
+2. **More factions and diplomacy**, as the creator asked: several houses, peace, alliances and tribute.
+3. **A rival that builds**: Varn's villages becoming real towns instead of a growing number.
+4. Later: sieges and walls, supply on the march, more unit types, saves, and the full climb.
 
 ## Open questions for the creator
 

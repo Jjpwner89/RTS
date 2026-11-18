@@ -36,7 +36,7 @@ function infantry(key) {
     part(box(0.13, 0.6, 0.14), CLOTH, { x: -0.33, y: 1.15 }),
     part(box(0.13, 0.6, 0.14), CLOTH, { x: 0.33, y: 1.15 }),
   ];
-  if (key === 'archer' || key === 'bandit') {
+  if (key === 'archer' || key === 'bandit' || key === 'militia') {
     cloth.push(part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), CLOTH, { y: 1.67 }));
   }
   if (key === 'archer') {
@@ -45,12 +45,14 @@ function infantry(key) {
   } else if (key === 'bandit') {
     gear.push(part(cyl(0.035, 0.035, 0.9, 4), WOOD, { x: 0.38, y: 1.3, z: 0.25, rx: 0.5 }));
     gear.push(part(box(0.06, 0.22, 0.26), METAL, { x: 0.38, y: 1.68, z: 0.48, rx: 0.5 }));
-  } else {
+  } else if (key !== 'militia') {
     gear.push(part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), METAL, { y: 1.68 }));
   }
-  if (key === 'spear') {
+  if (key === 'spear' || key === 'militia') {
     gear.push(part(cyl(0.03, 0.03, 3.4, 4), WOOD, { x: 0.36, y: 1.7, z: 0.35, rx: 0.22 }));
     gear.push(part(new THREE.ConeGeometry(0.06, 0.3, 4), METAL, { x: 0.36, y: 3.4, z: 0.73, rx: 0.22 }));
+  }
+  if (key === 'spear') {
     cloth.push(part(box(0.55, 0.78, 0.06), CLOTH, { x: -0.3, y: 1.12, z: 0.26 }));
   }
   if (key === 'sword') {
@@ -153,7 +155,10 @@ export function drawIcon(ctx, key, cx, cy, s) {
   ctx.scale(s / 32, s / 32);
   ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath();
-  if (key === 'spear') {
+  if (key === 'militia') {
+    ctx.moveTo(0, 14); ctx.lineTo(0, -8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(-4, -7); ctx.lineTo(4, -7); ctx.fill();
+  } else if (key === 'spear') {
     ctx.moveTo(-8, 13); ctx.lineTo(-8, -9); ctx.moveTo(8, 13); ctx.lineTo(8, -9); ctx.stroke();
     for (const x of [-8, 8]) { ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x - 4, -7); ctx.lineTo(x + 4, -7); ctx.fill(); }
   } else if (key === 'sword') {
@@ -206,6 +211,7 @@ export class BattleView {
     this.capacity = capacity;
     this.meshes = {};
     this.seenSoldiers = 0;
+    this.version = battle.version;
     this.banners = [];
     this.syncSoldiers();
     this.buildArrows();
@@ -220,6 +226,12 @@ export class BattleView {
   // Regiments raised later take the next free instances.
   syncSoldiers() {
     const b = this.battle;
+    if (this.version !== b.version) {
+      // The battle dropped soldiers: hand out the instances again from the start.
+      this.version = b.version;
+      this.seenSoldiers = 0;
+      for (const m of Object.values(this.meshes)) { m.list.length = 0; m.darkened.clear(); m.gear.count = m.cloth.count = 0; }
+    }
     for (let i = this.seenSoldiers; i < b.soldiers.length; i++) {
       const s = b.soldiers[i], key = s.reg.T.key;
       let m = this.meshes[key];

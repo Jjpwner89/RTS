@@ -1,8 +1,9 @@
 // A plain battle AI: advance as a line, then pick fights by unit type.
 // It thinks once a second, like a general sending runners rather than micromanaging.
 
-export function thinkAI(battle, side) {
-  if (battle.time < 8 || battle.winner !== null) return;
+// hold: wait for the enemy to come within reach instead of marching out, as a garrison does.
+export function thinkAI(battle, side, { hold = false, start = 8 } = {}) {
+  if (battle.time < start || battle.winner !== null) return;
   const mine = battle.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping);
   const foes = battle.regs.filter(r => r.side !== side && !r.gone);
   const standing = foes.filter(r => !r.routing && !r.regrouping);
@@ -13,6 +14,7 @@ export function thinkAI(battle, side) {
   // Until the lines are close, march forward together and keep formation.
   const gap = Math.min(...mine.map(r => dist(r, nearest(r, standing))));
   if (gap > 75) {
+    if (hold) return;
     const fx = standing.reduce((n, r) => n + r.cx, 0) / standing.length;
     const fz = standing.reduce((n, r) => n + r.cz, 0) / standing.length;
     for (const r of mine) {

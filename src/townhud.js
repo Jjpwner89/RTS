@@ -17,10 +17,11 @@ export class TownHud {
     this.infoKey = null;
     this.buildStock();
     this.buildMenu();
-    this.infoEl.addEventListener('click', e => {
+    // onclick rather than addEventListener: a new village's panels replace the old handlers.
+    this.infoEl.onclick = e => {
       const btn = e.target.closest('[data-act]');
       if (btn && !btn.disabled) this.act(btn.dataset.act);
-    });
+    };
   }
 
   buildStock() {
@@ -41,12 +42,12 @@ export class TownHud {
         <i>${B.icon}</i><span>${B.name}</span><small>${listCost(B.cost)}</small>
       </button>`).join('');
     this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="hint">Shift-click to place several · right-click or Esc to stop</div>`;
-    this.buildEl.addEventListener('click', e => {
+    this.buildEl.onclick = e => {
       const tab = e.target.closest('[data-tab]');
       if (tab) { this.tab = tab.dataset.tab; return; }
       const item = e.target.closest('[data-build]');
       if (item) this.hooks.startPlacing(item.dataset.build);
-    });
+    };
     this.itemEls = [...this.buildEl.querySelectorAll('[data-build]')];
     this.tabEls = [...this.buildEl.querySelectorAll('[data-tab]')];
   }
@@ -65,8 +66,8 @@ export class TownHud {
     set('pop', `👥 ${t.population} / ${t.housing}`);
     set('idle', `${t.idle} idle`);
     set('hunger', t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
-    set('raid', t.raid.active ? '⚔️ Raid under way!' : `Bandits expected in ${clock(t.raid.next)}`);
-    this.stockEl.querySelector('.raid').classList.toggle('now', t.raid.active);
+    set('raid', t.underAttack ? '⚔️ Under attack!' : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
+    this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
 
     for (const el of this.tabEls) el.classList.toggle('on', el.dataset.tab === this.tab);
     for (const el of this.itemEls) {

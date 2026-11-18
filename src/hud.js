@@ -2,12 +2,16 @@
 import { drawIcon, SIDE_COLORS } from './view.js';
 
 export class Hud {
-  constructor(battle, hooks) {
+  // endPanel: show the Victory / Defeat box when the battle is decided. fresh: only
+  // report events from now on, for a battle that was already running.
+  constructor(battle, hooks, { endPanel = true, fresh = false } = {}) {
     this.battle = battle;
     this.hooks = hooks;
+    this.endPanel = endPanel;
     this.cardsEl = document.getElementById('cards');
+    this.cardsEl.innerHTML = '';
     this.logEl = document.getElementById('log');
-    this.seenEvents = 0;
+    this.seenEvents = fresh ? battle.events.length : 0;
     this.cards = [];
     this.seenRegs = 0;
     this.syncCards();
@@ -82,7 +86,7 @@ export class Hud {
       setTimeout(() => line.classList.add('fade'), 6000);
       setTimeout(() => line.remove(), 7000);
     }
-    if (b.winner !== null && !this.shownEnd) {
+    if (this.endPanel && b.winner !== null && !this.shownEnd) {
       this.shownEnd = true;
       const end = document.getElementById('end');
       end.querySelector('h2').textContent = b.winner === 0 ? 'Victory' : 'Defeat';

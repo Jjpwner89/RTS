@@ -8,6 +8,8 @@ export const TYPES = {
   sword: { key: 'sword', name: 'Swordsmen', count: 72, files: 18, spacing: 1.5, speed: 3.3, hp: 12, atk: 6, def: 3, dmg: 5, reach: 1.8, cooldown: 1.1, morale: 70, shield: true },
   archer: { key: 'archer', name: 'Archers', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 8, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 85, reload: 4.5, arrowDmg: 5 },
   cav: { key: 'cav', name: 'Cavalry', count: 40, files: 20, spacing: 2.6, depth: 3.4, speed: 7.5, hp: 18, atk: 5, def: 3, dmg: 5, reach: 2.4, cooldown: 1.3, morale: 70, mounted: true, charge: true },
+  // Villagers with spears and no armour: what a free village can turn out.
+  militia: { key: 'militia', name: 'Militia', count: 40, files: 14, spacing: 1.6, speed: 3.2, hp: 10, atk: 3, def: 3, dmg: 3.5, reach: 2.3, cooldown: 1.4, morale: 45, braces: true },
   bandit: { key: 'bandit', name: 'Bandits', count: 20, files: 10, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 40 },
 };
 
@@ -50,6 +52,7 @@ export class Battle {
     this.disbandAtHome = disbandAtHome;
     this.checkWinner = deploy;
     this.counts = [{}, {}];
+    this.version = 0;          // bumped when prune() drops soldiers, so views rebuild
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
@@ -109,6 +112,15 @@ export class Battle {
     r.routing = r.regrouping = false;
     for (const o of this.regs) if (o.targetReg === r) o.targetReg = null;
     return left;
+  }
+
+  // A village's battle runs for the whole campaign. Men who left and bodies that have
+  // lain a while are dropped so the lists stay short.
+  prune() {
+    const keep = this.soldiers.filter(s => !s.gone && (s.alive || this.time - s.diedAt < 90));
+    if (keep.length === this.soldiers.length) return;
+    this.soldiers = keep;
+    this.version++;
   }
 
   // Front-centre of the formation sits at (r.x, r.z); ranks stack behind it.
@@ -429,6 +441,7 @@ export class Battle {
   kill(t) {
     const r = t.reg;
     t.alive = false;
+    t.diedAt = this.time;
     t.fall = 0.001;
     t.target = null;
     this.losses[r.side]++;

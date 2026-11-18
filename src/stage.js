@@ -7,18 +7,26 @@ export function createStage(canvas) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  const scene = new THREE.Scene();
-  const sky = new THREE.Color('#b9cbd6');
-  scene.background = sky;
-  scene.fog = new THREE.Fog(sky, 300, 760);
   const camera = new THREE.PerspectiveCamera(45, 1, 1, 2000);
+  let scene, sun;
 
-  scene.add(new THREE.HemisphereLight('#dfe9f2', '#5a5236', 1.6));
-  const sun = new THREE.DirectionalLight('#fff1d6', 2.2);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.bias = -0.0008;
-  scene.add(sun, sun.target);
+  // Each map has its own scene with its own sky and sun; switching maps swaps the scene.
+  function newScene({ fog = [300, 760] } = {}) {
+    const s = new THREE.Scene();
+    const sky = new THREE.Color('#b9cbd6');
+    s.background = sky;
+    s.fog = new THREE.Fog(sky, ...fog);
+    s.add(new THREE.HemisphereLight('#dfe9f2', '#5a5236', 1.6));
+    const light = new THREE.DirectionalLight('#fff1d6', 2.2);
+    light.castShadow = true;
+    light.shadow.mapSize.set(2048, 2048);
+    light.shadow.bias = -0.0008;
+    s.add(light, light.target);
+    s.userData.sun = light;
+    return s;
+  }
+  function use(s) { scene = s; sun = s.userData.sun; }
+  use(newScene());
 
   function resize() {
     renderer.setSize(innerWidth, innerHeight, false);
@@ -29,8 +37,8 @@ export function createStage(canvas) {
   resize();
 
   // The shadow box follows the camera so shadows stay sharp at every zoom.
-  function placeSun(c, heightAt) {
-    const size = Math.min(260, Math.max(50, c.dist * 0.9));
+  function placeSun(c, heightAt, maxSize = 260) {
+    const size = Math.min(maxSize, Math.max(50, c.dist * 0.9));
     const cam = sun.shadow.camera;
     cam.left = cam.bottom = -size; cam.right = cam.top = size;
     cam.near = 1; cam.far = 600;
@@ -39,5 +47,13 @@ export function createStage(canvas) {
     sun.position.set(c.x + 120, 220, c.z + 80);
   }
 
-  return { renderer, scene, camera, placeSun };
+  // Free a scene's GPU memory once its map is gone for good.
+  function dispose(s) {
+    s.traverse(o => {
+      o.geometry?.dispose();
+      for (const m of [o.material].flat()) { if (!m) continue; m.map?.dispose(); m.dispose(); }
+    });
+  }
+
+  return { renderer, scene, camera, placeSun, newScene, use, dispose, current: () => scene };
 }

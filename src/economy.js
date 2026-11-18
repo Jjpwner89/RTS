@@ -74,17 +74,20 @@ const LEVY_MAX = 20, LEVY_MIN = 5;
 const WALK = 3.4;
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const compass = p => ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(((Math.atan2(p.x, -p.z) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8];
 const listCost = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(', ');
 export { listCost };
 
 export class Town {
-  constructor(battle, heightAt, trees, rand) {
+  // timedRaids: bandits turn up on their own (the standalone village); on the world
+  // map, attackers are real armies instead.
+  constructor(battle, heightAt, trees, rand, { timedRaids = false, villagers = 12, retinue = true, stock = null } = {}) {
     this.battle = battle;
     this.heightAt = heightAt;
     this.rand = rand;
     this.keep = { kind: 'keep', B: KEEP, x: 0, z: 0, hp: KEEP.hp, state: 'active', workers: [] };
     this.stock = Object.fromEntries(Object.keys(GOODS).map(g => [g, 0]));
-    Object.assign(this.stock, { wood: 140, stone: 40, food: 80, planks: 20 });
+    Object.assign(this.stock, stock || { wood: 140, stone: 40, food: 80, planks: 20 });
     this.buildings = [];
     this.villagers = [];
     this.trees = trees;
@@ -94,16 +97,20 @@ export class Town {
     this.nextMeal = 30;
     this.nextArrival = 20;
     this.hungry = false;
-    this.raid = { next: 300, wave: 0, active: false, repelled: 0, time: 0, burned: 0, leaving: false };
+    this.timedRaids = timedRaids;
+    this.raid = { next: 300, wave: 0 };
+    this.attackers = [];
     this.lost = false;
     this.placeDeposits();
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < villagers; i++) {
       const a = this.rand() * Math.PI * 2;
       this.addVillager(Math.sin(a) * 16, Math.cos(a) * 16);
     }
     // The lord's own men: professionals, not villagers, so they cost no workers.
-    const ret = battle.addRegiment(0, 'sword', 0, -24, Math.PI, { count: 20, name: "Lord's retinue" });
-    ret.retinue = true;
+    if (retinue) {
+      const ret = battle.addRegiment(0, 'sword', 0, -24, Math.PI, { count: 20, name: "Lord's retinue" });
+      ret.retinue = true;
+    }
   }
 
   event(text, side = 0) { this.battle.events.push({ time: this.battle.time, side, text }); }
@@ -243,7 +250,7 @@ export class Town {
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.updatePeople(dt);
-    this.updateRaids(dt);
+    this.updateAttacks(dt);
   }
 
   nearestEnemy(p, radius) {
@@ -433,7 +440,7 @@ export class Town {
     this.nextArrival -= dt;
     if (this.nextArrival <= 0) {
       this.nextArrival = 18;
-      if (!this.hungry && this.population < this.housing && !this.raid.active) {
+      if (!this.hungry && this.population < this.housing && !this.underAttack) {
         const a = this.rand() * Math.PI * 2;
         const v = this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120);
         v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
@@ -443,101 +450,154 @@ export class Town {
     if (this.keep.hp < KEEP.hp && !this.nearestEnemy(this.keep, 50)) this.keep.hp = Math.min(KEEP.hp, this.keep.hp + dt * 5);
   }
 
-  // ---- raids ----
+  // ---- attackers ----
+  // Enemy regiments in the village come in groups. A raid burns a few buildings and
+  // leaves by the road it came in on; an assault fights on until the keep falls.
 
-  updateRaids(dt) {
-    const b = this.battle;
-    const raiders = b.regs.filter(r => r.side === 1 && !r.gone);
-    if (this.raid.active && !raiders.length) {
-      this.raid.active = false;
-      this.raid.repelled++;
-      this.event('The raiders are gone. The village breathes again.');
+  get underAttack() { return this.attackers.length > 0; }
+
+  edgePoint(angle) { return { x: Math.sin(angle) * 215, z: Math.cos(angle) * 215 }; }
+
+  receiveAttack(specs, angle, { mode = 'raid', name = 'Raiders', onLeave = null } = {}) {
+    const b = this.battle, entry = this.edgePoint(angle);
+    b.homes[1] = entry;
+    const face = Math.atan2(-entry.x, -entry.z);
+    const regs = specs.map((sp, i) => {
+      const off = (i - (specs.length - 1) / 2) * 30;
+      return b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name });
+    });
+    this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave });
+    this.event(`${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
+  }
+
+  updateAttacks(dt) {
+    for (const g of [...this.attackers]) {
+      const live = g.regs.filter(r => !r.gone);
+      if (!live.length) { this.endAttack(g); continue; }
+      g.time += dt;
+      if (g.mode === 'raid' && !g.leaving && (g.burned >= 3 || g.time > 150)) {
+        g.leaving = true;
+        this.event('The raiders are making off with their plunder.');
+      }
+      if (g.leaving) continue;
+      // Attackers not fighting set fire to whatever they stand beside.
+      for (const r of live) {
+        if (r.routing || r.regrouping || !r.raidTarget || r.engaged > 0) continue;
+        const t = r.raidTarget;
+        if (t.removed || t.state === 'ruined') { r.raidTarget = null; continue; }
+        if (Math.hypot(r.cx - t.x, r.cz - t.z) > t.B.radius + 9) continue;
+        t.hp -= dt * r.alive * 0.35;
+        if (t.hp <= 0) this.ruin(t, g);
+      }
     }
-    if (!this.raid.active) {
+    if (this.timedRaids && !this.underAttack) {
       this.raid.next -= dt;
       if (this.raid.next <= 0) this.startRaid();
-      return;
-    }
-    // Raiders take what they can and go: after a few fires, or once they have lingered.
-    this.raid.time += dt;
-    if (!this.raid.leaving && (this.raid.burned >= 3 || this.raid.time > 150)) {
-      this.raid.leaving = true;
-      this.event('The raiders are making off with their plunder.');
-    }
-    // Raiders not fighting set fire to whatever they stand beside.
-    for (const r of raiders) {
-      if (this.raid.leaving) continue;
-      if (r.routing || r.regrouping || !r.raidTarget || r.engaged > 0) continue;
-      const t = r.raidTarget;
-      if (t.removed || t.state === 'ruined') { r.raidTarget = null; continue; }
-      if (Math.hypot(r.cx - t.x, r.cz - t.z) > t.B.radius + 9) continue;
-      t.hp -= dt * r.alive * 0.35;
-      if (t.hp <= 0) this.ruin(t);
     }
   }
 
-  ruin(t) {
+  endAttack(g) {
+    this.attackers = this.attackers.filter(o => o !== g);
+    const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length })).filter(sp => sp.count > 0);
+    if (!this.lost) this.event('The attackers are gone. The village breathes again.');
+    g.onLeave?.(survivors);
+  }
+
+  ruin(t, g) {
     t.hp = 0;
     if (t === this.keep) {
       this.lost = true;
-      this.battle.winner = 1;
       this.event('The keep has fallen.', 1);
+      if (this.onFall) this.onFall(); else this.battle.winner = 1;
       return;
     }
     t.state = 'ruined';
     t.status = 'Burned by raiders';
-    this.raid.burned++;
+    if (g) g.burned++;
     for (const v of [...t.workers, ...t.builders]) this.release(v);
     this.event(`Raiders burned the ${t.B.name.toLowerCase()}!`, 1);
   }
 
+  // Practice raids for the standalone village, from bandits who come out of nowhere.
   startRaid() {
-    const b = this.battle, w = ++this.raid.wave;
-    Object.assign(this.raid, { active: true, time: 0, burned: 0, leaving: false });
+    const w = ++this.raid.wave;
     this.raid.next = Math.max(150, 260 - w * 15);
-    const a = this.rand() * Math.PI * 2;
-    const camp = { x: Math.sin(a) * 225, z: Math.cos(a) * 225 };
-    b.homes[1] = camp;
-    const face = Math.atan2(-camp.x, -camp.z);
     let men = 10 + w * 6;
-    const bands = [];
-    while (men > 0) { bands.push(Math.min(20, men)); men -= 20; }
-    bands.forEach((n, i) => {
-      const off = (i - (bands.length - 1) / 2) * 26;
-      b.addRegiment(1, 'bandit', camp.x + Math.cos(face) * off, camp.z - Math.sin(face) * off, face, { count: n, name: 'Bandit band' });
-    });
-    if (w >= 3) b.addRegiment(1, 'archer', camp.x - Math.sin(face) * 15, camp.z - Math.cos(face) * 15, face, { count: 8 + w * 2, name: 'Bandit archers' });
-    const dirName = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(((Math.atan2(camp.x, -camp.z) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8];
-    this.event(`Bandits are coming from the ${dirName}!`, 1);
+    const specs = [];
+    while (men > 0) { specs.push({ key: 'bandit', count: Math.min(20, men), name: 'Bandit band' }); men -= 20; }
+    if (w >= 3) specs.push({ key: 'archer', count: 8 + w * 2, name: 'Bandit archers' });
+    this.receiveAttack(specs, this.rand() * Math.PI * 2, { name: 'Bandits' });
   }
 
-  // Raiders fight soldiers who come near; otherwise they make for the nearest building.
-  thinkRaiders() {
+  // Attackers fight soldiers who come near; otherwise they make for the nearest building.
+  thinkAttackers() {
     const b = this.battle;
     const defenders = b.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];
-    for (const r of b.regs) {
-      if (r.side !== 1 || r.gone || r.routing || r.regrouping) continue;
-      if (this.raid.leaving) {
-        // Head back to camp and melt away; only men who are caught still fight.
-        const home = b.homes[1];
-        r.targetReg = null;
-        r.dest = { x: home.x, z: home.z, angle: Math.atan2(home.x - r.cx, home.z - r.cz) };
-        if (Math.hypot(home.x - r.cx, home.z - r.cz) < 20) b.disband(r);
-        continue;
+    for (const g of this.attackers) {
+      for (const r of g.regs) {
+        if (r.gone || r.routing || r.regrouping) continue;
+        if (g.leaving) {
+          // Back down the road and away; only men who are caught still fight.
+          r.targetReg = null;
+          r.dest = { x: g.entry.x, z: g.entry.z, angle: Math.atan2(g.entry.x - r.cx, g.entry.z - r.cz) };
+          if (Math.hypot(g.entry.x - r.cx, g.entry.z - r.cz) < 20) b.disband(r);
+          continue;
+        }
+        const near = defenders.filter(d => Math.hypot(d.cx - r.cx, d.cz - r.cz) < (r.T.range ? r.T.range : 45))
+          .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
+        if (near) { if (r.targetReg !== near) b.orderAttack([r], near); continue; }
+        if (r.targetReg) continue;
+        if (!r.raidTarget || r.raidTarget.state === 'ruined' || r.raidTarget.removed) {
+          // An assault goes for the keep; raiders for whatever is closest.
+          r.raidTarget = g.mode === 'assault' ? this.keep
+            : targets.sort((p, q) => Math.hypot(p.x - r.cx, p.z - r.cz) - Math.hypot(q.x - r.cx, q.z - r.cz))[0];
+        }
+        const t = r.raidTarget;
+        const a = Math.atan2(t.x - r.cx, t.z - r.cz);
+        const stand = t.B.radius + 4;
+        const dx = t.x - Math.sin(a) * stand, dz = t.z - Math.cos(a) * stand;
+        if (!r.dest || Math.hypot(r.dest.x - dx, r.dest.z - dz) > 3) r.dest = { x: dx, z: dz, angle: a };
       }
-      const near = defenders.filter(d => Math.hypot(d.cx - r.cx, d.cz - r.cz) < (r.T.range ? r.T.range : 45))
-        .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
-      if (near) { if (r.targetReg !== near) b.orderAttack([r], near); continue; }
-      if (r.targetReg) continue;
-      if (!r.raidTarget || r.raidTarget.state === 'ruined' || r.raidTarget.removed) {
-        r.raidTarget = targets.sort((p, q) => Math.hypot(p.x - r.cx, p.z - r.cz) - Math.hypot(q.x - r.cx, q.z - r.cz))[0];
-      }
-      const t = r.raidTarget;
-      const a = Math.atan2(t.x - r.cx, t.z - r.cz);
-      const stand = t.B.radius + 4;
-      const dx = t.x - Math.sin(a) * stand, dz = t.z - Math.cos(a) * stand;
-      if (!r.dest || Math.hypot(r.dest.x - dx, r.dest.z - dz) > 3) r.dest = { x: dx, z: dz, angle: a };
     }
   }
+
+  // ---- troops coming and going on the world map ----
+
+  // Regiments arriving by road march in from the edge. Levies bring their villagers.
+  addTroops(specs, angle) {
+    const entry = this.edgePoint(angle);
+    const face = Math.atan2(-entry.x, -entry.z);
+    for (const sp of specs) {
+      const from = [];
+      for (let i = 0; i < sp.count; i++) from.push({ x: entry.x + (this.rand() - 0.5) * 14, z: entry.z + (this.rand() - 0.5) * 14 });
+      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from });
+      r.levy = sp.levy || null;
+      r.retinue = !!sp.retinue;
+      if (r.levy) {
+        r.soldiers.forEach(s => {
+          const v = this.addVillager(s.x, s.z);
+          v.state = 'soldier'; v.soldier = s; s.villager = v;
+        });
+      }
+      const stand = { x: Math.sin(angle) * 40, z: Math.cos(angle) * 40 };
+      r.dest = { x: stand.x, z: stand.z, angle: Math.atan2(stand.x, stand.z) };
+    }
+  }
+
+  // Regiments leaving for the world map. Levies take their villagers with them.
+  takeTroops(regs) {
+    const specs = [];
+    for (const r of regs) {
+      if (r.side !== 0 || r.gone || r.routing) continue;
+      const men = r.soldiers.filter(s => s.alive && !s.gone);
+      const gone = new Set(men.map(s => s.villager).filter(Boolean));
+      this.villagers = this.villagers.filter(v => !gone.has(v));
+      this.battle.disband(r);
+      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue });
+    }
+    return specs;
+  }
+
+  garrison() { return this.battle.regs.filter(r => r.side === 0 && !r.gone); }
 }

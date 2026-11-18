@@ -6,6 +6,7 @@ import { pickGround, HALF } from './terrain.js';
 export class Controls {
   constructor(camera, dom, battle, view, heightAt, hooks) {
     Object.assign(this, { camera, dom, battle, view, heightAt, hooks });
+    this.enabled = true;       // several maps can each have controls; only the one on screen listens
     this.selection = new Set();
     this.keys = new Set();
     // Start behind the player's army, looking toward the enemy.
@@ -19,13 +20,14 @@ export class Controls {
 
   bind() {
     const el = this.dom;
+    const on = fn => e => { if (this.enabled) fn(e); };
     el.addEventListener('contextmenu', e => e.preventDefault());
-    el.addEventListener('mousedown', e => this.onDown(e));
-    addEventListener('mousemove', e => this.onMove(e));
-    addEventListener('mouseup', e => this.onUp(e));
-    el.addEventListener('wheel', e => this.onWheel(e), { passive: false });
-    addEventListener('keydown', e => this.onKey(e, true));
-    addEventListener('keyup', e => this.onKey(e, false));
+    el.addEventListener('mousedown', on(e => this.onDown(e)));
+    addEventListener('mousemove', on(e => this.onMove(e)));
+    addEventListener('mouseup', on(e => this.onUp(e)));
+    el.addEventListener('wheel', on(e => this.onWheel(e)), { passive: false });
+    addEventListener('keydown', on(e => this.onKey(e, true)));
+    addEventListener('keyup', on(e => this.onKey(e, false)));
     addEventListener('blur', () => this.keys.clear());
   }
 

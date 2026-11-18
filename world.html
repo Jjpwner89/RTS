@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTS Campaign</title>
+<link rel="stylesheet" href="src/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body class="campaign mode-world">
+<canvas id="view"></canvas>
+<div id="world-labels"></div>
+
+<header id="top">
+  <span class="title" id="place">World map</span>
+  <span id="clock">0:00</span>
+  <button id="pause">❚❚ Pause</button>
+  <span class="speeds"><button data-speed="1">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></span>
+  <span id="strength"></span>
+  <button id="to-world" class="m-town">🗺 World map</button>
+  <button id="march" class="m-town" hidden></button>
+  <button id="retreat" class="m-field">🏳️ Retreat</button>
+  <button id="help-toggle">? How to play</button>
+</header>
+<span id="field-title" hidden></span>
+
+<div id="paused-tag">Paused: you can still build and give orders</div>
+<div id="log"></div>
+<div id="toast"></div>
+
+<aside id="wpanel"></aside>
+<aside id="stock"></aside>
+<aside id="build"></aside>
+<aside id="info" hidden></aside>
+
+<aside id="help" class="open">
+  <h3>The campaign</h3>
+  <p>You hold <b>Ashford</b> in the south. House Varn holds <b>Blackmoor</b> in the north. Between you lie two free villages, <b>Hollin</b> and <b>Stowe</b>, and Varn will not leave them free for long.</p>
+  <p><b>World map</b>: click a place or army to select it, double-click a village of yours to go there. Drag to pan, scroll to zoom, middle-drag or Q / E to turn.</p>
+  <p><b>Armies</b>: in a village, select regiments and press <b>March out</b>, or muster the whole garrison from the map. Right-click a place to march there. Attacking a place or meeting an enemy army asks you to fight it out or auto-resolve.</p>
+  <p><b>Villages</b> keep working while you are away. Varn will come for yours after a few minutes; if you are elsewhere, the garrison fights on its own. Take a village and it becomes yours to build up.</p>
+  <p><b>Win</b> by taking Blackmoor. <b>M</b> returns to the map from a village, and <b>Space</b> pauses anywhere.</p>
+  <button id="help-close">Start</button>
+</aside>
+
+<div id="cards"></div>
+<div id="select-box"></div>
+
+<div id="prompt" class="modal"><h2></h2><p></p><div class="row"></div></div>
+<div id="result" class="modal"><h2></h2><p></p><button></button></div>
+<div id="end" hidden><h2></h2><p></p><button id="again"></button></div>
+
+<script type="module" src="src/campaign.js"></script>
+</body>
+</html>
