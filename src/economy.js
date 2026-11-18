@@ -45,7 +45,7 @@ export const BUILDINGS = {
   flax: { name: 'Flax field', icon: '🌿', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
     gather: { node: 'field', time: 8, out: { flax: 2 } }, desc: 'Grows flax for bowstring.' },
   carpenter: { name: 'Carpenter', icon: '🪚', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 3 }, out: { shields: 1 }, time: 9, keep: 20 }],
+    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 25 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 20 }],
     desc: 'Saws wood into planks, and planks into shields.' },
   ropemaker: { name: 'Ropemaker', icon: '🧵', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { flax: 2 }, out: { string: 1 }, time: 7, keep: 20 }], desc: 'Twists flax into bowstring.' },
@@ -206,7 +206,9 @@ export class Town {
     const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(this.stock[g] / n)));
     const free = this.villagers.filter(v => v.state !== 'soldier').length;
     const n = Math.min(LEVY_MAX, byKit, free);
-    const reason = byKit < LEVY_MIN ? `Needs kit for ${LEVY_MIN}: ${listCost(Object.fromEntries(Object.entries(kit).map(([g, k]) => [g, k * LEVY_MIN])))}`
+    const short = Object.entries(kit).filter(([g, k]) => this.stock[g] < k * LEVY_MIN)
+      .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} (have ${Math.floor(this.stock[g])})`);
+    const reason = byKit < LEVY_MIN ? `Needs ${short.join(' and ')}`
       : free < LEVY_MIN ? `Needs ${LEVY_MIN} villagers` : null;
     return { n, ok: !reason, reason };
   }

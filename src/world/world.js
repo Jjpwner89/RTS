@@ -347,7 +347,7 @@ export class World {
     if (seat.owner !== 1) return;
     const held = this.pois.filter(p => p.owner === 1);
     // New men come in at the seat, faster the more villages House Varn holds.
-    this.ai.recruit += dt * (0.12 + 0.06 * (held.length - 1));
+    this.ai.recruit += dt * (0.06 + 0.04 * (held.length - 1));
     while (this.ai.recruit >= 6) {
       this.ai.recruit -= 6;
       const kinds = ['spear', 'archer', 'spear', 'sword', this.time > 480 ? 'cav' : 'sword'];
