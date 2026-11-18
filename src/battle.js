@@ -1,7 +1,7 @@
 // Battle simulation: regiments of individual soldiers, melee, arrows and morale.
 // No rendering here; view.js draws whatever this state holds.
 import { rng } from './noise.js';
-import { HALF } from './terrain.js';
+import { HALF, HOMES } from './terrain.js';
 
 export const TYPES = {
   spear: { key: 'spear', name: 'Spearmen', count: 80, files: 20, spacing: 1.6, speed: 3.0, hp: 12, atk: 3, def: 5, dmg: 4, reach: 2.4, cooldown: 1.4, morale: 65, shield: true, vsMounted: 0.3, braces: true },
@@ -58,7 +58,7 @@ export class Battle {
         const r = {
           id: this.regs.length, side, T, name: `${ORDINAL(counts[key])} ${T.name}`,
           x: side === 0 ? -x : x, z, angle: side === 0 ? Math.PI : 0, files: T.files,
-          dest: null, targetReg: null, morale: T.morale, routing: false, routedAt: 0, rallied: false,
+          dest: null, targetReg: null, morale: T.morale, routing: false, routedAt: 0, rallied: false, regrouping: false,
           gone: false, soldiers: [], initial: T.count, alive: T.count, engaged: 0, lag: 0,
           cx: 0, cz: 0, lastHit: -99, firingAt: null, fleeDir: 0,
         };
@@ -115,7 +115,7 @@ export class Battle {
 
   // Place the regiments side by side along a front line centred on (x, z), facing `angle`.
   orderMove(regs, x, z, angle, width = null) {
-    regs = regs.filter(r => !r.gone && !r.routing);
+    regs = regs.filter(r => !r.gone && !r.routing && !r.regrouping);
     if (!regs.length) return;
     const gap = 4;
     const sin = Math.sin(angle), cos = Math.cos(angle);
@@ -162,7 +162,7 @@ export class Battle {
 
   orderAttack(regs, target) {
     for (const r of regs) {
-      if (r.gone || r.routing || target.side === r.side) continue;
+      if (r.gone || r.routing || r.regrouping || target.side === r.side) continue;
       r.targetReg = target;
       r.dest = null;
     }
@@ -170,7 +170,7 @@ export class Battle {
 
   orderHalt(regs) {
     for (const r of regs) {
-      if (r.gone || r.routing) continue;
+      if (r.gone || r.routing || r.regrouping) continue;
       r.dest = null;
       r.targetReg = null;
       r.x = r.cx; r.z = r.cz;
@@ -287,7 +287,8 @@ export class Battle {
       s.z += Math.cos(dir) * T.speed * 1.3 * dt;
       s.yaw = turnToward(s.yaw, dir, dt * 6);
       s.target = null;
-      if (Math.abs(s.x) > HALF + 15 || Math.abs(s.z) > HALF + 15) s.gone = true;
+      s.x = Math.max(-HALF, Math.min(HALF, s.x));
+      s.z = Math.max(-HALF, Math.min(HALF, s.z));
     } else {
       s.searchCd -= dt;
       const engageR = T.range ? 2.5 : r.targetReg ? 9 : 4.5;
@@ -413,6 +414,14 @@ export class Battle {
   updateMorale(r, dt) {
     if (r.gone || r.routing) return;
     const T = r.T;
+    if (r.regrouping) {
+      r.morale += 3 * dt;
+      if (r.morale >= T.morale * 0.6) {
+        r.regrouping = false;
+        this.events.push({ time: this.time, side: r.side, text: `${r.side ? 'Enemy ' : ''}${r.name} have regrouped at the keep.` });
+      }
+      return;
+    }
     if (r.engaged > 0 && r.alive < r.initial * 0.5) r.morale -= 1.2 * dt;
     if (r.engaged === 0 && this.time - r.lastHit > 4) r.morale = Math.min(T.morale, r.morale + 2 * dt);
     if (r.morale <= 0) this.startRout(r);
@@ -437,20 +446,22 @@ export class Battle {
   }
 
   updateRout(r) {
-    // Run from the nearest enemy, bending toward home.
+    // Run for the keep, swerving away from any enemy close behind.
     let nearest = null, nd = Infinity;
     for (const o of this.regs) {
       if (o.side === r.side || o.gone || o.routing) continue;
       const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
       if (d < nd) { nd = d; nearest = o; }
     }
-    const home = r.side === 0 ? 0 : Math.PI;
+    const h = HOMES[r.side];
+    const home = Math.atan2(h.x - r.cx, h.z - r.cz);
     let dir = home;
-    if (nearest && nd < 80) {
+    if (nearest && nd < 30) {
       const away = Math.atan2(r.cx - nearest.cx, r.cz - nearest.cz);
-      dir = away + angleDiff(home, away) * 0.4;
+      dir = away + angleDiff(home, away) * 0.6;
     }
     r.fleeDir = dir;
+    if (Math.hypot(h.x - r.cx, h.z - r.cz) < 45) { this.regroup(r); return; }
     if (!r.rallied && this.time - r.routedAt > 12 && nd > 45 && r.alive >= r.initial * 0.25) {
       r.routing = false;
       r.rallied = true;
@@ -460,6 +471,19 @@ export class Battle {
       this.assignSlots(r);
       this.events.push({ time: this.time, side: r.side, text: `${r.side ? 'Enemy ' : ''}${r.name} have rallied.` });
     }
+  }
+
+  // Safe at the keep: form up in front of it and recover before taking orders again.
+  regroup(r) {
+    const h = HOMES[r.side], toField = r.side === 0 ? -1 : 1;
+    const k = this.regs.filter(o => o.side === r.side && o.regrouping).length;
+    r.routing = false;
+    r.regrouping = true;
+    r.x = r.cx; r.z = r.cz;
+    const angle = r.side === 0 ? Math.PI : 0;
+    r.dest = { x: h.x + ((k % 4) - 1.5) * 42, z: h.z + toField * (40 + Math.floor(k / 4) * 24), angle };
+    this.reform(r);
+    this.events.push({ time: this.time, side: r.side, text: `${r.side ? 'Enemy ' : ''}${r.name} reached the keep and are regrouping.` });
   }
 
   updateArchers(r, dt) {
@@ -539,7 +563,7 @@ export class Battle {
   checkVictory() {
     if (this.winner !== null) return;
     for (let side = 0; side < 2; side++) {
-      const standing = this.regs.some(r => r.side === side && !r.gone && !r.routing);
+      const standing = this.regs.some(r => r.side === side && !r.gone && !r.routing && !r.regrouping);
       if (!standing) {
         this.winner = 1 - side;
         this.events.push({ time: this.time, side: this.winner, text: this.winner === 0 ? 'Victory: the enemy army has broken.' : 'Defeat: your army has broken.' });
@@ -551,6 +575,7 @@ export class Battle {
   moraleLabel(r) {
     if (r.gone) return r.soldiers.some(s => s.alive) ? 'Fled' : 'Destroyed';
     if (r.routing) return 'Routing';
+    if (r.regrouping) return 'Regrouping';
     const m = r.morale / r.T.morale;
     return m > 0.75 ? 'Steady' : m > 0.4 ? 'Shaken' : 'Wavering';
   }

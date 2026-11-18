@@ -51,6 +51,8 @@ body.paused #paused-tag { display: block; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .card.routing { animation: blink 0.8s infinite alternate; }
 .card.routing .morale i { background: var(--bad); }
+.card.regrouping { opacity: 0.7; }
+.card.regrouping .morale i { background: var(--gold); }
 .card.gone { opacity: 0.35; }
 @keyframes blink { to { background: rgba(120, 30, 20, 0.85); } }
 

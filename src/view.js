@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
+import { HOMES } from './terrain.js';
 
 export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
 
@@ -76,6 +77,69 @@ function cavalry() {
   return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
 }
 
+// ---- each side's keep and the village around it ----
+
+const STONE = '#9b968a', STONE_DARK = '#7d786d', THATCH = '#b8955a', PLASTER = '#d8ccb0';
+
+function keepModel() {
+  const parts = [
+    part(box(14, 16, 14), STONE, { y: 8 }),
+    part(box(2, 4, 0.6), DARK, { y: 2, z: 7.1 }),
+  ];
+  for (const [x, z] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) {
+    parts.push(part(cyl(2.6, 3, 20, 8), STONE_DARK, { x, y: 10, z }));
+    parts.push(part(new THREE.ConeGeometry(3.2, 4, 8), '#5f4a3a', { x, y: 22, z }));
+  }
+  for (let i = 0; i < 4; i++) {
+    for (let k = -2; k <= 2; k++) {
+      const along = k * 2.6;
+      const [x, z] = [[along, -7], [along, 7], [-7, along], [7, along]][i];
+      parts.push(part(box(1.2, 1.4, 1.2), STONE, { x, y: 16.7, z }));
+    }
+  }
+  // A ring of palisade stakes around keep and village.
+  for (let i = 0; i < 64; i++) {
+    const a = i / 64 * Math.PI * 2;
+    if (Math.cos(a) > 0.97) continue;   // a gate facing the field
+    parts.push(part(cyl(0.35, 0.35, 4, 5), WOOD, { x: Math.sin(a) * 30, y: 2, z: Math.cos(a) * 30 }));
+  }
+  parts.push(part(cyl(0.12, 0.12, 8, 4), WOOD, { y: 20 }));
+  return mergeGeometries(parts);
+}
+
+function houseModel() {
+  return mergeGeometries([
+    part(box(4, 2.6, 5), PLASTER, { y: 1.3 }),
+    part(new THREE.ConeGeometry(3.6, 2.4, 4), THATCH, { y: 3.8, ry: Math.PI / 4 }),
+  ]);
+}
+
+function buildKeeps(scene, heightAt) {
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const keep = keepModel(), house = houseModel();
+  HOMES.forEach((h, side) => {
+    const y = heightAt(h.x, h.z);
+    const facing = side === 0 ? Math.PI : 0;
+    const k = new THREE.Mesh(keep, mat);
+    k.position.set(h.x, y - 0.5, h.z);
+    k.rotation.y = facing;
+    k.castShadow = k.receiveShadow = true;
+    scene.add(k);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[side], side: THREE.DoubleSide }));
+    flag.position.set(h.x + 2, y + 22.5, h.z);
+    scene.add(flag);
+    for (let i = 0; i < 9; i++) {
+      const a = facing + Math.PI + (i - 4) * 0.42, r = 19 + (i % 2) * 4;
+      const m = new THREE.Mesh(house, mat);
+      const x = h.x + Math.sin(a) * r, z = h.z + Math.cos(a) * r;
+      m.position.set(x, heightAt(x, z) - 0.2, z);
+      m.rotation.y = a;
+      m.castShadow = m.receiveShadow = true;
+      scene.add(m);
+    }
+  });
+}
+
 // ---- regiment icons, shared by banners and HUD cards ----
 
 export function drawIcon(ctx, key, cx, cy, s) {
@@ -130,6 +194,7 @@ export class BattleView {
     this.buildSoldiers();
     this.buildArrows();
     this.buildBanners();
+    buildKeeps(scene, heightAt);
     this.outlines = new THREE.Group();
     scene.add(this.outlines);
     this.preview = [];

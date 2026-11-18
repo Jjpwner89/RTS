@@ -5,13 +5,28 @@ import { fbm, rng } from './noise.js';
 export const HALF = 250;          // playable area is -HALF..HALF on x and z
 const EXTENT = 380;               // mesh reaches past the edge so fog hides the border
 
+// Each side's keep. Broken regiments run back here and regroup instead of leaving the map.
+export const HOMES = [{ x: 0, z: 205 }, { x: 0, z: -205 }];
+
 export function makeHeight(seed) {
-  return (x, z) => {
+  const raw = (x, z) => {
     const broad = fbm(x * 0.006, z * 0.006, seed, 4);
     const detail = fbm(x * 0.03, z * 0.03, seed + 7, 2);
     // Keep a gentle valley along the middle so the armies meet on fairly open ground.
     const valley = 0.55 + 0.45 * Math.min(1, Math.abs(z) / 140);
     return (broad - 0.45) * 34 * valley + (detail - 0.5) * 1.6;
+  };
+  // Level ground for each keep and its village.
+  const pads = HOMES.map(h => ({ ...h, y: raw(h.x, h.z) }));
+  return (x, z) => {
+    let y = raw(x, z);
+    for (const p of pads) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d >= 70) continue;
+      const k = d < 35 ? 1 : 1 - (d - 35) / 35;
+      y += (p.y - y) * k * k * (3 - 2 * k);
+    }
+    return y;
   };
 }
 
@@ -54,7 +69,7 @@ function buildTrees(heightAt, seed) {
   for (let tries = 0; spots.length < 900 && tries < 20000; tries++) {
     const x = (rand() * 2 - 1) * (EXTENT - 10), z = (rand() * 2 - 1) * (EXTENT - 10);
     if (fbm(x * 0.012, z * 0.012, seed + 71, 3) < 0.56) continue;
-    if (Math.abs(x) < 120 && Math.abs(z) < 130) continue;
+    if (Math.abs(x) < 120 && Math.abs(z) < 250) continue;
     spots.push([x, z, 0.7 + rand() * 0.6]);
   }
   const trunks = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: '#5a4430' }), spots.length);

@@ -4,58 +4,85 @@ The one home for this game's goals, decisions and open questions. Working title:
 
 ## What the creator wants
 
-- Favourites: **Total War** first, then **Crusader Kings** and **Stellaris**.
-- Real time preferred; a mix with turn-based layers is fine.
-- The feeling of **building up gradually, reaching scale, then playing with that scale**: minor lord → duke → king → emperor, or one world → a few colonies → a galaxy.
-- **Every rank keeps its own challenge**, and combat stays engaging all the way up.
-- Battles use **regiments of many soldiers** that you move around the field as blocks.
-- The setting may become Breachline's world. That is decided later.
+- Favourites: **Total War** first, then **Crusader Kings** and **Stellaris**. Closest in feel: **Stronghold / Stronghold Crusader** and **Manor Lords**, where you build and fight in one place.
+- Real time preferred.
+- The feeling of **building up gradually, reaching scale, then playing with that scale**.
+- **Every stage keeps its own challenge**, and combat stays engaging all the way up.
+- Battles use **regiments of many soldiers** that you move as blocks.
+- **Routing units run home**; they don't leave the board.
 
-## Proposed pillars (draft, pending the creator's answers below)
+## Decisions (2026-11-18)
 
-1. **The ladder.** Each title widens what you rule *and changes what you personally do*. The lord leads a few retinue units by hand; the emperor sets fronts and goals and picks who commands.
-2. **You can always take the field.** Any battle can be fought by hand in real time, in the Total War style, or left to a commander or auto-resolve. Scale never takes combat away.
-3. **What you outgrow becomes a character.** Work you stop doing by hand passes to vassals with names, traits and ambitions (Crusader Kings). They make scale manageable, and they become the next rank's challenge: loyalty, rivalry, succession, rebellion.
-4. **One continuous world, real time with pause.** Zoom smoothly from a regiment up to the realm map, as in Supreme Commander or Stellaris; no separate loading screens between map and battle.
+| Topic | Decision |
+|---|---|
+| Setting | **Medieval**, original. Breachline's world may follow later as a spin-off, the way Total War went to Warhammer. |
+| Structure | A **world map** of **points of interest (POIs)**: villages, castles, mines, fords, battlefields. Zoom into any POI to a real-time local map where you **build and fight in one place**. |
+| POIs | **All POIs are equal.** Bring an army to any POI and either build there or march in and fight. |
+| Who you are | A **faction**, not a dynasty of characters. |
+| Length | A **long campaign** with saves. |
+| Players | **Single player first.** |
+| Look | **3D for now** (three.js); not final. |
+| Routs | Broken units **run to the nearest friendly keep or camp and regroup**. Built into the battle test. |
 
-### A challenge for every rank (sketch)
+## How it plays (draft)
 
-| Rank | You command | Main threats | What is new |
+### Two layers, one game
+
+1. **World map (real time with pause).** Armies march between POIs, and you see territory, roads, supply and rival factions. Everything keeps moving while you are zoomed into one place.
+2. **POI map (real time).** A local map in the style of Stronghold or Manor Lords: a keep, fields, workshops and walls, and the battles fought there. Zoom in and out freely; there are no separate battle screens.
+
+### Build and fight in the same place
+
+- **Economy at each POI:** production chains (wood, stone, food, iron → weapons → troops) with organic growth in the style of Manor Lords.
+- **Soldiers come from your people** (Manor Lords): levies are villagers, so losses cost workers. Routers who make it home go back to work. Professional retinues and mercenaries cost money, not people.
+- **Castles and sieges** are the decisive fights: walls, gates, towers, ladders and rams.
+- **Camps:** an army can set up a fortified camp at any POI, and that becomes its home to rout to. Building it up turns it into a new holding.
+
+### The climb
+
+The faction grows from a single holding to a realm on the world map. Each stage widens what you hold and brings a new kind of pressure:
+
+| Stage | Holds | Main pressure | New at this stage |
 |---|---|---|---|
-| Lord | 1–3 retinue units, a village | Bandits, a rival lord, raids | Hand-fought skirmishes, the first keep |
-| Duke | 5–12 regiments, vassal lords | Neighbours, sieges, a disloyal vassal | Levies, castles, marriage |
-| King | Several armies under generals | Rival kingdoms, succession crises | Laws, delegated armies, wars over claims |
-| Emperor | Fronts and theatres | Internal factions, an endgame crisis | Provinces governed by others, grand campaigns |
+| Lord | 1 POI, a retinue | Bandits, a rival lord next door | Building the first village and keep |
+| Baron / Count | A few POIs | Neighbouring lords, raids on outlying POIs | Several holdings, roads, a field army |
+| Duke / King | A region | Rival realms, sieges, unrest | Several armies, specialised POIs |
+| Emperor | Many regions | Rebellions, coalitions, an endgame crisis | Running holdings you rarely visit |
 
-## Technology (proposed)
+**Scale stays playable** because POIs you are not watching run on their own: they produce at abstract rates, and their fights resolve automatically unless you zoom in and take command. You can always drop into any POI and play it by hand.
 
-- **Browser game, plain JavaScript, no build step**, like Breachline: it runs anywhere and is easy to share.
-- **three.js (WebGL) for real 3D.** Soldiers are instanced, so thousands are cheap. The battle test draws 4,700 soldiers with the simulation at about 4.6 ms a tick.
-- **Models:** low-poly figures built in code for now. Later, CC0 model packs (Kenney, Quaternius, KayKit) that are free to use, plus pre-rendering 3D to sprites if a 2D/isometric look wins.
-- **2D art from Codex** where it shines: character portraits, heraldry, event illustrations and UI. The 3D world itself does not need generated images.
-- The world/campaign layer still needs a design. A hex or province map is the likely start.
+## Technology
 
-## Battle test (built 2026-11-18)
+- **Browser game, plain JavaScript, no build step.** It runs anywhere and is easy to share.
+- **three.js (WebGL) for 3D.** Soldiers are instanced: the battle test runs 4,700 soldiers with about 4.6 ms of simulation a tick.
+- **Models:** low-poly shapes built in code for now. Free CC0 packs (Kenney, Quaternius, KayKit) are an option later, and 3D can be pre-rendered to sprites if a 2D or isometric look wins.
+- **2D art from Codex:** faction heraldry, event pictures, the world-map style and UI.
+- **The big technical question:** how to simulate POIs nobody is watching. They need to run cheaply and abstractly, then turn into the full simulation when you zoom in.
 
-`index.html` runs a field battle: 9 regiments a side (spears, swords, archers, cavalry), about 1,200 soldiers in all.
-- Total War–style controls: box select, right click to move or attack, right drag to draw a front line (its length sets the width), pause with orders.
-- Individual soldiers fight in melee; archers shoot arcing arrows with friendly fire; cavalry charges, and braced spears stop a charge from the front.
-- Morale: casualties, flank and rear hits and nearby routs break units. Routing units can rally once.
-- Strategic zoom: banners keep a fixed size on screen, so the whole field reads from above.
-- A simple AI advances in line, then picks fights by unit type.
+## Built so far
+
+**Battle test** (`index.html`), 2026-11-18:
+- 9 regiments a side (spears, swords, archers, cavalry), about 1,200 soldiers, with a keep and village at each side's end of the field.
+- Total War–style orders: box select, right-click to move or attack, right-drag to draw a front line. You can pause and still give orders.
+- Melee between individual soldiers; arcing arrows that can hit your own men; cavalry charges that braced spears stop from the front.
+- Morale, flank and rear hits, and routs. Routers can rally once in the field; otherwise they run to their keep, regroup and come back under orders.
+- Strategic zoom with banners that stay a fixed size on screen.
 - URL options: `?seed=123` for a fixed map, `?scale=4` for four lines a side.
 
-Next battle work, once the questions are answered: terrain effects (hills, woods), generals, unit stats tuned with real play, and sound.
+## Proposed next steps
+
+1. **One POI you can build in:** gather wood, stone and food, put up houses, a keep and a barracks, and raise levies from your villagers. Bandits or a rival lord attack.
+2. **A small world map** with a handful of POIs: march an army from one to another and zoom between the two layers.
+3. **A rival AI faction** that builds and attacks.
+4. Later: sieges and walls, more unit types, saves, and the full climb.
 
 ## Open questions for the creator
 
-1. **Setting:** medieval, Breachline fantasy, historical, or sci-fi?
-2. **Time model:** a real-time-with-pause world map plus real-time battles (proposed), or a turn-based campaign plus real-time battles like Total War?
-3. **Who are you:** a dynasty of characters who age and die (Crusader Kings), or an undying faction (Stellaris)?
-4. **Length of a run:** an evening, a weekend, or a long campaign with saves?
-5. **Players:** single player first, or play against the siblings?
-6. **Look:** real 3D (this test), or 2D/isometric sprites?
+1. **Building placement:** free-form like Manor Lords, or a grid like Stronghold?
+2. **Economy depth:** many buildings and long chains (Stronghold), or fewer and simpler (Manor Lords)?
+3. **World map:** real time with pause (proposed), or turn-based between real-time POIs?
+4. **The reference "Kingdoms medieval wars":** which game is it, so I can look at what it does well?
 
 ## Side project
 
-A simpler, high-level strategy game in the vein of War of Dots or Line Battle: armies as tokens on a map, fronts and supply. It is an original design, built in parallel. **This deeper game takes precedence.**
+A simpler, high-level strategy game in the vein of War of Dots or Line Battle: armies as tokens on a map, fronts and supply. It is an original design built in parallel, in `fronts/`. **This deeper game takes precedence.**

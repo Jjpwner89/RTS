@@ -45,9 +45,10 @@ export class Hud {
       c.state.textContent = `${Math.max(0, r.alive)} · ${b.moraleLabel(r)}`;
       c.el.classList.toggle('selected', selection.has(r));
       c.el.classList.toggle('routing', r.routing);
+      c.el.classList.toggle('regrouping', r.regrouping);
       c.el.classList.toggle('gone', r.gone);
     }
-    const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing).reduce((n, r) => n + r.alive, 0);
+    const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     document.getElementById('strength').innerHTML =
       `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`;
     const m = Math.floor(b.time / 60), s = Math.floor(b.time % 60);
@@ -61,7 +62,7 @@ export class Hud {
       const line = document.createElement('div');
       line.textContent = ev.text;
       line.className = ev.side === 0 ? 'good' : 'bad';
-      if (/routing/.test(ev.text)) line.className = ev.side === 0 ? 'bad' : 'good';
+      if (/routing!/.test(ev.text)) line.className = ev.side === 0 ? 'bad' : 'good';
       this.logEl.prepend(line);
       while (this.logEl.children.length > 4) this.logEl.lastChild.remove();
       setTimeout(() => line.classList.add('fade'), 6000);

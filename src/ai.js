@@ -3,9 +3,9 @@
 
 export function thinkAI(battle, side) {
   if (battle.time < 8 || battle.winner !== null) return;
-  const mine = battle.regs.filter(r => r.side === side && !r.gone && !r.routing);
+  const mine = battle.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping);
   const foes = battle.regs.filter(r => r.side !== side && !r.gone);
-  const standing = foes.filter(r => !r.routing);
+  const standing = foes.filter(r => !r.routing && !r.regrouping);
   if (!mine.length || !standing.length) return;
   const dist = (a, b) => Math.hypot(a.cx - b.cx, a.cz - b.cz);
   const nearest = (r, list) => list.reduce((best, o) => (!best || dist(r, o) < dist(r, best) ? o : best), null);
