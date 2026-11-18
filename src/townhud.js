@@ -98,6 +98,11 @@ export class TownHud {
       el.title = title || '';
       if (el.dataset.act.startsWith('raise:')) el.querySelector('small').textContent = title || `${this.town.levyCheck(el.dataset.act.slice(6)).n} men`;
       if (el.dataset.act === 'pause') el.textContent = selected.paused ? 'Resume work' : 'Pause work';
+      if (el.dataset.act.startsWith('recipe:')) {
+        const off = selected.off.has(+el.dataset.act.slice(7));
+        el.classList.toggle('on', !off);
+        el.querySelector('small').textContent = off ? 'off' : 'on';
+      }
     }
   }
 
@@ -112,7 +117,10 @@ export class TownHud {
     if (B.jobs) rows.push(`<p data-f="workers"></p>`);
     rows.push(`<p data-f="hp"></p>`);
     if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip.</p>`);
-    if (B.recipes) rows.push(`<div class="recipes">${B.recipes.map(r => `<p>${this.goodsList(r.in)} → ${this.goodsList(r.out)}</p>`).join('')}</div>`);
+    if (B.recipes) {
+      rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${this.goodsList(r.in)} → ${this.goodsList(r.out)}</span><small></small></button>`).join('')}</div>`);
+      if (B.recipes.length > 1) rows.push(`<p class="note">Click to switch what this workshop makes. With several on, it takes turns. Build a second one to make both at full speed.</p>`);
+    }
     if (B.housing) rows.push(`<p class="note">Room for ${B.housing} more villagers.</p>`);
     if (b.kind === 'barracks' && b.state === 'active') {
       rows.push(`<h4>Call up a levy</h4>`);
@@ -156,6 +164,7 @@ export class TownHud {
 
   act(act) {
     const t = this.town;
+    if (act.startsWith('recipe:')) t.toggleRecipe(this.selected, +act.slice(7));
     if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
     if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
     if (act === 'disband' && t.disband(this.reg)) this.hooks.deselect();

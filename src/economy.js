@@ -25,10 +25,11 @@ export const GOOD_GROUPS = [
 ];
 
 // gather: villagers walk out to a resource and carry it back.
-// recipes: villagers work at the building, turning stock into stock. Earlier recipes
-// come first; `keep` stops a recipe once that much of its output is stored.
-// Crafting never dips into this much building material, so construction can go on.
-const RESERVE = { wood: 20, planks: 20 };
+// recipes: villagers work at the building, turning stock into stock. Each workshop can
+// switch any of its recipes off; it takes turns between those left on. `keep` stops a
+// recipe once that much of its output is stored.
+// Crafting never burns the last of the wood, so construction can go on.
+const RESERVE = { wood: 20 };
 export const BUILDINGS = {
   house: { name: 'House', icon: '🏠', group: 'Homes', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers.' },
@@ -45,7 +46,7 @@ export const BUILDINGS = {
   flax: { name: 'Flax field', icon: '🌿', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
     gather: { node: 'field', time: 8, out: { flax: 2 } }, desc: 'Grows flax for bowstring.' },
   carpenter: { name: 'Carpenter', icon: '🪚', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 25 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 20 }],
+    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 20 }],
     desc: 'Saws wood into planks, and planks into shields.' },
   ropemaker: { name: 'Ropemaker', icon: '🧵', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { flax: 2 }, out: { string: 1 }, time: 7, keep: 20 }], desc: 'Twists flax into bowstring.' },
@@ -172,7 +173,8 @@ export class Town {
     for (const [g, n] of Object.entries(B.cost)) this.stock[g] -= n;
     for (const t of this.nodes.tree) if (t.standing && Math.hypot(t.x - x, t.z - z) < B.radius + 2) this.trees.fell(t);
     const b = { id: this.buildings.length + 1, kind, B, x, z, angle: Math.atan2(-x, -z), state: 'site', progress: 0,
-      hp: B.hp, workers: [], builders: [], paused: false, recipe: null, timer: 0, status: 'Waiting for builders' };
+      hp: B.hp, workers: [], builders: [], paused: false, recipe: null, timer: 0, status: 'Waiting for builders',
+      off: new Set(), turn: 0 };
     this.buildings.push(b);
     return { ok: true, building: b };
   }
@@ -183,6 +185,11 @@ export class Town {
     if (b.state !== 'ruined') for (const [g, n] of Object.entries(b.B.cost)) this.stock[g] += Math.floor(n / 2);
     this.buildings = this.buildings.filter(o => o !== b);
     b.removed = true;
+  }
+
+  // Switches one of a workshop's recipes on or off.
+  toggleRecipe(b, i) {
+    if (b.off.has(i)) b.off.delete(i); else b.off.add(i);
   }
 
   setPaused(b, paused) {
@@ -404,14 +411,23 @@ export class Town {
       }
       return;
     }
-    // The first recipe still below its stock target whose inputs are in, leaving the reserve.
-    const wanted = b.B.recipes.filter(r => Object.entries(r.out).every(([k]) => this.stock[k] < r.keep));
-    const ready = wanted.find(r => Object.entries(r.in).every(([k, n]) => this.stock[k] - n >= (RESERVE[k] || 0)));
+    // Take turns among the recipes switched on that are below their stock target and
+    // whose inputs are in, leaving the wood reserve.
+    const list = b.B.recipes;
+    const wanted = list.filter((r, i) => !b.off.has(i) && Object.entries(r.out).every(([k]) => this.stock[k] < r.keep));
+    const can = r => Object.entries(r.in).every(([k, n]) => this.stock[k] - n >= (RESERVE[k] || 0));
+    let ready = null;
+    for (let k = 0; k < list.length && !ready; k++) {
+      const i = (b.turn + k) % list.length;
+      if (wanted.includes(list[i]) && can(list[i])) { ready = list[i]; b.turn = i + 1; }
+    }
     if (ready) {
       for (const [k, n] of Object.entries(ready.in)) this.stock[k] -= n;
       b.recipe = ready;
       b.timer = ready.time;
       b.status = `Making ${GOODS[Object.keys(ready.out)[0]].name.toLowerCase()}`;
+    } else if (b.off.size === list.length) {
+      b.status = 'Nothing switched on';
     } else if (wanted.length) {
       const missing = Object.keys(wanted[0].in).filter(k => this.stock[k] - wanted[0].in[k] < (RESERVE[k] || 0));
       b.status = `Waiting for ${missing.map(k => GOODS[k].name.toLowerCase()).join(' and ')}`;
