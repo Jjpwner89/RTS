@@ -237,9 +237,24 @@ export class Town {
     return { ok: true, reg: r };
   }
 
-  // Survivors hand back their kit and go home to work.
+  // Survivors hand back their kit and go home to work. The lord's retinue can be sent
+  // to work too: each man becomes a villager and leaves a sword and a shield in the
+  // stores, so the barracks can arm them again later.
   disband(r) {
-    if (!r.levy || r.gone || r.routing) return false;
+    if (r.gone || r.routing) return false;
+    if (r.retinue) {
+      let n = 0;
+      for (const s of r.soldiers) {
+        if (!s.alive || s.gone) continue;
+        this.addVillager(s.x, s.z);
+        for (const [g, k] of Object.entries(KITS.sword.kit)) this.stock[g] += k;
+        n++;
+      }
+      this.battle.disband(r);
+      this.event(`The lord's retinue hung up their swords: ${n} new villagers.`);
+      return true;
+    }
+    if (!r.levy) return false;
     for (const s of r.soldiers) {
       if (!s.alive || s.gone || !s.villager) continue;
       const v = s.villager;

@@ -111,7 +111,7 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - Food: villagers eat; houses add room; new families settle while there is food and room.
 - Barracks: call up a levy of 5–20 villagers if their kit is in stock. Their deaths are villagers lost. Disband returns the survivors and their kit to work.
 - Bandit raids from 5:00, growing with each wave (archers from wave 3). Villagers flee to the keep. Raiders burn what they reach and leave after three fires or about 2½ minutes. If the keep falls, the game is lost.
-- The lord's retinue of 20 swordsmen costs no villagers.
+- The lord's retinue of 20 swordsmen costs no villagers. You can send it to work: the men become villagers and their 20 swords and shields go to the stores, so a barracks can arm them again as a levy.
 
 **Battle test** (`battle.html`), 2026-11-18:
 - 9 regiments a side (spears, swords, archers, cavalry), about 1,200 soldiers, with a keep and village at each side's end of the field.

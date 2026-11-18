@@ -138,7 +138,8 @@ export class TownHud {
   regHtml(r) {
     const rows = [`<h3>${r.name}</h3>`, `<p data-f="men"></p>`, `<p class="status" data-f="morale"></p>`];
     if (r.levy) rows.push(`<button data-act="disband" class="wide"><span>Disband</span><small>send them home to work</small></button>`);
-    else if (r.retinue) rows.push(`<p class="note">Your own household troops. They cost no villagers.</p>`);
+    else if (r.retinue) rows.push(`<p class="note">Your own household troops. They cost no villagers.</p>`,
+      `<button data-act="disband" class="wide"><span>Send them to work</span><small>kit goes to the stores</small></button>`);
     return rows.join('');
   }
 
