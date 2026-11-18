@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marchfront</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<header id="hud">
+  <div class="realm r0"><span class="sw"></span><b>Halvard March</b><span id="you" class="stats"></span></div>
+  <div class="mid">
+    <button id="pause" title="Pause (Space)">❚❚</button>
+    <button data-speed="1" title="Speed (1)">1×</button><button data-speed="2" title="Speed (2)">2×</button><button data-speed="4" title="Speed (3)">4×</button>
+    <span id="clock">0:00</span>
+  </div>
+  <div class="realm r1"><span id="foe" class="stats"></span><b>Corvane Dominion</b><span class="sw"></span></div>
+</header>
+
+<div id="pausedTag" hidden>Paused: you can still give orders</div>
+<div id="log"></div>
+
+<footer id="bar">
+  <div class="actions">
+    <button id="raise" title="Raise a new army at a town (R)">⚑ Raise army <small>30</small></button>
+    <button id="split" title="Split the selected armies in two (S)">Split</button>
+    <button id="hold" title="Stop and dig in (H)">Hold</button>
+    <button id="line" title="Draw a line to spread the selected armies along it (L, or Shift-drag)">Line</button>
+    <button id="help" title="Controls">?</button>
+  </div>
+  <div id="info"></div>
+</footer>
+
+<aside id="howto">
+  <p><b>Drag</b> from an army: move · onto an enemy: attack · onto a friend: merge</p>
+  <p><b>Drag</b> on the map: select several · <b>Shift</b> adds</p>
+  <p><b>Right click</b>: send the selection · <b>Shift-drag</b> or <b>L</b>: spread along a line</p>
+  <p><b>R</b> raise · <b>S</b> split · <b>H</b> hold · <b>A</b> select all · <b>Esc</b> clear</p>
+  <p><b>Space</b> pause · <b>1 2 3</b> speed · <b>Scroll</b> zoom · <b>Middle drag</b> or arrows: pan</p>
+</aside>
+
+<div id="screen" class="overlay" hidden></div>
+
+<script src="js/map.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

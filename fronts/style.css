@@ -1,0 +1,87 @@
+:root {
+  --ink: #2a1f14;
+  --paper: #efe4c8;
+  --panel: rgba(36, 29, 21, 0.92);
+  --panel-text: #efe4c8;
+  --dim: #b9aa88;
+  --s0: rgb(47, 93, 138);
+  --s1: rgb(156, 58, 46);
+  --gold: #e8c46a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #231f1a; color: var(--panel-text); font: 14px/1.4 Georgia, 'Times New Roman', serif; }
+canvas { display: block; touch-action: none; }
+button {
+  font: inherit; color: var(--panel-text); background: rgba(255, 245, 220, 0.08);
+  border: 1px solid rgba(239, 228, 200, 0.28); border-radius: 4px; padding: 4px 10px; cursor: pointer;
+}
+button:hover:not(:disabled) { background: rgba(255, 245, 220, 0.18); }
+button.on { background: var(--gold); color: var(--ink); border-color: var(--gold); }
+button:disabled { opacity: 0.4; cursor: default; }
+small { color: var(--dim); font-size: 0.82em; }
+button.on small { color: var(--ink); }
+
+#hud {
+  position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 12px; padding-top: max(6px, env(safe-area-inset-top)); background: var(--panel); border-bottom: 1px solid #000;
+}
+.realm { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.realm.r1 { justify-content: flex-end; }
+.realm b { white-space: nowrap; }
+.sw { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--paper); flex: none; }
+.r0 .sw { background: var(--s0); }
+.r1 .sw { background: var(--s1); }
+.stats { display: flex; gap: 12px; color: var(--dim); white-space: nowrap; }
+.mid { display: flex; align-items: center; gap: 4px; }
+#clock { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); }
+
+#bar {
+  position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 6px 12px; padding-bottom: max(6px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid #000;
+}
+.actions { display: flex; gap: 6px; }
+#info { color: var(--dim); min-width: 0; }
+.warn { color: #f0a030; }
+
+#pausedTag {
+  position: fixed; top: 52px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--ink);
+  padding: 3px 12px; border-radius: 4px; font-weight: bold; pointer-events: none;
+}
+#log { position: fixed; right: 12px; top: 56px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+#log .ev { background: var(--panel); padding: 3px 10px; border-radius: 4px; border-left: 4px solid; font-size: 13px; }
+#log .ev.s0 { border-color: var(--s0); }
+#log .ev.s1 { border-color: var(--s1); }
+#log .ev:nth-child(n+4) { opacity: 0.6; }
+
+#howto {
+  position: fixed; left: 12px; bottom: 56px; background: var(--panel); padding: 8px 14px; border-radius: 6px;
+  max-width: 460px; display: none; font-size: 13px;
+}
+#howto.open { display: block; }
+#howto p { margin: 4px 0; }
+
+.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 15, 10, 0.55); padding: 16px; }
+.overlay[hidden] { display: none; }
+.card {
+  background: var(--paper); color: var(--ink); max-width: 560px; width: 100%; padding: 24px 28px; border-radius: 6px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); border: 1px solid #8a7550; max-height: calc(100vh - 32px); overflow: auto;
+}
+.card h1 { margin: 0; font-size: 34px; letter-spacing: 0.04em; }
+.card .sub { margin: 2px 0 12px; color: #6d5a3c; font-style: italic; }
+.card ul { padding-left: 20px; }
+.card li { margin: 5px 0; }
+.card .s0 { color: var(--s0); }
+.card .s1 { color: var(--s1); }
+.card button { color: var(--ink); background: rgba(80, 60, 30, 0.08); border-color: #8a7550; padding: 8px 18px; font-size: 16px; }
+.card button:hover { background: rgba(80, 60, 30, 0.18); }
+.card button.on { background: var(--ink); color: var(--paper); }
+.card .diff { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.card table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+.card td, .card th { padding: 4px 8px; text-align: right; border-bottom: 1px solid rgba(80, 60, 30, 0.2); }
+.card td:first-child { text-align: left; }
+
+@media (max-width: 720px) {
+  .realm b { display: none; }
+  .stats { gap: 8px; font-size: 12px; }
+  #info { font-size: 12px; width: 100%; }
+}
