@@ -82,7 +82,7 @@ export class Controls {
     if (key === ' ') { e.preventDefault(); this.hooks.togglePause(); }
     if (key === 'h') this.battle.orderHalt([...this.selection]);
     if (key === 'f') this.focus(this.selection);
-    if (key === 'escape') this.setSelection([]);
+    if (key === 'escape' && !this.hooks.cancelPlacement?.()) this.setSelection([]);
     if (key === 'a' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       this.keys.delete('a');
@@ -136,12 +136,15 @@ export class Controls {
   setSelection(regs, add = false) {
     if (!add) this.selection.clear();
     for (const r of regs) if (r.side === 0 && !r.gone) this.selection.add(r);
-    this.hooks.selectionChanged();
+    this.hooks.selectionChanged(this.selection);
   }
 
   // ---- mouse ----
 
+  // Optional hooks for maps with buildings: place(ground) while placing,
+  // cancelPlacement(), hover(ground), pickBuilding(ground).
   onDown(e) {
+    if (e.button === 2 && this.hooks.cancelPlacement?.()) { this.drag = null; return; }
     if (e.button === 0) this.drag = { kind: 'select', x: e.clientX, y: e.clientY, moved: false };
     if (e.button === 2) this.drag = { kind: 'order', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false };
     if (e.button === 1) { e.preventDefault(); this.drag = { kind: 'rotate', x: e.clientX, y: e.clientY, yaw: this.cam.yaw }; }
@@ -150,6 +153,7 @@ export class Controls {
   onMove(e) {
     this.mouse = { x: e.clientX, y: e.clientY };
     const d = this.drag;
+    if (!d && e.target === this.dom) this.hooks.hover?.(this.groundAt(e.clientX, e.clientY));
     if (!d) {
       const hover = e.target === this.dom ? this.regAt(e.clientX, e.clientY) : null;
       this.dom.style.cursor = hover && hover.side === 1 && this.selection.size ? 'crosshair' : hover && hover.side === 0 ? 'pointer' : 'default';
@@ -197,7 +201,9 @@ export class Controls {
         });
         this.setSelection(inside, e.shiftKey);
       } else {
+        if (this.hooks.place?.(this.groundAt(e.clientX, e.clientY), e)) return;
         const r = this.regAt(e.clientX, e.clientY);
+        if (!r && this.hooks.pickBuilding?.(this.groundAt(e.clientX, e.clientY))) { this.setSelection([]); return; }
         if (r && r.side === 0 && e.shiftKey && this.selection.has(r)) { this.selection.delete(r); this.hooks.selectionChanged(); }
         else this.setSelection(r && r.side === 0 ? [r] : [], e.shiftKey);
       }

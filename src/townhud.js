@@ -1,0 +1,167 @@
+// Town panels: the stockpile, the build menu, and details of whatever is selected.
+// Panels are built once per selection and then only their numbers change, so a
+// button never disappears from under the cursor mid-click.
+import { GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, KITS, listCost } from './economy.js';
+
+const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+export class TownHud {
+  constructor(town, hooks) {
+    this.town = town;
+    this.hooks = hooks;
+    this.stockEl = document.getElementById('stock');
+    this.buildEl = document.getElementById('build');
+    this.infoEl = document.getElementById('info');
+    this.toastEl = document.getElementById('toast');
+    this.tab = 'Homes';
+    this.infoKey = null;
+    this.buildStock();
+    this.buildMenu();
+    this.infoEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-act]');
+      if (btn && !btn.disabled) this.act(btn.dataset.act);
+    });
+  }
+
+  buildStock() {
+    this.stockEl.innerHTML = `
+      <div class="people"><span data-s="pop"></span><span data-s="idle"></span></div>
+      <div class="warn" data-s="hunger"></div>
+      <div class="raid" data-s="raid"></div>
+      ${GOOD_GROUPS.map(([label, goods]) => `
+        <h4>${label}</h4>
+        <div class="goods">${goods.map(g => `<span title="${GOODS[g].name}"><i>${GOODS[g].icon}</i><b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
+    this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
+  }
+
+  buildMenu() {
+    const tabs = BUILD_GROUPS.map(g => `<button class="tab" data-tab="${g}">${g}</button>`).join('');
+    const items = Object.entries(BUILDINGS).map(([k, B]) => `
+      <button class="item" data-build="${k}" data-group="${B.group}" title="${B.desc}">
+        <i>${B.icon}</i><span>${B.name}</span><small>${listCost(B.cost)}</small>
+      </button>`).join('');
+    this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="hint">Shift-click to place several · right-click or Esc to stop</div>`;
+    this.buildEl.addEventListener('click', e => {
+      const tab = e.target.closest('[data-tab]');
+      if (tab) { this.tab = tab.dataset.tab; return; }
+      const item = e.target.closest('[data-build]');
+      if (item) this.hooks.startPlacing(item.dataset.build);
+    });
+    this.itemEls = [...this.buildEl.querySelectorAll('[data-build]')];
+    this.tabEls = [...this.buildEl.querySelectorAll('[data-tab]')];
+  }
+
+  flash(text) {
+    this.toastEl.textContent = text;
+    this.toastEl.classList.add('show');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.toastEl.classList.remove('show'), 1800);
+  }
+
+  update(selected, regs, placing) {
+    const t = this.town, s = t.stock;
+    for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
+    const set = (k, v) => { this.stockEl.querySelector(`[data-s="${k}"]`).textContent = v; };
+    set('pop', `👥 ${t.population} / ${t.housing}`);
+    set('idle', `${t.idle} idle`);
+    set('hunger', t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
+    set('raid', t.raid.active ? '⚔️ Raid under way!' : `Bandits expected in ${clock(t.raid.next)}`);
+    this.stockEl.querySelector('.raid').classList.toggle('now', t.raid.active);
+
+    for (const el of this.tabEls) el.classList.toggle('on', el.dataset.tab === this.tab);
+    for (const el of this.itemEls) {
+      el.hidden = el.dataset.group !== this.tab;
+      el.classList.toggle('poor', !t.canAfford(BUILDINGS[el.dataset.build].cost));
+      el.classList.toggle('on', placing === el.dataset.build);
+    }
+    this.updateInfo(selected, regs);
+  }
+
+  // ---- the details panel ----
+
+  updateInfo(selected, regs) {
+    const reg = !selected && regs.length === 1 ? regs[0] : null;
+    const key = selected ? `b${selected.id || 'keep'}:${selected.state}` : reg ? `r${reg.id}` : '';
+    this.selected = selected;
+    this.reg = reg;
+    if (key !== this.infoKey) {
+      this.infoKey = key;
+      this.infoEl.innerHTML = selected ? this.buildingHtml(selected) : reg ? this.regHtml(reg) : '';
+      this.infoEl.hidden = !key;
+    }
+    if (!key) return;
+    for (const el of this.infoEl.querySelectorAll('[data-f]')) el.textContent = this.field(el.dataset.f);
+    for (const el of this.infoEl.querySelectorAll('[data-act]')) {
+      const [ok, title] = this.allowed(el.dataset.act);
+      el.disabled = !ok;
+      el.title = title || '';
+      if (el.dataset.act.startsWith('raise:')) el.querySelector('small').textContent = title || `${this.town.levyCheck(el.dataset.act.slice(6)).n} men`;
+      if (el.dataset.act === 'pause') el.textContent = selected.paused ? 'Resume work' : 'Pause work';
+    }
+  }
+
+  buildingHtml(b) {
+    const B = b.B;
+    const rows = [`<h3><i>${B.icon}</i> ${B.name}</h3>`, `<p class="status" data-f="status"></p>`];
+    if (b.kind === 'keep') {
+      rows.push(`<p data-f="hp"></p><p class="note">Home for 12 villagers and your stockpile. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`);
+      return rows.join('');
+    }
+    if (b.state === 'site') rows.push(`<p data-f="progress"></p>`);
+    if (B.jobs) rows.push(`<p data-f="workers"></p>`);
+    rows.push(`<p data-f="hp"></p>`);
+    if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip.</p>`);
+    if (B.recipes) rows.push(`<div class="recipes">${B.recipes.map(r => `<p>${this.goodsList(r.in)} → ${this.goodsList(r.out)}</p>`).join('')}</div>`);
+    if (B.housing) rows.push(`<p class="note">Room for ${B.housing} more villagers.</p>`);
+    if (b.kind === 'barracks' && b.state === 'active') {
+      rows.push(`<h4>Call up a levy</h4>`);
+      for (const [k, K] of Object.entries(KITS)) {
+        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)}</p>`);
+      }
+    }
+    const buttons = [];
+    if (B.jobs && b.state === 'active') buttons.push(`<button data-act="pause"></button>`);
+    buttons.push(`<button data-act="demolish">${b.state === 'ruined' ? 'Clear ruin' : 'Demolish'}</button>`);
+    rows.push(`<div class="row">${buttons.join('')}</div>`);
+    return rows.join('');
+  }
+
+  regHtml(r) {
+    const rows = [`<h3>${r.name}</h3>`, `<p data-f="men"></p>`, `<p class="status" data-f="morale"></p>`];
+    if (r.levy) rows.push(`<button data-act="disband" class="wide"><span>Disband</span><small>send them home to work</small></button>`);
+    else if (r.retinue) rows.push(`<p class="note">Your own household troops. They cost no villagers.</p>`);
+    return rows.join('');
+  }
+
+  goodsList(goods) { return Object.entries(goods).map(([g, n]) => `${n} ${GOODS[g].icon}`).join(' + '); }
+
+  field(f) {
+    const b = this.selected, r = this.reg;
+    if (f === 'status') return b.state === 'ruined' ? 'Burned by raiders' : b.kind === 'keep' ? `${this.town.population} villagers` : b.status;
+    if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
+    if (f === 'workers') return `Workers: ${b.workers.length} / ${b.B.jobs}`;
+    if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
+    if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : ''}`;
+    if (f === 'morale') return this.hooks.moraleLabel(r);
+    return '';
+  }
+
+  allowed(act) {
+    const t = this.town;
+    if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6)); return [c.ok, c.reason]; }
+    if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
+    return [true];
+  }
+
+  act(act) {
+    const t = this.town;
+    if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
+    if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
+    if (act === 'disband' && t.disband(this.reg)) this.hooks.deselect();
+    if (act.startsWith('raise:')) {
+      const res = t.raise(act.slice(6), this.selected);
+      if (!res.ok) this.flash(res.reason);
+      else this.hooks.selectRegiment(res.reg);
+    }
+  }
+}

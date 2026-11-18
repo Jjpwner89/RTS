@@ -8,7 +8,7 @@ const EXTENT = 380;               // mesh reaches past the edge so fog hides the
 // Each side's keep. Broken regiments run back here and regroup instead of leaving the map.
 export const HOMES = [{ x: 0, z: 205 }, { x: 0, z: -205 }];
 
-export function makeHeight(seed) {
+export function makeHeight(seed, flats = HOMES) {
   const raw = (x, z) => {
     const broad = fbm(x * 0.006, z * 0.006, seed, 4);
     const detail = fbm(x * 0.03, z * 0.03, seed + 7, 2);
@@ -17,7 +17,7 @@ export function makeHeight(seed) {
     return (broad - 0.45) * 34 * valley + (detail - 0.5) * 1.6;
   };
   // Level ground for each keep and its village.
-  const pads = HOMES.map(h => ({ ...h, y: raw(h.x, h.z) }));
+  const pads = flats.map(h => ({ ...h, y: raw(h.x, h.z) }));
   return (x, z) => {
     let y = raw(x, z);
     for (const p of pads) {
@@ -30,7 +30,9 @@ export function makeHeight(seed) {
   };
 }
 
-export function buildTerrain(scene, heightAt, seed) {
+// clear(x, z): where no trees may grow. woods: 0..1, lower means more forest.
+// Returns the ground mesh and the trees, which can be felled one by one.
+export function buildTerrain(scene, heightAt, seed, { clear = (x, z) => Math.abs(x) < 120 && Math.abs(z) < 250, woods = 0.56, count = 900 } = {}) {
   const seg = 220;
   const geo = new THREE.PlaneGeometry(EXTENT * 2, EXTENT * 2, seg, seg);
   geo.rotateX(-Math.PI / 2);
@@ -55,21 +57,22 @@ export function buildTerrain(scene, heightAt, seed) {
   const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
   mesh.receiveShadow = true;
   scene.add(mesh);
-  scene.add(buildTrees(heightAt, seed));
-  return mesh;
+  const trees = buildTrees(heightAt, seed, clear, woods, count);
+  scene.add(trees.group);
+  return { mesh, trees };
 }
 
 // Woods gather in patches and stay off the open ground where the armies deploy.
-function buildTrees(heightAt, seed) {
+function buildTrees(heightAt, seed, clear, woods, count) {
   const rand = rng(seed + 5);
   const trunk = new THREE.CylinderGeometry(0.25, 0.35, 2, 5).translate(0, 1, 0);
   const crown = new THREE.ConeGeometry(2.2, 6, 6).translate(0, 4.6, 0);
   const group = new THREE.Group();
   const spots = [];
-  for (let tries = 0; spots.length < 900 && tries < 20000; tries++) {
+  for (let tries = 0; spots.length < count && tries < count * 25; tries++) {
     const x = (rand() * 2 - 1) * (EXTENT - 10), z = (rand() * 2 - 1) * (EXTENT - 10);
-    if (fbm(x * 0.012, z * 0.012, seed + 71, 3) < 0.56) continue;
-    if (Math.abs(x) < 120 && Math.abs(z) < 250) continue;
+    if (fbm(x * 0.012, z * 0.012, seed + 71, 3) < woods) continue;
+    if (clear(x, z)) continue;
     spots.push([x, z, 0.7 + rand() * 0.6]);
   }
   const trunks = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: '#5a4430' }), spots.length);
@@ -85,7 +88,17 @@ function buildTrees(heightAt, seed) {
     crowns.setColorAt(i, tint.setHSL(0.27 + rand() * 0.06, 0.35, 0.22 + rand() * 0.08));
   });
   for (const mesh of [trunks, crowns]) { mesh.castShadow = true; group.add(mesh); }
-  return group;
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  return {
+    group,
+    spots: spots.map(([x, z], i) => ({ x, z, i, standing: true })),
+    fell(spot) {
+      spot.standing = false;
+      trunks.setMatrixAt(spot.i, zero);
+      crowns.setMatrixAt(spot.i, zero);
+      trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = true;
+    },
+  };
 }
 
 // March a ray across the heightfield; cheaper than raycasting the mesh on every mouse move.

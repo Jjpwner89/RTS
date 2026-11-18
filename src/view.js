@@ -8,7 +8,7 @@ export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
 
 // ---- soldier models, built from primitives facing +z ----
 
-function part(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0 } = {}) {
+export function part(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0 } = {}) {
   geo = geo.index ? geo.toNonIndexed() : geo;
   geo.rotateX(rx); geo.rotateY(ry); geo.rotateZ(rz);
   geo.translate(x, y, z);
@@ -19,10 +19,10 @@ function part(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0 } = {}) 
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return geo;
 }
-const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-const cyl = (r1, r2, h, s = 6) => new THREE.CylinderGeometry(r1, r2, h, s);
+export const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+export const cyl = (r1, r2, h, s = 6) => new THREE.CylinderGeometry(r1, r2, h, s);
 
-const SKIN = '#d6ad88', METAL = '#a3a8ad', DARK = '#3b3631', WOOD = '#7a5a3a', LEATHER = '#5e4632', HORSE = '#6b4a32';
+export const SKIN = '#d6ad88', METAL = '#a3a8ad', DARK = '#3b3631', WOOD = '#7a5a3a', LEATHER = '#5e4632', HORSE = '#6b4a32';
 const CLOTH = '#ffffff';  // tinted per instance with the side's colour
 
 function infantry(key) {
@@ -36,10 +36,15 @@ function infantry(key) {
     part(box(0.13, 0.6, 0.14), CLOTH, { x: -0.33, y: 1.15 }),
     part(box(0.13, 0.6, 0.14), CLOTH, { x: 0.33, y: 1.15 }),
   ];
-  if (key === 'archer') {
+  if (key === 'archer' || key === 'bandit') {
     cloth.push(part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), CLOTH, { y: 1.67 }));
+  }
+  if (key === 'archer') {
     gear.push(part(box(0.04, 1.3, 0.05), WOOD, { x: -0.36, y: 1.25, z: 0.28 }));
     gear.push(part(box(0.12, 0.5, 0.12), LEATHER, { x: 0.15, y: 1.35, z: -0.22, rx: 0.3 }));
+  } else if (key === 'bandit') {
+    gear.push(part(cyl(0.035, 0.035, 0.9, 4), WOOD, { x: 0.38, y: 1.3, z: 0.25, rx: 0.5 }));
+    gear.push(part(box(0.06, 0.22, 0.26), METAL, { x: 0.38, y: 1.68, z: 0.48, rx: 0.5 }));
   } else {
     gear.push(part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), METAL, { y: 1.68 }));
   }
@@ -79,9 +84,9 @@ function cavalry() {
 
 // ---- each side's keep and the village around it ----
 
-const STONE = '#9b968a', STONE_DARK = '#7d786d', THATCH = '#b8955a', PLASTER = '#d8ccb0';
+export const STONE = '#9b968a', STONE_DARK = '#7d786d', THATCH = '#b8955a', PLASTER = '#d8ccb0';
 
-function keepModel() {
+export function keepModel({ palisade = true } = {}) {
   const parts = [
     part(box(14, 16, 14), STONE, { y: 8 }),
     part(box(2, 4, 0.6), DARK, { y: 2, z: 7.1 }),
@@ -98,7 +103,7 @@ function keepModel() {
     }
   }
   // A ring of palisade stakes around keep and village.
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; palisade && i < 64; i++) {
     const a = i / 64 * Math.PI * 2;
     if (Math.cos(a) > 0.97) continue;   // a gate facing the field
     parts.push(part(cyl(0.35, 0.35, 4, 5), WOOD, { x: Math.sin(a) * 30, y: 2, z: Math.cos(a) * 30 }));
@@ -107,7 +112,7 @@ function keepModel() {
   return mergeGeometries(parts);
 }
 
-function houseModel() {
+export function houseModel() {
   return mergeGeometries([
     part(box(4, 2.6, 5), PLASTER, { y: 1.3 }),
     part(new THREE.ConeGeometry(3.6, 2.4, 4), THATCH, { y: 3.8, ry: Math.PI / 4 }),
@@ -158,6 +163,9 @@ export function drawIcon(ctx, key, cx, cy, s) {
     ctx.arc(-4, 0, 13, -1.2, 1.2); ctx.moveTo(-4 + 13 * Math.cos(-1.2), 13 * Math.sin(-1.2));
     ctx.lineTo(-4 + 13 * Math.cos(1.2), 13 * Math.sin(1.2)); ctx.moveTo(-12, 0); ctx.lineTo(14, 0); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(10, -4); ctx.lineTo(10, 4); ctx.fill();
+  } else if (key === 'bandit') {
+    ctx.moveTo(-10, 13); ctx.lineTo(8, -9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, -15); ctx.quadraticCurveTo(16, -12, 14, 2); ctx.lineTo(4, -6); ctx.closePath(); ctx.fill();
   } else if (key === 'cav') {
     ctx.moveTo(-12, 12); ctx.lineTo(-6, -2); ctx.lineTo(-2, -12); ctx.lineTo(6, -8); ctx.lineTo(12, 0);
     ctx.lineTo(8, 3); ctx.lineTo(2, -2); ctx.lineTo(4, 12); ctx.closePath(); ctx.fill();
@@ -185,47 +193,63 @@ function bannerTexture(side, key, selected) {
 // ---- the view ----
 
 export class BattleView {
-  constructor(scene, battle, heightAt) {
+  // capacity: soldiers of each type to make room for, beyond those already on the field.
+  constructor(scene, battle, heightAt, { capacity = 0, keeps = true } = {}) {
     this.scene = scene;
     this.battle = battle;
     this.heightAt = heightAt;
     this.dummy = new THREE.Object3D();
     this.dummy.rotation.order = 'YXZ';
-    this.buildSoldiers();
+    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.tint = new THREE.Color();
+    this.base = SIDE_COLORS.map(c => new THREE.Color(c));
+    this.capacity = capacity;
+    this.meshes = {};
+    this.seenSoldiers = 0;
+    this.banners = [];
+    this.syncSoldiers();
     this.buildArrows();
-    this.buildBanners();
-    buildKeeps(scene, heightAt);
+    this.syncBanners();
+    if (keeps) buildKeeps(scene, heightAt);
     this.outlines = new THREE.Group();
     scene.add(this.outlines);
     this.preview = [];
   }
 
-  buildSoldiers() {
+  // One pair of instanced meshes per unit type, made the first time that type appears.
+  // Regiments raised later take the next free instances.
+  syncSoldiers() {
     const b = this.battle;
-    this.meshes = {};
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    const tint = new THREE.Color(), base = SIDE_COLORS.map(c => new THREE.Color(c));
-    for (const key of Object.keys(TYPES)) {
-      const list = b.soldiers.filter(s => s.reg.T.key === key);
-      if (!list.length) continue;
-      const model = key === 'cav' ? cavalry() : infantry(key);
-      const gear = new THREE.InstancedMesh(model.gear, mat, list.length);
-      const cloth = new THREE.InstancedMesh(model.cloth, mat, list.length);
-      list.forEach((s, i) => {
-        s.instance = i;
-        // A little variation in each man's dye keeps the blocks from looking printed.
-        tint.copy(base[s.reg.side]).multiplyScalar(0.85 + Math.random() * 0.3);
-        cloth.setColorAt(i, tint);
-        gear.setColorAt(i, tint.setScalar(0.9 + Math.random() * 0.2));
-      });
-      for (const m of [gear, cloth]) {
-        m.castShadow = true;
-        m.frustumCulled = false;
-        m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.scene.add(m);
-      }
-      this.meshes[key] = { gear, cloth, list, darkened: new Set() };
+    for (let i = this.seenSoldiers; i < b.soldiers.length; i++) {
+      const s = b.soldiers[i], key = s.reg.T.key;
+      let m = this.meshes[key];
+      if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => o.reg.T.key === key).length));
+      if (m.list.length >= m.gear.instanceMatrix.count) continue;   // out of room: not drawn
+      s.instance = m.list.length;
+      m.list.push(s);
+      // A little variation in each man's dye keeps the blocks from looking printed.
+      this.tint.copy(this.base[s.reg.side]).multiplyScalar(0.85 + Math.random() * 0.3);
+      m.cloth.setColorAt(s.instance, this.tint);
+      m.gear.setColorAt(s.instance, this.tint.setScalar(0.9 + Math.random() * 0.2));
+      m.cloth.count = m.gear.count = m.list.length;
+      m.cloth.instanceColor.needsUpdate = m.gear.instanceColor.needsUpdate = true;
     }
+    this.seenSoldiers = b.soldiers.length;
+  }
+
+  makeMeshes(key, capacity) {
+    const model = key === 'cav' ? cavalry() : infantry(key);
+    const gear = new THREE.InstancedMesh(model.gear, this.mat, capacity);
+    const cloth = new THREE.InstancedMesh(model.cloth, this.mat, capacity);
+    for (const m of [gear, cloth]) {
+      m.setColorAt(0, this.tint.setScalar(1));
+      m.count = 0;
+      m.castShadow = true;
+      m.frustumCulled = false;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.scene.add(m);
+    }
+    return { gear, cloth, list: [], darkened: new Set() };
   }
 
   buildArrows() {
@@ -236,16 +260,16 @@ export class BattleView {
     this.scene.add(this.arrowMesh);
   }
 
-  buildBanners() {
-    this.banners = this.battle.regs.map(r => {
+  syncBanners() {
+    for (const r of this.battle.regs.slice(this.banners.length)) {
       const tex = [bannerTexture(r.side, r.T.key, false), bannerTexture(r.side, r.T.key, true)];
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true }));
       sprite.scale.set(0.032, 0.04, 1);
       sprite.center.set(0.5, 0);
       sprite.renderOrder = 10;
       this.scene.add(sprite);
-      return { r, sprite, tex, selected: false };
-    });
+      this.banners.push({ r, sprite, tex, selected: false });
+    }
   }
 
   bannerPos(r) {
@@ -254,6 +278,8 @@ export class BattleView {
 
   update(selection) {
     const d = this.dummy, b = this.battle;
+    this.syncSoldiers();
+    this.syncBanners();
     for (const key in this.meshes) {
       const { gear, cloth, list, darkened } = this.meshes[key];
       for (const s of list) {

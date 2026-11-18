@@ -8,6 +8,7 @@ export const TYPES = {
   sword: { key: 'sword', name: 'Swordsmen', count: 72, files: 18, spacing: 1.5, speed: 3.3, hp: 12, atk: 6, def: 3, dmg: 5, reach: 1.8, cooldown: 1.1, morale: 70, shield: true },
   archer: { key: 'archer', name: 'Archers', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 8, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 85, reload: 4.5, arrowDmg: 5 },
   cav: { key: 'cav', name: 'Cavalry', count: 40, files: 20, spacing: 2.6, depth: 3.4, speed: 7.5, hp: 18, atk: 5, def: 3, dmg: 5, reach: 2.4, cooldown: 1.3, morale: 70, mounted: true, charge: true },
+  bandit: { key: 'bandit', name: 'Bandits', count: 20, files: 10, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 40 },
 };
 
 // Each side deploys this line; the scale setting stacks extra lines behind it.
@@ -32,7 +33,9 @@ const turnToward = (a, b, maxStep) => {
 };
 
 export class Battle {
-  constructor(heightAt, seed, scale = 1) {
+  // homes: where each side's broken regiments run to. disbandAtHome: sides whose
+  // routers leave the fight once they get there (raiders going back to camp).
+  constructor(heightAt, seed, { scale = 1, deploy = true, homes = HOMES, disbandAtHome = [false, false] } = {}) {
     this.heightAt = heightAt;
     this.rand = rng(seed + 99);
     this.time = 0;
@@ -43,41 +46,69 @@ export class Battle {
     this.winner = null;
     this.losses = [0, 0];
     this.events = [];          // short messages for the HUD, e.g. a regiment routing
-    for (let side = 0; side < 2; side++) this.deploy(side, scale);
+    this.homes = homes;
+    this.disbandAtHome = disbandAtHome;
+    this.checkWinner = deploy;
+    this.counts = [{}, {}];
+    if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
   // Side 0 (the player) deploys on +z facing -z; side 1 on -z facing +z.
   deploy(side, scale) {
     const dir = side === 0 ? -1 : 1;
-    const counts = {};
     for (let line = 0; line < scale; line++) {
       for (const [key, x, back] of LAYOUT) {
-        const T = TYPES[key];
-        counts[key] = (counts[key] || 0) + 1;
-        const z = -dir * (70 - back + line * 50);
-        const r = {
-          id: this.regs.length, side, T, name: `${ORDINAL(counts[key])} ${T.name}`,
-          x: side === 0 ? -x : x, z, angle: side === 0 ? Math.PI : 0, files: T.files,
-          dest: null, targetReg: null, morale: T.morale, routing: false, routedAt: 0, rallied: false, regrouping: false,
-          gone: false, soldiers: [], initial: T.count, alive: T.count, engaged: 0, lag: 0,
-          cx: 0, cz: 0, lastHit: -99, firingAt: null, fleeDir: 0,
-        };
-        for (let i = 0; i < T.count; i++) {
-          const s = {
-            reg: r, slot: i, x: 0, z: 0, y: 0, yaw: r.angle, hp: T.hp, alive: true, gone: false,
-            cd: this.rand() * T.cooldown, fireCd: this.rand() * (T.reload || 1), target: null, searchCd: this.rand() * 0.3,
-            v: 0, vx: 0, vz: 0, phase: this.rand() * 6, fall: 0, lunge: 0, charged: false, idleFor: 0,
-            jitter: (this.rand() - 0.5) * 0.5,
-          };
-          const p = this.slotPos(r, i);
-          s.x = p.x + (this.rand() - 0.5) * 0.4;
-          s.z = p.z + (this.rand() - 0.5) * 0.4;
-          r.soldiers.push(s);
-          this.soldiers.push(s);
-        }
-        this.regs.push(r);
+        this.addRegiment(side, key, side === 0 ? -x : x, -dir * (70 - back + line * 50), side === 0 ? Math.PI : 0);
       }
     }
+  }
+
+  // A new regiment with its front centre at (x, z). `from` gives start positions,
+  // e.g. the villagers who were just called up, who then walk into formation.
+  addRegiment(side, key, x, z, angle, { count, name, from } = {}) {
+    const T = TYPES[key];
+    count = count || T.count;
+    const n = this.counts[side][key] = (this.counts[side][key] || 0) + 1;
+    const r = {
+      id: this.regs.length, side, T, name: name || `${ORDINAL(n)} ${T.name}`,
+      x, z, angle, files: Math.min(T.files, Math.max(4, Math.ceil(count / 2))),
+      dest: null, targetReg: null, morale: T.morale, routing: false, routedAt: 0, rallied: false, regrouping: false,
+      gone: false, disbanded: false, soldiers: [], initial: count, alive: count, engaged: 0, lag: 0,
+      cx: x, cz: z, lastHit: -99, firingAt: null, fleeDir: 0,
+    };
+    for (let i = 0; i < count; i++) {
+      const s = {
+        reg: r, slot: i, x: 0, z: 0, y: 0, yaw: angle, hp: T.hp, alive: true, gone: false,
+        cd: this.rand() * T.cooldown, fireCd: this.rand() * (T.reload || 1), target: null, searchCd: this.rand() * 0.3,
+        v: 0, vx: 0, vz: 0, phase: this.rand() * 6, fall: 0, lunge: 0, charged: false, idleFor: 0,
+        jitter: (this.rand() - 0.5) * 0.5,
+      };
+      const p = from ? from[i] : this.slotPos(r, i);
+      s.x = p.x + (this.rand() - 0.5) * 0.4;
+      s.z = p.z + (this.rand() - 0.5) * 0.4;
+      s.y = this.heightAt(s.x, s.z);
+      r.soldiers.push(s);
+      this.soldiers.push(s);
+    }
+    if (from) this.assignSlots(r);
+    this.regs.push(r);
+    return r;
+  }
+
+  // Send a regiment home: its living soldiers leave the battle. Returns where they stood.
+  disband(r) {
+    const left = [];
+    for (const s of r.soldiers) {
+      if (!s.alive || s.gone) continue;
+      left.push({ x: s.x, z: s.z });
+      s.gone = true;
+      s.target = null;
+    }
+    r.gone = true;
+    r.disbanded = true;
+    r.routing = r.regrouping = false;
+    for (const o of this.regs) if (o.targetReg === r) o.targetReg = null;
+    return left;
   }
 
   // Front-centre of the formation sits at (r.x, r.z); ranks stack behind it.
@@ -453,7 +484,7 @@ export class Battle {
       const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
       if (d < nd) { nd = d; nearest = o; }
     }
-    const h = HOMES[r.side];
+    const h = this.homes[r.side];
     const home = Math.atan2(h.x - r.cx, h.z - r.cz);
     let dir = home;
     if (nearest && nd < 30) {
@@ -475,7 +506,12 @@ export class Battle {
 
   // Safe at the keep: form up in front of it and recover before taking orders again.
   regroup(r) {
-    const h = HOMES[r.side], toField = r.side === 0 ? -1 : 1;
+    if (this.disbandAtHome[r.side]) {
+      this.disband(r);
+      this.events.push({ time: this.time, side: r.side, text: `${r.side ? 'Enemy ' : ''}${r.name} have fled the field.` });
+      return;
+    }
+    const h = this.homes[r.side], toField = r.side === 0 ? -1 : 1;
     const k = this.regs.filter(o => o.side === r.side && o.regrouping).length;
     r.routing = false;
     r.regrouping = true;
@@ -561,7 +597,7 @@ export class Battle {
   }
 
   checkVictory() {
-    if (this.winner !== null) return;
+    if (this.winner !== null || !this.checkWinner) return;
     for (let side = 0; side < 2; side++) {
       const standing = this.regs.some(r => r.side === side && !r.gone && !r.routing && !r.regrouping);
       if (!standing) {

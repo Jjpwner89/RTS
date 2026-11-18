@@ -3,50 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RTS Battle Test</title>
-<link rel="stylesheet" href="src/style.css">
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-} }
-</script>
+<title>RTS Prototypes</title>
+<style>
+  :root { --ink: #efe6d2; --dim: #b8ab90; --gold: #ffd970; --edge: rgba(224, 194, 122, 0.35); }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #1a1612; color: var(--ink); font: 16px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { width: min(560px, calc(100vw - 32px)); }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  p { color: var(--dim); margin: 0 0 20px; }
+  a { display: block; padding: 14px 18px; margin-bottom: 10px; border: 1px solid var(--edge); border-radius: 10px; color: var(--ink); text-decoration: none; background: rgba(255,255,255,0.04); }
+  a:hover { border-color: var(--gold); background: rgba(255, 217, 112, 0.08); }
+  a b { display: block; font-size: 18px; color: var(--gold); }
+</style>
 </head>
 <body>
-<canvas id="view"></canvas>
-
-<header id="top">
-  <span class="title">Battle test</span>
-  <span id="clock">0:00</span>
-  <button id="pause">❚❚ Pause</button>
-  <span class="speeds"><button data-speed="1">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></span>
-  <span id="strength"></span>
-  <button id="help-toggle">? Controls</button>
-</header>
-
-<div id="paused-tag">Paused: you can still give orders</div>
-<div id="log"></div>
-
-<aside id="help" class="open">
-  <h3>Controls</h3>
-  <p><b>Left click / drag</b>: select regiments (Shift adds)</p>
-  <p><b>Right click</b>: move there · on an enemy: attack</p>
-  <p><b>Right drag</b>: draw the front line; length sets width. Drag left→right to face away from you</p>
-  <p><b>WASD / arrows</b>: pan · <b>Q / E</b> or middle drag: turn</p>
-  <p><b>Scroll</b>: zoom; zoom far out for the whole field</p>
-  <p><b>Space</b>: pause · <b>1 2 3</b>: speed · <b>H</b>: halt · <b>F</b>: focus · <b>Ctrl/⌘A</b>: all</p>
-  <p class="tip">Spears stop cavalry charges from the front. Hit flanks and rear to break morale. Archers loose at will when idle. Broken units run to their keep and regroup.</p>
-</aside>
-
-<div id="cards"></div>
-<div id="select-box"></div>
-
-<div id="end">
-  <h2></h2>
-  <p></p>
-  <button id="again">Fight again (new map)</button>
-</div>
-
-<script type="module" src="src/main.js"></script>
+<main>
+  <h1>RTS prototypes</h1>
+  <p>A medieval strategy game in progress: build and fight on one map, rising from a keep to a realm.</p>
+  <a href="town.html"><b>Village</b>Build a village, arm levies from your own villagers, and hold off bandit raids.</a>
+  <a href="battle.html"><b>Battle test</b>A field battle of about 1,200 soldiers: regiments, morale and routs.</a>
+</main>
 </body>
 </html>

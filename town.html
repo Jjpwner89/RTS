@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTS Village</title>
+<link rel="stylesheet" href="src/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body class="town">
+<canvas id="view"></canvas>
+
+<header id="top">
+  <span class="title">Village</span>
+  <span id="clock">0:00</span>
+  <button id="pause">❚❚ Pause</button>
+  <span class="speeds"><button data-speed="1">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></span>
+  <span id="strength"></span>
+  <button id="help-toggle">? How to play</button>
+</header>
+
+<div id="paused-tag">Paused: you can still build and give orders</div>
+<div id="log"></div>
+<div id="toast"></div>
+
+<aside id="stock"></aside>
+<aside id="build"></aside>
+<aside id="info" hidden></aside>
+
+<aside id="help" class="open">
+  <h3>Your village</h3>
+  <p>Grow from a keep and a dozen villagers into a town that can arm its own levies. Bandits will raid within a few minutes.</p>
+  <p><b>Build</b>: pick a building at the bottom left, then click the ground. Woodcutters, quarries and mines must be near their resource; the ring shows how far they reach.</p>
+  <p><b>Chains</b>: wood → planks → shields; flax → string; planks + string → bows; planks + feathers → arrows; ore + wood → iron → spears and swords.</p>
+  <p><b>Levies</b>: a barracks calls villagers up as soldiers when their kit is in stock. Losses are villagers lost. Disband them to send them back to work.</p>
+  <p><b>Battle</b>: click or drag to select, right-click to move or attack, right-drag to draw a line. Broken units run to the keep to regroup.</p>
+  <p><b>Camera</b>: WASD or arrows to pan, Q / E to turn, scroll to zoom. <b>Space</b> pauses.</p>
+  <button id="help-close">Start</button>
+</aside>
+
+<div id="cards"></div>
+<div id="select-box"></div>
+
+<div id="end">
+  <h2></h2>
+  <p></p>
+  <button id="again">Start again (new map)</button>
+</div>
+
+<script type="module" src="src/town.js"></script>
+</body>
+</html>

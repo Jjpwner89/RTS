@@ -12,3 +12,6 @@ python3 -m http.server 8000
 ```
 
 Then open http://localhost:8000. three.js loads from a CDN, so the first load needs internet.
+
+- `town.html`: the village: build, work, raise levies, hold off raids.
+- `battle.html`: the field battle test.

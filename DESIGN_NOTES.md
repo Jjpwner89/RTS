@@ -23,6 +23,12 @@ The one home for this game's goals, decisions and open questions. Working title:
 | Players | **Single player first.** |
 | Look | **3D for now** (three.js); not final. |
 | Routs | Broken units **run to the nearest friendly keep or camp and regroup**. Built into the battle test. |
+| Soldiers | **Levies are your villagers.** Losses cost workers, and survivors go back to work when disbanded. |
+| Unwatched POIs | Run on their own at abstract rates and switch to the full simulation when you zoom in. |
+| Building placement | **Free-form**, as in Age of Empires: put a building anywhere sensible, near the resource it uses. |
+| Economy | **Simple, but with a few layers** from raw input to finished goods (see below). |
+| World map | **Real time with pause.** |
+| Reference | *Medieval Kingdom Wars* (grand strategy with castle building and real-time battles) is the closest existing game. |
 
 ## How it plays (draft)
 
@@ -51,6 +57,31 @@ The faction grows from a single holding to a realm on the world map. Each stage 
 
 **Scale stays playable** because POIs you are not watching run on their own: they produce at abstract rates, and their fights resolve automatically unless you zoom in and take command. You can always drop into any POI and play it by hand.
 
+## Production chains (draft)
+
+Every finished good takes two or three steps, with one or two inputs at each step. That gives enough layers to plan around without becoming a spreadsheet.
+
+| Goods | Made at | From |
+|---|---|---|
+| Wood | Woodcutter (near trees) | trees |
+| Stone | Quarry (near rock) | rock outcrops |
+| Iron ore | Mine (near a deposit) | ore deposits |
+| Food, feathers | Hunter (near woods) | game |
+| Food | Farm | fields |
+| Flax | Flax field | fields |
+| Planks | Carpenter | wood |
+| Shields | Carpenter | planks |
+| String | Ropemaker | flax |
+| Iron | Smelter | ore + wood |
+| Bows | Bowyer | planks + string |
+| Arrows | Bowyer | planks + feathers |
+| Spears | Weaponsmith | iron + planks |
+| Swords | Weaponsmith | iron |
+
+**Raising troops.** Each soldier is one villager plus a kit: spearman = spear + shield; archer = bow + arrows; swordsman = sword + shield. Disbanding returns the survivors' kit to the stockpile.
+
+Later: leather and armour (hunter hides → tanner → armourer), horses (stable) for cavalry, bread (farm → mill → bakery), siege engines.
+
 ## Technology
 
 - **Browser game, plain JavaScript, no build step.** It runs anywhere and is easy to share.
@@ -61,7 +92,19 @@ The faction grows from a single holding to a realm on the world map. Each stage 
 
 ## Built so far
 
-**Battle test** (`index.html`), 2026-11-18:
+`index.html` is a menu that leads to both prototypes.
+
+**Village** (`town.html`), 2026-11-18, the first point of interest:
+- A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
+- Free building placement with a green or red ghost. Gatherers must be near their resource, and a ring shows their reach. Trees are cleared where you build.
+- Villagers build sites, then stay on as the first workers. Gatherers walk out to trees, rocks, ore or fields and carry the goods back. Craftsmen work at their door.
+- All the production chains above. Crafting keeps a reserve of 20 wood and 20 planks for construction.
+- Food: villagers eat; houses add room; new families settle while there is food and room.
+- Barracks: call up a levy of 5–20 villagers if their kit is in stock. Their deaths are villagers lost. Disband returns the survivors and their kit to work.
+- Bandit raids from 5:00, growing with each wave (archers from wave 3). Villagers flee to the keep. Raiders burn what they reach and leave after three fires or about 2½ minutes. If the keep falls, the game is lost.
+- The lord's retinue of 20 swordsmen costs no villagers.
+
+**Battle test** (`battle.html`), 2026-11-18:
 - 9 regiments a side (spears, swords, archers, cavalry), about 1,200 soldiers, with a keep and village at each side's end of the field.
 - Total War–style orders: box select, right-click to move or attack, right-drag to draw a front line. You can pause and still give orders.
 - Melee between individual soldiers; arcing arrows that can hit your own men; cavalry charges that braced spears stop from the front.
@@ -71,17 +114,14 @@ The faction grows from a single holding to a realm on the world map. Each stage 
 
 ## Proposed next steps
 
-1. **One POI you can build in:** gather wood, stone and food, put up houses, a keep and a barracks, and raise levies from your villagers. Bandits or a rival lord attack.
+1. **Play the village and tune it**: the pace of the economy, raid strength, and choosing which recipe a workshop makes.
 2. **A small world map** with a handful of POIs: march an army from one to another and zoom between the two layers.
 3. **A rival AI faction** that builds and attacks.
 4. Later: sieges and walls, more unit types, saves, and the full climb.
 
 ## Open questions for the creator
 
-1. **Building placement:** free-form like Manor Lords, or a grid like Stronghold?
-2. **Economy depth:** many buildings and long chains (Stronghold), or fewer and simpler (Manor Lords)?
-3. **World map:** real time with pause (proposed), or turn-based between real-time POIs?
-4. **The reference "Kingdoms medieval wars":** which game is it, so I can look at what it does well?
+None right now; new ones will come out of play.
 
 ## Side project
 

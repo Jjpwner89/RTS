@@ -8,11 +8,24 @@ export class Hud {
     this.cardsEl = document.getElementById('cards');
     this.logEl = document.getElementById('log');
     this.seenEvents = 0;
-    this.cards = battle.regs.filter(r => r.side === 0).map(r => this.makeCard(r));
+    this.cards = [];
+    this.seenRegs = 0;
+    this.syncCards();
     document.getElementById('pause').onclick = () => hooks.togglePause();
     for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => hooks.setSpeed(+b.dataset.speed);
     document.getElementById('help-toggle').onclick = () => document.getElementById('help').classList.toggle('open');
     document.getElementById('again').onclick = () => location.reload();
+  }
+
+  // Cards for regiments raised since the last frame; disbanded regiments lose theirs.
+  syncCards() {
+    const b = this.battle;
+    for (const r of b.regs.slice(this.seenRegs)) if (r.side === 0) this.cards.push(this.makeCard(r));
+    this.seenRegs = b.regs.length;
+    this.cards = this.cards.filter(c => {
+      if (c.r.disbanded) c.el.remove();
+      return !c.r.disbanded;
+    });
   }
 
   makeCard(r) {
@@ -38,6 +51,7 @@ export class Hud {
 
   update(selection, paused, speed) {
     const b = this.battle;
+    this.syncCards();
     for (const c of this.cards) {
       const r = c.r;
       c.strength.style.width = (100 * Math.max(0, r.alive) / r.initial) + '%';
