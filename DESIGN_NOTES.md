@@ -107,7 +107,7 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
 - Free building placement with a green or red ghost. Gatherers must be near their resource, and a ring shows their reach. Trees are cleared where you build.
 - Villagers build sites, then stay on as the first workers. Gatherers walk out to trees, rocks, ore or fields and carry the goods back. Craftsmen work at their door.
-- All the production chains above. Each workshop's recipes are switches: turn off the ones you don't want, and with several on it takes turns. Two carpenters can split planks and shields. Crafting never burns the last 20 wood, so construction can go on.
+- All the production chains above. Each workshop's recipes are switches: turn off the ones you don't want, and with several on it takes turns. Two carpenters can split planks and shields. Planks, string and iron stop at a stock limit; weapons, shields and arrows have none, so switch a recipe off to stop it. Crafting never burns the last 20 wood, so construction can go on.
 - Food: villagers eat; houses add room; new families settle while there is food and room.
 - Barracks: call up a levy of 5–20 villagers if their kit is in stock. Their deaths are villagers lost. Disband returns the survivors and their kit to work.
 - Bandit raids from 5:00, growing with each wave (archers from wave 3). Villagers flee to the keep. Raiders burn what they reach and leave after three fires or about 2½ minutes. If the keep falls, the game is lost.

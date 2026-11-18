@@ -27,7 +27,8 @@ export const GOOD_GROUPS = [
 // gather: villagers walk out to a resource and carry it back.
 // recipes: villagers work at the building, turning stock into stock. Each workshop can
 // switch any of its recipes off; it takes turns between those left on. `keep` stops a
-// recipe once that much of its output is stored.
+// recipe once that much of its output is stored. Arms have no limit: switch a recipe
+// off to stop it.
 // Crafting never burns the last of the wood, so construction can go on.
 const RESERVE = { wood: 20 };
 export const BUILDINGS = {
@@ -46,17 +47,17 @@ export const BUILDINGS = {
   flax: { name: 'Flax field', icon: '🌿', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
     gather: { node: 'field', time: 8, out: { flax: 2 } }, desc: 'Grows flax for bowstring.' },
   carpenter: { name: 'Carpenter', icon: '🪚', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 20 }],
+    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6 }],
     desc: 'Saws wood into planks, and planks into shields.' },
   ropemaker: { name: 'Ropemaker', icon: '🧵', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { flax: 2 }, out: { string: 1 }, time: 7, keep: 20 }], desc: 'Twists flax into bowstring.' },
   smelter: { name: 'Smelter', icon: '🔥', group: 'Craft', cost: { wood: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
     recipes: [{ in: { ore: 2, wood: 1 }, out: { iron: 1 }, time: 9, keep: 20 }], desc: 'Smelts ore into iron, burning wood.' },
   bowyer: { name: 'Bowyer', icon: '🏹', group: 'Craft', cost: { planks: 10, stone: 5 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { planks: 2, string: 1 }, out: { bows: 1 }, time: 10, keep: 20 }, { in: { planks: 1, feathers: 2 }, out: { arrows: 10 }, time: 8, keep: 100 }],
+    recipes: [{ in: { planks: 2, string: 1 }, out: { bows: 1 }, time: 10 }, { in: { planks: 1, feathers: 2 }, out: { arrows: 10 }, time: 8 }],
     desc: 'Makes bows from planks and string, and arrows from planks and feathers.' },
   weaponsmith: { name: 'Weaponsmith', icon: '⚔️', group: 'Craft', cost: { planks: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
-    recipes: [{ in: { iron: 1, planks: 1 }, out: { spears: 1 }, time: 9, keep: 20 }, { in: { iron: 2 }, out: { swords: 1 }, time: 12, keep: 20 }],
+    recipes: [{ in: { iron: 1, planks: 1 }, out: { spears: 1 }, time: 9 }, { in: { iron: 2 }, out: { swords: 1 }, time: 12 }],
     desc: 'Fits iron heads to spear shafts, and forges swords.' },
   barracks: { name: 'Barracks', icon: '🚩', group: 'Military', cost: { planks: 20, stone: 20 }, radius: 6, build: 20, hp: 250,
     desc: 'Calls up villagers as soldiers when their kit is in stock.' },
@@ -429,7 +430,7 @@ export class Town {
     // Take turns among the recipes switched on that are below their stock target and
     // whose inputs are in, leaving the wood reserve.
     const list = b.B.recipes;
-    const wanted = list.filter((r, i) => !b.off.has(i) && Object.entries(r.out).every(([k]) => this.stock[k] < r.keep));
+    const wanted = list.filter((r, i) => !b.off.has(i) && Object.entries(r.out).every(([k]) => this.stock[k] < (r.keep ?? Infinity)));
     const can = r => Object.entries(r.in).every(([k, n]) => this.stock[k] - n >= (RESERVE[k] || 0));
     let ready = null;
     for (let k = 0; k < list.length && !ready; k++) {
