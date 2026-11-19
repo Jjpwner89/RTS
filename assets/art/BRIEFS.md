@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added; section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist, added; section 7's animation clips requested ahead of everything else, after the creator turned down Codex's prototype bodies). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added, then five more events (tournament, scheme, pilgrims, toll, collapse); section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist, added; section 7's animation clips requested ahead of everything else, after the creator turned down Codex's prototype bodies). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -219,7 +219,7 @@ Then, if there is time, these new ones: the orders (move, attack, hold, charge, 
 
 ## 5. Event pictures
 
-Six paintings for the choices that come up during a campaign (a blight, a fever, a wandering knight and so on). Each sits at the top of a small prompt box above the text and the choice buttons, at about 640×360 and sometimes half that on a phone. The box hides the picture while a file is missing, so each can land on its own. Do these **after the portraits and heraldry**.
+Eleven paintings for the choices that come up during a campaign (a blight, a fever, a wandering knight and so on). Each sits at the top of a small prompt box above the text and the choice buttons, at about 640×360 and sometimes half that on a phone. The box hides the picture while a file is missing, so each can land on its own. Do these **after the portraits and heraldry**.
 
 **Shared framing:** landscape, 640×360, opaque. One clear scene with one focal group in the middle third, readable at half size. Same painting hand and finish as the portraits (section 1), so the prompt box feels like part of the same game. A low-poly countryside of timber villages, stone keeps, fields and woods, about the 13th century. People are ordinary and grounded: no heroes posing, no magic. No text, banners with writing, or numbers. Keep the edges calm, since the text box sits right below.
 
@@ -258,6 +258,36 @@ A bright midsummer day in a meadow outside a village. Striped stalls, bunting, a
 A rough clearing at the edge of a wood. A scarred bandit chief in mismatched armour sits on a tree stump, holding out a rolled message to a nervous village messenger who stands before him, cap in hand. Five or six armed outlaws lounge around a fire behind, with stolen goods piled under a lean-to.
 
 **Must keep:** menace through posture and setting, not violence; the chief is clearly the one setting terms.
+
+### 5.7 `tournament`: a joust at Kingsbridge
+
+A bright spring day outside the royal city's walls. Two mounted knights in full harness charge at each other along a wooden tilt barrier, lances lowered, one in blue and one in red caparisons. Behind them, timber stands hung with the coloured cloths and shields of many houses, crowded with townsfolk and nobles; Kingsbridge's stone walls and towers beyond.
+
+**Must keep:** the moment just before the lances meet; festive and grand, the one cheerful crowd scene in the set.
+
+### 5.8 `scheme`: a captain takes a purse
+
+Night, inside a soldier's tent lit by a single lantern. A hard-faced captain in mail sits at a camp table with a map on it, and accepts a heavy purse from a cloaked visitor whose face is half hidden by a hood, a purple cloak just visible at the edge. A sword and helmet rest beside the table; the tent flap is closed.
+
+**Must keep:** secrecy and betrayal through the lantern light and the hidden face; quiet, not theatrical.
+
+### 5.9 `pilgrims`: pilgrims at the shrine
+
+A sunny morning before a stone abbey church. A line of pilgrims in plain travelling cloaks and broad hats, with staffs and scallop-shell badges, queue toward the open door, where two monks in dark habits welcome them; within, candlelight on a gilded relic shrine. A few have come a long way: a man on crutches, a family with children, an old woman helped along.
+
+**Must keep:** hopeful and devout; the shrine's warm light at the door is the focal point.
+
+### 5.10 `toll`: a toll on the ford
+
+A shallow river ford in a valley. A rough timber toll booth on the bank and a heavy chain stretched across the water on posts. Armed men in a rival lord's colours (orange and black) stand at the chain and stop an ox cart of grain, one holding out his palm, while the carter argues and his wife watches from the cart.
+
+**Must keep:** petty extortion, not violence; the chain across the water reads at once.
+
+### 5.11 `collapse`: a mine has fallen in
+
+A timbered mine entrance in a rocky hillside, at dusk. Grey dust pours out of the dark mouth. Miners with lanterns and ropes haul at fallen timbers and stones to dig through, others pass buckets of rubble back, and women from the village wait anxiously nearby.
+
+**Must keep:** urgency and rescue; the dust and lantern light, not injuries.
 
 *Design context, not for the image prompt:* these illustrate the campaign's event choices (`src/world/`, Realm workstream). Each event id matches the file name.
 

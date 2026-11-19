@@ -109,7 +109,7 @@ export const BUILDINGS = {
   well: { name: 'Well', icon: 'well', group: 'Village', cost: { stone: 10 }, radius: 2.5, build: 8, hp: 150, mood: 3, desc: 'Clean water close by. Lifts the mood a little.' },
   monastery: { name: 'Chapel', icon: 'monastery', group: 'Village', cost: { stone: 30, planks: 10 }, radius: 6, build: 24, hp: 250, mood: 10,
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
-  cathedral: { name: 'Cathedral', icon: 'monastery', group: 'Village', cost: { stone: 300, planks: 120, iron: 20 }, radius: 10, build: 240, hp: 900, mood: 25, great: true,
+  cathedral: { name: 'Cathedral', icon: 'cathedral', group: 'Village', cost: { stone: 300, planks: 120, iron: 20 }, radius: 10, build: 240, hp: 900, mood: 25, great: true,
     desc: 'The showpiece of a realm: a great stone church, one in all your lands. Lifts the village a great deal, and once it is consecrated every great house and vassal thinks better of you. From the rank of Count, in a village of 100 people.' },
   watchtower: { name: 'Watchtower', icon: 'watchtower', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
     desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
