@@ -207,8 +207,8 @@ body.town #defences, body.campaign.mode-town #defences { display: block; }
 #defences .items small { display: block; color: var(--dim); font-size: 10px; }
 #defences .sel { margin-top: 6px; font-size: 11px; }
 #defences .sel .row { display: flex; gap: 4px; margin-top: 4px; }
-body.town #cards, body.campaign.mode-town #cards { left: 600px; }
-body.campaign.mode-town #orders { left: calc(50% + 300px); }
+body.town.has-defences #cards, body.campaign.mode-town.has-defences #cards { left: 600px; }
+body.campaign.mode-town.has-defences #orders { left: calc(50% + 300px); }
 
 /* Storming a place: the village panel shows the fight instead of the stores */
 #stock .storm { margin: 5px 0; font-size: 13px; }

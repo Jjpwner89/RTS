@@ -148,6 +148,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     view.update(dt);
     // While storming someone else's place there is nothing of ours to build.
     el.hidden = !!town.hostile;
+    document.body.classList.toggle('has-defences', !town.hostile);   // the cards make room for it
     if (town.hostile) { ui.tool = null; ui.selected = null; view.showPlan(null); return; }
     for (const btn of el.querySelectorAll('[data-tool]')) {
       btn.classList.toggle('on', btn.dataset.tool === ui.tool);
