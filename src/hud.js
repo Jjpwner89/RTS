@@ -125,7 +125,7 @@ export class Hud {
       c.strength.style.width = (100 * Math.max(0, r.alive) / r.initial) + '%';
       c.morale.style.width = (100 * Math.max(0, r.morale) / r.T.morale) + '%';
       const doing = b.doingLabel(r), E = r.engine;
-      const extra = [r.gone ? '' : b.fatigueLabel(r), b.arrowsLabel(r)].filter(Boolean).map(t => ' · ' + t).join('');
+      const extra = [b.vetLabel(r), r.gone ? '' : b.fatigueLabel(r), b.arrowsLabel(r)].filter(Boolean).map(t => ' · ' + t).join('');
       c.state.textContent = `${Math.max(0, r.alive)} · ${b.moraleLabel(r)}${doing ? ' · ' + doing : ''}${extra}${E?.maxHp && !r.gone ? ` · ${Math.max(0, Math.round(100 * E.hp / E.maxHp))}%` : ''}`;
       c.el.classList.toggle('selected', selection.has(r));
       c.el.classList.toggle('routing', r.routing);

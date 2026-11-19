@@ -52,6 +52,7 @@ export function lookChain(key) {
   const chain = [key];
   let T = TYPES[key];
   if (key === 'captain') return ['captain', 'knight', 'cav'];
+  if (key === 'lord') return ['lord', 'captain', 'knight', 'cav'];
   while (T?.look && !chain.includes(T.look)) { chain.push(T.look); T = TYPES[T.look]; }
   return chain;
 }
@@ -118,6 +119,12 @@ function cachedHeight(heightAt) {
 
 export const captainLevel = xp => 1 + Math.floor(Math.sqrt(Math.max(0, xp) / 40));
 
+// Veterans: a regiment's experience (kept on its unit spec as `xp`, carried home with the
+// men) gives a rank. A battle fought and survived is worth 0.5, a win 0.5 more, killing
+// well up to 1: one good battle blooded, about three seasoned, six or so a veteran.
+export const VET_RANKS = ['Green', 'Blooded', 'Seasoned', 'Veteran'];
+export const vetRank = xp => (xp >= 6 ? 3 : xp >= 3 ? 2 : xp >= 1 ? 1 : 0);
+
 export class Battle {
   // homes: where each side's broken regiments run to. disbandAtHome: sides whose
   // routers leave the fight once they get there (raiders going back to camp).
@@ -143,6 +150,7 @@ export class Battle {
     this.nav = new Nav(this.walls);
     this.walls.onBreak = s => this.onWallBreak(s);
     this.captains = [null, null];
+    this.lords = [null, null];
     // Hooks for a town: structures() lists buildings engines can hit; onRuin(b) when one falls.
     this.structures = null;
     this.onRuin = null;
@@ -325,7 +333,7 @@ export class Battle {
   // A new regiment with its front centre at (x, z). `from` gives start positions,
   // e.g. the villagers who were just called up, who then walk into formation.
   // Counts can run well past the type's usual size; big regiments get a wider front.
-  addRegiment(side, key, x, z, angle, { count, name, from } = {}) {
+  addRegiment(side, key, x, z, angle, { count, name, from, xp = 0 } = {}) {
     const T = TYPES[key];
     count = Math.max(1, Math.round(count || T.count));
     const n = this.counts[side][key] = (this.counts[side][key] || 0) + 1;
@@ -337,7 +345,7 @@ export class Battle {
       gone: false, disbanded: false, soldiers: [], initial: count, alive: count, engaged: 0, lag: 0,
       cx: x, cz: z, lastHit: -99, firingAt: null, fleeDir: 0,
       formation: 'line', hold: false, fireAtWill: true, chargeUntil: 0, column: false, via: null, viaCd: 0,
-      posts: null, access: null, targetWall: null, captain: null, kills: 0, fatigue: 0,
+      posts: null, access: null, targetWall: null, captain: null, kills: 0, fatigue: 0, xp, vet: vetRank(xp), fought: false,
       ammo: T.range ? count * (T.quiver || 20) : 0, maxAmmo: T.range ? count * (T.quiver || 20) : 0,
       engine: T.engine ? { ...T.engine, hp: T.engine.hp || 0, maxHp: T.engine.hp || 0, cd: 2, ready: 0, ladders: [], raising: 0 } : null,
     };
@@ -842,6 +850,63 @@ export class Battle {
     c.reg.captain = null;
   }
 
+  // ---- your lord in person ----
+
+  // A side's lord rides with a regiment (usually his household). While he lives every
+  // regiment of his fights a little better and holds a little longer, more so near him;
+  // if he falls the whole army is shaken. lord: plain data, { name, alive }.
+  setLord(side, lord, reg) {
+    if (!lord || lord.alive === false || !reg || reg.gone) return null;
+    const s = this.makeSoldier(reg, -1, reg.angle);
+    s.captain = lord;                  // rides apart from the ranks, like a captain
+    s.lordOf = side;
+    s.look = 'lord';
+    s.hp = 70;
+    s.x = reg.cx - Math.sin(reg.angle) * 6; s.z = reg.cz - Math.cos(reg.angle) * 6;
+    s.lx = s.x; s.lz = s.z; s.y = this.heightAt(s.x, s.z);
+    reg.soldiers.push(s);
+    this.soldiers.push(s);
+    this.lords[side] = { lord, reg, soldier: s, died: false };
+    this.event(side, side ? `${lord.name} rides with the enemy.` : `${lord.name} takes the field.`);
+    return s;
+  }
+
+  // 0 with no lord in the field, 1 for his army, 2 within 60 m of him.
+  lordBonus(r) {
+    const L = this.lords[r.side];
+    if (!L || L.died) return 0;
+    const s = L.soldier;
+    return Math.hypot(s.x - r.cx, s.z - r.cz) < 60 ? 2 : 1;
+  }
+
+  lordDied(L) {
+    L.died = true;
+    L.lord.alive = false;
+    const side = L.reg.side;
+    this.event(side, side ? `The enemy lord, ${L.lord.name}, has fallen!` : `${L.lord.name} has fallen!`);
+    for (const r of this.regs) if (r.side === side && this.usable(r)) r.morale -= 20;
+    for (const r of this.regs) if (r.side !== side && this.usable(r)) r.morale = Math.min(r.T.morale + 10, r.morale + 8);
+  }
+
+  // After a battle: whether a side's lord came through it. Call once when it ends.
+  lordReport(side) {
+    const L = this.lords[side];
+    if (!L) return null;
+    const s = L.soldier;
+    return { lord: L.lord, died: L.died, wounded: !L.died && s.hp < 35, won: this.winner === side };
+  }
+
+  // After a battle: each regiment's experience to carry home on its unit spec as `xp`.
+  // Men who fought and lived learn; a win teaches more; so does killing well (vetRank).
+  veterans(side) {
+    const won = this.winner === side;
+    return this.regs.filter(r => r.side === side && !r.T.engine).map(r => {
+      const gained = r.fought && r.alive > 0 ? 0.5 + (won ? 0.5 : 0) + Math.min(1, r.kills / Math.max(1, r.initial)) : 0;
+      const xp = Math.round((r.xp + gained) * 10) / 10;
+      return { reg: r, spec: r.spec, alive: r.alive, xp, gained, rank: vetRank(xp), promoted: vetRank(xp) > r.vet };
+    });
+  }
+
   // What a battle did for a side's captain: xp from the enemies killed, more for a win.
   // Call once when the battle ends; it updates the captain object in place.
   captainReport(side) {
@@ -1254,7 +1319,8 @@ export class Battle {
     if (s.captain) {
       // The captain rides just behind his regiment's middle.
       const d = r.posts ? 10 : (Math.ceil(r.alive / Math.max(1, r.files)) * (r.T.depth || r.T.spacing)) / 2 + 4;
-      return { x: r.cx - Math.sin(r.angle) * d, z: r.cz - Math.cos(r.angle) * d, perch: null };
+      const side = s.lordOf ? 4 : 0;             // a lord rides beside the captain
+      return { x: r.cx - Math.sin(r.angle) * d + Math.cos(r.angle) * side, z: r.cz - Math.cos(r.angle) * d - Math.sin(r.angle) * side, perch: null };
     }
     if (r.posts) {
       const p = r.posts[s.slot];
@@ -1517,12 +1583,15 @@ export class Battle {
     if (r.routing) gain += 0.01;
     else if (r.dest) gain += (T.mounted ? 0.004 : 0.0025) * (r.targetReg ? 1.6 : 1);
     if (this.time - (r.lastShot ?? -99) < 2) gain += 0.004;
+    if (r.engaged > 0 || this.time - (r.lastShot ?? -99) < 2) r.fought = true;
     if (gain === 0) r.fatigue = Math.max(0, r.fatigue - 0.012 * dt);
-    else r.fatigue = Math.min(1, r.fatigue + gain * dt);
+    else r.fatigue = Math.min(1, r.fatigue + gain * dt * (1 - r.vet * 0.08));
   }
 
   // How much a regiment's tiredness slows it.
   tiredPace(r) { return 1 - (r.fatigue || 0) * 0.3; }
+
+  vetLabel(r) { return r.vet ? VET_RANKS[r.vet] : ''; }
 
   fatigueLabel(r) {
     const f = r.fatigue || 0;
@@ -1622,6 +1691,8 @@ export class Battle {
     let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
     // Tired arms strike slower and guard worse.
     chance += (tr.fatigue || 0) * 0.03 - (ar.fatigue || 0) * 0.06;
+    // Old soldiers fight better, and better still with their lord in the field.
+    chance += (ar.vet - tr.vet) * 0.025 + this.lordBonus(ar) * 0.01;
     // Out of hiding: the first blows of an ambush shake the men they fall on.
     if (!ar.ambushed && this.time - (ar.hiddenAt ?? -99) < 6 && ar.side !== tr.side) {
       ar.ambushed = true;
@@ -1688,8 +1759,9 @@ export class Battle {
     t.fall = 0.001;
     t.target = null;
     if (t.captain) {
-      const c = this.captains[r.side];
+      const c = this.captains[r.side], L = this.lords[r.side];
       if (c && c.soldier === t) this.captainDied(c);
+      if (L && L.soldier === t) this.lordDied(L);
       return;
     }
     this.losses[r.side]++;
@@ -1708,7 +1780,7 @@ export class Battle {
   updateMorale(r, dt) {
     if (r.gone || r.routing) return;
     const T = r.T;
-    const top = T.morale + this.captainBonus(r) * 2;
+    const top = T.morale * (1 + r.vet * 0.06) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4;
     if (r.regrouping) {
       r.morale += 3 * dt;
       if (r.morale >= T.morale * 0.6) {
@@ -1898,7 +1970,7 @@ export class Battle {
         audio.play('arrowhit', hit, this); // audio
         hit.reg.lastHit = this.time;
         hit.reg.shotBy = a.from;
-        this.hurt(hit, a.dmg);
+        this.hurt(hit, a.dmg, a.from);
       }
     }
     this.arrows.length = w;

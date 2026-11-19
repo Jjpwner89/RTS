@@ -83,6 +83,9 @@ if (FORT) {
   for (let side = 0; side < 2; side++) {
     const reg = battle.regs.find(r => r.side === side && r.T.key === 'knight') || battle.regs.find(r => r.side === side && r.T.mounted);
     battle.setCaptain(side, makeCaptain(rand), reg);
+    // Each lord rides with his men-at-arms in the middle of the line.
+    const mid = battle.regs.find(r => r.side === side && r.T.key === 'maa');
+    if (mid) battle.setLord(side, { name: side ? 'The enemy lord' : 'Your lord', alive: true }, mid);
   }
 }
 

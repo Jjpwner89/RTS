@@ -217,7 +217,7 @@ function deploy(battle, side, units, cx, cz, angle) {
   const sin = Math.sin(angle), cos = Math.cos(angle);
   const width = u => Math.min(TYPES[u.key].files, Math.max(4, Math.ceil(u.count / 2))) * TYPES[u.key].spacing + 6;
   const put = (u, lx, back) => {
-    const r = battle.addRegiment(side, u.key, cx + cos * lx - sin * back, cz - sin * lx - cos * back, angle, { count: u.count, name: u.name });
+    const r = battle.addRegiment(side, u.key, cx + cos * lx - sin * back, cz - sin * lx - cos * back, angle, { count: u.count, name: u.name, xp: u.xp || 0 });
     r.spec = u;
     r.levy = u.levy || null;
     r.retinue = !!u.retinue;
@@ -278,8 +278,12 @@ function startField(enc) {
 }
 
 const alive = r => r.soldiers.filter(s => s.alive).length;
-const survivors = (battle, side) => battle.regs.filter(r => r.side === side)
-  .map(r => ({ ...r.spec, count: alive(r) })).filter(u => u.count >= 3);
+// Survivors keep the experience they earned (battle.js veterans): xp on each unit.
+const survivors = (battle, side) => {
+  const xp = new Map(battle.veterans(side).map(v => [v.reg, v.xp]));
+  return battle.regs.filter(r => r.side === side)
+    .map(r => ({ ...r.spec, count: alive(r), xp: xp.get(r) ?? r.spec?.xp ?? 0 })).filter(u => u.count >= 3);
+};
 
 function endField(won) {
   const b = current;
