@@ -662,7 +662,10 @@ function worldPanel() {
     set('status', it.wagon.to.gone ? `Going back to ${it.wagon.from.name}` : `On the way to ${it.wagon.to.name}`);
   } else if (it.units) {
     const hurt = (it.wounded || []).reduce((n, u) => n + u.count, 0);
-    set('men', `${headcount(it.units)} men${hurt ? ` · ${hurt} wounded` : ''}`);
+    // a rival army is only as clear as your eyes on it (world.updateVision): there, how big, which troops
+    const know = it.side === 0 ? 3 : it.know ?? 3, men = headcount(it.units);
+    set('men', know < 2 ? 'Too far off to count' : know < 3 ? `About ${men < 100 ? Math.max(10, Math.round(men / 10) * 10) : Math.round(men / 50) * 50} men`
+      : `${men} men${hurt ? ` · ${hurt} wounded` : ''}`);
     if (it.side === 0 || it.visible) {
       const home = fedAt(world, it), left = foodLeft(world, it);
       set('food', `${ico('food', it.food > 0 ? '#c9b26a' : '#ff8a5a')} ` + (home ? `Fed from ${home.name}${hurt ? '; the wounded are mending' : ''}`
@@ -675,7 +678,7 @@ function worldPanel() {
       if (btn) btn.disabled = coming || !w || !!fedAt(world, it);
       if (btn) btn.hidden = !!fedAt(world, it);
     }
-    set('units', it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
+    set('units', know < 3 ? 'Too far off to make out which troops' : it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
     if (own || it.visible) { set('captain', captainLine(world, it)); const ce = el.querySelector('[data-f="captain"]'); if (ce) ce.title = captainMemory(world, it); }
     if (own) set('ride', it.lord === 0 ? `${ico('crown')} Ride home` : world.lordHurt > world.time ? `${ico('crown')} Your lord is mending` : `${ico('crown')} Ride with this army`);
     set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');

@@ -1004,7 +1004,10 @@ export class World {
         p.known = { owner: p.owner, men: p.town ? null : headcount(p.garrison), level: p.eco?.level ?? null };
       }
     }
-    for (const a of this.armies) a.visible = a.side === 0 || sees(a);
+    // How much you can make out: far off, only that an army is there (1); nearer, how big it is (2);
+    // close, which troops (3).
+    const know = o => eyes.reduce((k, e) => { const f = dist(e, o) / e.r; return Math.max(k, f < 0.45 ? 3 : f < 0.75 ? 2 : f < 1 ? 1 : 0); }, 0);
+    for (const a of this.armies) { a.know = a.side === 0 ? 3 : know(a); a.visible = a.know > 0; }
   }
 
   // ---- the end ----

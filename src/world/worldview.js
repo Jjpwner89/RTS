@@ -26,6 +26,8 @@ const nearSegment = (x, z, a, b) => {
 const FIGURES = 48;
 const roleOf = T => !T ? 1 : T.engine ? 4 : T.key === 'wardog' ? 0 : T.mounted ? 3 : T.range && !T.javelin ? 2 : 1;
 const lookOf = key => lookChain(key).map(unitModel).find(Boolean) || unitModel('spear');
+// a count as you would guess it from a hillside
+const rough = n => n < 100 ? Math.max(10, Math.round(n / 10) * 10) : Math.round(n / 50) * 50;
 const armySig = units => units.filter(u => u.count > 0).map(u => `${u.key}:${Math.ceil(u.count / 10)}`).join(',');
 function armyModel(units, ragged = false) {
   if (!unitModel('spear')) return null;
@@ -278,22 +280,27 @@ export class WorldView {
           o.mesh.userData.lord = g;
         }
       }
-      // the figure follows the army's troops as they fall, join and starve
-      const ranks = o.mesh.userData.ranks;
+      // The figure follows the army's troops as they fall, join and starve, as far as you can make them
+      // out (world.updateVision): far off a dark knot of men, nearer a block the right size in its
+      // colours, close up its own troops.
+      const ranks = o.mesh.userData.ranks, know = a.know ?? 3, men = headcount(a.units);
       if (ranks) {
-        const sig = armySig(a.units) + (a.food <= 0 ? '!' : '');
+        const shown = know >= 3 ? a.units : [{ key: 'spear', count: know === 2 ? rough(men) : 40 }];
+        const sig = know + ':' + armySig(shown) + (know >= 3 && a.food <= 0 ? '!' : '');
         if (o.sig !== sig) {
           o.sig = sig;
           let g = this.armyGeo.get(sig);
           if (!g) {
             // armies change often; let old figures go (three uploads any still drawn again)
             if (this.armyGeo.size > 60) { for (const old of this.armyGeo.values()) { old.gear.dispose(); old.cloth.dispose(); } this.armyGeo.clear(); }
-            this.armyGeo.set(sig, g = armyModel(a.units, a.food <= 0));
+            this.armyGeo.set(sig, g = armyModel(shown, know >= 3 && a.food <= 0));
           }
           ranks[0].geometry = g.gear; ranks[1].geometry = g.cloth;
+          ranks[1].material.color.set(know > 1 ? FACTIONS[a.side].color : '#4a4640');
           if (o.mesh.userData.lord) o.mesh.userData.lord.position.set(...g.lordAt);
           o.lordAt = g.lordAt;
         }
+        if (o.mesh.userData.lord) o.mesh.userData.lord.visible = know >= 2;
       }
       // Armies out of sight are hidden.
       o.mesh.visible = a.visible;
@@ -307,8 +314,9 @@ export class WorldView {
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
       const html = a.wagon ? `${ico('food')} ${a.wagon.food}`
-        : `${a.lord != null ? `${ico('crown')} ` : ''}${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${headcount(a.units)}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
-      if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
+        : know < 2 ? `${ico('battle')} ?`
+        : `${a.lord != null ? `${ico('crown')} ` : ''}${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${know < 3 ? `~${rough(men)}` : men}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
+      if (o.html !== html) { o.html = html; o.label.innerHTML = html; o.label.style.borderColor = know > 1 ? FACTIONS[a.side].color : '#8a8070'; }
       o.label.classList.toggle('selected', selected === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });
     }
