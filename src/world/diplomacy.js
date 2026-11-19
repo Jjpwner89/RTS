@@ -134,6 +134,7 @@ function thinkCoalition(w) {
     const over = C.members.length < 2 ? 'has fallen apart' : mine < LEAGUE_EASE && ratio < 1.2 ? 'breaks up: you no longer frighten them' : w.time - C.since > LEAGUE_LONG ? 'has worn itself out' : null;
     if (over) {
       w.log(`The coalition against you ${over}.`, 1);
+      w.chron(`The coalition against you ${over}.`);
       w.coalition = { members: [], since: C.since, rest: w.time + LEAGUE_REST };
     }
     return;
@@ -149,6 +150,7 @@ function thinkCoalition(w) {
   w.coalition = { members: ids, since: w.time };
   const names = join.map(H => H.name).join(', ');
   w.log(`${names} have leagued together against you!`, 1);
+  w.chron(`${names} leagued together against you.`);
   w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `You hold ${Math.round(mine * 100)}% of the realm, and the lords are afraid. ${names} have made peace among themselves and declared war on you together. It will fall apart if you give back enough, make peace one by one, or simply outlast it.` });
 }
 
@@ -245,6 +247,7 @@ export function act(w, h, id, theirs = false) {
   if (id === 'vassal') {
     w.makePeace(0, h);
     Object.assign(d, { vassal: true, backs: true, truceUntil: Infinity, score: 0 });
+    w.chron(`${H.lord} bent the knee, and ${H.name} became your vassal.`);
     d.opinion = Math.max(d.opinion, 20);
     H.vassalOf = 0;
     w.hooks.herald?.({ house: H, title: `${H.name} bends the knee`, text: `${H.lord} is now your vassal and backs your claim.` });
@@ -261,6 +264,7 @@ export function act(w, h, id, theirs = false) {
   if (id === 'ally') {
     if (!theirs && d.opinion < 35) return no(`${H.lord} declines. “I do not know you well enough.”`);
     d.allied = true;
+    w.chron(`You allied with ${H.name}.`);
     d.opinion += 10;
     return yes(`You are now allied with ${H.name}.`);
   }
@@ -271,6 +275,7 @@ export function act(w, h, id, theirs = false) {
       me.gold -= DOWRY;
     }
     d.married = true;
+    w.chron(`Your house and ${H.name} were joined by marriage.`);
     d.opinion += 30;
     w.hooks.herald?.({ house: H, title: 'A marriage alliance', text: `Your house and ${H.name} are joined by marriage. The realm takes note.` });
     return yes(`Your house is joined to ${H.name} by marriage.`);
@@ -290,6 +295,7 @@ export function act(w, h, id, theirs = false) {
   if (id === 'claim') {
     if (!canBack(w, h)) return no(`${H.lord} will not back you yet.`);
     d.backs = true;
+    w.chron(`${H.lord} named you the rightful king.`);
     w.hooks.herald?.({ house: H, title: `${H.lord} backs your claim`, text: 'Another great house names you the rightful king.' });
     w.checkEnd();
     return yes(`${H.name} backs your claim to the crown.`);

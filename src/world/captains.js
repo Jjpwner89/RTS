@@ -102,6 +102,7 @@ function lordFell(w, a, where) {
   if (side === 0) {
     w.lordHurt = w.time + HURT * 2;
     w.log(`You were struck down${where ? ` at ${where}` : ''}, and carried from the field more dead than alive.`, 1);
+    w.chron?.(`You were struck down${where ? ` at ${where}` : ''} and carried from the field.`);
     return;
   }
   const H = FACTIONS[side];
@@ -113,6 +114,7 @@ function lordFell(w, a, where) {
   H.grudges = (H.grudges || []).filter(g => g.kind !== 'father');
   grudge(w, side, 'father', where || 'the battle');
   w.log(`${was} has fallen${where ? ` at ${where}` : ''}! ${H.lord} takes up the banner of ${H.name}.`, 0);
+  w.chron?.(`${was} fell${where ? ` at ${where}` : ''}, and ${H.lord} took up the banner of ${H.name}.`);
   w.hooks.herald?.({ house: H, title: `${was} is dead`, text: `Fallen in battle${where ? ` at ${where}` : ''}. ${H.lord} is lord of ${H.name} now, and the house is shaken.` });
 }
 

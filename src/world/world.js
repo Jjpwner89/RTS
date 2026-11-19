@@ -197,6 +197,7 @@ export class World {
     this.ecoClock = 0;
     this.spies = [];
     this.captains = [];
+    this.chronicle = [];
     this.vassals = [];
     this.sightClock = 0;
     startHouseMinds(this);
@@ -205,6 +206,9 @@ export class World {
   }
 
   log(text, side = 0) { this.events.push({ time: this.time, side, text }); }
+  // The campaign's own story, kept apart from the running log: only what a chronicler
+  // would write down (battles, places won and lost, lords fallen, wars, crowns).
+  chron(text) { (this.chronicle ||= []).push({ at: Math.round(this.time), text }); if (this.chronicle.length > 400) this.chronicle.shift(); }
 
   // ---- who fights whom ----
 
@@ -225,12 +229,14 @@ export class World {
     if (i === 0) this.meet(j);
     if (j === 0) {
       this.meet(i);
+      this.chron(`${a.name} went to war with you.`);
       if (quiet) return;
       const line = tauntFor(this, a);
       this.log(`${a.name} has declared war on you!`, 1);
       this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: line ? `“${line}”` : '' });
     } else if (i === 0) {
       this.log(`You have declared war on ${b.name}.`);
+      this.chron(`You declared war on ${b.name}.`);
     } else if (this.knows(i) || this.knows(j)) {
       this.log(`${a.name} has gone to war with ${b.name}.`, 2);
     }
@@ -239,7 +245,7 @@ export class World {
   makePeace(i, j) {
     if (!this.wars.delete(this.warKey(i, j))) return;
     const a = FACTIONS[i], b = FACTIONS[j];
-    if (i === 0 || j === 0) this.log(`Peace is made with ${(i === 0 ? b : a).name}.`);
+    if (i === 0 || j === 0) { this.log(`Peace is made with ${(i === 0 ? b : a).name}.`); this.chron(`Peace was made with ${(i === 0 ? b : a).name}.`); }
     else if (this.knows(i) || this.knows(j)) this.log(`${a.name} and ${b.name} have made peace.`, 2);
     for (const army of this.armies) {
       const other = army.side === i ? j : army.side === j ? i : null;
@@ -727,6 +733,8 @@ export class World {
       wound(e, theirsBefore);
       note(this, e.side, won ? 'wonField' : 'lostField');
       if (won) grudge(this, e.side, 'beaten', enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name);
+      const cap = this.captains.find(c => c.id === a.captain && c.alive), field = enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name;
+      this.chron(won ? `${cap ? `Captain ${cap.name}` : 'Your army'} beat ${e.name} near ${field}.` : `${e.name} beat ${cap ? `Captain ${cap.name}` : 'your army'} near ${field}.`);
       if (won) {
         this.log(`${e.name} was beaten at ${was}.`);
         this.retreat(e);
@@ -774,6 +782,9 @@ export class World {
     const was = p.owner;
     p.owner = owner;
     p.free = null;
+    const who = i => (i === null ? 'the free folk' : i === this.bandits ? 'outlaws' : FACTIONS[i]?.name);
+    if (owner === 0 && was !== 0) this.chron(`You took ${p.name} from ${who(was)}.`);
+    else if (was === 0) this.chron(`${p.name} was lost to ${who(owner)}.`);
     const v = vassalOf(this, p);
     if (v) {
       p.vassal = null;
@@ -1069,6 +1080,7 @@ export class World {
     const R = RANKS[this.rank];
     if (!R) return;
     this.log(`You are now ${R.title}. ${R.tools}`, 0);
+    this.chron(`You were acknowledged ${R.title}.`);
     this.hooks.herald?.({ house: FACTIONS[0], title: `You are ${R.title}`, text: `${R.tools} ${R.trouble}` });
     this.hooks.rankUp?.(this.rank);
   }
@@ -1084,7 +1096,7 @@ export class World {
     if (this.winner !== null) return;
     if (this.part === 2) {
       // Part 2 ends when the north is driven out, or when you have nothing left.
-      if (!this.pois.some(p => p.owner === this.invader) && !this.armies.some(a => a.side === this.invader)) { this.winner = 0; this.victory = 'north'; }
+      if (!this.pois.some(p => p.owner === this.invader) && !this.armies.some(a => a.side === this.invader)) { this.winner = 0; this.victory = 'north'; this.chron('The host of Norrhold was driven back through the wall, and the realm was safe.'); }
       else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0 && !a.wagon)) this.winner = 1;
       if (this.winner !== null) this.hooks.ended(this.winner);
       return;
@@ -1098,6 +1110,7 @@ export class World {
     if (this.crown.owner === 0 && mine >= real.length / 2) { this.crowned = true; this.winner = 0; this.victory = 'sword'; }
     else if (!rivals.length || rivals.every(h => B.has(h.index))) { this.crowned = true; this.winner = 0; this.victory = rivals.length ? 'acclaim' : 'sword'; }
     else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0 && !a.wagon)) this.winner = 1;
+    if (this.crowned && this.winner === 0) this.chron(this.victory === 'acclaim' ? 'Every great house named you king, and you were crowned at Kingsbridge.' : 'Kingsbridge was yours and the realm knelt: you were crowned.');
     if (this.winner !== null) this.hooks.ended(this.winner);
   }
 
@@ -1107,6 +1120,7 @@ export class World {
   beginPart2() {
     if (this.part === 2) return;
     this.part = 2;
+    this.chron('The old wall in the north fell, and the host of Norrhold came through it.');
     this.winner = null;
     this.wars.clear();
     for (const H of FACTIONS.slice(1, this.bandits)) {
@@ -1204,6 +1218,7 @@ export class World {
     mark(this, v, 15, 'Knighted by you', Infinity);
     recall(this, v, 'Knighted by you after years in your service');
     this.log(`Captain ${c.name} kneels and rises ${v.name}, lord of ${p.name} under you.`);
+    this.chron(`Captain ${c.name} was knighted and given ${p.name}.`);
     return v;
   }
 
@@ -1366,6 +1381,7 @@ export class World {
     }
     for (const o of living(this)) mark(this, o, yes ? -5 : 8, yes ? 'You let the faction go' : 'Stood by you when others rose', 2400);
     this.log(yes ? `${vs.map(v => v.name).join(', ')} hold their villages free of you now.` : `${vs.map(v => v.name).join(', ')} have risen against you! Their villages are free of you; take them back by force.`, 1);
+    this.chron(yes ? `${vs.map(v => v.name).join(', ')} were let go from your service.` : `${vs.map(v => v.name).join(', ')} rose against you.`);
     if (!yes) this.hooks.herald?.({ title: 'Your vassals rise', text: `${vs.map(v => v.name).join(', ')} refuse you as their lord. Their villages stand against you now.` });
   }
 

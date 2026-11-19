@@ -81,11 +81,11 @@ const hooks = {
   },
   ended: winner => {
     audio.setMood(winner === 0 ? 'victory' : 'defeat'); // audio
-    if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload());
-    if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload());
+    if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload(), true);
+    if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload(), true);
     // Crowned: the end of Part 1. The victory card breaks, and the wall with it.
     const how = world.victory === 'acclaim' ? 'Every great house names you king.' : 'Kingsbridge is yours and the realm kneels.';
-    showResult('You are crowned', `${how} Long live the king.`, 'Continue', () => crownedThenNorth());
+    showResult('You are crowned', `${how} Long live the king.`, 'Continue', () => crownedThenNorth(), true);
   },
   herald: msg => herald(msg),
   rankUp: () => { audio.play('drums'); setTimeout(() => audio.play('horn'), 900); },
@@ -428,6 +428,28 @@ function endField(won) {
     });
 }
 
+// ---- the chronicle ----
+// The campaign as a book: a chapter a year (twenty minutes of play), a season to each
+// five minutes, and what the chronicler wrote down (world.chron).
+const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'], YEAR = 1200;
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+function openChronicle() {
+  const box = $('book'), years = new Map();
+  for (const e of world.chronicle || []) {
+    const y = Math.floor(e.at / YEAR);
+    if (!years.has(y)) years.set(y, []);
+    years.get(y).push(e);
+  }
+  const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  box.querySelector('.pages').innerHTML = years.size ? [...years].map(([y, list]) => `<h4>The ${ORDINALS[y] || `${y + 1}th`} year</h4>`
+    + list.map(e => `<p><b>${SEASONS[Math.floor((e.at % YEAR) / (YEAR / 4))]}.</b> ${esc(e.text)}</p>`).join('')).join('')
+    : `<p>Nothing worth the ink yet. Your story begins in ${esc(world.home.name)}.</p>`;
+  box.querySelector('button').onclick = () => box.classList.remove('open');
+  box.classList.add('open');
+  const pages = box.querySelector('.pages');
+  pages.scrollTop = pages.scrollHeight;
+}
+
 // ---- prompts ----
 
 function nextAsk() {
@@ -580,13 +602,22 @@ function shatter(url) {
   setTimeout(() => box.remove(), 3600);
 }
 
-function showResult(title, text, button, fn) {
+function showResult(title, text, button, fn, book = false) {
   const box = $('result');
   box.querySelector('h2').textContent = title;
   box.querySelector('p').textContent = text;
   const btn = box.querySelector('button');
   btn.textContent = button;
   btn.onclick = () => { box.classList.remove('open'); fn(); };
+  // At the end of a campaign, its story can be read before you go on.
+  box.querySelector('.book')?.remove();
+  if (book && world.chronicle?.length) {
+    const b = document.createElement('button');
+    b.className = 'book';
+    b.textContent = 'Read the chronicle';
+    b.onclick = () => openChronicle();
+    btn.after(b);
+  }
   box.classList.add('open');
 }
 
@@ -615,6 +646,7 @@ function worldPanel() {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div>`
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
+      + `<button data-act="chronicle" class="wide">${ico('map')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
     else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
@@ -788,6 +820,7 @@ $('wpanel').onclick = e => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   const it = selected;
   if (act === 'back') { selected = null; return; }
+  if (act === 'chronicle') return openChronicle();
   if (act === 'enter') enterTown(it);
   if (act === 'spy' && it && world.sendSpy(it)) panelKey = null;
   if (act?.startsWith('grant') && it) {
