@@ -24,7 +24,7 @@ import { BUILDINGS, TEMPLATES } from './economy.js';
 const ghostKind = k => k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, hire as hireCompany, release } from './world/companies.js';
-import { vassalOf, holdingsOf, living, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, moodWord, moodColor } from './world/vassals.js';
+import { vassalOf, holdingsOf, living, prisoners, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
@@ -618,8 +618,9 @@ function worldPanel() {
           <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please him">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger him">+</button></div>
           <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please him">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger him">+</button></div>
           <div class="row"><button data-act="v:gift">${ico('gold', '#e8c45a')} Gift (${GIFT} gold)</button><button data-act="v:council" data-f="council"></button></div>
+          <div class="feud" data-f="feud"></div>
           <button data-act="visit" class="wide" title="See his village as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button>
-          <button data-act="revoke" class="wide warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button>`
+          <div class="row"><button data-act="revoke" class="warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button><button data-act="v:imprison" class="warn" title="Every village he holds comes back to you and he goes to your dungeon. The others will remember it; you can pardon him later.">Imprison him</button></div>`
         : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
@@ -649,9 +650,13 @@ function worldPanel() {
       const men = held.reduce((n, p) => n + headcount(p.garrison), 0);
       const initials = v.name.split(' ').slice(1).map(w => w[0]).join('');
       const why = o.why.map(([n, t]) => `${n > 0 ? '+' : ''}${n} ${t}`).join('\n');
-      return `<div class="h pick" data-vassal="${v.id}" title="${moodWord(o.total)}\n${why}"><i class="shield" style="background:${v.color}">${initials}</i><span>${v.name}${v.council ? ` ${ico('crown', '#e8c45a')}` : ''}<br><small>${held.map(p => p.name).join(', ')} · ${men} men · paid ${Math.floor(v.paid)}${v.refusing ? ' · <b class="war">refusing</b>' : ''}</small></span><b class="op" style="color:${moodColor(o.total)}">${o.total > 0 ? '+' : ''}${o.total}</b></div>`;
+      const foe = v.feud && world.vassals.find(x => x.id === v.feud);
+      const marks = (world.faction?.members.includes(v.id) ? ' · <b class="war">⚑ faction</b>' : '') + (foe ? ` · <b class="war">feuding with ${foe.name}</b>` : '');
+      return `<div class="h pick" data-vassal="${v.id}" title="${moodWord(o.total)}\n${why}"><i class="shield" style="background:${v.color}">${initials}</i><span>${v.name}${v.council ? ` ${ico('crown', '#e8c45a')}` : ''}<br><small>${v.landless ? 'Landless, at your court: give him a village' : `${held.map(p => p.name).join(', ')} · ${men} men · paid ${Math.floor(v.paid)}`}${v.refusing ? ' · <b class="war">refusing</b>' : ''}${marks}</small></span><b class="op" style="color:${moodColor(o.total)}">${o.total > 0 ? '+' : ''}${o.total}</b></div>`;
     }).join('') : '';
-    if (vl && vl.dataset.html !== vrows) { vl.dataset.html = vrows; vl.innerHTML = vrows; }
+    const jail = prisoners(world);
+    const prows = vrows + (jail.length ? `<h4>In your dungeon</h4>` + jail.map(v => `<div class="h"><i class="shield" style="background:${v.color}">${v.name.split(' ').slice(1).map(w => w[0]).join('')}</i><span>${v.name}<br><small>${TEMPERS[v.temper].name}</small></span><button data-act="pardon:${v.id}" title="Out, grateful and landless, until you give him a village">Pardon</button></div>`).join('') : '');
+    if (vl && vl.dataset.html !== prows) { vl.dataset.html = prows; vl.innerHTML = prows; }
   } else if (it.wagon) {
     set('men', `${it.wagon.food} food`);
     set('status', it.wagon.to.gone ? `Going back to ${it.wagon.from.name}` : `On the way to ${it.wagon.to.name}`);
@@ -677,7 +682,7 @@ function worldPanel() {
   } else {
     const who = it.visible ? it.owner : it.known?.owner;
     const lord = vassalOf(world, it);
-    const whoText = !it.seen ? 'Unexplored' : who === null ? 'Free folk with their own militia' : lord ? `Yours, held for you by <b style="color:${lord.color}">${lord.name}</b>` : who === 0 ? 'Yours' : `Held by ${FACTIONS[who].name}${world.atWar(0, who) ? ' (at war with you)' : ''}`;
+    const whoText = !it.seen ? 'Unexplored' : who === null ? (it.free ? `Held free of you by ${it.free}, who rose against you` : 'Free folk with their own militia') : lord ? `Yours, held for you by <b style="color:${lord.color}">${lord.name}</b>` : who === 0 ? 'Yours' : `Held by ${FACTIONS[who].name}${world.atWar(0, who) ? ' (at war with you)' : ''}`;
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     if (it.town) {
       const can = world.canGrant(it);
@@ -697,6 +702,9 @@ function worldPanel() {
         set('dues', `${DUES[lord.dues].name} (${Math.round(DUES[lord.dues].share * 100)}%)`);
         set('levy', `${LEVIES[lord.levy].name} (${Math.round(LEVIES[lord.levy].share * 100)}%)`);
         set('council', lord.council ? 'Off your council' : `${ico('crown')} Seat on your council`);
+        const foe = lord.feud && world.vassals.find(x => x.id === lord.feud);
+        set('feud', foe ? `<p><b class="war">Feuding with ${foe.name}</b>: both their villages suffer, and he minds that you do nothing.</p>`
+          + `<div class="row"><button data-act="v:judge" title="He is pleased; ${foe.name} is not">Judge for him</button><button data-act="v:reconcile" title="Both a little pleased">${ico('gold', '#e8c45a')} Reconcile (${RECONCILE})</button></div>` : '');
       }
       const btn = el.querySelector('[data-f="spy"]'), can = world.canSpy(it), going = world.spies.some(s => s.at === it.id);
       if (btn) {
@@ -771,6 +779,8 @@ $('wpanel').onclick = e => {
     if (r.text) flash(r.text, r.ok);
   }
   if (act === 'revoke' && it && world.revoke(it)) panelKey = null;
+  if (act === 'v:imprison') { selected = null; panelKey = null; }
+  if (act?.startsWith('pardon:')) { world.pardon(world.vassals.find(v => v.id === +act.split(':')[1])); panelKey = null; }
   if (act === 'visit' && it?.vassal) return visitVassal(it);
   if (act === 'muster') {
     const regs = it.town.garrison().filter(r => !r.routing && !r.regrouping);

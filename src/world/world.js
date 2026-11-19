@@ -4,7 +4,7 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
-import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, DUES, LEVIES, COUNCIL, GIFT } from './vassals.js';
+import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, DUES, LEVIES, COUNCIL, GIFT, RECONCILE } from './vassals.js';
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
@@ -728,6 +728,7 @@ export class World {
   takePlace(p, owner) {
     const was = p.owner;
     p.owner = owner;
+    p.free = null;
     const v = vassalOf(this, p);
     if (v) {
       p.vassal = null;
@@ -1107,7 +1108,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this); tickCompanies(this, 5); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
@@ -1138,6 +1139,7 @@ export class World {
     eco.pop = Math.max(10, people);
     Object.assign(p, { town: null, garrison: men, eco });
     if (v) {
+      if (v.landless) { v.landless = false; mark(this, v, 10, 'Given land again', 2400); }
       mark(this, v, 12, `Given ${p.name}`, Infinity);
       recall(this, v, `Given ${p.name} by you`);
     } else v = makeVassal(this, p);
@@ -1149,7 +1151,7 @@ export class World {
 
   // Takes a village back from its vassal. It stands as you left it, with what the vassal
   // built since laid out around your streets. The other vassals take note.
-  revoke(p) {
+  revoke(p, quiet = false) {
     const v = vassalOf(this, p);
     if (!v || p.owner !== 0) return false;
     const e = p.eco, men = p.garrison;
@@ -1161,6 +1163,7 @@ export class World {
     p.vassal = null;
     if (men.length) town.addTroops(men, this.angle(p, p.links[0]));
     recall(this, v, `${p.name} was taken back by you`);
+    if (quiet) return true;
     if (!holdingsOf(this, v).length) v.gone = true;
     else mark(this, v, -30, `You took ${p.name} back`, 2400);
     for (const o of living(this)) if (o !== v) mark(this, o, -12, `You took ${p.name} from ${v.name}`, 1800);
@@ -1210,6 +1213,36 @@ export class World {
       recall(this, v, `Received a gift of ${GIFT} gold`);
       return { ok: true, text: `${v.name} thanks you for the gift.` };
     }
+    // His feud: side with him, or pay them both to make peace.
+    const foe = v.feud && this.vassals.find(o => o.id === v.feud);
+    if (act === 'judge' && foe) {
+      mark(this, v, 15, `You judged for him against ${foe.name}`, 2400);
+      mark(this, foe, -20, `You judged for ${v.name} against him`, 2400);
+      recall(this, v, `You judged his feud with ${foe.name} in his favour`);
+      recall(this, foe, `You judged his feud with ${v.name} against him`);
+      endFeud(this, v, foe);
+      return { ok: true, text: `You judge for ${v.name}. ${foe.name} goes home angry.` };
+    }
+    if (act === 'reconcile' && foe) {
+      if (me.gold < RECONCILE) return { ok: false, text: `Needs ${RECONCILE} gold` };
+      me.gold -= RECONCILE;
+      for (const [a, b] of [[v, foe], [foe, v]]) { mark(this, a, 5, `You made his peace with ${b.name}`, 1200); recall(this, a, `Reconciled with ${b.name} at your table`); }
+      endFeud(this, v, foe);
+      return { ok: true, text: `${v.name} and ${foe.name} shake hands at your table.` };
+    }
+    // Into your dungeon: every village he holds comes back to you, and the rest look on.
+    if (act === 'imprison') {
+      const held = holdingsOf(this, v);
+      for (const p of held) this.revoke(p, true);
+      v.prison = true;
+      v.council = false;
+      v.refusing = false;
+      if (v.feud) endFeud(this, v, this.vassals.find(o => o.id === v.feud));
+      recall(this, v, 'Thrown into your dungeon');
+      for (const o of living(this)) mark(this, o, -10, `You imprisoned ${v.name}`, 2400);
+      this.log(`${v.name} is in your dungeon; ${held.map(p => p.name).join(', ') || 'nothing'} is yours again.`, 1);
+      return { ok: true };
+    }
     if (act === 'council') {
       if (!v.council && living(this).filter(o => o.council).length >= COUNCIL) return { ok: false, text: `Your council has ${COUNCIL} seats` };
       v.council = !v.council;
@@ -1218,6 +1251,43 @@ export class World {
       return { ok: true };
     }
     return { ok: false };
+  }
+
+  // Out of your dungeon, landless and grateful, until you give him a village.
+  pardon(v) {
+    if (!v?.prison) return false;
+    v.prison = false;
+    v.landless = true;
+    v.marks = v.marks.filter(m => m.n > 0);
+    mark(this, v, 25, 'Pardoned by you', 3600);
+    recall(this, v, 'Pardoned and let out of your dungeon');
+    for (const o of living(this)) if (o !== v) mark(this, o, 5, `You pardoned ${v.name}`, 1200);
+    this.log(`You pardon ${v.name}. He waits at your court for land.`);
+    return true;
+  }
+
+  // The faction's demand, answered. Yes: light dues and levies for every member (or, if
+  // they already pay light, nothing more can be given and they go free). No: they rise,
+  // and their villages declare themselves free of you.
+  factionAnswer(yes) {
+    const F = this.faction;
+    if (!F) return;
+    const vs = F.members.map(id => this.vassals.find(o => o.id === id)).filter(v => v && !v.gone && !v.prison);
+    this.faction = null;
+    if (yes && F.demand === 'dues') {
+      for (const v of vs) { v.dues = 0; v.levy = 0; v.refusing = false; mark(this, v, 10, 'You gave in to the faction', 2400); recall(this, v, 'Won light dues from you with the faction'); }
+      this.log(`You give way: ${vs.map(v => v.name).join(', ')} pay light dues and send light levies.`, 1);
+      return;
+    }
+    for (const v of vs) {
+      for (const p of holdingsOf(this, v)) { p.vassal = null; p.owner = null; p.free = v.name; }
+      v.gone = true;
+      v.rebel = !yes;
+      recall(this, v, yes ? 'Released from your service' : 'Rose against you');
+    }
+    for (const o of living(this)) mark(this, o, yes ? -5 : 8, yes ? 'You let the faction go' : 'Stood by you when others rose', 2400);
+    this.log(yes ? `${vs.map(v => v.name).join(', ')} hold their villages free of you now.` : `${vs.map(v => v.name).join(', ')} have risen against you! Their villages are free of you; take them back by force.`, 1);
+    if (!yes) this.hooks.herald?.({ title: 'Your vassals rise', text: `${vs.map(v => v.name).join(', ')} refuse you as their lord. Their villages stand against you now.` });
   }
 
   // ---- spies ----

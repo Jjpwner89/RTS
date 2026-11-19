@@ -61,9 +61,14 @@ export function alerts(w) {
 
   for (const v of living(w)) {
     const held = w.pois.find(p => p.vassal === v.id);
+    if (v.landless) { add(1, `${v.name} waits at your court for land`, null, 'crown'); continue; }
+    const foe = v.feud && w.vassals.find(o => o.id === v.feud);
+    if (foe && v.id < foe.id) add(2, `${v.name} and ${foe.name} are feuding`, held, 'crown');
     if (v.refusing) add(3, `${v.name} refuses dues and men`, held, 'crown');
     else if (opinion(w, v).total <= -10) add(2, `${v.name} is resentful`, held, 'crown');
   }
+
+  if (w.faction?.members.length >= 2) add(3, `${w.faction.members.length} vassals have formed a faction against you`, null, 'warning');
 
   // Good to know: an army of yours standing idle away from home.
   for (const a of w.armies) {
