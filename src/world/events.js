@@ -2,7 +2,8 @@
 // something happens in one of your villages and you choose what to do about it. Each has
 // a picture (assets/art/events/<id>.png, from Art; the box shows none while it is missing).
 //
-// One every seven to twelve minutes, at a village of yours that you run; never the same
+// One every seven to twelve minutes, at a village of yours that you run (or, for the kinds
+// of place in the second half of the list, any place of that kind you hold); never the same
 // one twice running. Choices that cost gold say so and can't be picked without it.
 import { FACTIONS, headcount } from './world.js';
 
@@ -157,8 +158,8 @@ EVENTS.scheme = {
   title: () => 'A whisper of treason',
   text: (w, p, e) => `Captain ${e.cap.name}, who leads ${e.army.name}, has been seen drinking with ${e.house.name}'s agents, and spending more than a captain earns.`,
   choices: (w, p, e) => [
-    { label: 'Double his pay (100 gold)', ok: gold() >= 100, run: () => { pay(100); return `Captain ${e.cap.name} swears never to have taken a penny. Yours, for now.`; } },
-    { label: 'Take away the command', run: () => { e.army.captain = null; e.cap.army = null; e.cap.alive = false; return `Captain ${e.cap.name} is stripped of his command and sent away. ${e.army.name} marches without a captain.`; } },
+    { label: 'Double the captain\'s pay (100 gold)', ok: gold() >= 100, run: () => { pay(100); return `Captain ${e.cap.name} swears never to have taken a penny. Yours, for now.`; } },
+    { label: 'Take away the command', run: () => { e.army.captain = null; e.cap.army = null; e.cap.alive = false; return `Captain ${e.cap.name} is stripped of command and sent away. ${e.army.name} marches without a captain.`; } },
     { label: 'Ignore it', run: () => {
       if (w.rand() < 0.5 || e.army.gone) return 'Nothing comes of it.';
       e.army.side = e.house.index;
@@ -172,6 +173,104 @@ EVENTS.scheme = {
     } },
   ],
 };
+// ---- what each kind of place brings ----
+// Held abbeys draw pilgrims, fords quarrel over tolls, mines fall in. These come to a
+// place of the right kind that you hold, run as a village or not (`any`).
+const people = p => (p.town ? p.town.population : Math.round(p.eco?.pop ?? 0));
+const menAt = p => (p.town ? p.town.garrison().reduce((n, r) => n + r.alive, 0) : headcount(p.garrison));
+const SAINTS = ['St Elfrida', 'St Cuthwin', 'St Botolph', 'St Hild', 'St Aldhelm', 'St Wenna'];
+
+EVENTS.pilgrims = {
+  any: true,
+  when: (w, p) => p.kind === 'monastery' && !(p.pilgrims?.until > w.time),
+  title: p => `Pilgrims at ${p.name}`,
+  text: (w, p, e) => `Word has gone round that the bones of ${e.saint} at ${p.name} cure the falling sickness. Pilgrims are coming up every road, with coins for the relics and nowhere to sleep.`,
+  choices: (w, p, e) => [
+    { label: 'Build them a hostel (100 gold)', ok: gold() >= 100, run: () => {
+      pay(100);
+      p.pilgrims = { until: w.time + 1500, rate: 0.2, saint: e.saint };
+      if (p.town) spell(p.town, 6, 'pilgrims in the streets', 1500);
+      return `A hostel goes up at ${p.name}. Pilgrims' coins will come in for the next twenty-five minutes.`;
+    } },
+    { label: 'Take a tithe of their offerings', run: () => {
+      FACTIONS[0].gold += 70;
+      if (p.town) spell(p.town, -6, "the lord's hand in the offering box", 600);
+      return `70 gold from the offering boxes of ${p.name}. The monks are not pleased.`;
+    } },
+    { label: 'Let them pray in peace', run: () => {
+      for (const H of FACTIONS) if (H.index && w.dip?.[H.index] && !H.bandit && !H.invader) w.dip[H.index].opinion += 2;
+      return `The pilgrims pray at ${p.name} and go home speaking well of you.`;
+    } },
+  ],
+};
+EVENTS.toll = {
+  any: true,
+  when: (w, p) => p.kind === 'ford' && !!tollHouse(w, p),
+  title: p => `A quarrel at ${p.name}`,
+  text: (w, p, e) => `${e.house.name}'s men have set up a toll booth on the far bank of ${p.name} and are taking coin from every cart that crosses. There are ${e.n * 2} of them, armed.`,
+  choices: (w, p, e) => {
+    const them = e.n * 2, mine = menAt(p);
+    return [
+      { label: `Drive them off (${mine} men at the ford)`, ok: mine > 0, run: () => {
+        if (mine * (0.6 + w.rand() * 0.8) > them) {
+          FACTIONS[0].gold += 90;
+          if (w.dip?.[e.house.index]) w.dip[e.house.index].opinion -= 8;
+          return `Your men throw ${e.house.name}'s booth into the river and take its strongbox: 90 gold.`;
+        }
+        if (!p.town) for (const u of p.garrison) u.count = Math.floor(u.count * 0.85);
+        else spell(p.town, -6, 'beaten at the ford', 400);
+        p.garrison = (p.garrison || []).filter(u => u.count > 0);
+        return `${e.house.name}'s men beat yours back across the ford. The toll stays.`;
+      } },
+      { label: 'Share the toll with them', run: () => {
+        FACTIONS[0].gold += 35;
+        if (w.dip?.[e.house.index]) w.dip[e.house.index].opinion += 8;
+        return `You split the toll with ${e.house.name}: 35 gold, and a friendlier neighbour.`;
+      } },
+      { label: 'Let them have it', run: () => { if (p.town) spell(p.town, -4, 'a foreign toll at the ford', 600); return `${e.house.name} keeps its booth at ${p.name}.`; } },
+    ];
+  },
+};
+EVENTS.collapse = {
+  any: true,
+  when: (w, p) => (p.kind === 'mine' && (!p.town || p.town.buildings.some(b => b.kind === 'mine' && b.state === 'active'))) && people(p) >= 12,
+  title: p => `A fall at ${p.name}`,
+  text: (w, p, e) => `A gallery has fallen in at ${p.name}. ${Math.max(2, Math.round(e.n / 2))} miners are trapped behind the rock, and the timbers along the rest are groaning.`,
+  choices: (w, p, e) => {
+    const trapped = Math.max(2, Math.round(e.n / 2)), t = p.town;
+    const hasWood = t ? t.free('wood') >= 40 : (p.eco?.stock?.wood || 0) >= 40;
+    return [
+      { label: hasWood ? 'Dig them out (40 wood; the mine stops a while)' : 'Dig them out (60 gold; the mine stops a while)', ok: hasWood || gold() >= 60, run: () => {
+        if (hasWood) { if (t) t.spend({ wood: 40 }); else p.eco.stock.wood -= 40; } else pay(60);
+        if (t) { for (const b of t.buildings) if (b.kind === 'mine' && b.state === 'active') t.setPaused(b, true); spell(t, 6, 'the miners dug out alive', 600); }
+        p.mineShut = w.time + 180;
+        return `Three days of digging, and every miner comes out alive. The mine at ${p.name} works again in three minutes.`;
+      } },
+      { label: 'Seal the gallery', run: () => {
+        if (t) lose(t, trapped); else p.eco.pop = Math.max(8, p.eco.pop - trapped);
+        return `The gallery is sealed with ${trapped} men behind it. ${p.name} mourns, and the mine goes on.`;
+      } },
+    ];
+  },
+};
+// A neighbouring house not at war with you, close enough to the ford to want its toll.
+const tollHouse = (w, p) => FACTIONS.find(H => H.index && H.alive && !H.bandit && !H.invader && !w.atWar(0, H.index) && !w.dip?.[H.index]?.vassal
+  && w.pois.some(q => q.owner === H.index && Math.hypot(q.x - p.x, q.z - p.z) < 450));
+
+// Time for the places' own business: pilgrims' coin, mines reopening.
+export function tickPlaces(w, dt) {
+  for (const p of w.pois) {
+    if (p.pilgrims) {
+      if (p.pilgrims.until <= w.time || p.owner !== 0) delete p.pilgrims;
+      else FACTIONS[0].gold += p.pilgrims.rate * dt;
+    }
+    if (p.mineShut && p.mineShut <= w.time) {
+      delete p.mineShut;
+      if (p.town) for (const b of p.town.buildings) if (b.kind === 'mine' && b.paused) p.town.setPaused(b, false);
+    }
+  }
+}
+
 const schemer = w => FACTIONS.find(H => H.trait === 'schemer' && H.alive && w.atWar(0, H.index));
 const turncoat = w => w.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && a.captain && a.lord !== 0)
   .map(a => ({ a, c: (w.captains || []).find(c => c.id === a.captain && c.alive) })).find(x => x.c);
@@ -183,14 +282,16 @@ function camp(w, p) {
 }
 
 export function tickEvents(w, dt) {
+  tickPlaces(w, dt);
   w.eventClock = (w.eventClock ?? FIRST) - dt;
   if (w.eventClock > 0) return;
   w.eventClock = EVERY[0] + w.rand() * (EVERY[1] - EVERY[0]);
   const places = w.pois.filter(p => p.owner === 0 && p.town && !p.town.underAttack && !p.town.hostile && !p.town.revolt);
+  const held = w.pois.filter(p => p.owner === 0 && !p.vassal && !p.falling && (p.town ? places.includes(p) : p.eco));
   const options = [];
   for (const [id, E] of Object.entries(EVENTS)) {
     if (id === w.lastEvent) continue;
-    for (const p of places) if (E.when(w, p)) options.push([id, p]);
+    for (const p of E.any ? held : places) if (E.when(w, p)) options.push([id, p]);
   }
   if (!options.length) return;
   const [id, p] = options[Math.floor(w.rand() * options.length)];
@@ -200,7 +301,7 @@ export function tickEvents(w, dt) {
 export function fire(w, id, p) {
   const E = EVENTS[id];
   const r = () => w.rand();
-  const extra = { name: id === 'knight' ? KNIGHTS[Math.floor(r() * KNIGHTS.length)] : CHIEFS[Math.floor(r() * CHIEFS.length)], n: Math.round((w.part === 2 ? 10 : 5) + r() * 6) };
+  const extra = { saint: SAINTS[Math.floor(r() * SAINTS.length)], house: id === 'toll' ? tollHouse(w, p) : null, name: id === 'knight' ? KNIGHTS[Math.floor(r() * KNIGHTS.length)] : CHIEFS[Math.floor(r() * CHIEFS.length)], n: Math.round((w.part === 2 ? 10 : 5) + r() * 6) };
   if (id === 'tournament') extra.champ = (w.captains || []).filter(c => c.alive && c.side === 0 && c.captive === undefined).sort((a, b) => b.level - a.level)[0] || null;
   if (id === 'scheme') { const t = turncoat(w); Object.assign(extra, { cap: t.c, army: t.a, house: schemer(w) }); }
   w.lastEvent = id;
