@@ -112,7 +112,7 @@ export class TownHud {
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
     set('tax', TAXES[t.taxes].name);
-    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · ${(t.population * t.taxRate * 60).toFixed(0)} a minute in taxes`);
+    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.population * t.taxRate * 60).toFixed(0)}/min`);
     set('hunger', t.mood < 20 ? 'The village is miserable: families are leaving.' : t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);

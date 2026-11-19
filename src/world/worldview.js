@@ -358,10 +358,10 @@ export class WorldView {
       centre = put(keep(keepLevelOf(t)), 0, 0, 0, 0.75);
       for (const b of t.buildings) {
         if (b.state !== 'active') continue;
-        const base = b.kind === 'house' ? `house.${(b.style || 0) % HOUSE_STYLES}` : b.kind;
+        const base = b.kind === 'house' ? `house.${(b.style || 0) % HOUSE_STYLES}` : b.kind === 'monastery' ? 'chapel' : b.kind;
         let geo = null;
         for (let l = b.level || 1; l > 1 && !geo; l--) geo = buildingModel(`${base}.${l}`);
-        geo ||= b.kind === 'house' ? houseModel(b.style || 0) : buildingModel(b.kind);
+        geo ||= b.kind === 'house' ? houseModel(b.style || 0) : buildingModel(base) || buildingModel(b.kind);
         // pushed out past the keep, so nothing hides inside it
         const a = Math.atan2(b.x, b.z), r = 20 + Math.hypot(b.x, b.z) * k;
         put(geo, Math.sin(a) * r, Math.cos(a) * r, b.angle || 0, 0.6);

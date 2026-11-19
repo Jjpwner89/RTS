@@ -365,7 +365,7 @@ const MORE_BUILDINGS = {
   storehouse: [[[rts('Storage_FirstAge_Level2')]], 9],
   market: [[[rts('Market_FirstAge_Level2')]], 12],
   tanner: [[[mvp('House_2')], [mvp('Barrel'), 3.2, 1.8], [mvp('Bags'), 3.2, -1.2]], 8],
-  armourer: [[[rts('Barracks_FirstAge_Level1')], [mvp('Cauldron'), 4.5, 2.5]], 9],
+  armourer: [[[rts('Barracks_FirstAge_Level1')], [mvp('Cauldron'), 4.5, 2.5]], 8],
   stable: [[[mvp('Stable')], [mvp('Hay'), 4, 2]], 11],
   mill: [[[rts('Windmill_FirstAge')], [mvp('Bags'), 3.2, 2]], 8],
   bakery: [[[mvp('House_1')], [mvp('Bags'), 3, 2], [mvp('Barrel'), -3, 2]], 7.5],
@@ -374,7 +374,9 @@ const MORE_BUILDINGS = {
   monastery: [[[rts('Temple_FirstAge_Level2')]], 18],
   dock: [[[rts('Port_FirstAge_Level1')]], 12],
   wagon: [[[mvp('Cart')]], 3.6],
-  well: [[[mvp('Well')]], 2.6],
+  well: [[[mvp('Well')]], 3.2],
+  // a village's chapel: the timber stave temple, not the abbey's great one
+  chapel: [[[rts('Temple_FirstAge_Level1')]], 11],
 };
 // Upgrade levels: `<kind>.2` and `<kind>.3`, each sized against its level-one model so the step up shows.
 const LEVELS = {
@@ -384,6 +386,7 @@ const LEVELS = {
   barracks: ['Barracks_FirstAge_Level2', 'Barracks_FirstAge_Level3', 'Barracks_SecondAge_Level1', 11],
   bowyer: ['Archery_FirstAge_Level1', 'Archery_FirstAge_Level2', 'Archery_SecondAge_Level1', 7],
   watchtower: ['WatchTower_FirstAge_Level1', 'WatchTower_FirstAge_Level2', 'WatchTower_SecondAge_Level2', 4.5],
+  chapel: ['Temple_FirstAge_Level1', 'Temple_FirstAge_Level2', 'Temple_SecondAge_Level1', 11],
 };
 const sizedBy = (name, ref, width) => [[[rts(name)]], width, ref];
 for (const [kind, [one, two, three, width]] of Object.entries(LEVELS)) {

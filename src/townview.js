@@ -206,9 +206,10 @@ export class TownView {
   // Houses come in three styles, picked per building. Buildings with upgrade levels (b.level 2 or 3) have a model for
   // each; a level without one keeps the one below.
   geo(kind, style = 0, level = 1) {
-    const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind;
+    // (a village's chapel is the monastery kind, drawn as the smaller timber chapel)
+    const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind === 'monastery' ? 'chapel' : kind;
     for (let l = level; l > 1; l--) if (buildingModel(`${base}.${l}`)) return this.cached(`${base}.${l}`, () => buildingModel(`${base}.${l}`));
-    return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(kind)) || (MODELS[kind] || MODELS.storehouse)());
+    return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(base) || buildingModel(kind)) || (MODELS[kind] || MODELS.storehouse)());
   }
   cached(key, make) { return this.geos[key] || (this.geos[key] = make()); }
 

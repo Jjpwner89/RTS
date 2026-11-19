@@ -52,3 +52,20 @@ The background square was removed so each icon is a plain silhouette.
 | pass.svg | mountain-road | Delapouite |
 | warcamp.svg | barracks-tent | Delapouite |
 | invader.svg | horned-helm | Lorc |
+| hides.svg | animal-hide | Delapouite |
+| leather.svg | rolled-cloth | Delapouite |
+| flour.svg | flour | Delapouite |
+| bread.svg | bread | Delapouite |
+| crossbows.svg | crossbow | Carl Olsen |
+| bolts.svg | quiver | Delapouite |
+| lances.svg | spear-feather | Delapouite |
+| mail.svg | chain-mail | Willdabeast |
+| armour.svg | breastplate | Lorc |
+| horses.svg | horse-head | Delapouite |
+| tanner.svg | full-wood-bucket | Delapouite |
+| mill.svg | windmill | Delapouite |
+| bakery.svg | sliced-bread | Lorc |
+| armourer.svg | anvil | Lorc |
+| stable.svg | stable | Delapouite |
+| siegeworks.svg | trebuchet | Delapouite |
+| well.svg | well | Delapouite |
