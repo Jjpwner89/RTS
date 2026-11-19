@@ -111,7 +111,7 @@ export const BUILDINGS = {
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
   watchtower: { name: 'Watchtower', icon: 'watchtower', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
     desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
-  hall: { name: "Knights' hall", icon: 'barracks', group: 'Military', cost: { planks: 40, stone: 60 }, radius: 7, build: 45, hp: 400, hall: true,
+  hall: { name: "Knights' hall", icon: 'hall', group: 'Military', cost: { planks: 40, stone: 60 }, radius: 7, build: 45, hp: 400, hall: true,
     desc: "Trains veterans into men-at-arms and knights: slow, costly and worth it. From the rank of Count, in a village whose keep is level 3." },
 };
 // Building upgrades: gold and goods, once the village is big enough. Each level works

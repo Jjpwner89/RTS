@@ -70,3 +70,4 @@ The background square was removed so each icon is a plain silhouette.
 | siegeworks.svg | trebuchet | Delapouite |
 | well.svg | well | Delapouite |
 | watchtower.svg | watchtower | Delapouite |
+| hall.svg | visored-helm | Lorc |
