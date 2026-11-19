@@ -611,7 +611,7 @@ export class World {
   join(a, b) {
     for (const u of b.units) {
       const same = a.units.find(o => o.key === u.key && o.name === u.name && sameGear(o, u));
-      if (same) { same.count += u.count; same.battles = Math.max(same.battles || 0, u.battles || 0); } else a.units.push({ ...u });
+      if (same) { same.xp = Math.round(((same.xp || 0) * same.count + (u.xp || 0) * u.count) / Math.max(1, same.count + u.count) * 10) / 10; same.count += u.count; same.battles = Math.max(same.battles || 0, u.battles || 0); } else a.units.push({ ...u });
     }
     a.wounded = [...(a.wounded || []), ...(b.wounded || [])];
     a.food = (a.food || 0) + (b.food || 0);

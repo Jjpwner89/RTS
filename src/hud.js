@@ -1,12 +1,17 @@
 // Regiment cards along the bottom, time controls on top, and battle messages.
 import { drawIcon, SIDE_COLORS } from './view.js';
-import { FORMATIONS, WEATHER, ARMOUR, canShield, hasShield } from './battle.js';
+import { FORMATIONS, WEATHER, ARMOUR, VET_RANKS, canShield, hasShield } from './battle.js';
 import { ico } from './icons.js';
 
-// The armour badge on a card: the level, and a mark when men who could carry shields have none.
+// The badge on a card's icon: rank as gold chevrons (none for green men) beside the armour
+// level, and a mark when men who could carry shields have none. Two regiments in the same
+// armour are told apart by their chevrons.
+const chevrons = n => n ? `<svg class="rank" viewBox="0 0 8 ${4 + n * 3.5}" width="8" height="${4 + n * 3.5}">${
+  Array.from({ length: n }, (_, i) => `<path d="M1 ${4.5 + i * 3.5}L4 ${2 + i * 3.5}L7 ${4.5 + i * 3.5}"/>`).join('')}</svg>` : '';
 const ARMOUR_TINT = { none: '#c9bfae', leather: '#c08a52', mail: '#b4bcc6', plate: '#f0f4f8' };
-const kitBadge = r => ico(`armour-${r.armour}`, ARMOUR_TINT[r.armour]) + (!hasShield(r) && canShield(r.T.key) ? ico('no-shield', '#e07a5a') : '');
-const kitWords = r => `${ARMOUR[r.armour]?.name || ''}${hasShield(r) ? ', shields' : canShield(r.T.key) ? ', no shields' : ''}`;
+const kitBadge = r => chevrons(r.vet) + ico(`armour-${r.armour}`, ARMOUR_TINT[r.armour]) + (!hasShield(r) && canShield(r.T.key) ? ico('no-shield', '#e07a5a') : '');
+const served = r => `${r.battles} battle${r.battles === 1 ? '' : 's'}`;
+const kitWords = r => `${VET_RANKS[r.vet] || ''}${r.battles ? ', ' + served(r) : ''} · ${ARMOUR[r.armour]?.name || ''}${hasShield(r) ? ', shields' : canShield(r.T.key) ? ', no shields' : ''}`;
 
 const T0 = b => b.terms && b.winner === null;
 
@@ -150,7 +155,7 @@ export class Hud {
     el.onclick = e => this.hooks.selectCard(r, e.shiftKey);
     el.ondblclick = () => this.hooks.focus(r);
     this.cardsEl.append(el);
-    return { r, el, strength: el.querySelector('.strength i'), morale: el.querySelector('.morale i'), state: el.querySelector('.state'), kit: el.querySelector('.kit'), worn: `${r.armour}|${hasShield(r)}` };
+    return { r, el, strength: el.querySelector('.strength i'), morale: el.querySelector('.morale i'), state: el.querySelector('.state'), kit: el.querySelector('.kit'), worn: '' };
   }
 
   update(selection, paused, speed) {
@@ -161,10 +166,10 @@ export class Hud {
       c.strength.style.width = (100 * Math.max(0, r.alive) / r.initial) + '%';
       c.morale.style.width = (100 * Math.max(0, r.morale) / r.T.morale) + '%';
       const doing = b.doingLabel(r), E = r.engine;
-      const extra = [b.vetLabel(r), r.battles ? `${r.battles} battle${r.battles === 1 ? '' : 's'}` : '', r.gone ? '' : b.fatigueLabel(r), b.arrowsLabel(r)].filter(Boolean).map(t => ' · ' + t).join('');
-      c.state.textContent = `${Math.max(0, r.alive)} · ${b.moraleLabel(r)}${doing ? ' · ' + doing : ''}${extra}${E?.maxHp && !r.gone ? ` · ${Math.max(0, Math.round(100 * E.hp / E.maxHp))}%` : ''}`;
+      const extra = [r.gone ? '' : b.fatigueLabel(r), b.arrowsLabel(r)].filter(Boolean).map(t => ' · ' + t).join('');
+      c.state.textContent = `${Math.max(0, r.alive)}${r.battles ? ' · ' + served(r) : ''} · ${b.moraleLabel(r)}${doing ? ' · ' + doing : ''}${extra}${E?.maxHp && !r.gone ? ` · ${Math.max(0, Math.round(100 * E.hp / E.maxHp))}%` : ''}`;
       // A refit between fights shows at once.
-      const worn = `${r.armour}|${hasShield(r)}`;
+      const worn = `${r.vet}|${r.armour}|${hasShield(r)}|${r.battles}`;
       if (worn !== c.worn) { c.worn = worn; c.kit.innerHTML = kitBadge(r); c.el.title = `${r.T.role || ''}\n${kitWords(r)}`; }
       c.el.classList.toggle('selected', selection.has(r));
       c.el.classList.toggle('routing', r.routing);

@@ -52,6 +52,7 @@ body.paused #paused-tag { display: block; }
 /* Armour badge over the corner of the icon: the level, and a mark if the men have no shields. */
 .card .kit { grid-row: 2 / 4; grid-column: 1; align-self: end; justify-self: end; display: flex; gap: 1px; margin: 0 -6px -4px 0; padding: 1px; border-radius: 4px; background: rgba(20, 16, 12, 0.85); pointer-events: none; }
 .card .kit .ico { width: 14px; height: 14px; }
+.card .kit .rank { align-self: center; margin: 0 1px; fill: none; stroke: #e8c45a; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .card.routing { animation: blink 0.8s infinite alternate; }
 .card.routing .morale i { background: var(--bad); }
