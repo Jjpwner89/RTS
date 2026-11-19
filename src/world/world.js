@@ -7,7 +7,8 @@ import { Battle, TYPES } from '../battle.js';
 import { Town } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
 import { rng } from '../noise.js';
-import { thinkAI } from '../ai.js';
+import { thinkAI, thinkSiegeAttack } from '../ai.js';
+import { buildFort } from '../walls.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers } from './diplomacy.js';
@@ -31,24 +32,46 @@ const SIGHT = { place: 250, army: 190 };
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-// Places won by the sword come with whatever was standing there.
-const PREBUILT = [
-  ['house', 'farm', 'woodcutter'],
-  ['house', 'farm', 'woodcutter', 'house', 'storehouse'],
-  ['house', 'farm', 'woodcutter', 'house', 'storehouse', 'farm', 'carpenter', 'house'],
-  ['house', 'farm', 'woodcutter', 'house', 'storehouse', 'farm', 'carpenter', 'house', 'house', 'barracks', 'farm'],
-];
-// What stands in a place you storm or take: more for a lord's seat, most for the royal city.
-function layoutFor(p, lvl) {
-  if (p.kind === 'crown') return [...PREBUILT[3], 'house', 'house', 'house', 'house', 'house', 'house', 'storehouse', 'carpenter', 'barracks', 'farm', 'house', 'house'];
-  const seat = p.seat !== undefined;
-  return [...PREBUILT[Math.min(3, lvl - 1 + (seat ? 1 : 0))], ...(seat ? ['house', 'house'] : [])];
+// What stands in a place you storm or take: a real village sized to its people. Houses
+// line the roads in, workshops round the middle, farms out in the fields; a lord's seat
+// has more of everything and the royal city most of all.
+function layOut(town, p, lvl, rand, near = 18) {
+  const pop = p.eco?.pop ?? 20, seat = p.seat !== undefined, crown = p.kind === 'crown';
+  const k = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(n)));
+  const houses = k(pop / 5, 3, crown ? 36 : 24), farms = k(pop / 14, 1, crown ? 9 : 7);
+  const crafts = [
+    'storehouse', 'woodcutter', 'hunter',
+    ...(lvl >= 2 || seat ? ['carpenter', 'quarry', 'storehouse', 'woodcutter', 'flax'] : []),
+    ...(lvl >= 3 || seat ? ['ropemaker', 'bowyer', 'smelter', 'mine'] : []),
+    ...(seat || crown || p.kind === 'castle' ? ['barracks', 'weaponsmith'] : []),
+    ...(crown ? ['storehouse', 'carpenter', 'barracks', 'bowyer'] : []),
+  ];
+  const roads = p.roadAngles?.length ? p.roadAngles : [rand() * Math.PI * 2];
+  const at = (kind, spot) => {
+    for (let tries = 0; tries < 60; tries++) {
+      const { x, z } = spot();
+      if (!town.canPlace(kind, x, z, { free: true }).ok) continue;
+      town.place(kind, x, z, { ready: true });
+      return true;
+    }
+    return false;
+  };
+  // Houses either side of a road, thickest near the keep, a few in the lanes between.
+  const street = (lo, hi) => () => {
+    const a = roads[Math.floor(rand() * roads.length)], along = lo + Math.pow(rand(), 1.4) * (hi - lo);
+    const across = (rand() < 0.5 ? -1 : 1) * (8 + rand() * 7);
+    return { x: Math.sin(a) * along + Math.cos(a) * across, z: Math.cos(a) * along - Math.sin(a) * across };
+  };
+  const ring = (lo, hi) => () => { const a = rand() * Math.PI * 2, r = lo + rand() * (hi - lo); return { x: Math.sin(a) * r, z: Math.cos(a) * r }; };
+  for (let i = 0; i < houses; i++) at('house', rand() < 0.75 ? street(near, near + 55) : ring(near, near + 35)) || at('house', ring(near, 95));
+  for (const kind of crafts) at(kind, ring(near + 4, near + 45)) || at(kind, ring(near, 95));
+  for (let i = 0; i < farms; i++) at('farm', ring(Math.max(55, near + 25), 95));
 }
 
-function prebuild(town, kinds, rand) {
+function prebuild(town, kinds, rand, near = 25) {
   for (const kind of kinds) {
     for (let tries = 0; tries < 200; tries++) {
-      const a = rand() * Math.PI * 2, r = 25 + rand() * 70;
+      const a = rand() * Math.PI * 2, r = near + rand() * (95 - near);
       const x = Math.sin(a) * r, z = Math.cos(a) * r;
       if (!town.canPlace(kind, x, z, { free: true }).ok) continue;
       town.place(kind, x, z, { ready: true });
@@ -452,7 +475,7 @@ export class World {
     const lvl = p.eco?.level ?? 1;
     const town = this.makeTown(p, { villagers: Math.max(6, Math.min(40, Math.round(pop * 0.5))), retinue: false,
       stock: { wood: 60 + lvl * 20, stone: 10 + lvl * 10, food: 50 + lvl * 20, planks: 10 } });
-    prebuild(town, layoutFor(p, lvl), town.rand);
+    layOut(town, p, lvl, town.rand);
     p.eco = null;
     town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last));
     this.removeArmy(a);
@@ -498,9 +521,16 @@ export class World {
     const defenders = p.garrison;
     const town = this.makeTown(p, { kind: p.kind, villagers: 0, retinue: false,
       stock: { wood: 30 + lvl * 20, stone: 10 + lvl * 10, food: 40 + lvl * 20, planks: 10 } });
-    prebuild(town, layoutFor(p, lvl), town.rand);
-    town.keepLevel = Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
     const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
+    // Castles, lords' seats, Kingsbridge and the north's strongholds have walls round the
+    // keep, with the gate facing the road you came by. Their buildings stand outside.
+    const walled = ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
+    if (walled) {
+      const stone = p.kind !== 'warcamp' && (lvl >= 2 || p.kind === 'castle' || p.kind === 'crown' || p.kind === 'pass');
+      buildFort(town.battle.walls, 1, 0, 0, p.kind === 'crown' ? 30 : 24, { gateAngle: came, material: stone ? 'stone' : 'wood', sides: p.kind === 'crown' ? 8 : 6 });
+    }
+    layOut(town, p, lvl, town.rand, walled ? (p.kind === 'crown' ? 40 : 33) : 16);
+    town.keepLevel = Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
     const H = owner === null ? NEUTRAL : FACTIONS[owner];
     town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came };
     town.flagColor = H.color;
@@ -589,7 +619,7 @@ export class World {
       p.garrison = r.A;
       if (p.eco) p.eco.pop *= 0.8;
       this.removeArmy(a);
-      if (p.visible || was === 0) this.log(`${H.name} has taken ${p.name}.`, was === 0 ? 1 : 2);
+      if (p.visible || was === 0 || (H.invader && was !== null)) this.log(`${H.name} has taken ${p.name}.`, was === 0 || H.invader ? 1 : 2);
       this.checkBroken(was);
       this.checkEnd();
     } else {
@@ -791,7 +821,10 @@ export class World {
       p.aiClock = 1;
       t.thinkAttackers();
       // With nobody watching, the garrison turns out against attackers by itself.
-      if (t.underAttack && this.hooks.watching() !== p) thinkAI(b, 0, { start: 0 });
+      if (t.underAttack && this.hooks.watching() !== p) {
+        if (t.hostile && b.walls.structures().some(s => s.side === 1 && s.state === 'up')) thinkSiegeAttack(b, 0);
+        else thinkAI(b, 0, { start: 0 });
+      }
     }
     p.pruneClock -= dt;
     if (p.pruneClock <= 0) { p.pruneClock = 30; b.prune(); }

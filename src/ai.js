@@ -196,8 +196,9 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   // time but are slow, so they only make the men wait longer; a gate already
   // battered half down is worth rushing at once.
   st.waited = (st.waited || 0) + 1;
-  const working = engines.some(r => r.engine.kind === 'ram') || ladders.length
-    || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length && r.alive >= r.engine.per);
+  // Engines that have had two minutes and got nowhere stop holding the men back.
+  const working = ladders.length || st.waited < 120 && (engines.some(r => r.engine.kind === 'ram')
+    || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length && r.alive >= r.engine.per));
   const throwing = engines.some(r => r.engine.range);
   const weak = gate && gate.hp < gate.maxHp * 0.35;
   if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20)))) {

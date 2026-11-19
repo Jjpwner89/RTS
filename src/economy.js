@@ -7,7 +7,7 @@
 // built matters. Workers who are stuck fetch or clear their own goods, more slowly.
 import { audio } from './audio.js';
 
-import { thinkTownSiege } from './ai.js';
+import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
 
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
@@ -886,12 +886,13 @@ export class Town {
   thinkAttackers() {
     const b = this.battle;
     thinkTownSiege(this);      // ai.js: hosts that must get past walls
+    if (this.hostile) this.thinkHolders();
     const defenders = b.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];
     for (const g of this.attackers) {
       for (const r of g.regs) {
         if (r.gone || r.routing || r.regrouping || r.ai === 'siege') continue;
-        if (g.mode === 'hold') { this.holdPost(r, defenders); continue; }
+        if (g.mode === 'hold') { if (!g.onWalls) this.holdPost(r, defenders); continue; }
         if (g.leaving) {
           // Back down the road and away; only men who are caught still fight.
           r.targetReg = null;
@@ -938,12 +939,23 @@ export class Town {
     const ranged = key => ['archer', 'crossbow', 'hiredxbow'].includes(key);
     const regs = specs.map((sp, i) => {
       const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));
-      const d = ranged(sp.key) ? 16 : 32;
+      // Inside their walls if they have them, else in a ring out in front of the keep.
+      const d = b.walls.any ? (ranged(sp.key) ? 13 : 17) : ranged(sp.key) ? 16 : 32;
       const r = b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name });
       r.post = { x: Math.sin(a) * d, z: Math.cos(a) * d, angle: a };
       return r;
     });
     this.attackers.push({ regs, mode: 'hold', entry: { x: 0, z: 0 }, time: 0, burned: 0, leaving: false, onLeave: null, house, prepare: 0 });
+  }
+
+  // Behind walls, the garrison mans them (ai.js); in the open, each regiment keeps a post.
+  thinkHolders() {
+    const b = this.battle;
+    for (const g of this.attackers) {
+      if (g.mode !== 'hold') continue;
+      g.onWalls = b.walls.structures().some(s => s.side === 1 && s.state === 'up');
+      if (g.onWalls) thinkSiegeDefence(b, 1, { regs: g.regs.filter(r => !r.gone && !r.routing) });
+    }
   }
 
   // A defender fights whoever comes near its post, but never chases far from it.
@@ -990,7 +1002,8 @@ export class Town {
     this.hostile = null;
     b.homes[0] = { x: 0, z: 0 };
     b.homes[1] = { x: 0, z: -225 };
-    for (const g of this.attackers.filter(g => g.mode === 'hold')) for (const r of g.regs) if (!r.gone) b.disband(r);
+    for (const g of this.attackers.filter(g => g.mode === 'hold')) for (const r of g.regs) if (!r.gone) { b.clearPosts(r); b.disband(r); }
+    b.walls.changeSide(1, 0);   // their walls are yours now, broken stretches and all
     this.attackers = this.attackers.filter(g => g.mode !== 'hold');
     for (const r of b.regs) r.burnTarget = null;
     for (let i = 0; i < villagers; i++) {

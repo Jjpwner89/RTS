@@ -782,8 +782,14 @@ export class Battle {
         const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1)
           * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1);
         const stepLen = Math.min(d, pace * dt);
-        r.x += dx / d * stepLen;
-        r.z += dz / d * stepLen;
+        const nx = r.x + dx / d * stepLen, nz = r.z + dz / d * stepLen;
+        // Never march the anchor into a wall; one already stuck in one (or an engine
+        // left without its crew) falls back to where its men are.
+        if (this.nav.any && this.nav.blockedAt(r.side, r.x, r.z) || (r.engine && !this.crewed(r))) {
+          const k = Math.min(1, dt * 0.8);
+          r.x += (r.cx - r.x) * k; r.z += (r.cz - r.z) * k; r.viaCd = 0;
+        } else if (!(this.nav.any && this.nav.blockedAt(r.side, nx, nz))) { r.x = nx; r.z = nz; }
+        else r.viaCd = 0;
       } else if (!r.via) {
         r.angle = turnToward(r.angle, r.dest.angle, dt * 1.2);
         if (!r.targetReg && !r.targetWall && Math.abs(angleDiff(r.angle, r.dest.angle)) < 0.01) {
