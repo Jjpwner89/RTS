@@ -11,7 +11,8 @@ import { TownView } from './townview.js';
 import { TownHud } from './townhud.js';
 import { thinkAI } from './ai.js';
 import { rng } from './noise.js';
-import { World, headcount, ownerOf } from './world/world.js';
+import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
+import { KINDS } from './world/realm.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
@@ -40,9 +41,23 @@ const world = new World(seed, {
     dropBundle(p);
   },
   captured: () => {},
-  ended: winner => showResult(winner === 0 ? 'Victory' : 'Defeat',
-    winner === 0 ? 'Blackmoor is yours, and House Varn is broken.' : 'Your last village has fallen.', 'New campaign', () => location.reload()),
+  ended: winner => showResult(winner === 0 ? 'You are crowned' : 'Defeat',
+    winner === 0 ? 'Kingsbridge is yours and the realm kneels. Long live the king.' : 'Your last village has fallen.', 'New campaign', () => location.reload()),
+  herald: msg => herald(msg),
 });
+
+// A lord's words or big news, shown for a while at the top without stopping the game.
+const heraldQueue = [];
+function herald(msg) { heraldQueue.push(msg); if (heraldQueue.length === 1) showHerald(); }
+function showHerald() {
+  const msg = heraldQueue[0], el = $('herald'), h = msg.house;
+  if (!msg) return;
+  const initials = (h.lord || h.name).split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
+  el.style.setProperty('--hc', h.color);
+  el.innerHTML = `<div class="face"><img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')"></div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
+  el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500);
+}
 
 const worldView = new WorldView(stage, world);
 const worldControls = new WorldControls(stage.camera, canvas, worldView, {
@@ -281,11 +296,11 @@ function worldPanel() {
   const key = !it ? 'none' : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}` : `p${it.id}:${it.owner}:${!!it.town}`;
   if (key !== panelKey) {
     panelKey = key;
-    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="realm"></p><p class="note">Click a place or an army to select it. Double-click one of your villages to go there. Drag to pan, scroll to zoom.</p>`;
+    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><div class="houses" data-f="houses"></div><p class="note">Click a place or an army to select it. Double-click one of your villages to go there. Drag to pan, scroll to zoom.</p>`;
     else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p class="status" data-f="status"></p>`
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
-    else el.innerHTML = `<h3 style="color:${ownerOf(it).color}">${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p>`
+    else el.innerHTML = `<h3>${KINDS[it.kind].icon} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         : `<p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
@@ -294,19 +309,29 @@ function worldPanel() {
     const held = world.pois.filter(p => p.owner === 0);
     const men = held.reduce((n, p) => n + p.town.garrison().reduce((k, r) => k + r.alive, 0), 0)
       + world.armies.filter(a => a.side === 0).reduce((n, a) => n + headcount(a.units), 0);
+    set('rank', `${world.rank} of ${world.home.owner === 0 ? world.home.name : 'nowhere'}`);
     set('realm', `${held.length} of ${world.pois.length} places held · ${men} soldiers`);
+    const list = el.querySelector('[data-f="houses"]');
+    const rows = FACTIONS.slice(1, world.bandits).map(h => {
+      const met = world.knows(h.index), war = world.atWar(0, h.index);
+      const n = world.pois.filter(p => p.seen && p.known?.owner === h.index).length;
+      return `<div class="h${h.alive ? "" : " gone"}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${n} known places` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : war ? 'at war' : 'peace'}</small></div>`;
+    }).join('');
+    if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }
   } else if (it.units) {
     set('men', `${headcount(it.units)} men`);
     set('units', it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
     set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
   } else {
-    set('owner', it.owner === null ? 'A free village with its own militia' : it.owner === 0 ? 'Your village' : 'Held by House Varn');
+    const who = it.visible ? it.owner : it.known?.owner;
+    const whoText = !it.seen ? 'Unexplored' : who === null ? 'Free folk with their own militia' : who === 0 ? 'Yours' : `Held by ${FACTIONS[who].name}${world.atWar(0, who) ? ' (at war with you)' : ''}`;
+    set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     if (it.town) {
       set('men', `${it.town.population} villagers · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers`);
       set('status', it.town.underAttack ? '⚔️ Under attack!' : '');
     } else {
-      set('men', `About ${headcount(it.garrison)} men in the garrison`);
-      set('status', '');
+      set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
+      set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
     }
   }
 }
@@ -366,7 +391,7 @@ function topBar() {
     $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';
     document.body.classList.toggle('paused', paused);
     for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === speed);
-    const foes = world.armies.filter(a => a.side === 1 && !a.retreating);
+    const foes = world.armies.filter(a => a.side !== 0 && a.visible && !a.retreating && a.mode !== 'column' && world.atWar(0, a.side));
     $('strength').textContent = foes.length ? `⚠️ ${foes.map(a => `${a.name} (${headcount(a.units)})`).join(', ')} on the march` : '';
   }
   if (mode === 'town') $('clock').textContent = clock(world.time);

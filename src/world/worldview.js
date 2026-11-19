@@ -4,11 +4,12 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
 import { part, box, keepModel, keepTop, castleModel, houseModel, SKIN, WOOD } from '../view.js';
-import { ownerOf, FACTIONS, headcount } from './world.js';
+import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
+import { KINDS, REALM_RADIUS } from './realm.js';
 
-export const WORLD_HALF = 520;
-const EXTENT = 640;      // woods reach this far
-const GROUND = 1150;     // the ground runs on past them so the edge never shows
+export const WORLD_HALF = REALM_RADIUS + 140;
+const EXTENT = WORLD_HALF + 140;      // woods reach this far
+const GROUND = WORLD_HALF * 2.2;      // the ground runs on past them so the edge never shows
 
 const nearSegment = (x, z, a, b) => {
   const dx = b.x - a.x, dz = b.z - a.z, L = dx * dx + dz * dz;
@@ -34,12 +35,12 @@ function columnModel() {
 export class WorldView {
   constructor(stage, world) {
     this.world = world;
-    this.scene = stage.newScene({ fog: [1000, 2400] });
+    this.scene = stage.newScene({ fog: [1300, 3000] });
     this.heightAt = makeHeight(world.seed, world.pois.map(p => ({ x: p.x, z: p.z })));
     const h = this.heightAt;
     drawGround(this.scene, h, world.seed, { extent: GROUND, seg: 320 });
     const trees = plantTrees(world.seed, (x, z) => world.pois.some(p => Math.hypot(x - p.x, z - p.z) < 75)
-      || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12), 0.52, 3200, EXTENT);
+      || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12), 0.52, 6500, EXTENT);
     for (const t of trees.spots) { t.k *= 1.8; t.tall *= 1.8; }
     drawTrees(this.scene, h, trees);
     for (const r of world.roads) this.scene.add(this.road(r.a, r.b));
@@ -50,11 +51,13 @@ export class WorldView {
     const keep = keepModel(), castle = castleModel(), houses = [0, 1, 2].map(houseModel);
     for (const p of world.pois) {
       const g = new THREE.Group();
-      const k = new THREE.Mesh(p.seat ? castle : keep, this.mat);
-      const scale = p.seat ? 1.3 : 1.1;
+      // Seats, castles and the royal city are castles; bandit camps are small.
+      const big = p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown';
+      const k = new THREE.Mesh(big ? castle : keep, this.mat);
+      const scale = p.kind === 'crown' ? 1.7 : big ? 1.3 : p.kind === 'camp' ? 0.7 : 1.1;
       k.scale.setScalar(scale);
       g.add(k);
-      const n = p.seat ? 8 : 5;
+      const n = p.kind === 'crown' ? 12 : p.kind === 'camp' ? 0 : big ? 8 : 5;
       for (let i = 0; i < n; i++) {
         const a = i / n * Math.PI * 2 + 0.4, r = 30 + (i % 2) * 8;
         const m = new THREE.Mesh(houses[i % 3], this.mat);
@@ -128,15 +131,19 @@ export class WorldView {
     this.screen = [];
 
     for (const [p, o] of this.places) {
-      const own = ownerOf(p);
-      if (o.owner !== p.owner) { o.owner = p.owner; o.flag.material.color.set(own.color); }
+      // Fog of war: places you have never seen are unknown; others show what you last saw.
+      const shown = p.visible ? p.owner : p.seen ? p.known.owner : undefined;
+      const own = shown === undefined ? { name: 'Unknown', color: '#8a8478' } : shown === null ? NEUTRAL : FACTIONS[shown];
+      if (o.owner !== shown) { o.owner = shown; o.flag.material.color.set(own.color); }
       if (!o.label) o.label = this.label('place');
       const s = toScreen(p.x, this.heightAt(p.x, p.z) + 48, p.z);
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
-      const men = p.town ? p.town.garrison().reduce((n, r) => n + r.alive, 0) : headcount(p.garrison);
+      const men = p.town ? p.town.garrison().reduce((n, r) => n + r.alive, 0) : p.visible ? headcount(p.garrison) : p.known?.men;
       const alarm = p.town?.underAttack ? ' ⚔️' : '';
-      const html = `<b style="color:${own.color}">${p.name}${alarm}</b><small>${p.owner === null ? 'free village' : own.name} · ${p.town ? '' : '~'}${men} men</small>`;
+      const K = KINDS[p.kind];
+      const html = !p.seen ? `<b style="color:${own.color}">${K.icon} ${p.name}</b><small>unexplored</small>`
+        : `<b style="color:${own.color}">${K.icon} ${p.name}${alarm}</b><small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46 });
@@ -158,8 +165,12 @@ export class WorldView {
         mesh.scale.setScalar(1.6);
         mesh.castShadow = true;
         this.scene.add(mesh);
-        this.armies.set(a, o = { mesh, label: this.label(`army side${a.side}`) });
+        this.armies.set(a, o = { mesh, label: this.label(`army side${a.side ? 1 : 0}`) });
+        o.label.style.borderColor = FACTIONS[a.side].color;
       }
+      // Armies out of sight are hidden.
+      o.mesh.visible = a.visible;
+      if (!a.visible) { o.label.style.display = 'none'; continue; }
       // Waiting armies stand a little off the keep so both can be seen.
       const off = a.at && !a.path.length ? 24 : 0;
       const x = a.x + off, z = a.z + off;
@@ -168,7 +179,7 @@ export class WorldView {
       const s = toScreen(x, this.heightAt(x, z) + 16, z);
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
-      const html = `${a.retreating ? '🏳️' : '⚔️'} ${headcount(a.units)}`;
+      const html = `${a.retreating ? '🏳️' : a.mode === 'raid' ? '🔥' : a.mode === 'siege' ? '🏰' : '⚔️'} ${headcount(a.units)}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });

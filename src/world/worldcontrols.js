@@ -31,7 +31,7 @@ export class WorldControls {
     if (k.has('e')) c.yaw -= dt * 1.6;
     c.x = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, c.x));
     c.z = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, c.z));
-    const t = (c.dist - 80) / (900 - 80);
+    const t = Math.min(1, (c.dist - 80) / (1100 - 80));
     const pitch = 0.5 + t * 0.6;
     const h = this.view.heightAt, ty = h(c.x, c.z), cp = Math.cos(pitch) * c.dist;
     this.camera.position.set(c.x + Math.sin(c.yaw) * cp, ty + Math.sin(pitch) * c.dist, c.z + Math.cos(c.yaw) * cp);
@@ -46,7 +46,7 @@ export class WorldControls {
 
   onWheel(e) {
     e.preventDefault();
-    this.cam.dist = Math.max(80, Math.min(900, this.cam.dist * Math.pow(1.0015, e.deltaY)));
+    this.cam.dist = Math.max(80, Math.min(1500, this.cam.dist * Math.pow(1.0015, e.deltaY)));
   }
 
   onKey(e, down) {

@@ -97,11 +97,15 @@ export { listCost };
 export class Town {
   // timedRaids: bandits turn up on their own (the standalone village); on the world
   // map, attackers are real armies instead.
-  constructor(battle, heightAt, trees, rand, { timedRaids = false, villagers = 12, retinue = true, stock = null } = {}) {
+  // kind: what sort of place this is on the world map (realm.js KINDS); a mining village
+  // has more ore and stone about, a castle a stronger keep.
+  constructor(battle, heightAt, trees, rand, { timedRaids = false, villagers = 12, retinue = true, stock = null, kind = 'village' } = {}) {
+    this.kind = kind;
     this.battle = battle;
     this.heightAt = heightAt;
     this.rand = rand;
-    this.keep = { kind: 'keep', B: KEEP, x: 0, z: 0, angle: 0, hp: KEEP.hp, state: 'active', workers: [], status: '',
+    const keepB = kind === 'castle' || kind === 'crown' ? { ...KEEP, name: 'Castle', hp: 2400 } : KEEP;
+    this.keep = { kind: 'keep', B: keepB, x: 0, z: 0, angle: 0, hp: keepB.hp, state: 'active', workers: [], status: '',
       store: { ...(stock || { wood: 140, stone: 40, food: 80, planks: 20 }) }, incoming: {}, reserved: {} };
     this.stockCache = null;
     this.buildings = [];
@@ -143,8 +147,9 @@ export class Town {
         k++;
       }
     };
-    put('rock', 5, 55, 150);
-    put('ore', 3, 80, 160);
+    const rich = this.kind === 'mine';
+    put('rock', rich ? 7 : 5, 55, 150);
+    put('ore', rich ? 6 : 3, 80, 160);
   }
 
   addVillager(x, z) {
@@ -353,9 +358,9 @@ export class Town {
 
   canAfford(cost) { return Object.entries(cost).every(([g, n]) => this.free(g) >= n); }
 
-  canPlace(kind, x, z) {
+  canPlace(kind, x, z, { free = false } = {}) {
     const B = BUILDINGS[kind], p = { x, z };
-    if (!this.canAfford(B.cost)) return { ok: false, reason: `Needs ${listCost(B.cost)}` };
+    if (!free && !this.canAfford(B.cost)) return { ok: false, reason: `Needs ${listCost(B.cost)}` };
     if (Math.hypot(x, z) > this.territory) return { ok: false, reason: 'Outside your land' };
     if (Math.hypot(x, z) < KEEP.radius + B.radius + 3) return { ok: false, reason: 'Too close to the keep' };
     for (const b of this.buildings) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
@@ -763,18 +768,20 @@ export class Town {
       }
     }
     this.keep.status = this.keep.workers.length ? this.haulStatus(this.keep) : 'No haulers';
-    if (this.keep.hp < KEEP.hp && !this.nearestEnemy(this.keep, 50)) this.keep.hp = Math.min(KEEP.hp, this.keep.hp + dt * 5);
+    if (this.keep.hp < this.keep.B.hp && !this.nearestEnemy(this.keep, 50)) this.keep.hp = Math.min(this.keep.B.hp, this.keep.hp + dt * 5);
   }
 
   // ---- attackers ----
   // Enemy regiments in the village come in groups. A raid burns a few buildings and
-  // leaves by the road it came in on; an assault fights on until the keep falls.
+  // leaves by the road it came in on; an assault fights on until the keep falls. A siege
+  // camps outside first (g.prepare seconds), fighting only those who come out to it,
+  // then assaults. `house` is the attacking house's index on the world map.
 
   get underAttack() { return this.attackers.length > 0; }
 
   edgePoint(angle) { return { x: Math.sin(angle) * 215, z: Math.cos(angle) * 215 }; }
 
-  receiveAttack(specs, angle, { mode = 'raid', name = 'Raiders', onLeave = null } = {}) {
+  receiveAttack(specs, angle, { mode = 'raid', name = 'Raiders', onLeave = null, house = 1, prepare = 100 } = {}) {
     const b = this.battle, entry = this.edgePoint(angle);
     b.homes[1] = entry;
     const face = Math.atan2(-entry.x, -entry.z);
@@ -782,8 +789,9 @@ export class Town {
       const off = (i - (specs.length - 1) / 2) * 30;
       return b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name });
     });
-    this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave });
-    this.event(`${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
+    this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
+    this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
+      : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
   }
 
   updateAttacks(dt) {
@@ -791,6 +799,10 @@ export class Town {
       const live = g.regs.filter(r => !r.gone);
       if (!live.length) { this.endAttack(g); continue; }
       g.time += dt;
+      if (g.mode === 'siege' && g.time >= g.prepare) {
+        g.mode = 'assault';
+        this.event('The besiegers are coming! The assault has begun.', 1);
+      }
       if (g.mode === 'raid' && !g.leaving && (g.burned >= 3 || g.time > 150)) {
         g.leaving = true;
         this.event('The raiders are making off with their plunder.');
@@ -856,7 +868,7 @@ export class Town {
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];
     for (const g of this.attackers) {
       for (const r of g.regs) {
-        if (r.gone || r.routing || r.regrouping) continue;
+        if (r.gone || r.routing || r.regrouping || r.ai === 'siege') continue;
         if (g.leaving) {
           // Back down the road and away; only men who are caught still fight.
           r.targetReg = null;
@@ -868,6 +880,14 @@ export class Town {
           .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
         if (near) { if (r.targetReg !== near) b.orderAttack([r], near); continue; }
         if (r.targetReg) continue;
+        // Besiegers hold their camp a little way in from the road until they are ready.
+        if (g.mode === 'siege') {
+          const i = g.regs.indexOf(r), side = Math.atan2(g.entry.x, g.entry.z) + Math.PI / 2;
+          const off = (i - (g.regs.length - 1) / 2) * 24;
+          const cx = g.entry.x * 0.78 + Math.sin(side) * off, cz = g.entry.z * 0.78 + Math.cos(side) * off;
+          if (!r.dest || Math.hypot(r.dest.x - cx, r.dest.z - cz) > 3) r.dest = { x: cx, z: cz, angle: Math.atan2(-g.entry.x, -g.entry.z) };
+          continue;
+        }
         if (!r.raidTarget || r.raidTarget.state === 'ruined' || r.raidTarget.removed) {
           // An assault goes for the keep; raiders for whatever is closest.
           r.raidTarget = g.mode === 'assault' ? this.keep
