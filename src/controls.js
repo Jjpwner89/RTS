@@ -268,10 +268,11 @@ export class Controls {
         const line = this.lineOrder(d.start, end);
         if (line) { this.battle.orderMove(sel, ...line); return; }
       }
-      const target = this.regAt(e.clientX, e.clientY);
+      // Ladders, rams and engines go for an enemy wall even with its defenders standing on it.
+      const hit = !d.moved && this.structAt(e.clientX, e.clientY);
+      const target = hit && hit.struct.side !== 0 && sel.every(r => r.T.engine) ? null : this.regAt(e.clientX, e.clientY);
       if (target && target.side === 1) { this.battle.orderAttack(sel, target); return; }
       // Onto your own wall, or against the enemy's.
-      const hit = !d.moved && this.structAt(e.clientX, e.clientY);
       const mining = document.body.classList.contains('mining');
       document.body.classList.remove('mining');
       if (hit && mining && hit.struct.side !== 0) { this.battle.orderMine(sel, hit.struct); return; }

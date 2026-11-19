@@ -32,6 +32,8 @@ export function makeCompanies(w) {
 
 export const hirePrice = c => Math.round(c.size * TYPES[c.key].gold * 0.6);
 export const wage = c => Math.round(Math.max(c.men, 1) * WAGE[c.key] * 10) / 10;
+// What a company asks to be paid once hired: it joins at full strength (hire, below).
+export const fullWage = c => Math.round(c.size * WAGE[c.key] * 10) / 10;
 const homeOf = (w, c) => w.byId[c.home] || null;
 
 // Can `side` hire company c now, and for how much?

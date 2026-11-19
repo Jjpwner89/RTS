@@ -76,6 +76,8 @@ export class WorldControls {
       this.dom.style.cursor = hit ? 'pointer' : 'default';
       return;
     }
+    // The button came up somewhere that swallowed the mouseup (a panel): the drag is over.
+    if (!(e.buttons & (d.kind === 'pan' ? 1 : 4))) { this.drag = null; return; }
     if (d.kind === 'rotate') { this.cam.yaw = d.yaw - (e.clientX - d.x) * 0.006; return; }
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (Math.hypot(dx, dy) > 5) d.moved = true;

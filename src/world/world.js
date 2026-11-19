@@ -101,6 +101,21 @@ function layOut(town, p, lvl, rand, near = 18) {
   for (let i = have.farm || 0; i < farms; i++) at('farm', ring(Math.max(55, near + 25), 95));
 }
 
+// What a held place grew into while you were away, worn onto its buildings: workshops at
+// the levels a village of its size and standing could pay for (economy.js UPGRADES), and
+// a keep never smaller than its people. Positions stay as remembered, or as first laid out.
+function grownLevels(town, e) {
+  if (!e) return;
+  const top = e.pop >= 60 && e.level >= 3 ? 3 : e.pop >= 30 && e.level >= 2 ? 2 : 1;
+  for (const b of town.buildings) {
+    if (b.state !== 'active' || b.kind === 'house' || b.kind === 'keep' || b.B.hall || b.B.great) continue;
+    b.level = Math.max(b.level || 1, top);
+  }
+  const byPop = e.pop >= 150 ? 5 : e.pop >= 100 ? 4 : e.pop >= 60 ? 3 : e.pop >= 30 ? 2 : 1;
+  town.keepPeak = Math.max(town.keepPeak || 1, byPop);
+  if (town.keepLevel) town.keepLevel = Math.max(town.keepLevel, byPop);
+}
+
 // What a place's stores hold when you fight in it: its real stores if it keeps them,
 // else a rough guess from its size.
 function storesOf(p, lvl, base = 30) {
@@ -129,7 +144,7 @@ function remember(t, side, time) {
   });
   const pieces = W.pieces.filter(p => p.side === side && p.state !== 'site' && idx.has(p.a) && idx.has(p.b))
     .map(p => ({ a: idx.get(p.a), b: idx.get(p.b), material: p.material, gate: p.gate, broken: p.state === 'broken' }));
-  return { at: time, keepLevel: t.keepLevel, centre: W.centre[side],
+  return { at: time, keepLevel: t.keepLevel, keepPeak: t.keepPeak, centre: W.centre[side],
     buildings: t.buildings.filter(b => b.state === 'active').map(b => ({ kind: b.kind, x: b.x, z: b.z, level: b.level || 1 })), nodes, pieces };
 }
 
@@ -140,6 +155,7 @@ function rebuild(town, mem, side, mended) {
     if (r.ok && b.level > 1) r.building.level = b.level;
   }
   if (mem.keepLevel) town.keepLevel = mem.keepLevel;
+  if (mem.keepPeak) town.keepPeak = mem.keepPeak;
   if (!mem.pieces.length && !mem.nodes.some(n => n.tower)) return false;
   const W = town.battle.walls;
   const nodes = mem.nodes.map(n => W.node(n.x, n.z, side, { snap: false }));
@@ -667,7 +683,8 @@ export class World {
     // The carts are loaded from the village stores, as far as they go.
     a.food = takeFood(p.town, capacity(a));
     const mins = Math.floor(a.food / Math.max(1, headcount(units)) * 2);
-    this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins ? `${mins} minute${mins > 1 ? 's' : ''}` : 'less than a minute'} away from home.`);
+    if (mins < 1) this.log(`${a.name} has mustered ${headcount(units)} men, but ${p.name} has no food to load on the carts. Away from your places they will desert within the minute: keep them close, or send them a wagon.`, 1);
+    else this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins} minute${mins > 1 ? 's' : ''} away from home.`);
     return a;
   }
 
@@ -881,6 +898,7 @@ export class World {
     if (p.mem) rebuild(town, p.mem, 0, true);
     p.mem = null;
     layOut(town, p, lvl, town.rand);
+    grownLevels(town, p.eco);
     this.plunder(p);
     p.eco = null;
     town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last));
@@ -1354,7 +1372,8 @@ export class World {
     if (this.rank === 'Reeve') return { ok: false, why: 'From the rank of Lord' };
     if (p === this.home || FACTIONS[0].seat === p) return { ok: false, why: 'Your seat stays yours' };
     if (p.town.hostile || p.town.underAttack || p.town.revolt) return { ok: false, why: 'Not while it is fighting' };
-    return { ok: true };
+    const foe = this.armies.find(a => a.target === p && a.side !== 0 && !a.wagon && !a.gone && this.atWar(0, a.side));
+    return { ok: true, warn: foe ? `${foe.name} is marching on ${p.name}: a new lord's household may not hold it` : null };
   }
 
   // Where your lord is: with the army he rides with, if it waits at one of your places;
@@ -1403,6 +1422,9 @@ export class World {
       recall(this, v, `Given ${p.name} by you`);
     } else v = makeVassal(this, p);
     p.vassal = v.id;
+    // A vassal comes with a household to hold the place, however few you left there.
+    const need = Math.min(30, 12 + Math.round(eco.pop / 8)) - headcount(men);
+    if (need > 0) p.garrison.push(unit('spear', need, `Household of ${v.name.split(' ').at(-1)}`));
     this.log(`You have given ${p.name} to ${v.name}.`);
     this.hooks.granted?.(p, v);
     return v;
@@ -1418,6 +1440,7 @@ export class World {
     if (p.mem) rebuild(town, p.mem, 0, true);
     p.mem = null;
     layOut(town, p, e.level, town.rand);
+    grownLevels(town, e);
     p.eco = null;
     p.vassal = null;
     if (men.length) town.addTroops(men, this.angle(p, p.links[0]));
@@ -1443,6 +1466,7 @@ export class World {
     Object.assign(p, keep);
     if (p.mem) rebuild(town, p.mem, 0, true);
     layOut(town, p, e.level, town.rand);
+    grownLevels(town, e);
     p.mem = remember(town, 0, this.time);
     if (keep.garrison.length) town.addTroops(keep.garrison.map(u => ({ ...u })), this.angle(p, p.links[0]));
     Object.assign(town, { readOnly: v, purse: { gold: Math.round(v.gold) }, flagColor: v.color, event: () => {},

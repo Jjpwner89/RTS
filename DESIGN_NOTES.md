@@ -302,3 +302,16 @@ Several sessions build this at once. Each owns its files; small hooks into anoth
 A simpler, high-level strategy game in the vein of War of Dots or Line Battle: armies as tokens on a map, fronts and supply. It is an original design built in parallel, in `fronts/`. **This deeper game takes precedence.**
 
 **Marchfront** (built 2026-11-18) lives in [`fronts/`](fronts/) and is playable: one map (the Sundered Vale), one AI opponent with three difficulties, pause and speed controls, and a win by taking the enemy capital. Armies claim land as they move, supply runs from the capital through held land, towns have garrisons, and terrain and digging in shape every fight. Plain JavaScript and Canvas 2D, no build step. Rules, AI, controls and test notes are in [fronts/NOTES.md](fronts/NOTES.md). Ideas from it that may carry over here: supply as connected held land, and armies painting a front as they move.
+
+## Playtest fixes (2026-11-19, from the full seed-7 campaign)
+
+- Levies are still villagers, but the headers now say so: "17 at work · 76 under arms", and the world panel counts soldiers with how many of them are levies. A keep never shrinks back when levies march out (town.keepPeak).
+- Mustering a garrison with no spare food is a loud warning, and the Muster button says how long the food will last.
+- While you command a fight in a village, events, news and houses' proposals wait; alarms and road encounters still come. Houses' proposals are at least two minutes apart across the realm; one house demands tribute at most every 30 minutes, and never within 15 minutes of making peace with you.
+- A new vassal brings a household (12 men, plus one for every eight people, up to 30) when you leave too few to hold the place, and the grant buttons warn when an enemy is already marching on it.
+- Governors put up a barracks from 40 people (they still never raise men), and find work for idle hands: woodcutters, a quarry, hunters, then farms.
+- Shields stop at 60 in store by default; other arms have no limit.
+- Hiring a bandit band always costs more than paying it off. A company is offered at the wage it will draw once hired at full strength.
+- A place's name label on the map can be clicked and right-clicked like the place. A drag whose mouseup is swallowed no longer leaves the map following the mouse.
+- The Storm prompt warns when the place is walled and the army brings no ladders, ram or engines.
+- In a storm, ladders, rams and engines ordered onto an enemy wall go for the wall, even with its defenders standing on it.

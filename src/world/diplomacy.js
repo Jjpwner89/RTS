@@ -104,7 +104,7 @@ export function thinkDiplomacy(w, dt) {
     d.gift = Math.max(0, d.gift - 1.5);
     d.opinion += (target(w, h) - d.opinion) * 0.12;
     if (w.atWar(0, h) && !d.warSince) d.warSince = w.time;
-    if (!w.atWar(0, h)) d.warSince = 0;
+    if (!w.atWar(0, h)) { if (d.warSince) d.peaceAt = w.time; d.warSince = 0; }
     // Backing lapses if the friendship goes sour.
     if (d.backs && !d.vassal && (d.opinion < 15 || w.atWar(0, h))) {
       d.backs = false;
@@ -155,9 +155,17 @@ function thinkCoalition(w) {
 }
 
 // The AI's own proposals, which you accept or turn down.
+const OFFER_GAP = 120;        // seconds between any two houses' proposals
+const TRIBUTE_EVERY = 1800;   // one house's tribute demands, at most this often
+const TRIBUTE_PEACE = 900;    // and none this soon after making peace with you
 function offerFrom(w, H, d) {
   const h = H.index, mine = w.strength(0), theirs = w.strength(h);
-  const ask = (title, text, accept, decline) => { w.meet(h); w.hooks.offer?.({ house: H, title, text, accept, decline }); };
+  // One house's proposal at a time across the realm: a second waits for its next turn.
+  const ask = (title, text, accept, decline) => {
+    if (w.time - (w.offerAt ?? -Infinity) < OFFER_GAP) return;
+    w.offerAt = w.time;
+    w.meet(h); w.hooks.offer?.({ house: H, title, text, accept, decline });
+  };
   if (w.atWar(0, h)) {
     const losing = d.score >= 30 || theirs < mine * 0.6;
     if (losing && theirs < mine * 0.35 && !d.vassal) {
@@ -173,8 +181,8 @@ function offerFrom(w, H, d) {
       () => act(w, h, 'marry', true), () => { d.opinion -= 5; });
   } else if (!d.allied && d.opinion >= 40) {
     ask(`${H.lord} proposes an alliance`, `${H.name} will join your wars, and you theirs.`, () => act(w, h, 'ally', true), () => { d.opinion -= 3; });
-  } else if ((H.trait === 'raider' || H.trait === 'schemer') && theirs > mine * 1.8 && w.time > 600 && FACTIONS[0].gold >= 150 && w.time > (d.demanded ?? 0)) {
-    d.demanded = w.time + 900;   // they do not ask again for a long while
+  } else if ((H.trait === 'raider' || H.trait === 'schemer') && theirs > mine * 1.8 && w.time > 600 && FACTIONS[0].gold >= 150 && w.time > (d.demanded ?? 0) && w.time - (d.peaceAt ?? -Infinity) > TRIBUTE_PEACE) {
+    d.demanded = w.time + TRIBUTE_EVERY;   // they do not ask again for a long while
     ask(`${H.lord} demands tribute`, `“Pay me 150 gold and my men will stay home.” Refuse, and ${H.lord} may come for it.`,
       () => { FACTIONS[0].gold -= 150; d.opinion += 15; d.truceUntil = Math.max(d.truceUntil, w.time + 400); w.log(`You paid ${H.name} 150 gold.`, 1); },
       () => { d.opinion -= 15; if (w.rand() < 0.5) w.declareWar(h, 0); });

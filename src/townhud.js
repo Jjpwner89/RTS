@@ -152,7 +152,8 @@ export class TownHud {
     if (t.hostile) { this.updateStorm(); this.updateInfo(selected, regs); return; }
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
-    set('pop', `${ico('people')} ${t.population} / ${t.housing}`);
+    const armed = t.underArms;
+    set('pop', `${ico('people')} ${t.population} / ${t.housing}${armed ? ` <small>(${armed} under arms)</small>` : ''}`);
     set('idle', `${t.hauling} carrying · ${t.idle} idle`);
     const m = Math.round(t.mood);
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
@@ -295,7 +296,7 @@ export class TownHud {
 
   field(f) {
     const b = this.selected, r = this.reg;
-    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.population} villagers · ${b.status.toLowerCase()}` : b.status;
+    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.peopleText()} · ${b.status.toLowerCase()}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'gov') return this.town.governor === false ? 'Governor: off' : 'Governor: on';

@@ -317,3 +317,6 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 
 /* Darkens the screen's edges a little; stage.js puts it just after the 3D view. */
 .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(30, 20, 10, .3) 100%); }
+
+/* A button whose action will cost you: mustering with no food. */
+#panel button.warn, button.warn { border-color: #c8603a; color: #ffb08a; }

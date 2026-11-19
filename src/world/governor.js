@@ -1,6 +1,7 @@
 // A governor runs each village of yours that you are not watching: one building at a
 // time, paid from the village's own goods, to keep it fed, housed, supplied and content.
-// It never raises men, spends gold or knocks anything down. Switch it off at the keep.
+// It never raises men, spends gold or knocks anything down, though it will put up a
+// barracks for you to call men from. Switch it off at the keep.
 
 const EVERY = 15;
 
@@ -27,6 +28,13 @@ function wanted(t) {
   if (meals > t.population * 3 && n('farm') >= 2 && !n('mill')) return 'mill';
   if (n('mill') && !n('bakery')) return 'bakery';
   if (n('storehouse') * 12 < t.buildings.length) return 'storehouse';
+  // A barracks, so the village can be called to arms (the governor never calls it).
+  if (t.population >= 40 && !n('barracks')) return 'barracks';
+  // Hands with nothing to do: another workplace for them, taking turns.
+  if (t.idle >= 15) {
+    const more = [n('woodcutter') < 4 && 'woodcutter', n('quarry') < 2 && 'quarry', n('hunter') < 3 && 'hunter', 'farm'].filter(Boolean);
+    return more[(t.govTurn = (t.govTurn || 0) + 1) % more.length];
+  }
   return null;
 }
 

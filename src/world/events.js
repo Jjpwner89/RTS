@@ -106,13 +106,13 @@ const EVENTS = {
   bandits: {
     when: (w, p) => !!camp(w, p),
     title: () => 'A bandit chief sends word',
-    text: (w, p, e) => `${e.name}, who leads the outlaws at ${camp(w, p).name}, offers terms: pay, and his men leave your villages alone. Or pay more, and they fight for you.`,
+    text: (w, p, e) => `${e.name}, who leads the outlaws at ${camp(w, p).name}, offers terms: pay, and the band leaves your villages alone. Or pay more, and they fight for you.`,
     choices: (w, p, e) => {
-      const c = camp(w, p), men = headcount(c.garrison);
+      const c = camp(w, p), men = headcount(c.garrison), hireAt = Math.max(160, men * 3);   // always dearer than peace
       return [
-        { label: 'Pay him off (100 gold)', ok: gold() >= 100, run: () => { pay(100); w.banditPeace = w.time + 1200; return `${e.name}'s men will leave your lands alone for twenty minutes.`; } },
-        { label: `Hire his band (${men * 3} gold)`, ok: gold() >= men * 3 && men >= 6, run: () => {
-          pay(men * 3);
+        { label: 'Pay them off (100 gold)', ok: gold() >= 100, run: () => { pay(100); w.banditPeace = w.time + 1200; return `${e.name}'s men will leave your lands alone for twenty minutes.`; } },
+        { label: `Hire the band (${hireAt} gold)`, ok: gold() >= hireAt && men >= 6, run: () => {
+          pay(hireAt);
           w.spawnArmy(0, c.garrison.map(u => ({ ...u, name: `${e.name}'s ${u.name.split(' ').slice(-1)[0]}` })), p, `${e.name}'s band`);
           c.garrison = [];
           return `${e.name}'s band marches into ${p.name} to take your coin.`;

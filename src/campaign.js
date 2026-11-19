@@ -17,7 +17,7 @@ import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
-import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText } from './world/supply.js';
+import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { canSave, saveGame, readSave, loadGame, clearSave } from './world/save.js';
@@ -25,7 +25,7 @@ import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
-import { offer, wage, hire as hireCompany, release } from './world/companies.js';
+import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, prisoners, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
@@ -156,11 +156,11 @@ function townBundle(p, look = null) {
     companies: () => (world.companies || []).map(c => {
       const o = offer(world, c, 0), boss = c.employer !== null && c.employer !== undefined ? FACTIONS[c.employer] : null;
       const where = world.byId[c.home]?.name;
-      return { id: c.id, name: c.name, size: c.size, unit: TYPES[c.key].name.toLowerCase(), wage: wage(c), ok: o.ok, why: o.why,
+      return { id: c.id, name: c.name, size: c.size, unit: TYPES[c.key].name.toLowerCase(), wage: c.employer === 0 ? wage(c) : fullWage(c), ok: o.ok, why: o.why,
         status: c.employer === 0 ? 'in your service' : o.ok ? `${o.price} gold${o.outbid ? ` (outbid ${boss.name})` : ''}${where ? ` · at ${where}` : ''}` : o.why };
     }),
     hireCompany: id => { const c = world.companies.find(o => o.id === id); return hireCompany(world, c, 0, p); },
-    companyOf: r => (world.companies || []).find(c => c.employer === 0 && c.name === r.name),
+    companyOf: r => { const c = (world.companies || []).find(c => c.employer === 0 && c.name === r.name); return c && { ...c, wage: wage(c) }; },
     dismissCompany: r => { const c = (world.companies || []).find(o => o.employer === 0 && o.name === r.name); if (c) release(world, c, 'dismissed'); },
     findAttackers: () => b.controls.focus(town.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.routing)),
     place: (g, e) => {
@@ -493,9 +493,23 @@ function openChronicle() {
 
 // ---- prompts ----
 
+// News, events and houses' proposals wait while you command a fight; alarms and
+// encounters on the road do not.
+const fighting = () => mode === 'town' && !current?.look && !!(current?.town?.underAttack || current?.town?.hostile);
+const WAITS = new Set(['choice', 'offer', 'news']);
+
+// A walled place, and an army with nothing to climb or break the walls with.
+function bareHanded(enc) {
+  const p = enc.poi, walls = p.eco?.walls;
+  const walled = p.mem ? p.mem.pieces.length > 0 : walls ? walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
+  return walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
+}
+
 function nextAsk() {
   if (mode === 'field' || $('prompt').classList.contains('open') || $('result').classList.contains('open') || !asks.length) return;
-  const a = asks.shift();
+  const i = fighting() ? asks.findIndex(a => !WAITS.has(a.kind)) : 0;
+  if (i < 0) return;
+  const a = asks.splice(i, 1)[0];
   if (a.kind === 'encounter' && (a.enc.army.gone || world.encounter !== a.enc)) return nextAsk();
   const box = $('prompt');
   const buttons = [];
@@ -539,7 +553,7 @@ function nextAsk() {
     const where = enc.poi ? enc.poi.name : 'the road';
     box.querySelector('h2').textContent = enc.kind === 'assault' ? `Attack ${enc.poi.name}?` : `Armies meet at ${where}`;
     box.querySelector('p').textContent = enc.kind === 'assault'
-      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${ownerOf(enc.poi).name.toLowerCase()} with ${them} men.`
+      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
       : `${army.name} (${us} men) has met ${enc.enemy.name} (${them} men).`;
     buttons.push([enc.kind === 'assault' ? 'Storm it' : 'Fight it', () => {
       // A place is fought for in the place itself; armies on the road meet in the open.
@@ -818,10 +832,12 @@ function worldPanel() {
     if (it.owner === 0) { const n = world.gatherable(it).length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); const gb = el.querySelector('[data-f="gather"]'); if (gb) gb.disabled = !n; }
     if (it.town) {
       const can = world.canGrant(it);
-      for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; if (!can.ok) b.title = can.why; }
+      for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; b.title = can.ok ? can.warn || '' : can.why; b.classList.toggle('warn', !!can.warn); }
       for (const b of el.querySelectorAll('[data-act^="run:"]')) { const r = runCheck(world, it, world.byId[b.dataset.act.slice(4)]); b.disabled = !r.ok; b.title = r.ok ? loadText(r.load) : r.why; }
-      set('men', `${it.town.population} villagers · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers`);
+      set('men', `${it.town.atWork} at work · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers${it.town.underArms ? `, ${it.town.underArms} of them levies` : ''}`);
       set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
+      const mb = el.querySelector('[data-act="muster"]'), men = it.town.garrison().reduce((n, r) => n + r.alive, 0);
+      if (mb && men) { const m = Math.floor(Math.min(spareFood(it.town), men * CARRY) / men * 2); mb.title = m ? `${men} men march out with food for ${m} minute${m > 1 ? 's' : ''}` : `${men} men, and no spare food for their carts: they will desert away from home`; mb.classList.toggle('warn', !m); }
     } else {
       set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');

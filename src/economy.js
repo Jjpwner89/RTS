@@ -45,8 +45,8 @@ export const GOOD_GROUPS = [
 // gather: villagers walk out to a resource and carry it back.
 // recipes: villagers work at the building, turning stock into stock. Each workshop can
 // switch any of its recipes off; it takes turns between those left on. `keep` stops a
-// recipe once that much of its output is stored. Arms have no limit: switch a recipe
-// off to stop it.
+// recipe once that much of its output is stored. Arms have no limit (switch a recipe off to
+// stop it), save shields, which stop at sixty so the planks aren't all sawn into them.
 // Workshops stop asking for wood once the village is down to its last, so construction can go on.
 // Goods left for building: workshops don't ask for the last 20 wood, and none turns the last
 // 25 planks into shields or arms.
@@ -69,7 +69,7 @@ export const BUILDINGS = {
   flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
     gather: { node: 'field', time: 8, out: { flax: 2 } }, desc: 'Grows flax for bowstring.' },
   carpenter: { name: 'Carpenter', icon: 'carpenter', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6 }],
+    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 60 }],
     desc: 'Saws wood into planks, and planks into shields.' },
   ropemaker: { name: 'Ropemaker', icon: 'ropemaker', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { flax: 2 }, out: { string: 1 }, time: 7, keep: 20 }], desc: 'Twists flax into bowstring.' },
@@ -218,7 +218,9 @@ export const ELITE = {
   knight: { fee: 20, drill: 75 },
 };
 export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least experience (Blooded)
-const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : t.population >= 150 ? 5 : t.population >= 100 ? 4 : t.population >= 60 ? 3 : t.population >= 30 ? 2 : 1;
+// The keep grows with the village and never shrinks back (keepPeak) when levies march out.
+const byPeople = n => n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
+const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : Math.max(t.keepPeak || 1, byPeople(t.population));
 export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuchet']
   .map(k => [k, { name: TYPES[k].name, cost: TYPES[k].cost, crew: TYPES[k].count }]));
 
@@ -322,6 +324,13 @@ export class Town {
   jobs(b) { return (b.B.jobs || 0) + (b.B.haul ? (b.level || 1) - 1 : 0); }
   speed(b) { return SPEED[b.level || 1]; }
   get population() { return this.villagers.length; }
+  // Villagers at work, and those of them standing in the levies (still counted as people).
+  get atWork() { return this.villagers.filter(v => v.state !== 'soldier').length; }
+  get underArms() { return this.villagers.filter(v => v.state === 'soldier').length; }
+  peopleText() {
+    const n = this.underArms;
+    return n ? `${this.atWork} at work · ${n} under arms` : `${this.population} villagers`;
+  }
   get idle() { return this.villagers.filter(v => v.state === 'idle' || v.state === 'haul').length; }
   get hauling() { return this.villagers.filter(v => v.task?.kind === 'haul').length; }
 
@@ -1014,6 +1023,7 @@ export class Town {
     this.stockCache = null;
     // A place you are storming is only a battlefield until it is yours.
     if (this.hostile) { this.updateAttacks(dt); this.updateBurning(dt); return; }
+    this.keepPeak = Math.max(this.keepPeak || 1, byPeople(this.population));
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.updatePeople(dt);

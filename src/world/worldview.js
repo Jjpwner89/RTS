@@ -275,7 +275,7 @@ export class WorldView {
         : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
-      this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46 });
+      this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46, el: o.label });
     }
 
     for (const [a, o] of this.armies) {
@@ -419,7 +419,15 @@ export class WorldView {
       const d = Math.hypot(s.x - x, s.y - y) - (s.kind === 'army' ? 20 : 0);
       if (d < s.r && d < bd) { bd = d; best = s; }
     }
-    return best;
+    if (best) return best;
+    // A place's name label counts as the place.
+    const o = this.labelsEl.getBoundingClientRect();
+    for (const s of this.screen || []) {
+      if (!s.el || s.el.style.display === 'none') continue;
+      const r = s.el.getBoundingClientRect();
+      if (x >= r.left - o.left && x <= r.right - o.left && y >= r.top - o.top && y <= r.bottom - o.top) return s;
+    }
+    return null;
   }
 
   // ---- places: each kind has its own look, and it grows with the place's level ----
