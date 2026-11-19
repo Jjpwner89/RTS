@@ -14,6 +14,7 @@ import { attachSiege } from './siegeui.js';
 import { SiegeView } from './siegeview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
+import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
 import { KINDS } from './world/realm.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
@@ -422,7 +423,9 @@ function worldPanel() {
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
-    else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p class="status" data-f="status"></p>`
+    else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
+    else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="status" data-f="status"></p>`
+      + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
@@ -449,8 +452,24 @@ function worldPanel() {
       return `<div class="h${h.alive ? "" : " gone"}${met && h.alive ? ' pick' : ''}" data-house="${h.index}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${mood(d.opinion).toLowerCase()}` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : tie}</small></div>`;
     }).join('') + (world.invader !== null ? (h => `<div class="h${h.alive ? '' : ' gone'}"><i style="background:${h.color}"></i><span>${h.lord}<br><small>${h.name} · no terms</small></span><small class="war">${h.alive ? 'at war' : 'broken'}</small></div>`)(FACTIONS[world.invader]) : '') + (unmet.length ? `<div class="h unmet"><i style="background:#8a8478"></i><span>${unmet.length === FACTIONS.slice(1, world.bandits).length ? `${unmet.length} great houses` : `${unmet.length} more house${unmet.length > 1 ? 's' : ''}`}<br><small>not yet met: explore to find their lands</small></span><small></small></div>` : '');
     if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }
+  } else if (it.wagon) {
+    set('men', `${it.wagon.food} food`);
+    set('status', it.wagon.to.gone ? `Going back to ${it.wagon.from.name}` : `On the way to ${it.wagon.to.name}`);
   } else if (it.units) {
-    set('men', `${headcount(it.units)} men`);
+    const hurt = (it.wounded || []).reduce((n, u) => n + u.count, 0);
+    set('men', `${headcount(it.units)} men${hurt ? ` · ${hurt} wounded` : ''}`);
+    if (it.side === 0 || it.visible) {
+      const home = fedAt(world, it), left = foodLeft(world, it);
+      set('food', `${ico('food', it.food > 0 ? '#c9b26a' : '#ff8a5a')} ` + (home ? `Fed from ${home.name}${hurt ? '; the wounded are mending' : ''}`
+        : it.food <= 0 ? '<b class="war">Out of food: men are deserting</b>' : `Food for ${clock(left)}${left < 60 ? ' <b class="war">running low</b>' : ''}`));
+    }
+    if (own) {
+      const w = fedAt(world, it) ? null : wagonFrom(world, it), btn = el.querySelector('[data-f="wagon"]');
+      const coming = world.armies.some(o => o.wagon?.to === it);
+      set('wagon', coming ? `${ico('food')} A wagon is on its way` : w ? `${ico('food')} Send ${w.load} food from ${w.p.name}` : `${ico('food')} No village has food to send`);
+      if (btn) btn.disabled = coming || !w || !!fedAt(world, it);
+      if (btn) btn.hidden = !!fedAt(world, it);
+    }
     set('units', it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
     set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
   } else {
@@ -507,6 +526,7 @@ $('wpanel').onclick = e => {
     if (a) selected = a; else flash('Nobody fit to march.');
   }
   if (act === 'garrison' && it.at?.town) world.enterTown(it, it.at, it.last);
+  if (act === 'wagon' && it.units && !it.wagon && !it.gone) { if (!sendWagon(world, it)) flash('No village has food to spare.'); }
 };
 
 // ---- top bar ----

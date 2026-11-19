@@ -203,7 +203,8 @@ export class WorldView {
       const s = toScreen(x, this.heightAt(x, z) + 16, z);
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
-      const html = `${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${headcount(a.units)}`;
+      const html = a.wagon ? `${ico('food')} ${a.wagon.food}`
+        : `${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${headcount(a.units)}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });

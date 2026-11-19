@@ -11,6 +11,7 @@ import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { buildFort } from '../walls.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
+import { supplyArmies, moveWagon, catchWagons, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -323,6 +324,7 @@ export class World {
     const h = FACTIONS[side];
     const a = { id: this.nextArmy++, side, units, name: name || (side === 0 ? 'Your army' : `${h.short} host`),
       x: at.x, z: at.z, at, last: at, path: [], heading: 0, halted: false, retreating: false, mode, target: null, visible: side === 0 };
+    if (mode !== 'wagon') provision(a);
     this.armies.push(a);
     return a;
   }
@@ -421,6 +423,8 @@ export class World {
   }
 
   enterTown(a, p, came) {
+    heal(a);
+    if (a.food > 0) p.town.put(p.town.keep, 'food', Math.floor(a.food));
     p.town.addTroops(a.units, this.angle(p, came === p ? p.links[0] : came));
     this.removeArmy(a);
     this.log(`Your army has marched into ${p.name}.`);
@@ -431,7 +435,10 @@ export class World {
     const units = p.town.takeTroops(regs);
     if (!units.length) return null;
     const a = this.spawnArmy(0, units, p, `Army of ${p.name}`);
-    this.log(`${a.name} has mustered: ${headcount(units)} men.`);
+    // The carts are loaded from the village stores, as far as they go.
+    a.food = takeFood(p.town, capacity(a));
+    const mins = Math.floor(a.food / Math.max(1, headcount(units)) * 2);
+    this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins ? `${mins} minute${mins > 1 ? 's' : ''}` : 'less than a minute'} away from home.`);
     return a;
   }
 
@@ -488,7 +495,9 @@ export class World {
     this.encounter = null;
     const a = enc.army;
     a.halted = false;
+    const before = a.units;
     a.units = mine;
+    wound(a, before);
     const was = enc.poi ? enc.poi.name : 'the road';
     if (enc.kind === 'assault') {
       const p = enc.poi;
@@ -497,7 +506,9 @@ export class World {
     } else {
       const e = enc.enemy;
       e.halted = false;
+      const theirsBefore = e.units;
       e.units = theirs;
+      wound(e, theirsBefore);
       note(this, e.side, won ? 'wonField' : 'lostField');
       if (won) {
         this.log(`${e.name} was beaten at ${was}.`);
@@ -635,7 +646,12 @@ export class World {
     if (!chose) note(this, h.owner, 'lostField');
     const fire = burned ? `, leaving ${burned} of its buildings in ashes` : '';
     this.log(chose ? `You pull back from ${p.name}${fire}.` : `The attack on ${p.name} has failed${fire}.`, chose ? 0 : 1);
-    if (mine.length) this.retreat(this.spawnArmy(0, mine, p, h.army));
+    if (mine.length) {
+      const back = this.spawnArmy(0, mine, p, h.army);
+      back.wounded = b.regs.filter(r => r.side === 0 && r.initial > left(r))
+        .map(r => ({ key: r.T.key, name: r.name, levy: r.levy || null, retinue: !!r.retinue, count: Math.round((r.initial - left(r)) * 0.35) })).filter(u => u.count > 0);
+      this.retreat(back);
+    }
     this.hooks.stormEnded?.(p, false, chose);
     this.checkEnd();
   }
@@ -721,9 +737,9 @@ export class World {
 
   checkMeetings() {
     for (const a of this.armies) {
-      if (a.halted || a.retreating || a.gone) continue;
+      if (a.halted || a.retreating || a.gone || a.wagon) continue;
       for (const e of this.armies) {
-        if (e === a || e.side <= a.side || e.halted || e.retreating || e.gone || !this.atWar(a.side, e.side)) continue;
+        if (e === a || e.wagon || e.side <= a.side || e.halted || e.retreating || e.gone || !this.atWar(a.side, e.side)) continue;
         if (dist(a, e) >= MEET) continue;
         if (a.side === 0) {
           if (!this.encounter) { this.ask({ kind: 'field', army: a, enemy: e, poi: a.at || e.at }); return; }
@@ -737,8 +753,11 @@ export class World {
   // Two rival armies meet on the road; nobody is watching, so it is settled by numbers.
   clash(a, e) {
     const r = this.resolve(a.units, e.units);
+    const was = [a.units, e.units];
     a.units = r.A;
     e.units = r.D;
+    wound(a, was[0]);
+    wound(e, was[1]);
     const [win, lose] = r.attackerWins ? [a, e] : [e, a];
     if (a.visible || e.visible) this.log(`${win.name} beat ${lose.name} on the road.`, 2);
     if (lose.units.length) this.retreat(lose); else this.removeArmy(lose);
@@ -777,7 +796,7 @@ export class World {
     if (this.part === 2) {
       // Part 2 ends when the north is driven out, or when you have nothing left.
       if (!this.pois.some(p => p.owner === this.invader) && !this.armies.some(a => a.side === this.invader)) { this.winner = 0; this.victory = 'north'; }
-      else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0)) this.winner = 1;
+      else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0 && !a.wagon)) this.winner = 1;
       if (this.winner !== null) this.hooks.ended(this.winner);
       return;
     }
@@ -789,7 +808,7 @@ export class World {
     const rivals = FACTIONS.slice(1, this.bandits).filter(h => h.alive);
     if (this.crown.owner === 0 && mine >= real.length / 2) { this.crowned = true; this.winner = 0; this.victory = 'sword'; }
     else if (!rivals.length || rivals.every(h => B.has(h.index))) { this.crowned = true; this.winner = 0; this.victory = rivals.length ? 'acclaim' : 'sword'; }
-    else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0)) this.winner = 1;
+    else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0 && !a.wagon)) this.winner = 1;
     if (this.winner !== null) this.hooks.ended(this.winner);
   }
 
@@ -846,8 +865,10 @@ export class World {
     if (this.winner !== null) return;
     this.time += dt;
     for (const p of this.pois) if (p.town) this.updateTown(p, dt);
-    for (const a of [...this.armies]) if (!a.gone) this.moveArmy(a, dt);
+    for (const a of [...this.armies]) if (!a.gone) { if (a.wagon) moveWagon(this, a, dt); else this.moveArmy(a, dt); }
     this.checkMeetings();
+    this.supplyClock = (this.supplyClock || 0) - dt;
+    if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
     if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); }
     this.sightClock -= dt;

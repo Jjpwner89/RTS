@@ -105,6 +105,13 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - Take Blackmoor to win; lose every village and army to lose.
 - The timed bandit raids are gone from the campaign; they stay in the standalone village as practice.
 
+**The realm** (Realm workstream), 2026-11-19. The four-place campaign above has grown into the full map:
+- A generated realm of about 30 places of six kinds, five named houses with traits and taunts, bandit camps, fog of war, and Kingsbridge, the empty royal city. Rival houses hold real villages, raid, skirmish and send siege hosts. Diplomacy covers truces, gifts, tribute, alliances, marriage and vassals; win by holding Kingsbridge and half the realm, or by enough houses backing your claim.
+- **Storming a place happens in the place itself**: a real village sized to its people, with houses along the roads, workshops and farms. Castles, seats, Kingsbridge, the north's gate and its war camps have walls and a gate facing your road. Beat or rout every defender to take it; select any of their buildings to burn it.
+- **Places remember** their buildings and walls when they change hands. Lose a village and you storm your own walls to get it back; burned buildings stay burned, and broken walls stay broken unless the holders have had four minutes to mend them. An army camped at your village falls back into it to defend.
+- **Part 2**: once crowned, the screen shatters, the old wall to the north falls, and the Norrhold host pours through in growing tides. The lords kneel as vassals; Norrhold can't be bargained with.
+- **Food supply** (`src/world/supply.js`): a man eats one food every two minutes. Armies set out with up to four minutes of food, loaded from the village stores, and refill near their own (or a vassal's or ally's) places. Out of food, men desert. A third of the fallen in a fight are wounded: they follow the army and rejoin when it rests fed at home. From an army's panel you can send a wagon of food from your nearest village; it drives straight to the army, and enemy armies that meet it take its food.
+
 **Village** (`town.html`), 2026-11-18, the first point of interest:
 - A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
 - Free building placement with a green or red ghost. Gatherers must be near their resource, and a ring shows their reach. Trees are cleared where you build.
