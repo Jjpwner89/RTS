@@ -22,6 +22,17 @@ export class Hud {
     document.getElementById('again').onclick = () => location.reload();
     this.buildOrders();
     this.buildDeploy();
+    this.buildTerms();
+  }
+
+  // A garrison asking for terms: the player answers.
+  buildTerms() {
+    let el = document.getElementById('terms');
+    if (!el) { el = document.createElement('div'); el.id = 'terms'; document.body.append(el); }
+    el.innerHTML = `<b></b><button class="yes"></button><button class="no">Fight on</button>`;
+    el.querySelector('.yes').onclick = () => this.battle.acceptTerms();
+    el.querySelector('.no').onclick = () => this.battle.refuseTerms();
+    this.termsEl = el;
   }
 
   // While the army deploys: what to do, and the button that starts the battle.
@@ -44,7 +55,9 @@ export class Hud {
       <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge</button>
       <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold</button>
       <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will</button>
-      <button data-c="burn" title="Set the nearest bridge alight from this bank (B)">Burn bridge</button></span>`;
+      <button data-c="burn" title="Set the nearest bridge alight from this bank (B)">Burn bridge</button>
+      <button data-c="mine" title="Dig a mine under an enemy wall: press, then right-click the wall (U)">Dig mine</button>
+      <button data-c="counter" title="Dig out the mine heard under our wall (U)">Counter-mine</button></span>`;
     el.onclick = e => {
       const btn = e.target.closest('button');
       if (!btn || !this.selection?.size) return;
@@ -54,6 +67,8 @@ export class Hud {
       if (btn.dataset.c === 'hold') b.setHold(sel, !sel.every(r => r.hold));
       if (btn.dataset.c === 'fire') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
       if (btn.dataset.c === 'burn') { const br = this.bridgeFor(sel); if (br) b.orderBurnBridge(sel, br); }
+      if (btn.dataset.c === 'mine') document.body.classList.toggle('mining');
+      if (btn.dataset.c === 'counter') { const m = b.heardMine(0, sel[0].cx, sel[0].cz); if (m) b.orderCounterMine(sel, m); }
     };
     this.ordersEl = el;
   }
@@ -75,6 +90,11 @@ export class Hud {
     // Only shown with a standing bridge near the selection.
     const burn = on('burn', r => !!r.burnBridge);
     burn.hidden = !this.bridgeFor(sel);
+    // Mines: against standing enemy walls, with foot; counter-mines once one is heard.
+    const b = this.battle, foot = sel.some(r => !r.T.engine && !r.T.mounted);
+    const mine = on('mine', () => document.body.classList.contains('mining'));
+    mine.hidden = !foot || !b.walls.any || !b.walls.pieces.some(p => p.side === 1 && p.state === 'up');
+    on('counter', r => !!r.mine).hidden = !foot || !b.heardMine(0);
   }
 
   bridgeFor(sel) {
@@ -134,6 +154,13 @@ export class Hud {
     }
     this.updateOrders(selection);
     this.deployEl.classList.toggle('open', b.deploying?.side === 0);
+    const T = b.terms && b.winner === null ? b.terms : null;
+    this.termsEl.classList.toggle('open', !!T);
+    if (T && this.termsEl.dataset.side !== String(T.side)) {
+      this.termsEl.dataset.side = T.side;
+      this.termsEl.querySelector('b').textContent = T.side ? 'The garrison asks for terms.' : 'Our garrison cannot hold.';
+      this.termsEl.querySelector('.yes').textContent = T.side ? 'Accept their surrender' : 'Yield on terms';
+    }
     const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     document.getElementById('strength').innerHTML =
       `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`

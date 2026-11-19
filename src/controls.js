@@ -86,6 +86,7 @@ export class Controls {
     if (key === ' ') { e.preventDefault(); this.hooks.togglePause(); }
     if (key === 'h') this.battle.orderHalt([...this.selection]);
     if (key === 'f') this.focus(this.selection);
+    if (key === 'escape') document.body.classList.remove('mining');
     if (key === 'escape' && !this.hooks.cancelPlacement?.()) this.setSelection([]);
     if (key === 'a' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -105,6 +106,11 @@ export class Controls {
     else if (key === 'c') b.orderCharge(sel);
     else if (key === 'g') b.setHold(sel, !sel.every(r => r.hold));
     else if (key === 'r') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+    else if (key === 'u' && b.walls.any) {
+      const m = b.heardMine(0, sel[0].cx, sel[0].cz);
+      if (m) b.orderCounterMine(sel, m);
+      else document.body.classList.toggle('mining');
+    }
     else if (key === 'b' && b.river) {
       const br = sel.map(r => b.bridgeNear(r.cx, r.cz, 60)).find(Boolean);
       if (!br) return false;
@@ -266,6 +272,9 @@ export class Controls {
       if (target && target.side === 1) { this.battle.orderAttack(sel, target); return; }
       // Onto your own wall, or against the enemy's.
       const hit = !d.moved && this.structAt(e.clientX, e.clientY);
+      const mining = document.body.classList.contains('mining');
+      document.body.classList.remove('mining');
+      if (hit && mining && hit.struct.side !== 0) { this.battle.orderMine(sel, hit.struct); return; }
       if (hit) {
         if (hit.struct.side === 0) this.battle.orderMan(sel, hit.struct, hit.x, hit.z);
         else this.battle.orderAttackWall(sel, hit.struct, hit.x, hit.z);

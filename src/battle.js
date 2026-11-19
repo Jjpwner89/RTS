@@ -53,6 +53,7 @@ export function lookChain(key) {
   let T = TYPES[key];
   if (key === 'captain') return ['captain', 'knight', 'cav'];
   if (key === 'lord') return ['lord', 'captain', 'knight', 'cav'];
+  if (key === 'lady') return ['lady', 'lord', 'captain', 'knight', 'cav'];
   while (T?.look && !chain.includes(T.look)) { chain.push(T.look); T = TYPES[T.look]; }
   return chain;
 }
@@ -88,12 +89,14 @@ const turnToward = (a, b, maxStep) => {
 };
 const live = s => s.alive && !s.gone;
 
-const FOG_SIGHT = 70;
+// sight: how far anyone sees (metres), where the weather limits it.
 export const WEATHER = {
   clear: { name: 'Clear' },
   rain: { name: 'Rain', say: 'Rain: bows fall short and miss more, and the ground is heavy for horses.' },
-  fog: { name: 'Fog', say: `Fog: nobody can see more than ${FOG_SIGHT} m.` },
+  fog: { name: 'Fog', sight: 70, say: 'Fog: nobody can see more than 70 m.' },
+  night: { name: 'Night', sight: 45, say: 'Night: nobody sees beyond 45 m, and bows miss more in the dark.' },
 };
+const MINE_WORK = 9000, COUNTER_WORK = 1500;   // man-seconds to dig a mine, and to break into one
 
 // The ground's height, cached on a 1 m grid and blended between points: the terrain's
 // own function is noise and costs too much to call for every soldier every step.
@@ -162,6 +165,12 @@ export class Battle {
     this.river = null;         // battlefield.js makeRiver(): water, fords and bridges
     this.weather = 'clear';    // 'clear', 'rain' or 'fog' (setWeather)
     this.weatherSaid = true;
+    this.mines = [];           // mines dug under walls (orderMine), for the view and the AI
+    this.pours = [];           // boiling oil poured: { x, z, y, time }, for the view
+    this.hunger = [0, 0];      // 0 fed .. 1 starving (setHunger)
+    this.termsAllowed = false; // a garrison may ask for terms (checkTerms)
+    this.terms = null;         // { side, time } while an offer waits for an answer
+    this.surrendered = null;   // the side that yielded on terms
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
@@ -300,8 +309,9 @@ export class Battle {
       for (const m of r.soldiers) if (m.alive && !m.gone) { n++; if (this.woodAt(m.x, m.z) > 0.3) inWood++; }
       const cover = n > 0 && inWood >= n * 0.6 && near > 30;
       const busy = r.engaged > 0 || this.time - (r.lastShot ?? -99) < 3 || r.routing;
-      // In fog nobody sees further than FOG_SIGHT; only cover in the woods makes an ambush.
-      const hidden = (cover || (this.weather === 'fog' && near > FOG_SIGHT)) && !busy;
+      // In fog or at night nobody sees far; only cover in the woods makes an ambush.
+      const sight = WEATHER[this.weather].sight;
+      const hidden = (cover || (sight && near > sight)) && !busy;
       if (hidden && cover) { r.hiddenAt = this.time; r.ambushed = false; }
       r.seen = !hidden;
       r.unseen = hidden && r.side !== this.viewer;
@@ -317,6 +327,7 @@ export class Battle {
   setWeather(kind = 'clear') {
     this.weather = WEATHER[kind] ? kind : 'clear';
     this.weatherSaid = !WEATHER[this.weather].say;
+    this.updateSight();
   }
   label(r) { return `${r.side ? 'Enemy ' : ''}${r.name}`; }
 
@@ -813,6 +824,172 @@ export class Battle {
     }
   }
 
+  // ---- siege extras: boiling oil, mines, terms, hunger ----
+
+  // Men up on a gate or tower pour boiling oil on whoever is at its foot, every 20 s:
+  // a scald that gets under a ram's roof and shakes the men it falls on.
+  pourOil() {
+    const manned = new Map();
+    for (const s of this.soldiers) {
+      const p = s.perch;
+      if (!live(s) || s.level !== 1 || !p || p.side !== s.reg.side || p.state !== 'up' || !(p.gate || p.kind === 'tower')) continue;
+      manned.set(p, s.reg.side);
+    }
+    for (const [p, side] of manned) {
+      if (this.time < (p.oilAt || 0)) continue;
+      const home = this.fortHome(side), out = Math.hypot(p.x - home.x, p.z - home.z);
+      let at = null, bd = Infinity;
+      this.forNear(p.x, p.z, 7, o => {
+        if (o.reg.side === side || o.level !== 0 || o.climb > 0) return;
+        const d = Math.hypot(o.x - p.x, o.z - p.z);
+        if (d < 7 && Math.hypot(o.x - home.x, o.z - home.z) > out - 1 && d < bd) { bd = d; at = o; }
+      });
+      if (!at) continue;
+      p.oilAt = this.time + 20;
+      const x = at.x, z = at.z, shaken = new Set();
+      this.forNear(x, z, 3.5, o => {
+        if (o.reg.side === side || o.level !== 0 || Math.hypot(o.x - x, o.z - z) > 3.2) return;
+        shaken.add(o.reg);
+        this.hurt(o, 9, null);
+      });
+      for (const r of shaken) { r.morale -= 6; if (r.engine?.maxHp) r.engine.hp -= 40; }
+      this.pours.push({ x, z, y: this.heightAt(x, z), time: this.time });
+      if (this.pours.length > 20) this.pours.shift();
+      if (!(this.oiled ||= [false, false])[side]) { this.oiled[side] = true; this.event(side, side ? 'Boiling oil pours down from the walls!' : 'Our men pour boiling oil on the attackers!'); }
+    }
+  }
+
+  // Attackers dig under a stretch of wall from a sap 45 m out; when the mine is done the
+  // stretch and its neighbours come down. A third of the way in, the defenders hear it and
+  // can dig a counter-mine from inside to break into it first.
+  orderMine(regs, piece) {
+    regs = regs.filter(r => this.usable(r) && !r.engine && !r.T.mounted && r.side !== piece.side);
+    if (!regs.length || piece.state !== 'up' || !piece.wall) return null;
+    const side = regs[0].side;
+    let m = this.mines.find(m => m.piece === piece && m.side === side && !m.done && !m.lost);
+    const home = this.fortHome(piece.side), dx = piece.x - home.x, dz = piece.z - home.z, d = Math.hypot(dx, dz) || 1;
+    if (!m) {
+      m = { side, piece, x: piece.x + dx / d * 45, z: piece.z + dz / d * 45, ix: piece.x - dx / d * 10, iz: piece.z - dz / d * 10, progress: 0, counter: 0, heard: false, done: false, lost: false };
+      this.mines.push(m);
+      this.event(side, side ? 'The enemy is digging somewhere outside the walls.' : 'Our men start digging a mine.');
+    }
+    this.orderMove(regs, m.x, m.z, Math.atan2(-dx, -dz));
+    for (const r of regs) { r.mine = m; r.mineAt = r.dest && { x: r.dest.x, z: r.dest.z }; }
+    return m;
+  }
+
+  // Defenders dig toward a mine they have heard, from inside the wall.
+  orderCounterMine(regs, m) {
+    regs = regs.filter(r => this.usable(r) && !r.engine && !r.T.mounted && r.side !== m.side);
+    if (!regs.length || m.done || m.lost) return;
+    this.orderMove(regs, m.ix, m.iz, Math.atan2(m.x - m.ix, m.z - m.iz));
+    for (const r of regs) { r.mine = m; r.mineAt = r.dest && { x: r.dest.x, z: r.dest.z }; }
+  }
+
+  // The nearest mine `side` has heard under its own walls.
+  heardMine(side, x = 0, z = 0) {
+    let best = null, bd = Infinity;
+    for (const m of this.mines) {
+      if (m.side === side || !m.heard || m.done || m.lost) continue;
+      const d = Math.hypot(m.x - x, m.z - z);
+      if (d < bd) { bd = d; best = m; }
+    }
+    return best;
+  }
+
+  minesTick() {
+    if (!this.mines.length) return;
+    const work = new Map(), counter = new Map();
+    for (const r of this.regs) {
+      const m = r.mine;
+      if (!m) continue;
+      if (m.done || m.lost || !this.usable(r) || r.targetReg || r.posts || r.targetWall) { r.mine = null; continue; }
+      // Each regiment works from its own place along the sap (where it was sent).
+      const own = m.side === r.side, at = r.mineAt || (own ? m : { x: m.ix, z: m.iz });
+      if (r.dest && Math.hypot(r.dest.x - at.x, r.dest.z - at.z) > 3) { r.mine = null; continue; }
+      if (r.dest || r.engaged > 0 || Math.hypot(r.x - at.x, r.z - at.z) > 6) continue;
+      (own ? work : counter).set(m, ((own ? work : counter).get(m) || 0) + r.alive);
+    }
+    for (const m of this.mines) {
+      if (m.done || m.lost) continue;
+      if (m.piece.state !== 'up') { m.lost = true; continue; }
+      m.progress = Math.min(1, m.progress + (work.get(m) || 0) / MINE_WORK);
+      if (m.heard) m.counter += counter.get(m) || 0;
+      if (!m.heard && m.progress > 0.35) {
+        m.heard = true;
+        this.event(1 - m.side, m.side ? 'Digging is heard under our wall! Send men to counter-mine (U).' : 'The defenders have heard our mine.');
+      }
+      if (m.counter >= COUNTER_WORK) {
+        // The counter-miners break in: a fight in the dark, and the mine is lost.
+        m.lost = true;
+        const miners = this.regs.filter(r => r.mine === m && r.side === m.side);
+        for (const r of miners) {
+          let n = Math.ceil(r.alive * 0.25);
+          for (const s of r.soldiers) if (n > 0 && live(s) && !s.captain) { this.kill(s); n--; }
+          r.morale -= 15; r.mine = null;
+        }
+        for (const r of this.regs) if (r.mine === m) r.mine = null;
+        this.event(1 - m.side, m.side ? 'Our counter-miners broke into the mine and collapsed it!' : 'They broke into our mine; it is lost.');
+        continue;
+      }
+      if (m.progress >= 1) {
+        m.done = true;
+        const near = this.walls.structures().filter(s => s.side === m.piece.side && s.state === 'up' && Math.hypot(s.x - m.piece.x, s.z - m.piece.z) < 9);
+        for (const s of near) this.walls.damage(s, s.hp + 1e4, 'stone');
+        for (const r of this.regs) if (r.mine === m) r.mine = null;
+        this.event(m.side, m.side ? 'A mine is fired under our wall: it comes down!' : 'Our mine is fired: the wall comes down!');
+      }
+    }
+  }
+
+  // A starving garrison: lower spirits and men who tire fast. h 0 (fed) .. 1 (starving).
+  setHunger(side, h) {
+    this.hunger[side] = Math.max(0, Math.min(1, h));
+    if (h >= 0.3) this.event(side, side ? 'The garrison is starving.' : 'Our men are starving.');
+  }
+
+  // A garrison (the side with walls) that can't win asks for terms: few men left against
+  // many with the walls breached, or hunger. Only where termsAllowed. onTerms(offer) lets
+  // the campaign attach conditions; the player answers with acceptTerms or refuseTerms.
+  checkTerms() {
+    if (this.terms || this.winner !== null || this.surrendered !== null) return;
+    for (const side of [0, 1]) {
+      if (!this.walls.structures().some(s => s.side === side)) continue;
+      if (this.time < ((this.termsWait ||= [0, 0])[side])) continue;
+      const men = k => this.regs.filter(r => r.side === k && this.usable(r)).reduce((n, r) => n + r.alive, 0);
+      const mine = men(side), theirs = men(1 - side);
+      if (!theirs || !mine) continue;
+      const breached = this.walls.pieces.some(p => p.side === side && (p.state === 'broken' || p.forced));
+      const h = this.hunger[side], odds = mine / theirs;
+      if (odds < 0.2 + h * 0.4 && (breached || h >= 0.5 || odds < 0.1)) {
+        this.terms = { side, time: this.time };
+        this.event(side, side ? 'The garrison asks for terms.' : 'Our garrison cannot hold: we could yield on terms.');
+        this.onTerms?.(this.terms);
+        return;
+      }
+    }
+  }
+
+  // The garrison yields and marches out; the battle is won by the other side.
+  acceptTerms() {
+    const T = this.terms;
+    if (!T) return;
+    this.terms = null;
+    this.surrendered = T.side;
+    for (const r of this.regs) if (r.side === T.side && !r.gone) this.disband(r);
+    this.winner = 1 - T.side;
+    this.event(this.winner, T.side ? 'The garrison yields and marches out.' : 'Our garrison yields and marches out.');
+  }
+
+  // Fight on: the garrison takes heart from defiance; no new offer for 90 s.
+  refuseTerms() {
+    const T = this.terms;
+    if (!T) return;
+    this.terms = null;
+    (this.termsWait ||= [0, 0])[T.side] = this.time + 90;
+    for (const r of this.regs) if (r.side === T.side && this.usable(r)) r.morale += 10;
+  }
+
   // ---- captains ----
 
   // A named captain rides with one regiment (the army's own). Plain data, so armies can save it:
@@ -860,10 +1037,12 @@ export class Battle {
     const s = this.makeSoldier(reg, -1, reg.angle);
     s.captain = lord;                  // rides apart from the ranks, like a captain
     s.lordOf = side;
-    s.look = 'lord';
+    // A woman lord (lady: true, or a name starting "Lady") has her own model.
+    s.look = lord.lady || /^Lady\b/.test(lord.name || '') ? 'lady' : 'lord';
     s.hp = 70;
-    s.x = reg.cx - Math.sin(reg.angle) * 6; s.z = reg.cz - Math.cos(reg.angle) * 6;
-    s.lx = s.x; s.lz = s.z; s.y = this.heightAt(s.x, s.z);
+    // Behind the last rank, where the lord and the bannerman beside him show clearly.
+    const g = this.goalOf(s);
+    s.x = s.lx = g.x; s.z = s.lz = g.z; s.y = this.heightAt(s.x, s.z);
     reg.soldiers.push(s);
     this.soldiers.push(s);
     this.lords[side] = { lord, reg, soldier: s, died: false };
@@ -1270,6 +1449,9 @@ export class Battle {
   // Once a second: ladders pushed down, gates forced from inside, the walls' own business.
   wallsTick() {
     const W = this.walls;
+    this.pourOil();
+    this.minesTick();
+    if (this.termsAllowed) this.checkTerms();
     for (const l of [...W.ladders]) {
       if (l.piece.state !== 'up') { W.pushDown(l); continue; }
       let def = 0, att = 0, climbing = 0;
@@ -1319,7 +1501,7 @@ export class Battle {
     if (s.captain) {
       // The captain rides just behind his regiment's middle.
       const d = r.posts ? 10 : (Math.ceil(r.alive / Math.max(1, r.files)) * (r.T.depth || r.T.spacing)) / 2 + 4;
-      const side = s.lordOf ? 4 : 0;             // a lord rides beside the captain
+      const side = s.lordOf !== undefined ? 5 : 0;   // a lord (and bannerman) rides beside the captain
       return { x: r.cx - Math.sin(r.angle) * d + Math.cos(r.angle) * side, z: r.cz - Math.cos(r.angle) * d - Math.sin(r.angle) * side, perch: null };
     }
     if (r.posts) {
@@ -1585,7 +1767,7 @@ export class Battle {
     if (this.time - (r.lastShot ?? -99) < 2) gain += 0.004;
     if (r.engaged > 0 || this.time - (r.lastShot ?? -99) < 2) r.fought = true;
     if (gain === 0) r.fatigue = Math.max(0, r.fatigue - 0.012 * dt);
-    else r.fatigue = Math.min(1, r.fatigue + gain * dt * (1 - r.vet * 0.08));
+    else r.fatigue = Math.min(1, r.fatigue + gain * dt * (1 - r.vet * 0.08) * (1 + this.hunger[r.side] * 0.8));
   }
 
   // How much a regiment's tiredness slows it.
@@ -1780,7 +1962,7 @@ export class Battle {
   updateMorale(r, dt) {
     if (r.gone || r.routing) return;
     const T = r.T;
-    const top = T.morale * (1 + r.vet * 0.06) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4;
+    const top = T.morale * (1 + r.vet * 0.06) * (1 - this.hunger[r.side] * 0.3) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4;
     if (r.regrouping) {
       r.morale += 3 * dt;
       if (r.morale >= T.morale * 0.6) {
@@ -1965,6 +2147,9 @@ export class Battle {
       if (hit.level === 1 && hit.perch) chance *= hit.perch.material === 'stone' ? 0.45 : 0.7;
       if (hit.reg.engine?.roof && !hit.reg.routing) chance *= hit.reg.engine.roof;
       if (this.weather === 'rain') chance *= pierce ? 0.9 : 0.75;
+      if (this.weather === 'night') chance *= 0.8;
+      // Miners at work are under the cover of their sap.
+      if (hit.reg.mine && !hit.reg.dest) chance *= 0.3;
       if (this.rand() < chance) {
         hit.reg.morale -= 0.25;
         audio.play('arrowhit', hit, this); // audio
@@ -2025,6 +2210,7 @@ export class Battle {
     if (r.posts) return r.posts[0]?.perch.side === r.side ? 'On the walls' : 'Storming the walls';
     if (r.targetWall) return 'Attacking the wall';
     if (r.burnBridge) return 'Burning the bridge';
+    if (r.mine && !r.mine.done && !r.mine.lost) return r.mine.side === r.side ? `Digging a mine ${Math.floor(r.mine.progress * 100)}%` : 'Counter-mining';
     if (r.seen === false) return 'Hidden in the woods';
     if (r.hold) return 'Holding';
     return '';

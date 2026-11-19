@@ -41,7 +41,7 @@ drawTrees(scene, heightAt, trees);
 const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', ...(homes ? { homes } : {}) });
 battle.setWoods(trees);
 battle.setRiver(river);
-// Light weather on the field (?weather=clear, rain or fog; sieges are clear unless asked).
+// Light weather on the field (?weather=clear, rain, fog or night; sieges are clear unless asked).
 battle.setWeather(params.get('weather') || (mode === 'field' ? pickWeather(seed) : 'clear'));
 const view = new BattleView(scene, battle, heightAt, { keeps: mode === 'field' });
 const siegeView = new SiegeView(scene, battle, heightAt);
@@ -79,6 +79,8 @@ if (FORT) {
   battle.setCaptain(attSide, makeCaptain(rand, { level: 2 }), att.find(r => r.T.key === 'knight'));
   battle.setCaptain(FORT.side, makeCaptain(rand, { level: 2 }), def.find(r => r.T.key === 'maa'));
   battle.checkWinner = true;
+  // A garrison that can't hold asks for terms (or, holding the fort, you may yield).
+  battle.termsAllowed = true;
 } else {
   for (let side = 0; side < 2; side++) {
     const reg = battle.regs.find(r => r.side === side && r.T.key === 'knight') || battle.regs.find(r => r.side === side && r.T.mounted);

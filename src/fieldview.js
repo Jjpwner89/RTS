@@ -130,7 +130,8 @@ export class FieldView {
       scene.traverse(o => { if (o.isLight) this.clearSky.lights.push([o, o.intensity]); });
     }
     const C = this.clearSky;
-    const look = { clear: null, rain: { sky: '#8d969c', near: 90, far: 480, light: 0.72 }, fog: { sky: '#c4c8c4', near: 20, far: 200, light: 0.85 } }[kind];
+    const look = { clear: null, rain: { sky: '#8d969c', near: 90, far: 480, light: 0.72 }, fog: { sky: '#c4c8c4', near: 20, far: 200, light: 0.85 },
+      night: { sky: '#161d2b', near: 40, far: 320, light: 0.16 } }[kind];
     const sky = look ? new THREE.Color(look.sky) : null;
     if (C.bg && scene.background?.isColor) scene.background.copy(sky || C.bg);
     if (C.fog && scene.fog) {

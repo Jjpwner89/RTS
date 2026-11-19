@@ -187,6 +187,15 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
       }
     }
   }
+  // A mine under a stone stretch, one at a time, when there is foot to spare: slow, but it
+  // brings the wall down. The defenders may hear it and dig it out.
+  if (!prepare && !inside && foot.length >= 3 && !battle.mines.some(m => m.side === side && !m.done && !m.lost)) {
+    const mined = st.mined ||= [];
+    const byNear = [...pieces].sort((a, b) => Math.hypot(a.x - army.cx, a.z - army.cz) - Math.hypot(b.x - army.cx, b.z - army.cz));
+    const stone = [breach, ...byNear].find(p => p && p.material === 'stone' && !p.gate && p.len > 5 && !mined.includes(p));
+    const digger = stone && (foot.find(r => !r.posts && !r.targetWall && (r.T.key === 'militia' || r.T.key === 'spear')) || foot.find(r => !r.posts && !r.targetWall));
+    if (digger) { battle.orderMine([digger], stone); st.mined.push(stone); }
+  }
   if (prepare) {
     // Camped: everyone else waits at the stand-off, ready.
     for (const r of [...foot, ...shooters, ...horse]) if (!r.dest && !r.targetReg && dist(r, { cx: stage.x, cz: stage.z }) > 40) battle.orderMove([r], stage.x, stage.z, stage.angle);
@@ -224,7 +233,7 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   const ladderPieces = [...new Set(ladders.map(l => l.piece))];
   let sent = 0;
   for (const r of foot) {
-    if (r.posts) continue;
+    if (r.posts || r.mine) continue;
     if (ladderPieces.length && (r.T.key === 'maa' || r.T.key === 'sword' || r.T.key === 'sellsword' || r.T.key === 'household' || sent < 2)) {
       const l = ladders[sent % ladders.length];
       battle.orderAttackWall([r], l.piece, l.x, l.z);
@@ -244,7 +253,7 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   const throwing = engines.some(r => r.engine.range);
   const weak = gate && gate.hp < gate.maxHp * 0.35;
   if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20)))) {
-    for (const r of foot) if (!r.posts && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
+    for (const r of foot) if (!r.posts && !r.mine && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
   }
   // Horse guards the engines against sallies, else waits.
   for (const r of horse) {
@@ -313,9 +322,16 @@ export function thinkSiegeDefence(battle, side, { regs = null } = {}) {
       if (r.targetReg !== t) { if (r.posts) battle.clearPosts(r); battle.orderAttack([r], t); }
       continue;
     }
-    reserve.push(r);
+    if (!r.mine) reserve.push(r);
   }
   if (within.length) { for (const r of horse) { const t = nearest(r, within); if (t && r.targetReg !== t) battle.orderAttack([r], t); } return; }
+
+  // A mine heard under the walls: men from the reserve dig it out from inside.
+  const heard = battle.heardMine(side, front.cx, front.cz);
+  if (heard && !mine.some(r => r.mine === heard)) {
+    const r = reserve.filter(o => !o.posts).sort((a, b) => Math.hypot(a.cx - heard.ix, a.cz - heard.iz) - Math.hypot(b.cx - heard.ix, b.cz - heard.iz))[0] || reserve[0];
+    if (r) { battle.orderCounterMine([r], heard); reserve.splice(reserve.indexOf(r), 1); }
+  }
 
   // A man on the walls for every ladder, and a regiment to every stretch the enemy holds.
   const threats = [...ladders.map(l => ({ x: l.x, z: l.z, perch: l.piece })), ...onWalls.map(o => o.posts[0] && { x: o.posts[0].x, z: o.posts[0].z, perch: o.posts[0].perch }).filter(Boolean)];
@@ -340,7 +356,7 @@ export function thinkSiegeDefence(battle, side, { regs = null } = {}) {
   // Keep half the reserve on the walls facing the enemy, the rest inside the nearest gate.
   const gate = W.pieces.filter(p => p.side === side && p.gate && p.state === 'up').sort((a, b) => Math.hypot(a.x - front.cx, a.z - front.cz) - Math.hypot(b.x - front.cx, b.z - front.cz))[0];
   reserve.forEach((r, i) => {
-    if (r.posts || r.dest || r.targetReg) return;
+    if (r.posts || r.dest || r.targetReg || r.mine) return;
     if (i % 2 === 0) {
       const t = facing.find(s => s.kind === 'piece') || facing[0];
       battle.orderMan([r], t, t.x, t.z);
@@ -350,13 +366,15 @@ export function thinkSiegeDefence(battle, side, { regs = null } = {}) {
     }
   });
 
-  // Sally: horse (or spare foot) out of the gate against an engine with few guards near it.
-  const raiders = horse.length ? horse : [];
+  // Sally: horse out of the gate against an engine with few guards near it. At night,
+  // unseen until close, they dare more, and spare foot go too.
+  const night = battle.weather === 'night';
+  const raiders = horse.length ? horse : night ? reserve.filter(r => !r.posts).slice(0, 1) : [];
   const engs = foes.filter(o => o.engine && !o.engine.wrecked);
   const target = engs.find(e => {
     let guards = 0;
     for (const o of foes) if (!o.engine && dist(o, e) < 35) guards += o.alive;
-    return guards < e.alive * 2 && Math.hypot(e.cx - home.x, e.cz - home.z) < wallRadius(battle, side) + 160;
+    return guards < e.alive * (night ? 5 : 2) && Math.hypot(e.cx - home.x, e.cz - home.z) < wallRadius(battle, side) + (night ? 220 : 160);
   });
   for (const r of raiders) {
     if (target && gate) {
