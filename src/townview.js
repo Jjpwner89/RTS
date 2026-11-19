@@ -5,7 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, houseModel } from './view.js';
 import { BUILDINGS } from './economy.js';
 
-const TIMBER = '#8a6a48', SHINGLE = '#6d5a48', ROOF_RED = '#7a4a32';
+const TIMBER = '#8a6a48', SHINGLE = '#6d5a48', ROOF_RED = '#7a4a32', CRATE_WOOD = '#a07a4a', CRATE_BAND = '#5e4228';
 
 function roof(w, d, h, color, y) {
   const g = new THREE.ConeGeometry(1, 1, 4);
@@ -50,6 +50,10 @@ const MODELS = {
     ...[-0.5, 0, 0.5].map(z => part(box(0.05, 1.3, 0.05), '#5a3a22', { x: 2.85, y: 1.0, z }))]),
   weaponsmith: () => mergeGeometries([...cottage(4.5, 4, 2.5, STONE_DARK, '#4a4038'), chimney(-1.3, -1),
     part(box(0.6, 0.5, 0.3), DARK, { x: 3, y: 0.55 }), part(box(0.4, 0.3, 0.4), DARK, { x: 3, y: 0.15 })]),
+  storehouse: () => mergeGeometries([...cottage(7, 5, 3, TIMBER, SHINGLE),
+    part(box(2.2, 2.2, 0.1), DARK, { y: 1.1, z: 2.52 }),
+    ...[[-2.6, 3.4], [-1.6, 3.6], [2.4, 3.4]].map(([x, z]) => part(box(0.9, 0.7, 0.8), CRATE_WOOD, { x, y: 0.35, z })),
+    part(box(0.9, 0.7, 0.8), CRATE_WOOD, { x: -2.1, y: 1.05, z: 3.5 })]),
   barracks: () => mergeGeometries([...cottage(10, 6, 3, TIMBER, ROOF_RED),
     part(cyl(0.1, 0.1, 7, 4), WOOD, { x: 4, y: 3.5, z: 4 }), part(box(0.05, 1.4, 2.2), SIDE_COLORS[0], { x: 4, y: 6.2, z: 5.1 }),
     ...[-1, 0, 1].map(i => part(cyl(0.03, 0.03, 2.6, 4), WOOD, { x: -3 + i * 0.5, y: 1.3, z: 3.4, rx: 0.15 }))]),
@@ -71,7 +75,19 @@ function peasant() {
   return { gear, cloth };
 }
 const DYES = ['#8a6a4a', '#6f7a52', '#7a5a48', '#9a8a6a', '#5f6a7a', '#8a7a5a', '#6a5040'];
-const CARRY = { wood: '#7a5a3a', stone: '#9a968e', food: '#a8463a', flax: '#7f9f5a', feathers: '#eeeae0', ore: '#8a4a32' };
+// What shows over the rim of a crate.
+const CARRY = { wood: '#7a5a3a', stone: '#9a968e', food: '#a8463a', flax: '#7f9f5a', feathers: '#eeeae0', ore: '#8a4a32',
+  planks: '#c49a62', string: '#d8cca0', iron: '#5a5e66', shields: '#8a5a3a', bows: '#5a3a22', arrows: '#d8c8a0', spears: '#9a9ca4', swords: '#b8bcc4' };
+
+// A plain wooden crate with dark bands, carried in both hands or stacked by a door.
+function crateModel() {
+  return mergeGeometries([
+    part(box(0.62, 0.42, 0.46), CRATE_WOOD, { y: 0.21 }),
+    part(box(0.66, 0.07, 0.5), CRATE_BAND, { y: 0.05 }),
+    part(box(0.66, 0.07, 0.5), CRATE_BAND, { y: 0.39 }),
+    part(box(0.07, 0.44, 0.5), CRATE_BAND, { y: 0.21 }),
+  ]);
+}
 
 function deposit(kind, rand) {
   const parts = [];
@@ -145,8 +161,15 @@ export class TownView {
     this.people = {
       gear: new THREE.InstancedMesh(p.gear, this.mat, 600),
       cloth: new THREE.InstancedMesh(p.cloth, this.mat, 600),
-      carry: new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, 0.45, 0.4), new THREE.MeshLambertMaterial(), 600),
+      crate: new THREE.InstancedMesh(crateModel(), this.mat, 600),
+      carry: new THREE.InstancedMesh(new THREE.BoxGeometry(0.54, 0.08, 0.38), new THREE.MeshLambertMaterial(), 600),
     };
+    // Crates stacked outside buildings, one for each ten goods held there.
+    this.piles = new THREE.InstancedMesh(crateModel(), this.mat, 1200);
+    this.piles.frustumCulled = false;
+    this.piles.castShadow = this.piles.receiveShadow = true;
+    this.piles.count = 0;
+    scene.add(this.piles);
     const c = new THREE.Color();
     for (let i = 0; i < 600; i++) {
       this.people.cloth.setColorAt(i, c.set(DYES[i % DYES.length]).multiplyScalar(0.85 + rand() * 0.3));
@@ -240,7 +263,7 @@ export class TownView {
     }
 
     // Villagers: a gentle bob when walking, a working rhythm when at a task.
-    const d = this.dummy, P = this.people;
+    const d = this.dummy, P = this.people, c = this.color || (this.color = new THREE.Color());
     let n = 0, k = 0;
     for (const v of town.villagers) {
       if (v.hidden || v.state === 'soldier' || n >= 600) continue;
@@ -252,18 +275,50 @@ export class TownView {
       P.gear.setMatrixAt(n, d.matrix);
       P.cloth.setMatrixAt(n, d.matrix);
       n++;
+      // Anything carried goes in a crate held in front, its contents showing over the rim.
       if (v.carry) {
-        d.position.set(v.x - Math.sin(v.yaw) * 0.35, v.y + bob + 1.45, v.z - Math.cos(v.yaw) * 0.35);
+        d.position.set(v.x + Math.sin(v.yaw) * 0.42, v.y + bob + 0.92, v.z + Math.cos(v.yaw) * 0.42);
+        d.updateMatrix();
+        P.crate.setMatrixAt(k, d.matrix);
+        d.position.y += 0.4;
         d.updateMatrix();
         P.carry.setMatrixAt(k, d.matrix);
-        P.carry.setColorAt(k, new THREE.Color(CARRY[v.carry] || '#ffffff'));
+        P.carry.setColorAt(k, c.set(CARRY[v.carry] || '#ffffff'));
         k++;
       }
     }
     P.gear.count = P.cloth.count = n;
-    P.carry.count = k;
+    P.crate.count = P.carry.count = k;
+    this.updatePiles();
     for (const m of Object.values(P)) m.instanceMatrix.needsUpdate = true;
     if (P.carry.instanceColor) P.carry.instanceColor.needsUpdate = true;
+  }
+
+  updatePiles() {
+    const d = this.dummy, town = this.town;
+    let k = 0;
+    for (const b of [town.keep, ...town.buildings]) {
+      if (b.state !== 'active' || !b.store) continue;
+      const total = Object.values(b.store).reduce((n, x) => n + x, 0);
+      const max = b === town.keep ? 24 : b.B.storage ? 18 : 9;
+      const count = Math.min(max, Math.ceil(total / 10 - 0.05));
+      // Stacked beside the door, three to a row and up to three high.
+      const a = b === town.keep ? 0.5 : b.angle, side = a + Math.PI / 2;
+      const r = b === town.keep ? 13.5 : b.B.radius + 1.6;
+      for (let i = 0; i < count && k < 1200; i++) {
+        const col = i % 3, row = Math.floor(i / 3) % 2, level = Math.floor(i / 6);
+        const off = 1.6 + col * 0.7, out = r + row * 0.55;
+        const x = b.x + Math.sin(a) * out + Math.sin(side) * off, z = b.z + Math.cos(a) * out + Math.cos(side) * off;
+        d.position.set(x, this.heightAt(x, z) + level * 0.44, z);
+        d.rotation.set(0, a, 0);
+        d.scale.setScalar(1.15);
+        d.updateMatrix();
+        this.piles.setMatrixAt(k++, d.matrix);
+      }
+    }
+    d.scale.setScalar(1);
+    this.piles.count = k;
+    this.piles.instanceMatrix.needsUpdate = true;
   }
 
   buildingAt(p) {

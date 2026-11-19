@@ -13,7 +13,7 @@ export class TownHud {
     this.buildEl = document.getElementById('build');
     this.infoEl = document.getElementById('info');
     this.toastEl = document.getElementById('toast');
-    this.tab = 'Homes';
+    this.tab = 'Village';
     this.infoKey = null;
     this.buildStock();
     this.buildMenu();
@@ -64,7 +64,7 @@ export class TownHud {
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
     const set = (k, v) => { this.stockEl.querySelector(`[data-s="${k}"]`).textContent = v; };
     set('pop', `👥 ${t.population} / ${t.housing}`);
-    set('idle', `${t.idle} idle`);
+    set('idle', `${t.hauling} carrying · ${t.idle} idle`);
     set('hunger', t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
     set('raid', t.underAttack ? '⚔️ Under attack!' : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
@@ -96,7 +96,7 @@ export class TownHud {
       const [ok, title] = this.allowed(el.dataset.act);
       el.disabled = !ok;
       el.title = title || '';
-      if (el.dataset.act.startsWith('raise:')) el.querySelector('small').textContent = title || `${this.town.levyCheck(el.dataset.act.slice(6)).n} men`;
+      if (el.dataset.act.startsWith('raise:')) el.querySelector('small').textContent = title || `${this.town.levyCheck(el.dataset.act.slice(6), selected).n} men`;
       if (el.dataset.act === 'pause') el.textContent = selected.paused ? 'Resume work' : 'Pause work';
       if (el.dataset.act.startsWith('recipe:')) {
         const off = selected.off.has(+el.dataset.act.slice(7));
@@ -110,22 +110,25 @@ export class TownHud {
     const B = b.B;
     const rows = [`<h3><i>${B.icon}</i> ${B.name}</h3>`, `<p class="status" data-f="status"></p>`];
     if (b.kind === 'keep') {
-      rows.push(`<p data-f="hp"></p><p class="note">Home for 12 villagers and your stockpile. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`);
+      rows.push(`<p data-f="workers"></p><p data-f="hp"></p><p class="store" data-f="store"></p>`,
+        `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`);
       return rows.join('');
     }
-    if (b.state === 'site') rows.push(`<p data-f="progress"></p>`);
+    if (b.state === 'site') rows.push(`<p data-f="progress"></p><p data-f="materials"></p>`);
     if (B.jobs) rows.push(`<p data-f="workers"></p>`);
     rows.push(`<p data-f="hp"></p>`);
-    if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip.</p>`);
+    if (b.state === 'active' && (B.storage || B.gather || B.recipes || b.kind === 'barracks')) rows.push(`<p class="store" data-f="store"></p>`);
+    if (B.storage) rows.push(`<p class="note">Haulers carry goods from here, and from the buildings nearby, to wherever they are needed. Build it close to your workshops to save them walking.</p>`);
+    if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip, and stacks it here until haulers take it away.</p>`);
     if (B.recipes) {
       rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${this.goodsList(r.in)} → ${this.goodsList(r.out)}</span><small></small></button>`).join('')}</div>`);
       if (B.recipes.length > 1) rows.push(`<p class="note">Click to switch what this workshop makes. With several on, it takes turns. Build a second one to make both at full speed.</p>`);
     }
     if (B.housing) rows.push(`<p class="note">Room for ${B.housing} more villagers.</p>`);
     if (b.kind === 'barracks' && b.state === 'active') {
-      rows.push(`<h4>Call up a levy</h4>`);
+      rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
       for (const [k, K] of Object.entries(KITS)) {
-        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)}</p>`);
+        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks</p>`);
       }
     }
     const buttons = [];
@@ -147,9 +150,14 @@ export class TownHud {
 
   field(f) {
     const b = this.selected, r = this.reg;
-    if (f === 'status') return b.state === 'ruined' ? 'Burned by raiders' : b.kind === 'keep' ? `${this.town.population} villagers` : b.status;
+    if (f === 'status') return b.state === 'ruined' ? 'Burned by raiders' : b.kind === 'keep' ? `${this.town.population} villagers · ${b.status.toLowerCase()}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
-    if (f === 'workers') return `Workers: ${b.workers.length} / ${b.B.jobs}`;
+    if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${GOODS[g].icon}`).join(' · ')}`;
+    if (f === 'workers') return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} / ${b.B.jobs}`;
+    if (f === 'store') {
+      const held = Object.entries(b.store).filter(([, n]) => n >= 1);
+      return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${GOODS[g].icon}`).join(' · ')}` : 'Holds nothing';
+    }
     if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
     if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : ''}`;
     if (f === 'morale') return this.hooks.moraleLabel(r);
@@ -158,7 +166,7 @@ export class TownHud {
 
   allowed(act) {
     const t = this.town;
-    if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6)); return [c.ok, c.reason]; }
+    if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6), this.selected); return [c.ok, c.reason]; }
     if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
     return [true];
   }

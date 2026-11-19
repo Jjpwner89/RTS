@@ -78,7 +78,7 @@ Every finished good takes two or three steps, with one or two inputs at each ste
 | Spears | Weaponsmith | iron + planks |
 | Swords | Weaponsmith | iron |
 
-**Raising troops.** Each soldier is one villager plus a kit: spearman = spear + shield; archer = bow + arrows; swordsman = sword + shield. Disbanding returns the survivors' kit to the stockpile.
+**Raising troops.** Each soldier is one villager plus a kit: spearman = spear + shield; archer = bow + arrows; swordsman = sword + shield. Kit must be carried to the barracks before it can be issued. Disbanding returns the survivors' kit to the nearest barracks.
 
 Later: leather and armour (hunter hides → tanner → armourer), horses (stable) for cavalry, bread (farm → mill → bakery), siege engines.
 
@@ -107,11 +107,19 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
 - Free building placement with a green or red ghost. Gatherers must be near their resource, and a ring shows their reach. Trees are cleared where you build.
 - Villagers build sites, then stay on as the first workers. Gatherers walk out to trees, rocks, ore or fields and carry the goods back. Craftsmen work at their door.
-- All the production chains above. Each workshop's recipes are switches: turn off the ones you don't want, and with several on it takes turns. Two carpenters can split planks and shields. Planks, string and iron stop at a stock limit; weapons, shields and arrows have none, so switch a recipe off to stop it. Crafting never burns the last 20 wood, so construction can go on.
+- **Hauling** (2026-11-18): goods sit where they are. Gatherers stack theirs in their own yard (30 of each, then they stop). Workshops hold their inputs and what they make. The barracks holds the arms, and levies are armed only from its racks. The keep and storehouses hold anything.
+  - Haulers carry one crate at a time (10 goods, 40 arrows). The keep has 2 haulers and each storehouse 3; villagers with no job haul too.
+  - Order of work: materials to building sites, then inputs to workshops, then arms to the barracks, then clearing full yards and workshops into the nearest store.
+  - A worker who is stuck carries for their own building: builders fetch their materials, craftsmen fetch inputs or take away what they made, gatherers clear a full yard. This is slower than having haulers, so placement and storehouses matter.
+  - Building costs are set aside when you place a site, but builders can only get as far as the materials carried there.
+  - Meals come out of the keep and storehouses, not from food still lying at the farms.
+  - A burned building loses everything stored in it. Villagers who flee keep their crate and drop it in the keep.
+  - Carried goods show as a plain wooden crate with a glimpse of the goods over the rim; stores show stacked crates by the door. Later the crate could show its contents properly.
+- All the production chains above. Each workshop's recipes are switches: turn off the ones you don't want, and with several on it takes turns. Two carpenters can split planks and shields. Planks, string and iron stop at a village-wide limit; weapons, shields and arrows have none, so switch a recipe off to stop it. Workshops stop asking for wood when the village is down to 20 not set aside for building.
 - Food: villagers eat; houses add room; new families settle while there is food and room.
-- Barracks: call up a levy of 5–20 villagers if their kit is in stock. Their deaths are villagers lost. Disband returns the survivors and their kit to work.
+- Barracks: call up a levy of 5–20 villagers if their kit is in that barracks. Their deaths are villagers lost. Disband returns the survivors and their kit to work.
 - Bandit raids from 5:00, growing with each wave (archers from wave 3). Villagers flee to the keep. Raiders burn what they reach and leave after three fires or about 2½ minutes. If the keep falls, the game is lost.
-- The lord's retinue of 20 swordsmen costs no villagers. You can send it to work: the men become villagers and their 20 swords and shields go to the stores, so a barracks can arm them again as a levy.
+- The lord's retinue of 20 swordsmen costs no villagers. You can send it to work: the men become villagers and their 20 swords and shields go to the nearest barracks (or the keep), so a barracks can arm them again as a levy.
 
 **Battle test** (`battle.html`), 2026-11-18:
 - 9 regiments a side (spears, swords, archers, cavalry), about 1,200 soldiers, with a keep and village at each side's end of the field.

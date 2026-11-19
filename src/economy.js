@@ -1,6 +1,10 @@
 // One point of interest as a living town: buildings placed anywhere, villagers who
 // build and work them, short production chains, levies raised from the villagers
 // themselves, and bandit raids. Fighting is left to battle.js.
+//
+// Goods are real and sit somewhere: in a woodcutter's yard, a workshop, the barracks,
+// a storehouse or the keep. Haulers carry them about in crates, so where things are
+// built matters. Workers who are stuck fetch or clear their own goods, more slowly.
 
 export const GOODS = {
   wood: { name: 'Wood', icon: '🪵' },
@@ -29,11 +33,13 @@ export const GOOD_GROUPS = [
 // switch any of its recipes off; it takes turns between those left on. `keep` stops a
 // recipe once that much of its output is stored. Arms have no limit: switch a recipe
 // off to stop it.
-// Crafting never burns the last of the wood, so construction can go on.
+// Workshops stop asking for wood once the village is down to its last, so construction can go on.
 const RESERVE = { wood: 20 };
 export const BUILDINGS = {
-  house: { name: 'House', icon: '🏠', group: 'Homes', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
+  house: { name: 'House', icon: '🏠', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers.' },
+  storehouse: { name: 'Storehouse', icon: '📦', group: 'Village', cost: { wood: 15 }, radius: 4.5, build: 12, jobs: 3, hp: 150,
+    haul: true, storage: true, desc: 'Holds any goods. Its three haulers carry goods between the buildings around it.' },
   woodcutter: { name: 'Woodcutter', icon: '🪓', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 3, hp: 120,
     gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 3 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
   quarry: { name: 'Quarry', icon: '⚒️', group: 'Gather', cost: { wood: 12 }, radius: 3.5, build: 12, jobs: 2, hp: 120,
@@ -60,9 +66,9 @@ export const BUILDINGS = {
     recipes: [{ in: { iron: 1, planks: 1 }, out: { spears: 1 }, time: 9 }, { in: { iron: 2 }, out: { swords: 1 }, time: 12 }],
     desc: 'Fits iron heads to spear shafts, and forges swords.' },
   barracks: { name: 'Barracks', icon: '🚩', group: 'Military', cost: { planks: 20, stone: 20 }, radius: 6, build: 20, hp: 250,
-    desc: 'Calls up villagers as soldiers when their kit is in stock.' },
+    desc: 'Holds the arms, and calls up villagers as soldiers when their kit is here.' },
 };
-export const BUILD_GROUPS = ['Homes', 'Gather', 'Craft', 'Military'];
+export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
 
 // What each villager needs to become a soldier of that type.
 export const KITS = {
@@ -71,11 +77,19 @@ export const KITS = {
   sword: { name: 'Swordsmen', kit: { swords: 1, shields: 1 } },
 };
 
-const KEEP = { name: 'Keep', icon: '🏰', radius: 11, housing: 12, hp: 1500 };
+const KEEP = { name: 'Keep', icon: '🏰', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
 const WALK = 3.4;
 
+// A crate holds 10 of most goods; a yard or workshop holds 30 of each before it stops
+// for haulers. Arrows are light and go four times as far.
+const CRATE = 10, HOLD = 30, BULK = { arrows: 4 };
+const crate = g => CRATE * (BULK[g] || 1);
+const holdOf = g => HOLD * (BULK[g] || 1);
+const ARMS = GOOD_GROUPS[2][1];
+
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const gone = b => b.removed || b.state === 'ruined';
 const compass = p => ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(((Math.atan2(p.x, -p.z) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8];
 const listCost = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(', ');
 export { listCost };
@@ -87,9 +101,9 @@ export class Town {
     this.battle = battle;
     this.heightAt = heightAt;
     this.rand = rand;
-    this.keep = { kind: 'keep', B: KEEP, x: 0, z: 0, hp: KEEP.hp, state: 'active', workers: [] };
-    this.stock = Object.fromEntries(Object.keys(GOODS).map(g => [g, 0]));
-    Object.assign(this.stock, stock || { wood: 140, stone: 40, food: 80, planks: 20 });
+    this.keep = { kind: 'keep', B: KEEP, x: 0, z: 0, angle: 0, hp: KEEP.hp, state: 'active', workers: [], status: '',
+      store: { ...(stock || { wood: 140, stone: 40, food: 80, planks: 20 }) }, incoming: {}, reserved: {} };
+    this.stockCache = null;
     this.buildings = [];
     this.villagers = [];
     this.trees = trees;
@@ -135,18 +149,209 @@ export class Town {
 
   addVillager(x, z) {
     const v = { id: this.villagers.length, x, z, y: this.heightAt(x, z), yaw: 0, v: 0, phase: this.rand() * 6,
-      state: 'idle', job: null, task: null, carry: null, hidden: false, soldier: null, wander: null, checkCd: this.rand() };
+      state: 'idle', job: null, task: null, carry: null, load: null, hidden: false, soldier: null, wander: null, checkCd: this.rand() };
     this.villagers.push(v);
     return v;
   }
 
   get housing() { return KEEP.housing + this.buildings.filter(b => b.state === 'active' && b.B.housing).reduce((n, b) => n + b.B.housing, 0); }
   get population() { return this.villagers.length; }
-  get idle() { return this.villagers.filter(v => v.state === 'idle').length; }
+  get idle() { return this.villagers.filter(v => v.state === 'idle' || v.state === 'haul').length; }
+  get hauling() { return this.villagers.filter(v => v.task?.kind === 'haul').length; }
+
+  // ---- where goods are ----
+
+  // Everything that can hold goods: the keep and every standing building or site.
+  holders() { return [this.keep, ...this.buildings.filter(b => b.state !== 'ruined')]; }
+  stores() { return this.holders().filter(b => b.B.storage && b.state === 'active'); }
+
+  put(b, g, n) {
+    b.store[g] = (b.store[g] || 0) + n;
+    if (b.store[g] <= 1e-6) delete b.store[g];
+    this.stockCache = null;
+  }
+
+  // The village's goods wherever they are, crates on the road included. Materials
+  // already delivered to a building site are spent.
+  get stock() {
+    if (this.stockCache) return this.stockCache;
+    const s = Object.fromEntries(Object.keys(GOODS).map(g => [g, 0]));
+    for (const b of this.holders()) if (b.state === 'active') for (const g in b.store) s[g] += b.store[g];
+    for (const v of this.villagers) if (v.load) s[v.load.g] += v.load.n;
+    return (this.stockCache = s);
+  }
+
+  // What is still to come for building sites, and so not free for anything else.
+  owed(g) {
+    let n = 0;
+    for (const b of this.buildings) if (b.state === 'site') n += Math.max(0, (b.B.cost[g] || 0) - (b.store[g] || 0));
+    return n;
+  }
+  free(g) { return this.stock[g] - this.owed(g); }
+
+  // How much of each good a building is asking for, as a total it wants to hold.
+  wants(b) {
+    if (b.state === 'site') return b.B.cost;
+    if (b.state !== 'active' || b.paused) return {};
+    if (b.kind === 'barracks') return Object.fromEntries(ARMS.map(g => [g, Infinity]));
+    if (!b.B.recipes) return {};
+    const w = {};
+    for (const r of this.wantedRecipes(b)) {
+      for (const [g, n] of Object.entries(r.in)) {
+        if (this.free(g) < (RESERVE[g] || 0)) continue;
+        w[g] = Math.max(w[g] || 0, n * 3);
+      }
+    }
+    return w;
+  }
+
+  // Recipes switched on that the village still wants and the workshop has room for.
+  wantedRecipes(b) {
+    return b.B.recipes.filter((r, i) => !b.off.has(i)
+      && Object.keys(r.out).every(k => this.stock[k] < (r.keep ?? Infinity) && (b.store[k] || 0) < holdOf(k)));
+  }
+
+  // What may be carried away from a building. Workshops keep what they need themselves;
+  // the barracks keeps its arms.
+  spare(b, g, wants) {
+    if (b.state !== 'active' || b.kind === 'barracks' || !(b.B.storage || b.B.gather || b.B.recipes)) return 0;
+    const own = b.B.recipes ? (wants.get(b)[g] || 0) : 0;
+    return Math.max(0, (b.store[g] || 0) - own - (b.reserved[g] || 0));
+  }
+
+  // Whether a delivery of this good belongs here.
+  takes(b, g) {
+    if (gone(b)) return false;
+    if (b.state === 'site' || b.B.storage) return true;
+    if (b.kind === 'barracks') return ARMS.includes(g);
+    return !!b.B.recipes?.some(r => g in r.in || g in r.out);
+  }
+
+  nearestStore(p, except = null) {
+    let best = this.keep, bd = Infinity;
+    for (const b of this.stores()) if (b !== except && dist(b, p) < bd) { bd = dist(b, p); best = b; }
+    return best;
+  }
+
+  // Where arms go when nobody is carrying them: the nearest barracks, or the stores.
+  armoury(p) {
+    let best = null, bd = Infinity;
+    for (const b of this.buildings) if (b.kind === 'barracks' && b.state === 'active' && dist(b, p) < bd) { bd = dist(b, p); best = b; }
+    return best || this.nearestStore(p);
+  }
+
+  door(b, v) {
+    if (b === this.keep) { const a = Math.atan2(v.x, v.z); return { x: Math.sin(a) * (KEEP.radius + 1), z: Math.cos(a) * (KEEP.radius + 1) }; }
+    return { x: b.x + Math.sin(b.angle) * (b.B.radius + 1), z: b.z + Math.cos(b.angle) * (b.B.radius + 1) };
+  }
+
+  // ---- hauling ----
+  // The best crate for a villager to carry next. Building sites are served first, then
+  // workshops, then arms for the barracks; then full yards and workshops are cleared
+  // into the nearest store. `only` keeps a worker to jobs for their own building.
+  planHaul(v, only = null) {
+    const holders = this.holders();
+    const wants = new Map(holders.map(b => [b, this.wants(b)]));
+    const stores = this.stores();
+    let best = null, bs = Infinity;
+    const consider = (from, to, g, n, rank) => {
+      if (n < 1) return;
+      const s = rank * 150 + dist(v, from) + dist(from, to);
+      if (s < bs) { bs = s; best = { from, to, g, n: Math.min(Math.floor(n), crate(g)) }; }
+    };
+    for (const to of holders) {
+      const w = wants.get(to);
+      const rank = to.state === 'site' ? 0 : to.kind === 'barracks' ? 2 : 1;
+      for (const g in w) {
+        const need = w[g] - (to.store[g] || 0) - (to.incoming[g] || 0);
+        if (need < 1) continue;
+        for (const from of holders) {
+          if (from === to || (only && only !== to && only !== from)) continue;
+          consider(from, to, g, Math.min(need, this.spare(from, g, wants)), rank);
+        }
+      }
+    }
+    const barracks = this.buildings.some(b => b.kind === 'barracks' && b.state === 'active');
+    for (const from of holders) {
+      if (from.B.storage || (only && only !== from)) continue;
+      for (const g in from.store) {
+        if (barracks && ARMS.includes(g)) continue;
+        const n = this.spare(from, g, wants);
+        if (!only && n < Math.min(crate(g), 5 * (BULK[g] || 1))) continue;
+        let to = null, bd = Infinity;
+        for (const s of stores) if (dist(s, from) < bd) { bd = dist(s, from); to = s; }
+        consider(from, to || this.keep, g, n, 3);
+      }
+    }
+    if (!best) return null;
+    best.from.reserved[best.g] = (best.from.reserved[best.g] || 0) + best.n;
+    best.to.incoming[best.g] = (best.to.incoming[best.g] || 0) + best.n;
+    return { kind: 'haul', phase: 'fetch', ...best };
+  }
+
+  doHaul(v, dt) {
+    const t = v.task;
+    if (t.phase === 'fetch') {
+      if (gone(t.from)) { this.cancelHaul(v); return true; }
+      const d = this.door(t.from, v);
+      if (!this.walk(v, d.x, d.z, dt)) return false;
+      t.from.reserved[t.g] -= t.n;
+      const n = Math.min(t.n, t.from.store[t.g] || 0);
+      t.to.incoming[t.g] -= t.n - n;
+      if (n < 1) { t.to.incoming[t.g] -= n; v.task = null; return true; }
+      this.put(t.from, t.g, -n);
+      t.n = n;
+      v.load = { g: t.g, n };
+      v.carry = t.g;
+      t.phase = 'deliver';
+      return false;
+    }
+    // A building that burned or no longer wants it: take the crate to the nearest store.
+    if (!this.takes(t.to, t.g)) {
+      t.to.incoming[t.g] -= t.n;
+      t.to = this.nearestStore(v, t.from);
+      t.to.incoming[t.g] = (t.to.incoming[t.g] || 0) + t.n;
+    }
+    const d = this.door(t.to, v);
+    if (!this.walk(v, d.x, d.z, dt)) return false;
+    this.put(t.to, t.g, t.n);
+    t.to.incoming[t.g] -= t.n;
+    v.load = null;
+    v.carry = null;
+    v.task = null;
+    return true;
+  }
+
+  // Drops a planned trip. A crate already picked up is set down in the nearest store.
+  cancelHaul(v) {
+    const t = v.task;
+    if (t?.kind === 'haul') {
+      if (t.phase === 'fetch') t.from.reserved[t.g] -= t.n;
+      t.to.incoming[t.g] -= t.n;
+    }
+    if (v.load) this.put(this.nearestStore(v), v.load.g, v.load.n);
+    v.load = null;
+    v.carry = null;
+    v.task = null;
+  }
+
+  // Haulers at the keep and storehouses take crate after crate, and wait by the door
+  // when there is nothing to carry.
+  doHaulJob(v, dt) {
+    if (v.task) { this.doHaul(v, dt); return; }
+    v.waitCd = (v.waitCd || 0) - dt;
+    if (v.waitCd <= 0) {
+      v.waitCd = 1;
+      v.task = this.planHaul(v);
+      if (v.task) return;
+    }
+    const d = this.door(v.job, v);
+    this.walk(v, d.x, d.z, dt);
+  }
 
   // ---- placing buildings ----
 
-  canAfford(cost) { return Object.entries(cost).every(([g, n]) => this.stock[g] >= n); }
+  canAfford(cost) { return Object.entries(cost).every(([g, n]) => this.free(g) >= n); }
 
   canPlace(kind, x, z) {
     const B = BUILDINGS[kind], p = { x, z };
@@ -167,25 +372,35 @@ export class Town {
     return { ok: true };
   }
 
-  place(kind, x, z) {
-    const check = this.canPlace(kind, x, z);
+  // The cost is set aside at once, and carried to the site before builders can finish.
+  // `ready` puts up a finished building for free (villages that start with some).
+  place(kind, x, z, { ready = false } = {}) {
+    const check = ready ? { ok: true } : this.canPlace(kind, x, z);
     if (!check.ok) return check;
     const B = BUILDINGS[kind];
-    for (const [g, n] of Object.entries(B.cost)) this.stock[g] -= n;
     for (const t of this.nodes.tree) if (t.standing && Math.hypot(t.x - x, t.z - z) < B.radius + 2) this.trees.fell(t);
     const b = { id: this.buildings.length + 1, kind, B, x, z, angle: Math.atan2(-x, -z), state: 'site', progress: 0,
       hp: B.hp, workers: [], builders: [], paused: false, recipe: null, timer: 0, status: 'Waiting for builders',
-      off: new Set(), turn: 0 };
+      off: new Set(), turn: 0, store: {}, incoming: {}, reserved: {} };
+    if (ready) Object.assign(b, { state: 'active', progress: 1, status: B.jobs ? 'Waiting for workers' : '' });
     this.buildings.push(b);
+    this.stockCache = null;
     return { ok: true, building: b };
   }
 
   demolish(b) {
     for (const v of [...b.workers, ...b.builders]) this.release(v);
-    // Half the cost comes back if it was standing; a ruin returns nothing.
-    if (b.state !== 'ruined') for (const [g, n] of Object.entries(b.B.cost)) this.stock[g] += Math.floor(n / 2);
+    // What it held goes to the nearest store, with half the cost if it was standing
+    // (all of what reached a site). A ruin returns nothing.
+    if (b.state !== 'ruined') {
+      const to = this.nearestStore(b, b);
+      if (b.state === 'active') for (const [g, n] of Object.entries(b.B.cost)) this.put(to, g, Math.floor(n / 2));
+      for (const [g, n] of Object.entries(b.store)) this.put(to, g, n);
+    }
+    b.store = {};
     this.buildings = this.buildings.filter(o => o !== b);
     b.removed = true;
+    this.stockCache = null;
   }
 
   // Switches one of a workshop's recipes on or off.
@@ -201,33 +416,34 @@ export class Town {
   release(v) {
     if (v.job) v.job.workers = v.job.workers.filter(o => o !== v);
     for (const b of this.buildings) b.builders = b.builders.filter(o => o !== v);
+    this.cancelHaul(v);
     v.job = null;
-    v.task = null;
-    v.carry = null;
+    v.site = null;
     if (v.state !== 'soldier' && v.state !== 'shelter' && v.state !== 'flee') v.state = 'idle';
   }
 
   // ---- levies ----
 
-  levyCheck(key) {
-    const kit = KITS[key].kit;
-    const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(this.stock[g] / n)));
+  // Kit is taken from this barracks' own racks, so it has to be carried there first.
+  levyCheck(key, barracks) {
+    const kit = KITS[key].kit, have = g => Math.floor(barracks.store[g] || 0);
+    const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(have(g) / n)));
     const free = this.villagers.filter(v => v.state !== 'soldier').length;
     const n = Math.min(LEVY_MAX, byKit, free);
-    const short = Object.entries(kit).filter(([g, k]) => this.stock[g] < k * LEVY_MIN)
-      .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} (have ${Math.floor(this.stock[g])})`);
+    const short = Object.entries(kit).filter(([g, k]) => have(g) < k * LEVY_MIN)
+      .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);
     const reason = byKit < LEVY_MIN ? `Needs ${short.join(' and ')}`
       : free < LEVY_MIN ? `Needs ${LEVY_MIN} villagers` : null;
     return { n, ok: !reason, reason };
   }
 
   raise(key, barracks) {
-    const check = this.levyCheck(key);
+    const check = this.levyCheck(key, barracks);
     if (!check.ok) return check;
     // Idle villagers answer first, then gatherers, then craftsmen; the nearest first within each.
     const rank = v => (v.state === 'idle' ? 0 : v.job && v.job.B.gather ? 1 : 2) * 1000 + dist(v, barracks);
     const men = this.villagers.filter(v => v.state !== 'soldier').sort((a, b) => rank(a) - rank(b)).slice(0, check.n);
-    for (const [g, n] of Object.entries(KITS[key].kit)) this.stock[g] -= n * men.length;
+    for (const [g, n] of Object.entries(KITS[key].kit)) this.put(barracks, g, -n * men.length);
     const out = Math.atan2(barracks.x, barracks.z);
     const fx = barracks.x + Math.sin(out) * 16, fz = barracks.z + Math.cos(out) * 16;
     for (const v of men) { this.release(v); v.hidden = false; }
@@ -238,17 +454,18 @@ export class Town {
     return { ok: true, reg: r };
   }
 
-  // Survivors hand back their kit and go home to work. The lord's retinue can be sent
-  // to work too: each man becomes a villager and leaves a sword and a shield in the
-  // stores, so the barracks can arm them again later.
+  // Survivors hand back their kit at the nearest barracks and go home to work. The
+  // lord's retinue can be sent to work too: each man becomes a villager and racks a
+  // sword and a shield, so the barracks can arm them again later.
   disband(r) {
     if (r.gone || r.routing) return false;
+    const rack = this.armoury({ x: r.cx, z: r.cz });
     if (r.retinue) {
       let n = 0;
       for (const s of r.soldiers) {
         if (!s.alive || s.gone) continue;
         this.addVillager(s.x, s.z);
-        for (const [g, k] of Object.entries(KITS.sword.kit)) this.stock[g] += k;
+        for (const [g, k] of Object.entries(KITS.sword.kit)) this.put(rack, g, k);
         n++;
       }
       this.battle.disband(r);
@@ -260,7 +477,7 @@ export class Town {
       if (!s.alive || s.gone || !s.villager) continue;
       const v = s.villager;
       Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null });
-      for (const [g, n] of Object.entries(KITS[r.levy].kit)) this.stock[g] += n;
+      for (const [g, n] of Object.entries(KITS[r.levy].kit)) this.put(rack, g, n);
     }
     this.battle.disband(r);
     this.event(`${r.name} went home to work.`);
@@ -272,6 +489,7 @@ export class Town {
   update(dt) {
     if (this.lost) return;
     this.time += dt;
+    this.stockCache = null;
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.updatePeople(dt);
@@ -315,17 +533,31 @@ export class Town {
         const work = v.job || this.keep;
         if (safeHome && !this.nearestEnemy(work, 45)) { v.state = v.job ? 'work' : 'idle'; v.hidden = false; v.task = null; }
       } else if (this.nearestEnemy(v, 28)) {
+        // Run for the keep, still holding any crate; the trip itself is off.
+        const load = v.load;
+        v.load = null;
+        this.cancelHaul(v);
+        v.load = load;
+        v.carry = load ? load.g : null;
         v.state = 'flee';
-        v.carry = null;
       } else if (v.state === 'idle') {
         this.findWork(v);
+        // Villagers with no job carry goods.
+        if (v.state === 'idle' && (v.task = this.planHaul(v))) v.state = 'haul';
       }
     }
     if (v.state === 'flee') {
-      if (this.walk(v, this.keep.x + (this.rand() - 0.5) * 4, this.keep.z + (this.rand() - 0.5) * 4, dt, WALK * 1.5)) { v.state = 'shelter'; v.hidden = true; }
+      if (this.walk(v, this.keep.x + (this.rand() - 0.5) * 4, this.keep.z + (this.rand() - 0.5) * 4, dt, WALK * 1.5)) {
+        v.state = 'shelter';
+        v.hidden = true;
+        if (v.load) this.put(this.keep, v.load.g, v.load.n);
+        v.load = null;
+        v.carry = null;
+      }
       return;
     }
     if (v.state === 'shelter') return;
+    if (v.state === 'haul') { if (this.doHaul(v, dt) && !v.task) v.state = 'idle'; return; }
     if (v.state === 'idle') {
       if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, WALK * 0.5)) {
         const a = this.rand() * Math.PI * 2, r = 13 + this.rand() * 8;
@@ -334,7 +566,17 @@ export class Town {
       return;
     }
     if (v.state === 'build') return this.doBuild(v, dt);
-    if (v.state === 'work') return v.job.B.gather ? this.doGather(v, dt) : this.doCraft(v, dt);
+    if (v.state === 'work') return v.job.B.haul ? this.doHaulJob(v, dt) : v.job.B.gather ? this.doGather(v, dt) : this.doCraft(v, dt);
+  }
+
+  // A worker who is stuck carries a crate for their own building, then gets back to it.
+  selfHaul(v, dt) {
+    if (v.task?.kind === 'haul') { this.doHaul(v, dt); return true; }
+    v.waitCd = (v.waitCd || 0) - dt;
+    if (v.waitCd > 0) return false;
+    v.waitCd = 1;
+    v.task = this.planHaul(v, v.job || v.site);
+    return !!v.task;
   }
 
   // Sites get builders first, then empty workplaces fill, nearest first.
@@ -347,7 +589,7 @@ export class Town {
       }
     }
     if (best) { best.builders.push(v); v.state = 'build'; v.job = null; v.site = best; return; }
-    for (const b of this.buildings) {
+    for (const b of [this.keep, ...this.buildings]) {
       if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= b.B.jobs) continue;
       const d = dist(v, b);
       if (d < bd) { bd = d; best = b; }
@@ -355,17 +597,34 @@ export class Town {
     if (best) { best.workers.push(v); v.job = best; v.state = 'work'; v.task = null; }
   }
 
+  // Builders can only get as far as the materials on site allow. When more are needed
+  // and nobody is bringing them, they fetch them themselves.
+  delivered(b) {
+    const cost = Object.entries(b.B.cost), all = cost.reduce((n, [, k]) => n + k, 0);
+    return cost.reduce((n, [g, k]) => n + Math.min(k, b.store[g] || 0), 0) / all;
+  }
+
   doBuild(v, dt) {
     const b = v.site;
     if (!b || b.removed || b.state !== 'site') { this.release(v); return; }
+    if (v.task?.kind === 'haul') { this.doHaul(v, dt); return; }
+    const ready = this.delivered(b);
+    if (b.progress >= ready - 1e-6) {
+      const short = Object.entries(b.B.cost).filter(([g, k]) => (b.store[g] || 0) + (b.incoming[g] || 0) < k);
+      if (short.length && this.selfHaul(v, dt)) return;
+      b.status = short.length ? `Waiting for ${short.map(([g]) => GOODS[g].name.toLowerCase()).join(' and ')}` : 'Materials on the way';
+    }
     const a = Math.atan2(v.x - b.x, v.z - b.z);
     if (!this.walk(v, b.x + Math.sin(a) * (b.B.radius + 0.8), b.z + Math.cos(a) * (b.B.radius + 0.8), dt)) return;
     v.yaw = Math.atan2(b.x - v.x, b.z - v.z);
+    if (b.progress >= ready - 1e-6) return;
     v.phase += dt * 6;
-    b.progress += dt / b.B.build;
+    b.progress = Math.min(ready, b.progress + dt / b.B.build);
     b.status = 'Under construction';
-    if (b.progress >= 1) {
+    if (b.progress >= 1 - 1e-6) {
       b.progress = 1;
+      b.store = {};
+      this.stockCache = null;
       b.state = 'active';
       b.status = b.B.jobs ? 'Waiting for workers' : '';
       const crew = b.builders;
@@ -379,6 +638,12 @@ export class Town {
 
   doGather(v, dt) {
     const b = v.job, g = b.B.gather;
+    if (v.task?.kind === 'haul') { this.doHaul(v, dt); return; }
+    // A full yard stops work until haulers clear it; meanwhile the workers carry crates off themselves.
+    if (!v.task && Object.keys(g.out).some(k => (b.store[k] || 0) >= holdOf(k))) {
+      if (!this.selfHaul(v, dt)) b.status = 'Yard full: needs haulers';
+      return;
+    }
     if (!v.task) v.task = { phase: 'out' };
     const t = v.task;
     if (t.phase === 'out') {
@@ -391,9 +656,9 @@ export class Town {
       b.status = 'Working';
       if (t.timer <= 0) { t.phase = 'back'; v.carry = Object.keys(g.out)[0]; }
     } else if (this.walk(v, b.x + Math.sin(b.angle) * (b.B.radius + 1), b.z + Math.cos(b.angle) * (b.B.radius + 1), dt)) {
-      for (const [k, n] of Object.entries(g.out)) this.stock[k] += n;
+      for (const [k, n] of Object.entries(g.out)) this.put(b, k, n);
       v.carry = null;
-      v.task = { phase: 'out' };
+      v.task = null;
     }
   }
 
@@ -414,7 +679,8 @@ export class Town {
 
   doCraft(v, dt) {
     const b = v.job;
-    const door = { x: b.x + Math.sin(b.angle) * (b.B.radius + 1), z: b.z + Math.cos(b.angle) * (b.B.radius + 1) };
+    if (v.task?.kind === 'haul') { this.doHaul(v, dt); return; }
+    const door = this.door(b, v);
     if (!this.walk(v, door.x, door.z, dt)) return;
     v.yaw = b.angle + Math.PI;
     if (b.workers[0] !== v) return;           // one craftsman sets the pace
@@ -422,42 +688,52 @@ export class Town {
       b.timer -= dt;
       v.phase += dt * 4;
       if (b.timer <= 0) {
-        for (const [k, n] of Object.entries(b.recipe.out)) this.stock[k] += n;
+        for (const [k, n] of Object.entries(b.recipe.out)) this.put(b, k, n);
         b.recipe = null;
       }
       return;
     }
-    // Take turns among the recipes switched on that are below their stock target and
-    // whose inputs are in, leaving the wood reserve.
+    // Take turns among the recipes switched on that the village still wants and whose
+    // inputs are here in the workshop.
     const list = b.B.recipes;
-    const wanted = list.filter((r, i) => !b.off.has(i) && Object.entries(r.out).every(([k]) => this.stock[k] < (r.keep ?? Infinity)));
-    const can = r => Object.entries(r.in).every(([k, n]) => this.stock[k] - n >= (RESERVE[k] || 0));
+    const wanted = this.wantedRecipes(b);
+    const can = r => Object.entries(r.in).every(([k, n]) => (b.store[k] || 0) >= n);
     let ready = null;
     for (let k = 0; k < list.length && !ready; k++) {
       const i = (b.turn + k) % list.length;
       if (wanted.includes(list[i]) && can(list[i])) { ready = list[i]; b.turn = i + 1; }
     }
     if (ready) {
-      for (const [k, n] of Object.entries(ready.in)) this.stock[k] -= n;
+      for (const [k, n] of Object.entries(ready.in)) this.put(b, k, -n);
       b.recipe = ready;
       b.timer = ready.time;
       b.status = `Making ${GOODS[Object.keys(ready.out)[0]].name.toLowerCase()}`;
-    } else if (b.off.size === list.length) {
-      b.status = 'Nothing switched on';
-    } else if (wanted.length) {
-      const missing = Object.keys(wanted[0].in).filter(k => this.stock[k] - wanted[0].in[k] < (RESERVE[k] || 0));
+      return;
+    }
+    if (b.off.size === list.length) { b.status = 'Nothing switched on'; return; }
+    // Stuck: fetch the inputs or clear the finished goods by hand.
+    const full = list.some((r, i) => !b.off.has(i) && Object.keys(r.out).some(k => (b.store[k] || 0) >= holdOf(k)));
+    if (wanted.length) {
+      const missing = Object.keys(wanted[0].in).filter(k => (b.store[k] || 0) < wanted[0].in[k]);
       b.status = `Waiting for ${missing.map(k => GOODS[k].name.toLowerCase()).join(' and ')}`;
     } else {
-      b.status = 'Stores are full';
+      b.status = full ? 'Store full: needs haulers' : 'Village has enough';
     }
+    this.selfHaul(v, dt);
   }
 
   updateBuilding(b, dt) {
     if (!b.B.jobs) return;
     if (b.paused) b.status = 'Paused';
     else if (!b.workers.length) b.status = 'No workers';
+    else if (b.B.haul) b.status = this.haulStatus(b);
     // Damage mends slowly once the raiders are gone.
     if (b.hp < b.B.hp && !this.nearestEnemy(b, 40)) b.hp = Math.min(b.B.hp, b.hp + dt * 2);
+  }
+
+  haulStatus(b) {
+    const busy = b.workers.filter(v => v.task?.kind === 'haul').length;
+    return busy ? `${busy} carrying goods` : 'Haulers waiting for work';
   }
 
   // Meals, newcomers and the dead.
@@ -466,9 +742,14 @@ export class Town {
     this.nextMeal -= dt;
     if (this.nextMeal <= 0) {
       this.nextMeal = 30;
-      const need = Math.ceil(this.population / 2);
-      this.hungry = this.stock.food < need;
-      this.stock.food = Math.max(0, this.stock.food - need);
+      // Meals come out of the keep and storehouses, not food still lying at the farms.
+      let need = Math.ceil(this.population / 2);
+      const stores = this.stores();
+      this.hungry = stores.reduce((n, b) => n + (b.store.food || 0), 0) < need;
+      for (const b of stores) {
+        const n = Math.min(need, b.store.food || 0);
+        if (n > 0) { this.put(b, 'food', -n); need -= n; }
+      }
       if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
     }
     this.nextArrival -= dt;
@@ -481,6 +762,7 @@ export class Town {
         this.event('A new family has settled in the village.');
       }
     }
+    this.keep.status = this.keep.workers.length ? this.haulStatus(this.keep) : 'No haulers';
     if (this.keep.hp < KEEP.hp && !this.nearestEnemy(this.keep, 50)) this.keep.hp = Math.min(KEEP.hp, this.keep.hp + dt * 5);
   }
 
@@ -549,7 +831,11 @@ export class Town {
     t.status = 'Burned by raiders';
     if (g) g.burned++;
     for (const v of [...t.workers, ...t.builders]) this.release(v);
-    this.event(`Raiders burned the ${t.B.name.toLowerCase()}!`, 1);
+    // Whatever was kept there is carried off or lost in the fire.
+    const lost = Object.values(t.store).reduce((n, k) => n + k, 0);
+    t.store = {};
+    this.stockCache = null;
+    this.event(`Raiders burned the ${t.B.name.toLowerCase()}${lost >= 1 ? ` and took ${Math.floor(lost)} goods` : ''}!`, 1);
   }
 
   // Practice raids for the standalone village, from bandits who come out of nowhere.
