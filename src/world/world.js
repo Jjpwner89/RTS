@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, ELITE, HALL, gearOf, armourWeight, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, ELITE, HALL, gearOf, carry, armourWeight, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
@@ -599,7 +599,7 @@ export class World {
   join(a, b) {
     for (const u of b.units) {
       const same = a.units.find(o => o.key === u.key && o.name === u.name && sameGear(o, u));
-      if (same) same.count += u.count; else a.units.push({ ...u });
+      if (same) { same.count += u.count; same.battles = Math.max(same.battles || 0, u.battles || 0); } else a.units.push({ ...u });
     }
     a.wounded = [...(a.wounded || []), ...(b.wounded || [])];
     a.food = (a.food || 0) + (b.food || 0);
@@ -686,7 +686,7 @@ export class World {
     const ratio = Math.min(pa, pd) / Math.max(pa, pd, 1);
     const winLoss = 0.12 + 0.45 * ratio * ratio, loseLoss = 0.55 + 0.3 * ratio;
     // Survivors learn as in a fought battle (battle.js veterans): half a step, a whole one for a win.
-    const cut = (units, f, won) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)), xp: Math.round(((u.xp || 0) + (won ? 1 : 0.5)) * 10) / 10 }))
+    const cut = (units, f, won) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)), xp: Math.round(((u.xp || 0) + (won ? 1 : 0.5)) * 10) / 10, battles: (u.battles || 0) + 1 }))
       .filter(u => u.count >= 3);
     return { attackerWins, A: cut(A, attackerWins ? winLoss : loseLoss, attackerWins), D: cut(D, attackerWins ? loseLoss : winLoss, !attackerWins) };
   }
@@ -843,7 +843,7 @@ export class World {
     if (p.eco?.hungry) b.setHunger(1, 0.5);
     const yieldTo = b.acceptTerms.bind(b);
     b.acceptTerms = () => {
-      if (b.terms?.side === 1 && town.hostile) town.hostile.yielded = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...gearOf(r) }));
+      if (b.terms?.side === 1 && town.hostile) town.hostile.yielded = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...carry(r) }));
       yieldTo();
     };
     this.removeArmy(a);
@@ -892,8 +892,8 @@ export class World {
     const t = p.town, h = t.hostile, b = t.battle;
     const left = r => r.soldiers.filter(s => s.alive && !s.gone).length;
     const mine = b.regs.filter(r => r.side === 0 && !r.gone)
-      .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...gearOf(r) })).filter(u => u.count >= 3);
-    const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => ({ ...unit(r.T.key, left(r), r.name), ...gearOf(r) })).filter(u => u.count >= 3);
+      .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...carry(r) })).filter(u => u.count >= 3);
+    const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => ({ ...unit(r.T.key, left(r), r.name), ...carry(r) })).filter(u => u.count >= 3);
     const ruins = t.buildings.filter(o => o.state === 'ruined'), burned = ruins.length;
     p.mem = remember(t, 1, this.time);
     p.town = null;
@@ -911,7 +911,7 @@ export class World {
     if (mine.length) {
       const back = this.spawnArmy(0, mine, p, h.army);
       back.wounded = b.regs.filter(r => r.side === 0 && r.initial > left(r))
-        .map(r => ({ key: r.T.key, name: r.name, levy: r.levy || null, retinue: !!r.retinue, count: Math.round((r.initial - left(r)) * 0.35), ...gearOf(r) })).filter(u => u.count > 0);
+        .map(r => ({ key: r.T.key, name: r.name, levy: r.levy || null, retinue: !!r.retinue, count: Math.round((r.initial - left(r)) * 0.35), ...carry(r) })).filter(u => u.count > 0);
       this.retreat(back);
     }
     this.hooks.stormEnded?.(p, false, chose);
@@ -989,9 +989,9 @@ export class World {
     const side = groups[0]?.house ?? 1;
     note(this, side, 'lostPlace');
     const theirs = groups.flatMap(g => g.regs).filter(r => !r.disbanded && alive(r) > 0)
-      .map(r => ({ ...unit(r.T.key, alive(r), r.name), ...gearOf(r) }));
+      .map(r => ({ ...unit(r.T.key, alive(r), r.name), ...carry(r) }));
     const ours = t.garrison().filter(r => alive(r) > 0)
-      .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...gearOf(r) }));
+      .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...carry(r) }));
     const pop = t.villagers.filter(v => v.state !== 'soldier').length;
     this.takePlace(p, side);
     p.mem = remember(t, 0, this.time);
@@ -1179,7 +1179,7 @@ export class World {
   grant(p, v = null) {
     if (!this.canGrant(p).ok) return null;
     const t = p.town;
-    const men = t.garrison().filter(r => r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...gearOf(r) }));
+    const men = t.garrison().filter(r => r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...carry(r) }));
     const people = t.villagers.filter(o => o.state !== 'soldier').length;
     p.mem = remember(t, 0, this.time);
     const eco = fromTown(t, { kept: 1 });
@@ -1470,7 +1470,7 @@ function lookouts(p) {
 
 // Men in different armour stay in different regiments (one level to a regiment).
 const sameGear = (a, b) => { const x = gearOf(a), y = gearOf(b); return x.armour === y.armour && x.shield === y.shield; };
-const gearFields = u => (u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {});
+const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}) });
 
 export function mergeInto(garrison, units) {
   for (const u of units) recruit(garrison, u.key, u.count, u.name, null, gearFields(u));
@@ -1480,9 +1480,12 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
   const size = TYPES[key]?.count || 40;
   const like = { key, ...gear };
   while (n > 0) {
-    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like));
-    if (!g) garrison.push(g = { ...unit(key, 0, name || `${house ? house.short + ' ' : ''}${(TYPES[key]?.name || key).toLowerCase()}`), ...gear });
+    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite);
+    if (!g) garrison.push(g = { ...unit(key, 0, name || `${house ? house.short + ' ' : ''}${(TYPES[key]?.name || key).toLowerCase()}`), ...gear, xp: 0 });
     const k = Math.min(n, size - g.count);
+    if (gear.battles) g.battles = Math.max(g.battles || 0, gear.battles);
+    // Fresh men dilute a regiment's experience; veterans joining raise it.
+    if (gear.xp || g.xp) g.xp = Math.round(((g.xp || 0) * g.count + (gear.xp || 0) * k) / Math.max(1, g.count + k) * 10) / 10;
     g.count += k;
     n -= k;
   }

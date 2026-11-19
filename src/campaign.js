@@ -20,7 +20,7 @@ import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
 import { canSave, saveGame, readSave, loadGame } from './world/save.js';
 import { KINDS } from './world/realm.js';
-import { BUILDINGS, TEMPLATES, gearOf } from './economy.js';
+import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, hire as hireCompany, release } from './world/companies.js';
@@ -257,7 +257,7 @@ function deploy(battle, side, units, cx, cz, angle) {
   const sin = Math.sin(angle), cos = Math.cos(angle);
   const width = u => Math.min(TYPES[u.key].files, Math.max(4, Math.ceil(u.count / 2))) * TYPES[u.key].spacing + 6;
   const put = (u, lx, back) => {
-    const gear = gearOf(u);
+    const gear = carry(u);
     const r = Object.assign(battle.addRegiment(side, u.key, cx + cos * lx - sin * back, cz - sin * lx - cos * back, angle, { count: u.count, name: u.name, xp: u.xp || 0, ...gear }), gear);
     r.spec = u;
     r.levy = u.levy || null;
@@ -410,7 +410,7 @@ const alive = r => r.soldiers.filter(s => s.alive && !s.captain).length;   // ca
 const survivors = (battle, side) => {
   const xp = new Map(battle.veterans(side).map(v => [v.reg, v.xp]));
   return battle.regs.filter(r => r.side === side)
-    .map(r => ({ ...r.spec, count: alive(r), xp: xp.get(r) ?? r.spec?.xp ?? 0 })).filter(u => u.count >= 3);
+    .map(r => ({ ...r.spec, ...carry(r), battles: (r.battles || 0) + 1, count: alive(r), xp: xp.get(r) ?? r.spec?.xp ?? 0 })).filter(u => u.count >= 3);
 };
 
 function endField(won) {

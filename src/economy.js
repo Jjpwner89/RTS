@@ -177,6 +177,9 @@ export const weaponKit = key => Object.fromEntries(Object.entries(fullKit(key)).
 export const canShield = key => !!fullKit(key).shields;
 export const baseArmour = key => (fullKit(key).armour ? 'plate' : fullKit(key).mail ? 'mail' : 'none');
 export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key), shield: u.shield ?? canShield(u.key ?? u.T?.key) });
+// What a regiment carries between the map and the field: its armour and its battle count
+// (r.battles, the short service record on its card).
+export const carry = u => ({ ...gearOf(u), battles: u.battles || 0 });
 export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
 // A barracks' rule for its racks. Raising picks the armour for the whole regiment from it.
 export const POLICIES = {
@@ -756,6 +759,7 @@ export class Town {
       r.killsSeen = r.kills;
       r.fought = false;
       r.xp = Math.round(((r.xp || 0) + 1 + Math.min(1, kills / Math.max(1, r.initial))) * 10) / 10;
+      r.battles = (r.battles || 0) + 1;
       const rank = vetRank(r.xp);
       if (rank > (r.vet || 0)) { r.vet = rank; up.push(`${r.name} are ${VET_RANKS[rank].toLowerCase()}`); }
     }
@@ -1317,7 +1321,7 @@ export class Town {
     const face = Math.atan2(-entry.x, -entry.z);
     const regs = specs.map((sp, i) => {
       const off = (i - (specs.length - 1) / 2) * 30;
-      return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...gearOf(sp) }), gearOf(sp));
+      return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
@@ -1358,7 +1362,7 @@ export class Town {
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
     if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
-    const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...gearOf(r) })).filter(sp => sp.count > 0);
+    const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...carry(r) })).filter(sp => sp.count > 0);
     if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
     g.onLeave?.(survivors);
   }
@@ -1456,7 +1460,7 @@ export class Town {
       const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));
       // Inside their walls if they have them, else in a ring out in front of the keep.
       const d = b.walls.any ? (ranged(sp.key) ? 13 : 17) : ranged(sp.key) ? 16 : 32;
-      const r = Object.assign(b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name, ...gearOf(sp) }), gearOf(sp));
+      const r = Object.assign(b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
       r.post = { x: Math.sin(a) * d, z: Math.cos(a) * d, angle: a };
       return r;
     });
@@ -1538,7 +1542,7 @@ export class Town {
     for (const sp of specs) {
       const from = [];
       for (let i = 0; i < sp.count; i++) from.push({ x: entry.x + (this.rand() - 0.5) * 14, z: entry.z + (this.rand() - 0.5) * 14 });
-      const fit = gearOf(sp);
+      const fit = carry(sp);
       const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0, ...fit });
       Object.assign(r, fit);
       r.levy = sp.levy || null;
@@ -1564,7 +1568,7 @@ export class Town {
       const gone = new Set(men.map(s => s.villager).filter(Boolean));
       this.villagers = this.villagers.filter(v => !gone.has(v));
       this.battle.disband(r);
-      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...gearOf(r) });
+      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...carry(r) });
     }
     return specs;
   }
