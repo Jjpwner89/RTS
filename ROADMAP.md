@@ -13,8 +13,26 @@ Difficulty settings come later. Now the job is one fair base game.
 - **Their troop production is slow**: not slower than the player, but a player who builds the economy fast, goes straight into weapons and spears and leaves no slack must be able to raise troops faster than any rival.
 - **The pace is similar on both sides.** A slow or inefficient player falls behind; an efficient one pulls ahead.
 - The gentler opening (20 minutes of grace, buying peace with gold) is a stopgap until this is right.
-- **First pass done (2026-11-19):** rival arms now come from a smithy at a slow, player-like pace, and from villagers; see "Rivals grow by your rules" in DESIGN_NOTES. Next: watch it in real play, and check the long game (60+ minutes, conquests, sellswords) keeps the same shape.
+- **Done (2026-11-19):** rival places and free villages keep a real economy (buildings, goods, people, kit), places vary from poor to rich with walls to match, storms show what is really there, and spies report on a place's stores. See "Rivals grow by your rules" and "Spies" in DESIGN_NOTES. Next: watch it in real play, and check the long game (60+ minutes, conquests, sellswords; rival houses pile up gold they don't yet spend).
+- **One fair economy for everyone** (creator, 2026-11-19): the same tracked economy runs a place whoever holds it, so vassal towns (§2) are built on it too.
+- **A place's layout is made on your first visit and kept** (creator's rule, 2026-11-19), for vassals, the governor, conquest and town templates:
+  - A place needs no real layout until you first see it; from then on its layout persists.
+  - **The numbers tie**: what the map shows for a place (people, buildings, stores, garrison, level) matches the town you see when you go in. New buildings may be placed only when you next visit, but the counts, stores and troops are already right on the map.
+  - **The hard case**: take a place early, build a lot by hand, hand it to a vassal or the governor, stay away a long time, then come back. Your layout is still there, the buildings you placed show the upgrades they got, and new buildings have grown around them along the streets, so a village visibly becomes a small city. Growth while you are away is kept as real buildings with places and levels, never as numbers a fresh layout would replace.
+  - Partly there: places remember their streets and walls (1de12a9), and a stormed place is now laid out from its real tally. Still to do: positions and levels for what grows while you are away, and the governor's and vassals' towns kept the same way.
 - Later: Gentle / Normal / Hard on New campaign (grace period and rival growth).
+
+## 1b. Everyday building tools and carts (Realm, town HUD)
+
+Small, high-value fixes to everyday play (creator, 2026-11-19); they can go in early.
+
+- **Keep placing**: after placing a building, the same building stays selected so you can place several (often five houses in a row). Right-click or Esc ends it.
+- **Hotkeys**: B opens the build menu, then a letter picks the building (C for carpenter, and so on) with its ghost ready to place. Each build button shows its letter.
+- **Neighbourhoods**: once you have levelled up a bit, place a block of buildings at once, such as a cluster of houses round a well. The small first step toward town templates (§2).
+- **Three kinds of cart on the roads**, all of which can be raided (enemy armies that meet a wagon take what it carries):
+  - **Trade caravans** carry gold between market towns (the trade carts in §8).
+  - **Supply trains** feed armies (the food wagons; extend as needed).
+  - **Supply runs** move goods, and ideally settlers, from one of your villages to another. Used now and then, mostly to restart a place you have just taken or that was burned.
 
 ## 2. The climb: every rank brings new tools and new trouble (Realm)
 
@@ -109,10 +127,10 @@ All approved. Owners in brackets.
 - Rivals with memory: grudges, escapes and revenge (section 4).
 - **Champion duels**: Dunmore challenges you to settle a battle with a duel.
 - **Tournaments at Kingsbridge** for gold, renown and recruiting knights.
-- **Wyndham's schemes**: spies, a gate opened from inside, a bribed captain.
+- **Wyndham's schemes**: a gate opened from inside, a bribed captain, built on the spies in §1.
 
 **Economy and the realm** (Realm)
-- **Trade carts** between market towns; bandits raid them, and you can escort them.
+- **Trade carts** between market towns; bandits raid them, and you can escort them (see the carts in §1b).
 - **Showpiece projects**: a cathedral, rebuilding the old north wall, the royal city.
 - **Each kind of place plays differently**: abbey relics and pilgrims, toll fights at fords, mine collapses.
 

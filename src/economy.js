@@ -50,7 +50,7 @@ export const GOOD_GROUPS = [
 // Workshops stop asking for wood once the village is down to its last, so construction can go on.
 // Goods left for building: workshops don't ask for the last 20 wood, and none turns the last
 // 25 planks into shields or arms.
-const RESERVE = { wood: 20, planks: 25 };
+export const RESERVE = { wood: 20, planks: 25 };
 export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers.' },

@@ -19,6 +19,8 @@ import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
 import { canSave, saveGame, readSave, loadGame } from './world/save.js';
 import { KINDS } from './world/realm.js';
+import { BUILDINGS } from './economy.js';
+import { worth, FOCUS_NAMES, WEALTH } from './world/holdings.js';
 import { GOALS, updateGoals } from './world/goals.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
@@ -467,7 +469,7 @@ function worldPanel() {
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
-        : `<p class="note">Select one of your armies, then right-click here to march on it.</p>`);
+        : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
   if (!it) {
@@ -519,8 +521,30 @@ function worldPanel() {
     } else {
       set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
+      set('intel', intelText(it));
+      const btn = el.querySelector('[data-f="spy"]'), can = world.canSpy(it), going = world.spies.some(s => s.at === it.id);
+      if (btn) {
+        btn.hidden = !it.seen || it.owner === 0 || !it.eco?.buildings;
+        btn.disabled = !can.ok;
+        set('spy', going ? 'A spy is on the way' : `${ico('watchtower')} Send a spy (${world.spyCost(it)} gold)${can.ok ? `<small>${Math.round(world.spyRisk(it) * 100)}% chance of being caught</small>` : `<small>${can.why}</small>`}`);
+      }
     }
   }
+}
+
+// What your last spy saw in a place: as it was that day, not as it is now.
+function intelText(p) {
+  const r = p.intel;
+  if (!r) return p.seen && p.owner !== 0 ? '<p class="note">Its stores and buildings are unknown. A spy can find out.</p>' : '';
+  const age = world.time - r.at;
+  const when = age < 60 ? 'just now' : `${clock(age)} ago`;
+  const stock = Object.entries(r.stock).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g, q]) => `${ico(g)} ${q}`).join(' ');
+  const built = Object.entries(r.buildings).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${BUILDINGS[k]?.name || k}${n > 1 ? ` ×${n}` : ''}`).join(', ');
+  return `<p class="status">Spy report, ${when}</p>`
+    + `<p>A ${WEALTH[r.wealth].name} place of ${r.pop} people, living by ${FOCUS_NAMES[r.focus]}. ${r.walls === 'none' ? 'No walls.' : r.walls === 'stone' ? 'Stone walls.' : 'A wooden palisade.'}</p>`
+    + `<p>${r.men} men under arms${r.kits ? `, and kit in store for ${r.kits} more` : ''}.</p>`
+    + `<p>${ico('gold', '#e8c45a')} ${r.gold} gold · stores worth about ${worth(r.stock, r.gold)} gold</p>`
+    + (stock ? `<p class="units">${stock}</p>` : '') + `<p class="note">${built}</p>`;
 }
 
 // A rival lord: what they think of you, and what you can put to them.
@@ -557,6 +581,7 @@ $('wpanel').onclick = e => {
   const it = selected;
   if (act === 'back') { selected = null; return; }
   if (act === 'enter') enterTown(it);
+  if (act === 'spy' && it && world.sendSpy(it)) panelKey = null;
   if (act === 'muster') {
     const regs = it.town.garrison().filter(r => !r.routing && !r.regrouping);
     const a = regs.length ? world.muster(it, regs) : null;

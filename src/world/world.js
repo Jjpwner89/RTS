@@ -4,6 +4,7 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
+import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
 import { rng } from '../noise.js';
@@ -43,8 +44,11 @@ export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 function layOut(town, p, lvl, rand, near = 18) {
   const pop = p.eco?.pop ?? 20, seat = p.seat !== undefined, crown = p.kind === 'crown';
   const k = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(n)));
-  const houses = k(pop / 5, 3, crown ? 36 : 24), farms = k(pop / 14, 1, crown ? 9 : 7);
-  const crafts = [
+  // A place with a real economy stands as it was built (holdings.js).
+  const B = p.eco?.buildings;
+  const houses = B ? Math.min(40, B.house || 0) : k(pop / 5, 3, crown ? 36 : 24);
+  const farms = B ? Math.min(14, B.farm || 0) : k(pop / 14, 1, crown ? 9 : 7);
+  const crafts = B ? Object.entries(B).filter(([kind]) => kind !== 'house' && kind !== 'farm').flatMap(([kind, n]) => Array(Math.min(n, 6)).fill(kind)) : [
     'storehouse', 'woodcutter', 'hunter',
     ...(lvl >= 2 || seat ? ['carpenter', 'quarry', 'storehouse', 'woodcutter', 'flax'] : []),
     ...(lvl >= 3 || seat ? ['ropemaker', 'bowyer', 'smelter', 'mine'] : []),
@@ -75,6 +79,12 @@ function layOut(town, p, lvl, rand, near = 18) {
   for (let i = have.house || 0; i < houses; i++) at('house', rand() < 0.75 ? street(near, near + 55) : ring(near, near + 35)) || at('house', ring(near, 95));
   for (const kind of crafts.filter(lacking)) at(kind, ring(near + 4, near + 45)) || at(kind, ring(near, 95));
   for (let i = have.farm || 0; i < farms; i++) at('farm', ring(Math.max(55, near + 25), 95));
+}
+
+// What a place's stores hold when you fight in it: its real stores if it keeps them,
+// else a rough guess from its size.
+function storesOf(p, lvl, base = 30) {
+  return p.eco?.stock ? stores(p.eco) : { wood: base + lvl * 20, stone: 10 + lvl * 10, food: 40 + lvl * 20, planks: 10 };
 }
 
 function prebuild(town, kinds, rand, near = 25) {
@@ -170,6 +180,7 @@ export class World {
     this.beyond = generateBeyond(seed, this.pois);
     this.wall = { points: this.beyond.wall, fallen: false, breaches: [] };
     this.ecoClock = 0;
+    this.spies = [];
     this.sightClock = 0;
     startHouseMinds(this);
     startDiplomacy(this);
@@ -230,8 +241,15 @@ export class World {
   seedHolding(p) {
     const K = KINDS[p.kind], g = K.garrison || 1;
     const lvl = p.kind === 'crown' ? 3 : p.seat !== undefined ? 2 : 1;
-    p.eco = { pop: Math.round((p.seat !== undefined ? 55 : 32) * K.pop + (p.kind === 'crown' ? 30 : 0)), level: lvl, arms: 0 };
-    const vary = 0.7 + this.rand() * 0.6;   // no two places keep quite the same guard
+    // Rival holdings and free villages keep a real economy (holdings.js); camps and the
+    // north keep the old rough one.
+    const tracked = p.kind !== 'camp' && !FACTIONS[p.owner]?.invader;
+    p.eco = tracked ? seedEconomy(p, this.rand, { seat: p.seat !== undefined, crown: p.kind === 'crown', kindPop: K.pop })
+      : { pop: Math.round((p.seat !== undefined ? 55 : 32) * K.pop + (p.kind === 'crown' ? 30 : 0)), level: lvl, arms: 0 };
+    // No two places keep quite the same guard: poor ones fewer, and a rich trading town
+    // trusts to its coin more than its walls.
+    const guard = tracked ? WEALTH[p.eco.wealth].guard * (p.eco.focus === 'trade' ? 0.6 : p.eco.focus === 'military' ? 1.25 : 1) : 1;
+    const vary = (0.7 + this.rand() * 0.6) * guard;
     const n = k => Math.round(k * g * vary);
     if (p.kind === 'camp') p.garrison = [unit('bandit', 30 + Math.floor(this.rand() * 15), `${p.name.replace(/ Camp$/, '')} outlaws`)];
     else if (FACTIONS[p.owner]?.invader) p.garrison = northGarrison(p, this.rand);
@@ -251,52 +269,67 @@ export class World {
     return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1));
   }
 
-  popCap(p) { return (25 + p.eco.level * 22) * KINDS[p.kind].pop; }
+  popCap(p) { return p.eco.buildings ? housing(p.eco) : (25 + p.eco.level * 22) * KINDS[p.kind].pop; }
 
   // Every few seconds: people grow toward what the place can hold, the house collects
   // taxes and arms, and the place keeps its own garrison filled from its people.
   tickHoldings(dt) {
+    for (const h of FACTIONS) if (!h.bandit && !h.invader) h.arms = 0;
     for (const p of this.pois) {
       if (p.town || !p.eco) continue;
       const K = KINDS[p.kind], e = p.eco, h = p.owner === null ? null : FACTIONS[p.owner];
-      const builder = h?.trait === 'builder' ? 1.2 : 1;
+      if (e.buildings) { this.tickEconomy(p, dt, K, e, h); continue; }
+      // Camps and the northern host: people grow toward what the place holds, and arms
+      // come at a rough rate (the north is a war machine and keeps its own pace).
       const cap = this.popCap(p);
-      // Families settle as they do in your villages: one every eighteen seconds while there is room.
-      if (e.pop < cap) e.pop = Math.min(cap, e.pop + dt * ARRIVALS * K.pop * builder);
-      // Arms come from a working smithy, once one is built, and never faster than one of
-      // yours: a lord's places are not run as hard as a village you drive yourself. The
-      // northern host is a war machine and keeps its own pace.
-      const fierce = h?.trait === 'raider' || h?.trait === 'hothead' ? 1.15 : 1;
-      e.ready ??= this.time + (p.seat !== undefined ? 240 : 480) + this.rand() * 120;
-      const arms = h?.invader ? dt * e.pop * 0.0011 * K.arms
-        : this.time < e.ready || e.pop < 15 ? 0 : dt * SMITHY * K.arms * (1 + 0.25 * (e.level - 1)) * fierce;
-      if (h && !h.bandit) { h.gold += dt * e.pop * 0.004 * K.gold * (h.trait === 'merchant' ? 1.5 : 1); h.arms += arms; }
+      if (e.pop < cap) e.pop = Math.min(cap, e.pop + dt * ARRIVALS * K.pop);
+      const arms = h?.invader ? dt * e.pop * 0.0011 * K.arms : dt * SMITHY * K.arms;
+      if (h && !h.bandit) { h.gold += dt * e.pop * 0.004 * K.gold; h.arms += arms; }
       else e.arms += arms;
-      // Free villages and bandit camps arm their own; a house's places draw on its stores.
       const pool = h && !h.bandit ? h : e;
       const want = this.keepHome(p), have = headcount(p.garrison);
       if (have < want && pool.arms >= 3 && e.pop > 12) {
         const k = Math.min(Math.floor(pool.arms), want - have, 6);
         pool.arms -= k;
         e.pop -= k;
-        const key = p.owner === null ? (this.rand() < 0.7 ? 'militia' : 'archer') : h.bandit ? 'bandit' : pickKind(h, this.rand(), this.time);
-        recruit(p.garrison, key, k, h ? `${h.short} ${TYPES[key]?.name?.toLowerCase() || key}` : `${p.name} ${key === 'militia' ? 'militia' : 'bowmen'}`);
-      }
-      // A full, prosperous place grows a level.
-      if (h && !h.bandit && e.level < 4 && e.pop > cap * 0.9 && h.gold > 120 * e.level) {
-        h.gold -= 120 * e.level;
-        e.level++;
-        if (p.visible) this.log(`${p.name} has grown.`, 2);
+        const key = h?.bandit ? 'bandit' : h ? pickKind(h, this.rand(), this.time) : 'militia';
+        recruit(p.garrison, key, k, h ? `${h.short} ${TYPES[key]?.name?.toLowerCase() || key}` : `${p.name} militia`);
       }
     }
+  }
+
+  // A place with a real economy (holdings.js): it works, eats, builds and arms. Its lord
+  // takes the taxes and half of what its market earns; it keeps its own garrison filled
+  // from its own kit and people.
+  tickEconomy(p, dt, K, e, h) {
+    const lvl = e.level;
+    const pace = h?.trait === 'builder' ? 1.15 : h?.trait === 'raider' || h?.trait === 'hothead' ? 1.05 : 1;
+    const traded = runEconomy(p, dt, { pace });
+    const taxes = dt * e.pop * 0.004 * K.gold * (h?.trait === 'merchant' ? 1.5 : 1);
+    if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
+    else e.gold += taxes * 0.5 + traded;
+    const want = this.keepHome(p), have = headcount(p.garrison);
+    if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * 0.4)))
+      recruit(p.garrison, u.key, u.count, h ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`);
+    if (h && !h.bandit) h.arms += kits(e);
+    if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
   }
 
   // A house raises men for its field army at its muster place, drawing them from whichever
   // of its places has people to spare.
   raiseFromPeople(h, at, n) {
     let raised = 0;
+    // Places with a real economy arm men from their own stores and people.
+    for (const p of this.pois.filter(p => p.owner === h.index && p.eco?.buildings).sort((p, q) => kits(q.eco) - kits(p.eco))) {
+      if (raised >= n) break;
+      for (const u of arm(p.eco, Math.min(n - raised, 6), Math.max(12, housing(p.eco) * 0.45))) {
+        recruit(at.garrison, u.key, u.count, null, h);
+        raised += u.count;
+      }
+    }
+    if (raised) h.arms = Math.max(0, h.arms - raised);
     while (raised < n && h.arms >= 1) {
-      const from = this.pois.filter(p => p.owner === h.index && p.eco && p.eco.pop > this.popCap(p) * 0.45)
+      const from = this.pois.filter(p => p.owner === h.index && p.eco && !p.eco.buildings && p.eco.pop > this.popCap(p) * 0.45)
         .sort((p, q) => q.eco.pop / this.popCap(q) - p.eco.pop / this.popCap(p))[0];
       if (!from) break;
       const k = Math.min(n - raised, 6, Math.floor(h.arms));
@@ -584,6 +617,14 @@ export class World {
     this.checkEnd();
   }
 
+  // Coin found in a place you take goes to your purse.
+  plunder(p) {
+    const g = Math.round(p.eco?.gold || 0);
+    if (g < 1) return;
+    FACTIONS[0].gold += g;
+    this.log(`You found ${g} gold in ${p.name}.`);
+  }
+
   capture(p, a) {
     const was = p.owner;
     note(this, was, 'tookPlace');
@@ -591,10 +632,11 @@ export class World {
     const pop = p.eco?.pop ?? 20;
     const lvl = p.eco?.level ?? 1;
     const town = this.makeTown(p, { villagers: Math.max(6, Math.min(40, Math.round(pop * 0.5))), retinue: false,
-      stock: { wood: 60 + lvl * 20, stone: 10 + lvl * 10, food: 50 + lvl * 20, planks: 10 } });
+      stock: storesOf(p, lvl, 60) });
     if (p.mem) rebuild(town, p.mem, 0, true);
     p.mem = null;
     layOut(town, p, lvl, town.rand);
+    this.plunder(p);
     p.eco = null;
     town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last));
     this.removeArmy(a);
@@ -606,8 +648,6 @@ export class World {
   takePlace(p, owner) {
     const was = p.owner;
     p.owner = owner;
-    // a new lord sets up his own smithy before the place arms for him
-    if (p.eco) p.eco.ready = this.time + 300;
     if (was !== null && FACTIONS[was]?.seat === p) {
       // (you fall back to a village you run yourself, the biggest first)
       const size = q => q.town ? 1000 + q.town.population : q.eco?.pop ?? 0;
@@ -646,16 +686,16 @@ export class World {
     a.halted = false;
     const lvl = p.eco?.level ?? 1, pop = p.eco?.pop ?? 20;
     const defenders = p.garrison;
-    const town = this.makeTown(p, { kind: p.kind, villagers: 0, retinue: false,
-      stock: { wood: 30 + lvl * 20, stone: 10 + lvl * 10, food: 40 + lvl * 20, planks: 10 } });
+    const town = this.makeTown(p, { kind: p.kind, villagers: 0, retinue: false, stock: storesOf(p, lvl) });
     const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
     // Castles, lords' seats, Kingsbridge and the north's strongholds have walls round the
     // keep, with the gate facing the road you came by. Their buildings stand outside.
     const kept = p.mem && rebuild(town, p.mem, 1, this.time - p.mem.at > 240);
     p.mem = null;
-    const walled = kept || ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
+    const walls = p.eco?.walls;
+    const walled = kept || (walls ? walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
     if (walled && !kept) {
-      const stone = p.kind !== 'warcamp' && (lvl >= 2 || p.kind === 'castle' || p.kind === 'crown' || p.kind === 'pass');
+      const stone = walls ? walls === 'stone' : p.kind !== 'warcamp' && (lvl >= 2 || p.kind === 'castle' || p.kind === 'crown' || p.kind === 'pass');
       buildFort(town.battle.walls, 1, 0, 0, p.kind === 'crown' ? 30 : 24, { gateAngle: came, material: stone ? 'stone' : 'wood', sides: p.kind === 'crown' ? 8 : 6 });
     }
     layOut(town, p, lvl, town.rand, walled ? (p.kind === 'crown' ? 40 : 33) : 16);
@@ -685,6 +725,8 @@ export class World {
     this.takePlace(p, 0);
     t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * 0.5))) });
     t.flagColor = null;
+    p.eco = h.eco;
+    this.plunder(p);
     p.eco = null;
     p.garrison = [];
     this.log(`You have taken ${p.name}!`);
@@ -702,14 +744,15 @@ export class World {
     const mine = b.regs.filter(r => r.side === 0 && !r.gone)
       .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue })).filter(u => u.count >= 3);
     const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => unit(r.T.key, left(r), r.name)).filter(u => u.count >= 3);
-    const burned = t.buildings.filter(o => o.state === 'ruined').length;
+    const ruins = t.buildings.filter(o => o.state === 'ruined'), burned = ruins.length;
     p.mem = remember(t, 1, this.time);
     p.town = null;
     p.garrison = theirs;
     p.eco = h.eco || { pop: h.pop, level: 1, arms: 0 };
     if (burned) {
       p.eco.pop *= Math.max(0.4, 1 - burned * 0.1);
-      p.eco.level = Math.max(1, p.eco.level - Math.floor(burned / 3));
+      if (p.eco.buildings) burn(p.eco, ruins.map(o => o.kind));
+      else p.eco.level = Math.max(1, p.eco.level - Math.floor(burned / 3));
     }
     if (!chose) note(this, h.owner, 'lostField');
     const fire = burned ? `, leaving ${burned} of its buildings in ashes` : '';
@@ -752,7 +795,10 @@ export class World {
     if (r.attackerWins) {
       this.takePlace(p, a.side);
       p.garrison = r.A;
-      if (p.eco) p.eco.pop *= 0.8;
+      if (p.eco) {
+        p.eco.pop *= 0.8;
+        if (p.eco.gold) { H.gold += p.eco.gold * 0.8; p.eco.gold *= 0.2; }
+      }
       this.removeArmy(a);
       if (p.visible || was === 0 || (H.invader && was !== null)) this.log(`${H.name} has taken ${p.name}.`, was === 0 || H.invader ? 1 : 2);
       this.checkBroken(was);
@@ -772,6 +818,7 @@ export class World {
       if (p.eco) {
         const loss = p.eco.pop * 0.18;
         p.eco.pop -= loss;
+        if (p.eco.stock) for (const g of Object.keys(p.eco.stock)) p.eco.stock[g] *= 0.75;
         if (p.owner !== null && FACTIONS[p.owner]) FACTIONS[p.owner].gold = Math.max(0, FACTIONS[p.owner].gold - loss * 2);
         FACTIONS[a.side].gold += loss * 2;
       }
@@ -795,8 +842,9 @@ export class World {
     const pop = t.villagers.filter(v => v.state !== 'soldier').length;
     this.takePlace(p, side);
     p.mem = remember(t, 0, this.time);
-    Object.assign(p, { town: null, garrison: theirs.length ? theirs : [unit('spear', 10, `${FACTIONS[side].short} spearmen`)],
-      eco: { pop: Math.max(10, pop * 0.7), level: 1, arms: 0 } });
+    // The north and outlaws keep their rough reckoning; a house runs what it took.
+    const eco = FACTIONS[side].invader || FACTIONS[side].bandit ? { pop: Math.max(10, pop * 0.7), level: 1, arms: 0 } : fromTown(t);
+    Object.assign(p, { town: null, garrison: theirs.length ? theirs : [unit('spear', 10, `${FACTIONS[side].short} spearmen`)], eco });
     this.log(`${p.name} has fallen to ${FACTIONS[side].name}.`, 1);
     if (ours.length) this.retreat(this.spawnArmy(0, ours, p, `Survivors of ${p.name}`));
     this.hooks.fell(p);
@@ -938,11 +986,51 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
     thinkDiplomacy(this, dt);
+  }
+
+  // ---- spies ----
+  // A spy walks in as a pedlar and comes back with what the place holds: its people,
+  // buildings, stores and garrison, as they were that day. Walls and soldiers make it
+  // harder; a spy who is caught angers the lord whose place it is.
+
+  spyCost(p) { return 40 + (p.seat !== undefined ? 30 : 0) + (p.kind === 'crown' ? 60 : 0); }
+  spyRisk(p) {
+    const w = p.eco?.walls;
+    return Math.min(0.6, 0.12 + (w === 'stone' ? 0.15 : w === 'wood' ? 0.06 : 0) + (p.eco?.focus === 'military' ? 0.08 : 0) + (p.seat !== undefined ? 0.1 : 0));
+  }
+  canSpy(p) {
+    if (!p.seen || p.owner === 0 || p.town || !p.eco?.buildings) return { ok: false, why: 'Nothing to spy on there' };
+    if (this.spies.some(s => s.at === p.id)) return { ok: false, why: 'A spy is on the way' };
+    if (FACTIONS[0].gold < this.spyCost(p)) return { ok: false, why: `Needs ${this.spyCost(p)} gold` };
+    return { ok: true };
+  }
+  sendSpy(p) {
+    if (!this.canSpy(p).ok) return false;
+    FACTIONS[0].gold -= this.spyCost(p);
+    const from = this.home && this.home.owner === 0 ? this.home : p;
+    this.spies.push({ at: p.id, back: this.time + 25 + Math.hypot(p.x - from.x, p.z - from.z) * 0.25 });
+    this.log(`A spy sets out for ${p.name}.`);
+    return true;
+  }
+  tickSpies() {
+    for (const s of this.spies.filter(s => s.back <= this.time)) {
+      this.spies.splice(this.spies.indexOf(s), 1);
+      const p = this.byId[s.at];
+      if (!p || !p.eco?.buildings || p.owner === 0) continue;
+      if (this.rand() < this.spyRisk(p)) {
+        this.log(`Your spy was caught in ${p.name}.`, 1);
+        if (p.owner !== null && this.dip?.[p.owner]) { this.dip[p.owner].opinion -= 10; this.meet(p.owner); }
+        continue;
+      }
+      p.intel = report(p, this.time);
+      const r = p.intel, rich = ['poor', 'modest', 'rich'][r.wealth];
+      this.log(`Your spy is back from ${p.name}: a ${rich} place, stores worth about ${worth(r.stock, r.gold)} gold, ${r.men} men.`);
+    }
   }
 
   // Your taxes: every villager pays a little, more in market towns and fords; vassals

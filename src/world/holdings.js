@@ -1,0 +1,255 @@
+// The places you don't run yourself (rival holdings and free villages) keep a real
+// economy, run on the village's own rules and building table: so many houses, farms,
+// workshops and stores; people who work them, eat and settle; goods that pile up; and
+// kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
+// lord's steward runs a place less hard than you run a village you watch yourself.
+// What a place holds can be spied on, and is what you find when you storm it.
+import { BUILDINGS, RESERVE } from '../economy.js';
+import { TYPES } from '../battle.js';
+
+const EFF = 0.4;            // share of a hard-driven village's output a steward gets
+const EAT = 1 / 60;         // food per person per second, as in your villages
+const ARRIVE = 1 / 30;      // a family every thirty seconds while there is room and food: a steward's
+                            // village is middling content, never as eager as one you look after
+const WORKING = 0.7;        // share of people who work; the rest are young, old or idle
+const BUILD_EVERY = 40;     // seconds between new buildings
+const KEEP_HOUSING = 12;
+
+// What a steward builds, in order, for the place's trade. After the list: houses and
+// farms as needed, and a little of everything that is short.
+const PLANS = {
+  farming: ['farm', 'woodcutter', 'house', 'hunter', 'farm', 'house', 'quarry', 'storehouse', 'house', 'farm', 'carpenter', 'house', 'mill', 'farm', 'house', 'bakery', 'well', 'house'],
+  military: ['farm', 'woodcutter', 'house', 'carpenter', 'quarry', 'mine', 'smelter', 'house', 'farm', 'weaponsmith', 'barracks', 'house',
+    'carpenter', 'hunter', 'flax', 'ropemaker', 'bowyer', 'farm', 'house', 'woodcutter', 'mine', 'smelter', 'house', 'farm', 'weaponsmith', 'house'],
+  trade: ['farm', 'woodcutter', 'house', 'market', 'storehouse', 'house', 'carpenter', 'farm', 'house', 'quarry', 'hunter', 'tanner', 'house', 'storehouse', 'farm', 'house', 'well', 'house'],
+  production: ['farm', 'woodcutter', 'woodcutter', 'house', 'quarry', 'mine', 'house', 'smelter', 'carpenter', 'farm', 'house', 'storehouse',
+    'mine', 'house', 'flax', 'ropemaker', 'farm', 'house', 'bowyer', 'house'],
+};
+// Once the plan is built, a place keeps adding to what it is known for, a little at a time.
+const GROW = {
+  farming: ['farm', 'mill', 'bakery', 'farm', 'well'],
+  military: ['mine', 'smelter', 'carpenter', 'weaponsmith', 'woodcutter'],
+  trade: ['market', 'storehouse', 'farm', 'woodcutter'],
+  production: ['mine', 'smelter', 'woodcutter', 'quarry', 'carpenter'],
+};
+// How big a place can grow: people and buildings, before its size factor.
+const ROOM = { village: [100, 34], seat: [150, 50], crown: [240, 70] };
+// How each kind of place leans.
+const LEAN = {
+  village: ['farming', 'farming', 'production', 'trade', 'military'],
+  castle: ['military'], mine: ['production'], ford: ['trade', 'military'], monastery: ['farming'],
+  market: ['trade'], crown: ['military', 'trade'],
+};
+export const WEALTH = [
+  { name: 'poor', pop: 0.7, stock: 0.4, built: -3, guard: 0.7 },
+  { name: 'modest', pop: 1, stock: 1, built: 0, guard: 1 },
+  { name: 'wealthy', pop: 1.25, stock: 2.6, built: 3, guard: 1.1 },
+];
+export const FOCUS_NAMES = { farming: 'farms and families', military: 'arms and men', trade: 'trade and coin', production: 'timber, stone and iron' };
+
+// Kit for the soldiers a place can raise, best first: the goods each man needs.
+const RAISE = ['sword', 'spear', 'archer', 'militia'];
+const kitOf = k => TYPES[k].kit;
+
+// ---- making a place ----
+
+// `size` is the old headcount the realm was made with; `opts.seat` for a lord's seat.
+export function seedEconomy(p, rand, { seat = false, crown = false, kindPop = 1 } = {}) {
+  const leans = LEAN[p.kind] || LEAN.village;
+  const focus = seat ? 'military' : leans[Math.floor(rand() * leans.length)];
+  // Most places are modest; markets lean rich, mining villages and abbeys rarely poor.
+  let roll = rand();
+  if (p.kind === 'market') roll = 0.35 + roll * 0.65;
+  if (seat || crown) roll = Math.max(roll, 0.5);
+  const tier = roll < 0.28 ? 0 : roll < 0.8 ? 1 : 2, W = WEALTH[tier];
+  const level = crown ? 3 : seat ? 2 : 1;
+  const pop = Math.round(((seat ? 55 : 32) * kindPop + (crown ? 30 : 0)) * W.pop * (0.85 + rand() * 0.3));
+  const [people, built] = ROOM[crown ? 'crown' : seat ? 'seat' : 'village'];
+  const room = kindPop * (0.85 + tier * 0.15);
+  const e = { pop, level, focus, wealth: tier, buildings: {}, stock: {}, gold: 0, planAt: 0, grown: 0, buildCd: rand() * BUILD_EVERY, arms: 0,
+    raised: 0, maxPop: Math.round(people * room), maxBuilt: Math.round(built * room) };
+  // An established place already has the start of its plan built, more if it is rich.
+  const plan = PLANS[focus];
+  const n = Math.max(3, Math.min(plan.length, 5 + level * 3 + W.built + Math.floor(rand() * 3)));
+  for (const k of plan.slice(0, n)) add(e, k);
+  e.planAt = n;
+  while (housing(e) < pop + 2) add(e, 'house');
+  // Enough fields and hunters to feed them, as any steward would see to.
+  const fed = () => ((e.buildings.farm || 0) * 2 * 4 / 7 + (e.buildings.hunter || 0) * 2 * 3 / 10) * EFF * 60;
+  while (fed() < pop * 1.15) add(e, 'farm');
+  // Goods in its stores: something of everything it makes, much more if it is rich.
+  const S = W.stock * (0.8 + rand() * 0.4);
+  const put = (g, k) => { e.stock[g] = Math.round((e.stock[g] || 0) + k * S); };
+  put('food', 60 + pop * 2); put('wood', 50); put('stone', 20);
+  for (const k of Object.keys(e.buildings)) for (const g of outputs(k)) put(g, GOOD_HOARD[g] ?? 10);
+  e.gold = Math.round((focus === 'trade' ? 120 : 30) * W.stock * (0.6 + rand() * 0.8) * (crown ? 3 : 1));
+  // Walls: seats, castles and the royal city always; wealthy trading towns often go without.
+  e.walls = crown || p.kind === 'castle' ? 'stone' : seat ? (tier === 2 ? 'stone' : 'wood')
+    : focus === 'military' && rand() < 0.6 ? 'wood' : tier === 2 && focus !== 'trade' && rand() < 0.4 ? 'wood' : 'none';
+  return e;
+}
+
+// How much of a good a place keeps around per building that makes it, as a start.
+const GOOD_HOARD = { food: 40, wood: 40, stone: 30, ore: 20, iron: 10, planks: 20, shields: 8, spears: 6, swords: 4, bows: 4, arrows: 50,
+  string: 10, flax: 15, feathers: 20, hides: 10, leather: 6, flour: 10, bread: 20 };
+
+function add(e, k) { e.buildings[k] = (e.buildings[k] || 0) + 1; }
+function outputs(k) {
+  const B = BUILDINGS[k];
+  if (B?.gather) return Object.keys(B.gather.out);
+  if (B?.recipes) return [...new Set(B.recipes.filter(r => !r.off).flatMap(r => Object.keys(r.out)))];
+  return [];
+}
+export const housing = e => KEEP_HOUSING + (e.buildings.house || 0) * BUILDINGS.house.housing;
+export const builtCount = e => Object.values(e.buildings).reduce((n, k) => n + k, 0);
+
+// ---- running it ----
+
+// One step of `dt` seconds for place p. Returns gold made for its lord.
+export function runEconomy(p, dt, { pace = 1 } = {}) {
+  const e = p.eco, s = e.stock, B = e.buildings;
+  // Who works: as many jobs as there are hands for.
+  let jobs = 0;
+  for (const [k, n] of Object.entries(B)) jobs += (BUILDINGS[k]?.jobs || 0) * n;
+  const share = jobs ? Math.min(1, e.pop * WORKING / jobs) : 0;
+  const work = dt * EFF * share * pace;
+  // Gatherers.
+  for (const [k, n] of Object.entries(B)) {
+    const G = BUILDINGS[k]?.gather;
+    if (!G) continue;
+    const rate = n * BUILDINGS[k].jobs * work / G.time;
+    for (const [g, q] of Object.entries(G.out)) s[g] = (s[g] || 0) + q * rate;
+  }
+  // Workshops take turns at whatever they can make that the place still wants.
+  let gold = 0;
+  for (const [k, n] of Object.entries(B)) {
+    const R = BUILDINGS[k]?.recipes;
+    if (!R) continue;
+    // (as in your villages, planks are kept back for building before they go into kit)
+    const list = R.filter(r => !r.off && Object.keys(r.out).every(g => (s[g] || 0) < (r.keep ?? 400))
+      && (r.above === undefined || Object.entries(r.in).every(([g, q]) => (s[g] || 0) >= r.above + q))
+      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < RESERVE.planks + r.in.planks));
+    if (!list.length) continue;
+    for (const r of list) {
+      let cycles = n * (BUILDINGS[k].jobs || 1) * work / r.time / list.length;
+      for (const [g, q] of Object.entries(r.in)) cycles = Math.min(cycles, (s[g] || 0) / q);
+      if (cycles <= 0) continue;
+      for (const [g, q] of Object.entries(r.in)) s[g] -= q * cycles;
+      for (const [g, q] of Object.entries(r.out)) s[g] = (s[g] || 0) + q * cycles;
+      if (r.gold) gold += r.gold * cycles;
+    }
+  }
+  // Eating: bread first. Hungry places lose people; fed ones with room gain them.
+  let need = e.pop * EAT * dt;
+  for (const g of ['bread', 'food']) { const k = Math.min(need, s[g] || 0); s[g] = (s[g] || 0) - k; need -= k; }
+  e.hungry = need > 0.01;
+  if (e.hungry) e.pop = Math.max(6, e.pop - dt / 60);
+  else if (e.pop < housing(e)) e.pop = Math.min(housing(e), e.pop + dt * ARRIVE);
+  // Building: one thing at a time, from its own goods.
+  e.buildCd -= dt;
+  if (e.buildCd <= 0) { e.buildCd = BUILD_EVERY; build(e); }
+  e.level = Math.min(4, Math.max(e.level, 1 + Math.floor(builtCount(e) / 14)));
+  return gold;
+}
+
+function nextBuild(e) {
+  const s = e.stock, plan = PLANS[e.focus] || PLANS.farming;
+  if (builtCount(e) >= (e.maxBuilt ?? 40)) return null;
+  if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
+  if (e.pop >= housing(e) - 3 && housing(e) < (e.maxPop ?? 120)) return 'house';
+  if (e.planAt < plan.length) return plan[e.planAt];
+  if ((s.wood || 0) < 40) return 'woodcutter';
+  // a little more of its trade, now and then
+  if (builtCount(e) % 2) return null;
+  const more = GROW[e.focus] || GROW.farming;
+  return more[(e.grown || 0) % more.length];
+}
+
+function build(e) {
+  const k = nextBuild(e), cost = BUILDINGS[k]?.cost;
+  if (!cost || !Object.entries(cost).every(([g, q]) => (e.stock[g] || 0) >= q)) return false;
+  for (const [g, q] of Object.entries(cost)) e.stock[g] -= q;
+  add(e, k);
+  const plan = PLANS[e.focus] || PLANS.farming, more = GROW[e.focus] || GROW.farming;
+  if (e.planAt < plan.length) { if (plan[e.planAt] === k) e.planAt++; }
+  else if (more[(e.grown || 0) % more.length] === k) e.grown = (e.grown || 0) + 1;
+  return k;
+}
+
+// ---- kit and soldiers ----
+
+// How many men the stores can arm, and with what.
+export function kits(e) {
+  let n = 0;
+  const s = { ...e.stock };
+  for (const k of RAISE) {
+    const kit = kitOf(k);
+    const m = Math.floor(Math.min(...Object.entries(kit).map(([g, q]) => (s[g] || 0) / q)));
+    if (m > 0) { n += m; for (const [g, q] of Object.entries(kit)) s[g] -= q * m; }
+  }
+  return n;
+}
+
+// Arms up to n men from the stores and the people, best kit first. A place keeps at
+// least `keep` people at work. Returns [{ key, count }].
+export function arm(e, n, keep = 12) {
+  const out = [];
+  for (const k of RAISE) {
+    if (n <= 0) break;
+    const kit = kitOf(k);
+    const m = Math.floor(Math.min(n, e.pop - keep, ...Object.entries(kit).map(([g, q]) => (e.stock[g] || 0) / q)));
+    if (m <= 0) continue;
+    for (const [g, q] of Object.entries(kit)) e.stock[g] -= q * m;
+    e.pop -= m;
+    e.raised = (e.raised || 0) + m;
+    n -= m;
+    out.push({ key: k, count: m });
+  }
+  return out;
+}
+
+// ---- changing hands ----
+
+// A village you ran becomes a holding as it stands: what was built and not burned, its
+// people and what was left in its stores (the victors carry some of it off).
+export function fromTown(t, { kept = 0.6 } = {}) {
+  const buildings = {};
+  for (const b of t.buildings) if (b.state === 'active' && BUILDINGS[b.kind]) buildings[b.kind] = (buildings[b.kind] || 0) + 1;
+  const stock = {};
+  for (const [g, q] of Object.entries(t.stock || {})) if (q > 0) stock[g] = q * kept;
+  const focus = (buildings.weaponsmith || 0) + (buildings.barracks || 0) >= 2 ? 'military' : buildings.market ? 'trade'
+    : (buildings.mine || 0) + (buildings.smelter || 0) >= 2 ? 'production' : 'farming';
+  const pop = Math.max(10, t.villagers.filter(v => v.state !== 'soldier').length * 0.7);
+  const e = { pop, level: 1, focus, wealth: 1, buildings, stock, gold: 0, planAt: PLANS[focus].length, grown: 0, buildCd: BUILD_EVERY, arms: 0,
+    raised: 0, maxPop: Math.max(100, Math.round(pop * 1.5)), maxBuilt: Math.max(34, Object.values(buildings).reduce((n, k) => n + k, 0) + 8),
+    walls: t.battle.walls.nodes.some(n => n.side === 0) ? 'wood' : 'none' };
+  e.level = Math.min(4, 1 + Math.floor(builtCount(e) / 14));
+  e.wealth = worth(stock) > 1500 ? 2 : worth(stock) < 250 ? 0 : 1;
+  return e;
+}
+
+// Burned buildings are gone from a place's tally.
+export function burn(e, kinds) {
+  for (const k of kinds) if (e.buildings[k] > 0) e.buildings[k]--;
+}
+
+// What is carried into a stormed or taken village: all its stores, whole.
+export function stores(e) {
+  return Object.fromEntries(Object.entries(e.stock).map(([g, q]) => [g, Math.floor(q)]).filter(([, q]) => q > 0));
+}
+
+// ---- what a spy sees ----
+
+export function report(p, time) {
+  const e = p.eco;
+  const goods = Object.fromEntries(Object.entries(e.stock).map(([g, q]) => [g, Math.floor(q)]).filter(([, q]) => q >= 1));
+  return { at: time, owner: p.owner, pop: Math.round(e.pop), wealth: e.wealth, focus: e.focus, walls: e.walls, buildings: { ...e.buildings },
+    stock: goods, gold: Math.round(e.gold || 0), men: p.garrison.reduce((n, u) => n + u.count, 0), kits: kits(e) };
+}
+
+// A rough worth of what is in a place's stores, in gold, for comparing places.
+const PRICE = { food: 0.6, wood: 0.5, stone: 0.6, ore: 0.8, iron: 3, planks: 1.2, shields: 4, spears: 4, swords: 8, bows: 5, arrows: 0.4,
+  crossbows: 9, bolts: 0.5, mail: 12, armour: 20, horses: 15, lances: 6, string: 1, flax: 0.4, feathers: 0.2, hides: 1, leather: 2, flour: 0.8, bread: 1 };
+export function worth(stock, gold = 0) {
+  return Math.round(gold + Object.entries(stock).reduce((n, [g, q]) => n + q * (PRICE[g] ?? 1), 0));
+}

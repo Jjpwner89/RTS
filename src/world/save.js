@@ -81,7 +81,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies'];
 
 function pack(w) {
   const enc = encoder(w);
@@ -188,7 +188,7 @@ export function loadGame(data, hooks) {
     for (const k of Object.keys(live)) if (!(k in h) && k !== 'taunts') delete live[k];
     Object.assign(live, dec(h));
   });
-  const DYNAMIC = ['seat', 'mem', 'known', 'falling', 'eco'];
+  const DYNAMIC = ['seat', 'mem', 'known', 'falling', 'eco', 'intel'];
   data.pois.forEach((p, i) => {
     const live = w.pois[i];
     if (!live) return;
