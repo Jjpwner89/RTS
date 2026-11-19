@@ -71,7 +71,17 @@ function pickFight(battle, r, foes, standing) {
   const reachable = standing.filter(o => !o.posts || r.T.range);
   if (!reachable.length) return;
   let pick;
-  if (r.T.range || r.engine?.range) {
+  if (r.T.range && r.ammo < 1) r.resupply = true;
+  if (r.resupply && r.ammo >= r.maxAmmo * 0.9) r.resupply = false;
+  if (r.resupply) {
+    // Out of arrows: back to camp for a full quiver.
+    const h = battle.fortHome(r.side);
+    if (r.targetReg || (!r.dest && Math.hypot(r.cx - h.x, r.cz - h.z) > 30)) {
+      r.targetReg = null;
+      battle.orderMove([r], h.x, h.z * 0.92, Math.atan2(-h.x, -h.z));
+    }
+    return;
+  } else if (r.T.range || r.engine?.range) {
     pick = nearest(r, reachable.filter(o => o.engaged === 0)) || nearest(r, reachable);
   } else if (r.T.charge) {
     // Horse rides down routers, then hunts archers and engines, then hits whoever is busiest from the side.

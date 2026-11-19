@@ -16,9 +16,9 @@ export const TYPES = {
     kit: { spears: 1, shields: 1 } },
   sword: { key: 'sword', name: 'Swordsmen', role: 'Win the melee against other foot', count: 72, files: 18, spacing: 1.5, speed: 3.3, hp: 12, atk: 6, def: 3, dmg: 5, reach: 1.8, cooldown: 1.1, morale: 70, shield: true,
     kit: { swords: 1, shields: 1 } },
-  archer: { key: 'archer', name: 'Archers', role: 'Loose fast at range; weak against armour', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 8, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 85, reload: 4.5, arrowDmg: 5,
+  archer: { key: 'archer', name: 'Archers', role: 'Loose fast at range; weak against armour', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 8, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 85, reload: 4.5, arrowDmg: 5, quiver: 24,
     kit: { bows: 1, arrows: 10 } },
-  crossbow: { key: 'crossbow', name: 'Crossbowmen', role: 'Slow, heavy bolts that punch through armour', count: 60, files: 20, spacing: 1.7, speed: 3.0, hp: 10, atk: 2, def: 3, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 55, range: 100, reload: 8, arrowDmg: 9, pierce: 0.7, look: 'archer',
+  crossbow: { key: 'crossbow', name: 'Crossbowmen', role: 'Slow, heavy bolts that punch through armour', count: 60, files: 20, spacing: 1.7, speed: 3.0, hp: 10, atk: 2, def: 3, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 55, range: 100, reload: 8, arrowDmg: 9, pierce: 0.7, quiver: 16, look: 'archer',
     kit: { crossbows: 1, bolts: 10 } },
   lightcav: { key: 'lightcav', name: 'Light cavalry', role: 'Fast: flank, chase routers, hunt archers and engines', count: 40, files: 20, spacing: 2.4, depth: 3.2, speed: 9.5, hp: 14, atk: 4, def: 2, dmg: 4, reach: 2.3, cooldown: 1.2, morale: 60, mounted: true, charge: true, chargeMul: 1.5, look: 'cav',
     kit: { horses: 1, spears: 1 } },
@@ -34,7 +34,7 @@ export const TYPES = {
   bandit: { key: 'bandit', name: 'Bandits', role: 'Raiders', count: 20, files: 10, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 40 },
   // Hired and household troops: paid in gold, no villagers. Mercenaries lose heart quickly when a fight goes badly.
   sellsword: { key: 'sellsword', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
-  hiredxbow: { key: 'hiredxbow', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, shield: true, merc: true, gold: 8, look: 'crossbow' },
+  hiredxbow: { key: 'hiredxbow', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
   household: { key: 'household', name: 'Household guard', role: "The lord's own men: steady and well armed", count: 30, files: 15, spacing: 1.5, speed: 3.2, hp: 16, atk: 7, def: 5, dmg: 6, reach: 1.9, cooldown: 1.1, morale: 95, shield: true, retinue: true, gold: 5, look: 'maa' },
   // Siege engines: the regiment is its crew; the engine goes where they push it.
   ladder: { key: 'ladder', name: 'Ladder men', role: 'Raise ladders against a wall, then climb', count: 12, files: 6, spacing: 1.7, speed: 2.9, hp: 9, atk: 3, def: 1, dmg: 3, reach: 1.8, cooldown: 1.3, morale: 45, look: 'militia',
@@ -319,7 +319,8 @@ export class Battle {
       gone: false, disbanded: false, soldiers: [], initial: count, alive: count, engaged: 0, lag: 0,
       cx: x, cz: z, lastHit: -99, firingAt: null, fleeDir: 0,
       formation: 'line', hold: false, fireAtWill: true, chargeUntil: 0, column: false, via: null, viaCd: 0,
-      posts: null, access: null, targetWall: null, captain: null, kills: 0,
+      posts: null, access: null, targetWall: null, captain: null, kills: 0, fatigue: 0,
+      ammo: T.range ? count * (T.quiver || 20) : 0, maxAmmo: T.range ? count * (T.quiver || 20) : 0,
       engine: T.engine ? { ...T.engine, hp: T.engine.hp || 0, maxHp: T.engine.hp || 0, cd: 2, ready: 0, ladders: [], raising: 0 } : null,
     };
     for (let i = 0; i < count; i++) {
@@ -793,6 +794,7 @@ export class Battle {
     for (const r of this.regs) {
       r.lag = r._lagN ? r._lagSum / r._lagN : 0;
       this.updateMorale(r, dt);
+      this.updateFatigue(r, dt);
       if (r.T.range) this.updateArchers(r, dt);
       if (r.engine && !r.gone) this.updateEngine(r, dt);
     }
@@ -933,7 +935,7 @@ export class Battle {
         r.angle = turnToward(r.angle, want, dt * (T.mounted ? 1.6 : T.engine ? 0.5 : 1.0));
         // Wheel before marching off, and wait for stragglers.
         const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1)
-          * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1);
+          * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.tiredPace(r);
         const stepLen = Math.min(d, pace * dt);
         const nx = r.x + dx / d * stepLen, nz = r.z + dz / d * stepLen;
         // Never march the anchor into a wall; one already stuck in one (or an engine
@@ -1401,6 +1403,7 @@ export class Battle {
     const dx = tx - s.x, dz = tz - s.z, d = Math.hypot(dx, dz);
     if (d < 0.01) return;
     if (s.level === 0 && !s.climb) speed *= this.groundPace(s, dx / d, dz / d);
+    if (s.reg.fatigue) speed *= this.tiredPace(s.reg);
     const stepLen = Math.min(d, speed * dt);
     s.x += dx / d * stepLen;
     s.z += dz / d * stepLen;
@@ -1416,6 +1419,47 @@ export class Battle {
     const water = this.river ? [1, 0.6, 0.35][this.river.depthAt(s.x, s.z)] : 1;
     if (this.river?.onBridge(s.x, s.z)) return 1;
     return Math.max(0.55, Math.min(1.15, 1 - grade * k)) * (1 - wood) * water;
+  }
+
+  // Fatigue, 0 (fresh) to 1 (spent): fighting, charging and running wear men out; a
+  // march wears them a little; standing still they get their breath back. Same for both sides.
+  updateFatigue(r, dt) {
+    if (r.gone || r.engine) return;
+    const T = r.T, n = Math.max(1, r.alive);
+    // About 30 s of hard fighting spends a regiment; a long march tells too.
+    let gain = Math.min(1, r.engaged / n * 1.5) * (T.mounted ? 0.04 : 0.033);
+    if (this.time < r.chargeUntil) gain += 0.03;
+    if (r.routing) gain += 0.01;
+    else if (r.dest) gain += (T.mounted ? 0.004 : 0.0025) * (r.targetReg ? 1.6 : 1);
+    if (this.time - (r.lastShot ?? -99) < 2) gain += 0.004;
+    if (gain === 0) r.fatigue = Math.max(0, r.fatigue - 0.012 * dt);
+    else r.fatigue = Math.min(1, r.fatigue + gain * dt);
+  }
+
+  // How much a regiment's tiredness slows it.
+  tiredPace(r) { return 1 - (r.fatigue || 0) * 0.3; }
+
+  fatigueLabel(r) {
+    const f = r.fatigue || 0;
+    return f < 0.3 ? '' : f < 0.6 ? 'Tiring' : f < 0.85 ? 'Tired' : 'Exhausted';
+  }
+
+  // Bowmen get more arrows back at their own camp, or from the stores behind their own walls.
+  restock(r, dt) {
+    if (r.ammo >= r.maxAmmo) return;
+    const h = this.fortHome(r.side);
+    const own = r.posts && r.posts[0]?.perch.side === r.side;
+    const home = Math.hypot(r.cx - h.x, r.cz - h.z) < 45;
+    if (!own && !home) return;
+    const was = r.ammo;
+    r.ammo = Math.min(r.maxAmmo, r.ammo + r.maxAmmo * (home ? 0.04 : 0.012) * dt);
+    if (was < 1 && r.ammo >= 1 && home) this.event(r.side, `${this.label(r)} have fresh arrows.`);
+  }
+
+  arrowsLabel(r) {
+    if (!r.T.range || r.gone) return '';
+    const each = r.ammo / Math.max(1, r.alive);
+    return each < 1 ? 'Out of arrows' : `${Math.floor(each)} arrows`;
   }
 
   // How steeply a stands above b, from -1 to 1: a grade of 1 in 5 counts fully. For men
@@ -1491,6 +1535,8 @@ export class Battle {
     const wood = Math.max(this.trees ? Math.max(this.woodAt(t.x, t.z), this.woodAt(s.x, s.z)) : 0, Math.max(wetA, wetD) * 0.4);
     let flank = tr.routing ? 0 : this.flankOf(s.x, s.z, t);
     let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
+    // Tired arms strike slower and guard worse.
+    chance += (tr.fatigue || 0) * 0.03 - (ar.fatigue || 0) * 0.06;
     // Out of hiding: the first blows of an ambush shake the men they fall on.
     if (!ar.ambushed && this.time - (ar.hiddenAt ?? -99) < 6 && ar.side !== tr.side) {
       ar.ambushed = true;
@@ -1517,7 +1563,7 @@ export class Battle {
         chance -= 0.1;
         this.hurt(s, 4);                       // riding onto braced spears
       } else {
-        const full = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3);
+        const full = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3) * (1 - (ar.fatigue || 0) * 0.4);
         const mul = 1 + (full - 1) * (1 - wood * 0.8);
         chance += 0.35 * (1 - wood * 0.7);
         dmg *= mul;
@@ -1677,6 +1723,8 @@ export class Battle {
   updateArchers(r, dt) {
     r.firingAt = null;
     if (r.gone || r.routing || (r.engaged > 0 && !r.posts)) return;
+    this.restock(r, dt);
+    if (r.ammo < 1) return;
     const T = r.T, base = this.rangeOf(r);
     let tgt = null;
     const dist = o => Math.hypot(o.cx - r.cx, o.cz - r.cz);
@@ -1714,6 +1762,7 @@ export class Battle {
       s.fireCd = T.reload * (0.75 + this.rand() * 0.5);
       r.lastShot = this.time;
       this.loose(s, tgt, range);
+      if (--r.ammo < 1) { this.event(r.side, `${this.label(r)} are out of arrows.`); break; }
     }
   }
 
