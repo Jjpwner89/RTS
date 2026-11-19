@@ -35,6 +35,7 @@ import { actions as dipActions, act as dipAct, mood, grudgeLines } from './world
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
+import { LOD } from './models.js';
 import { audio } from './audio.js';
 
 const params = new URLSearchParams(location.search);
@@ -386,6 +387,43 @@ function stepAway(dt) {
   while (!done && bt.time < away.goal && performance.now() - t0 < 8) done = run.run(1);
   if (done) finishAway();
 }
+
+// A live picture of the captain's fight in the bottom-right corner while you are elsewhere;
+// click it to take command. Drawn into a corner of the same canvas after the main view.
+const awayCam = new THREE.PerspectiveCamera(45, 1.6, 1, 2000);
+const CORNER = { w: 340, h: 200, pad: 16 };
+function renderAway() {
+  const box = $('corner');
+  if (!away || mode === 'field') { box.hidden = true; return; }
+  const b = away.b, bt = b.battle, r = stage.renderer;
+  const live = bt.regs.filter(g => !g.gone && g.alive > 0);
+  if (!live.length) return;
+  const n = live.reduce((k, g) => k + g.alive, 0);
+  const cx = live.reduce((k, g) => k + g.cx * g.alive, 0) / n, cz = live.reduce((k, g) => k + g.cz * g.alive, 0) / n;
+  const y = b.heightAt(cx, cz);
+  // Close enough to see the regiments: as far back as the fighting is spread out.
+  const spread = Math.max(...live.map(g => Math.hypot(g.cx - cx, g.cz - cz)));
+  const d = Math.max(40, Math.min(140, spread * 0.95));
+  awayCam.position.set(cx + d * 0.25, y + d * 0.75, cz + d);
+  awayCam.lookAt(cx, y, cz);
+  awayCam.aspect = CORNER.w / CORNER.h;
+  awayCam.updateProjectionMatrix();
+  const was = LOD.camera;
+  LOD.camera = awayCam;
+  b.view.update(new Set());
+  LOD.camera = was;
+  const W = innerWidth, x = W - CORNER.w - CORNER.pad, yb = CORNER.pad;
+  r.setScissorTest(true);
+  r.setScissor(x, yb, CORNER.w, CORNER.h);
+  r.setViewport(x, yb, CORNER.w, CORNER.h);
+  r.render(b.scene, awayCam);
+  r.setScissorTest(false);
+  r.setViewport(0, 0, W, innerHeight);
+  box.hidden = false;
+  const text = `${b.enc.army.name} against ${b.enc.enemy.name}: ${standing(bt, 0)} to ${standing(bt, 1)} · click to take command`;
+  if (box.dataset.text !== text) { box.dataset.text = text; box.querySelector('span').textContent = text; }
+}
+$('corner').onclick = () => { if (away) takeCommand(); };
 
 function finishAway() {
   const b = away.b, bt = b.battle;
@@ -1049,6 +1087,7 @@ function frame(now) {
   audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events } // audio
     : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events });
   stage.renderer.render(stage.current(), cam);
+  renderAway();
   requestAnimationFrame(frame);
 }
 

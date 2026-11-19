@@ -287,6 +287,10 @@ body.campaign:not(.mode-world) #goals { display: none; }
 #goals[hidden] { display: none; }
 #alerts { position: fixed; left: 16px; bottom: 16px; width: 300px; background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 4px 6px 6px; font-size: 12px; }
 #alerts[hidden], body.campaign:not(.mode-world) #alerts { display: none; }
+/* the captain's fight, live (campaign.js renderAway draws it into this corner of the canvas) */
+#corner { position: fixed; right: 16px; bottom: 16px; width: 340px; height: 200px; box-sizing: border-box; border: 2px solid var(--gold); border-radius: 6px; cursor: pointer; display: flex; align-items: flex-end; }
+#corner[hidden] { display: none; }
+#corner span { width: 100%; background: var(--panel); font-size: 11px; padding: 3px 8px; }
 #alerts h4 { margin: 4px 6px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
 #alerts h4 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
 #alerts div { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 6px; border-left: 3px solid var(--c); color: var(--c); }
