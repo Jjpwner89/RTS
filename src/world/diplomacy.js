@@ -5,7 +5,7 @@
 // Opinion runs from -100 (hatred) to 100 (devotion). It drifts toward what the lord
 // feels about the state of things (war, borders, marriage, your strength, their bent)
 // and jumps with gifts, victories and broken promises.
-import { FACTIONS } from './world.js';
+import { FACTIONS, power, headcount, takeUnits, mergeInto } from './world.js';
 
 const BASE = { raider: -10, hothead: -5, schemer: 0, merchant: 10, builder: 10, turtler: 5 };
 const TRUCE = 600;          // seconds after peace before either side may attack again
@@ -204,6 +204,7 @@ export function actions(w, h) {
     if (!d.allied) list.push({ id: 'ally', label: 'Propose an alliance', ok: d.opinion >= 35, why: 'They are not friendly enough' });
     if (!d.married) list.push({ id: 'marry', label: `Propose a marriage (${DOWRY} gold)`, ok: d.opinion >= 25 && gold >= DOWRY, why: d.opinion < 25 ? 'They are not warm enough' : `Needs ${DOWRY} gold` });
     list.push({ id: 'tribute', label: 'Demand tribute', ok: ratio > 2 && !d.allied && !d.married, why: 'You are not strong enough to demand it' });
+    if (d.vassal && H.alive) { const c = canCall(w, h); list.push({ id: 'host', label: `Call their host to war${c.target ? ` (to ${c.target.name})` : ''}`, ok: c.ok, why: c.why }); }
     if (!d.backs) list.push({ id: 'claim', label: 'Ask them to back your claim', ok: canBack(w, h), why: 'They need to be devoted, or bound to you and far weaker' });
     list.push({ id: 'war', label: truce ? 'Declare war (breaks the truce)' : d.allied || d.married ? 'Declare war (betrays them)' : 'Declare war', ok: true, warn: true });
   }
@@ -222,10 +223,48 @@ function canBack(w, h) {
 
 // Carries out a proposal. `theirs` is true when the house proposed it and you accepted.
 // Returns what happened, as a sentence.
+// ---- calling a sworn house to war ----
+// A house sworn to you (every house after the crowning) sends half the men of its places,
+// under its own banner, against the nearest place of your enemies (in Part 2, the north).
+// Once every ten minutes for each house; a house that is cold to you drags its feet.
+const CALL_EVERY = 600, CALL_MIN = 30;
+function callTarget(w, h) {
+  const H = FACTIONS[h], from = H.seat?.owner === h ? H.seat : w.pois.find(p => p.owner === h);
+  if (!from) return { from: null, target: null };
+  const foes = w.pois.filter(p => p.owner !== null && p.owner !== 0 && p.owner !== h && w.atWar(0, p.owner) && p.owner !== w.bandits && w.atWar(h, p.owner));
+  const best = foes.map(p => ({ p, len: w.route(from, p).length })).filter(o => Number.isFinite(o.len)).sort((a, b) => a.len - b.len)[0];
+  return { from, target: best?.p || null };
+}
+const callable = (w, h) => w.pois.filter(p => p.owner === h).reduce((n, p) => n + Math.floor(headcount(p.garrison) / 2), 0);
+export function canCall(w, h) {
+  const d = w.dip[h];
+  if (w.time < (d.calledAt ?? -Infinity) + CALL_EVERY) return { ok: false, why: `Their last host is barely home (${Math.ceil((d.calledAt + CALL_EVERY - w.time) / 60)} min)` };
+  const { target } = callTarget(w, h);
+  if (!target) return { ok: false, why: 'No enemy of yours within their reach' };
+  if (callable(w, h) < CALL_MIN) return { ok: false, why: 'They have too few men to spare', target };
+  if (d.opinion < -10) return { ok: false, why: 'They are too cold to you to answer', target };
+  return { ok: true, target };
+}
+export function callHost(w, h) {
+  const c = canCall(w, h);
+  if (!c.ok) return c;
+  const H = FACTIONS[h], d = w.dip[h], { from, target } = callTarget(w, h);
+  const units = [];
+  for (const p of w.pois.filter(q => q.owner === h)) mergeInto(units, takeUnits(p.garrison, power(p.garrison) * 0.5));
+  const a = w.spawnArmy(h, units, from, `${H.short} host, at your call`);
+  a.called = true;
+  if (!w.order(a, target)) { mergeInto(from.garrison, a.units); w.removeArmy(a); return { ok: false, why: 'They cannot find a road there' }; }
+  d.calledAt = w.time;
+  d.opinion -= d.opinion > 30 ? 2 : 5;
+  w.chron(`${H.lord} answered your call and marched on ${target.name}.`);
+  return { ok: true, army: a, text: `${H.lord} sends ${headcount(a.units)} men against ${target.name}.` };
+}
+
 export function act(w, h, id, theirs = false) {
   const H = FACTIONS[h], d = w.dip[h], me = FACTIONS[0];
   const yes = text => { w.log(text); return { ok: true, text }; };
   const no = text => ({ ok: false, text });
+  if (id === 'host') { const r = callHost(w, h); return r.ok ? yes(r.text) : no(r.why); }
   if (id === 'peace') {
     const ratio = w.strength(0) / Math.max(1, w.strength(h));
     if (!theirs && !(d.score >= 25 || ratio > 1.6 || d.opinion > 5 || (w.time - d.warSince > 1500 && w.rand() < 0.5))) return no(`${H.lord} refuses. “Not while I still have men to send.”`);

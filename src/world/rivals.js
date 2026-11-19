@@ -241,6 +241,39 @@ function sendRaid(w, h, plan) {
   if (foe === 0) w.log(`${h.short} raiders are on the road toward ${mark.name}: about ${headcount(units)} men.`, 1);
 }
 
+// Winter: the north raids hardest in the snow. Each winter is announced; while it lasts,
+// the north sends fast bands of war dogs and javelin men at your nearer places every two or
+// so minutes. They are men taken from the northern place nearest your lands.
+const WINTER_RAID = [100, 160];
+function winterRaids(w, h) {
+  const ai = h.ai;
+  if (!w.winter) return;
+  const year = Math.floor(w.time / 1200);
+  if (ai.winterYear !== year) {
+    ai.winterYear = year;
+    ai.winterCd = 30;
+    w.log('Winter has come. The north raids hardest in the snow.', 1);
+    w.chron('Winter came, and the north raided in the snow.');
+    w.hooks.herald?.({ house: h, title: 'Winter', text: 'Snow lies on the roads and every army marches slower. Norrhold loves the cold: its war dogs and javelin men will come raiding out of the camps until the thaw.' });
+  }
+  ai.winterCd -= THINK;
+  if (ai.winterCd > 0) return;
+  ai.winterCd = WINTER_RAID[0] + w.rand() * (WINTER_RAID[1] - WINTER_RAID[0]);
+  // From whichever northern place lies nearest your lands with men to spare.
+  const near = held(w, h).filter(p => headcount(p.garrison) >= 40 && p.kind !== 'pass')
+    .map(p => ({ p, marks: w.pois.filter(q => q.owner === 0 && w.route(p, q).length < 1400) })).filter(o => o.marks.length)
+    .sort((a, b) => b.marks.length - a.marks.length);
+  const o = near[0];
+  if (!o) return;
+  const camp = o.p, mark = o.marks[Math.floor(w.rand() * o.marks.length)];
+  const n = Math.min(60, Math.max(20, Math.round(headcount(camp.garrison) * 0.2)));
+  takeUnits(camp.garrison, n * 0.9);   // the place's men go out as the raiders
+  const dogs = Math.round(n * 0.4);
+  const a = w.spawnArmy(h.index, [{ key: TYPES.wardog ? 'wardog' : 'lightcav', count: dogs, name: 'War dogs' }, { key: TYPES.javelin ? 'javelin' : 'archer', count: n - dogs, name: 'Northern javelin men' }], camp, 'Winter raiders', 'raid');
+  if (!w.order(a, mark)) { w.removeArmy(a); return; }
+  w.log(`Winter raiders from ${camp.name} are coming for ${mark.name}: about ${roughly(n)} dogs and men.`, 1);
+}
+
 function invaderMind(w, h) {
   const ai = h.ai;
   const gate = w.pois.find(p => p.kind === 'pass' && p.owner === h.index);
@@ -261,6 +294,7 @@ function invaderMind(w, h) {
       }
     }
   }
+  winterRaids(w, h);
   // The gate sends its men on to the war camps, and the camps make war like any house.
   houseMind(w, h);
 }

@@ -163,8 +163,8 @@ All approved. Owners in brackets.
 
 **Part 2** (Realm, Battles for units)
 - Refugees flee south and swell your villages, with their own mood problems. *Built as the refugees event, more often and in bigger numbers in Part 2.*
-- Old rivals fight beside you as vassal armies you can call.
-- Norrhold gets its own original units and tactics: different weapons, war dogs, winter raids. *(Units done: axemen, javelin men, war dogs, and a Norrhold host; winter raids are Realm's.)*
+- Old rivals fight beside you as vassal armies you can call. **Built (2026-11-19):** a house sworn to you (every house after the crowning, or one that bent the knee) has *Call their host to war* in its panel. It sends half the men of its places, under its own banner, against the nearest place held by an enemy you share (in Part 2, the north), once every ten minutes. Each call cools them a little (−2, or −5 if they are not warm to you), and a house below −10 won't answer.
+- Norrhold gets its own original units and tactics: different weapons, war dogs, winter raids. *(Units done: axemen, javelin men, war dogs, and a Norrhold host; winter raids are Realm's.)* **Winter raids built (2026-11-19):** the year has seasons (five minutes each; the top bar shows the season). In winter every army marches 15% slower in the snow, and in Part 2 the north announces winter and sends a band of war dogs and javelin men (20 to 60) every two or so minutes from its place nearest your lands. A snowy look for the map in winter would help; not done.
 
 **Polish and longevity**
 - A builder for your house's arms and colours (Art).

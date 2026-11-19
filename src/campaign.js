@@ -967,7 +967,7 @@ function worldLog() {
 function topBar() {
   $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
   if (mode === 'world') {
-    $('clock').textContent = clock(world.time);
+    $('clock').textContent = `${SEASONS[world.season]} · ${clock(world.time)}`;
     $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';
     document.body.classList.toggle('paused', paused);
     for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === speed);

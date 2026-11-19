@@ -508,7 +508,7 @@ export class World {
   moveArmy(a, dt) {
     if (a.halted || !a.path.length) return;
     const to = a.path[0];
-    const d = dist(a, to), step = SPEED * dt * (a.retreating ? 1.1 : 1);
+    const d = dist(a, to), step = SPEED * dt * (a.retreating ? 1.1 : 1) * (this.winter ? 0.85 : 1);   // snow on the roads
     a.heading = Math.atan2(to.x - a.x, to.z - a.z);
     if (d > step) { a.x += (to.x - a.x) / d * step; a.z += (to.z - a.z) / d * step; a.at = null; return; }
     a.x = to.x; a.z = to.z;
@@ -1167,6 +1167,10 @@ export class World {
   }
 
   // Your rank follows how much of the realm you hold.
+  // The year runs twenty minutes: spring, summer, autumn and winter, five minutes each.
+  get season() { return Math.floor((this.time % 1200) / 300); }
+  get winter() { return this.season === 3; }
+
   get rank() {
     const n = this.pois.filter(p => p.owner === 0).length;
     if (this.crowned) return 'King';
