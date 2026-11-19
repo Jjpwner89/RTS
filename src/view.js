@@ -349,6 +349,63 @@ export class BattleView {
     this.arrowMesh.frustumCulled = false;
     this.arrowMesh.count = 0;
     this.scene.add(this.arrowMesh);
+    // Javelins: a heavier, longer shaft with an iron head at the front.
+    const jav = mergeGeometries([part(box(0.09, 0.09, 1.9), '#5e4228', { z: -0.1 }), part(new THREE.ConeGeometry(0.07, 0.3, 4).rotateX(Math.PI / 2), METAL, { z: 0.95 })]);
+    this.javelinMesh = new THREE.InstancedMesh(jav, new THREE.MeshBasicMaterial({ vertexColors: true }), 600);
+    this.javelinMesh.frustumCulled = false;
+    this.javelinMesh.count = 0;
+    this.scene.add(this.javelinMesh);
+    // A champions' duel: a ring of trampled ground with each side's standards planted round it.
+    this.duelRing = this.makeDuelRing();
+  }
+
+  makeDuelRing() {
+    const g = new THREE.Group(), R = 13;
+    const ground = new THREE.Mesh(new THREE.RingGeometry(R - 0.6, R, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#d8c89a', transparent: true, opacity: 0.5, depthWrite: false }));
+    g.add(ground);
+    g.userData.posts = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i + 0.5) / 8 * Math.PI * 2;
+      const post = new THREE.Group();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 4.2, 6), new THREE.MeshLambertMaterial({ color: '#5a4030' }));
+      pole.position.y = 2.1;
+      post.add(pole);
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1, 0.7), new THREE.MeshLambertMaterial());
+      flag.position.set(0, 3.55, -0.35);
+      post.add(flag);
+      post.userData = { a, flag };
+      g.add(post);
+      g.userData.posts.push(post);
+    }
+    g.visible = false;
+    this.scene.add(g);
+    return g;
+  }
+
+  // The ring stands while the champions fight and for a few seconds after.
+  updateDuelRing() {
+    const D = this.battle.duel, g = this.duelRing;
+    g.visible = !!D && (!D.over || this.battle.time - (D.end ??= this.battle.time) < 6);
+    if (!g.visible) return;
+    const H = this.heightAt;
+    // The trampled band follows the ground, laid once for each duel.
+    if (g.userData.duel !== D) {
+      g.userData.duel = D;
+      const p = g.children[0].geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) p.setY(i, H(D.x + p.getX(i), D.z + p.getZ(i)) + 0.2);
+      p.needsUpdate = true;
+      g.children[0].geometry.computeBoundingSphere();
+      g.children[0].position.set(D.x, 0, D.z);
+    }
+    // Each side's standards stand on the half of the ring toward its own army.
+    const own = this.battle.regs.filter(r => r.side === 0 && !r.gone);
+    const toward = Math.atan2(own.reduce((n, r) => n + r.cx, 0) / (own.length || 1) - D.x, own.reduce((n, r) => n + r.cz, 0) / (own.length || 1) - D.z);
+    for (const p of g.userData.posts) {
+      const a = p.userData.a + toward, x = D.x + Math.sin(a) * 13, z = D.z + Math.cos(a) * 13;
+      p.position.set(x, H(x, z), z);
+      p.rotation.y = a + Math.PI / 2;
+      p.userData.flag.material.color.set(this.sideColor(Math.cos(p.userData.a) > 0 ? 0 : 1));
+    }
   }
 
   syncBanners() {
@@ -409,7 +466,7 @@ export class BattleView {
 
     // Arrows fly a simple arc from bow to landing point.
     const q = new THREE.Quaternion(), z = new THREE.Vector3(0, 0, 1), dir = new THREE.Vector3();
-    let n = 0;
+    let n = 0, nj = 0;
     for (const a of b.arrows) {
       if (n >= 4000) break;
       const t = a.t / a.T, t2 = Math.min(1, t + 0.02);
@@ -419,11 +476,15 @@ export class BattleView {
       q.setFromUnitVectors(z, dir);
       d.position.set(...p1); d.quaternion.copy(q); d.scale.setScalar(1);
       d.updateMatrix();
-      this.arrowMesh.setMatrixAt(n++, d.matrix);
+      if (a.javelin) { if (nj < 600) this.javelinMesh.setMatrixAt(nj++, d.matrix); }
+      else this.arrowMesh.setMatrixAt(n++, d.matrix);
       d.rotation.set(0, 0, 0);
     }
     this.arrowMesh.count = n;
     this.arrowMesh.instanceMatrix.needsUpdate = true;
+    this.javelinMesh.count = nj;
+    this.javelinMesh.instanceMatrix.needsUpdate = true;
+    this.updateDuelRing();
 
     for (const bn of this.banners) {
       const r = bn.r;

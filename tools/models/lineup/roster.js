@@ -81,9 +81,9 @@ function turn(root, bone, axis, deg) {
 function seat(root, rig) {
   const b = n => byName(root, rig[n]);
   for (const [side, s] of [['R', -1], ['L', 1]]) {
-    turn(root, b('thigh' + side), 'x', -75);
-    turn(root, b('thigh' + side), 'z', s * 22);
-    turn(root, b('shin' + side), 'x', 70);
+    turn(root, b('thigh' + side), 'x', -50);
+    turn(root, b('thigh' + side), 'z', s * 30);
+    turn(root, b('shin' + side), 'x', 45);
   }
 }
 
@@ -383,24 +383,27 @@ function procedural(V, T, role, team) {
 // The Quaternius horse carries the rigged riders; the procedural sets bring their own horse.
 async function horse(team) {
   const h = await bake('fbx', GEAR_DIR + 'Horse.fbx', { clip: 'Idle', height: 1.75 });
-  // a saddle cloth in team colour
-  const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.05, 0.75), new THREE.MeshLambertMaterial({ color: TEAM[team] }));
+  // a saddle cloth in team colour, draped over the back and down both flanks
+  const geo = new THREE.CylinderGeometry(0.34, 0.34, 0.8, 12, 1, true, -Math.PI * 0.62, Math.PI * 1.24);
+  geo.rotateX(-Math.PI / 2);
+  const cloth = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: TEAM[team], side: THREE.DoubleSide }));
+  cloth.userData.saddleCloth = true;
   h.saddle = saddle(h.group);
-  cloth.position.set(0, h.saddle.y - 0.01, h.saddle.z);
+  cloth.position.set(0, h.saddle.y - 0.3, h.saddle.z);
   cloth.castShadow = true;
   h.group.add(cloth);
   return h;
 }
-// The top of the horse's back a little behind its middle.
+// The top of the horse's back a little behind its middle, found by dropping a ray onto it
+// (the horse is too low-poly to have a vertex just there).
 function saddle(group) {
+  group.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(group), mid = (box.min.z + box.max.z) / 2 - (box.max.z - box.min.z) * 0.08;
-  let top = 0;
-  group.traverse(m => {
-    if (!m.isMesh) return;
-    const p = m.geometry.attributes.position;
-    for (let i = 0; i < p.count; i++) if (Math.abs(p.getZ(i) - mid) < 0.12 && Math.abs(p.getX(i)) < 0.2) top = Math.max(top, p.getY(i));
-  });
-  return new THREE.Vector3(0, top, mid);
+  const ray = new THREE.Raycaster(new THREE.Vector3(0, box.max.y + 1, mid), new THREE.Vector3(0, -1, 0));
+  const meshes = [];
+  group.traverse(m => { if (m.isMesh) { [].concat(m.material).forEach(x => { x.side = THREE.DoubleSide; }); m.geometry.computeBoundingBox(); m.geometry.computeBoundingSphere(); meshes.push(m); } });
+  const hit = ray.intersectObjects(meshes, false)[0];
+  return new THREE.Vector3(0, hit ? hit.point.y : box.max.y * 0.6, mid);
 }
 
 async function figure(fam, role, team) {

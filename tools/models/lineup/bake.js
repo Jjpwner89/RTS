@@ -243,7 +243,7 @@ const teamMat = (shade = 1) => { const m = new THREE.MeshLambertMaterial({ color
 // Seat a rider on the Quaternius horse; the saddle cloth (and a knight's caparison) take the team colour.
 async function mount(fig, { caparison } = {}) {
   const h = await R.horse(0);
-  h.group.traverse(m => { if (m.isMesh && m.geometry.type === 'BoxGeometry') m.material = teamMat(1); });
+  h.group.traverse(m => { if (m.isMesh && m.userData.saddleCloth) m.material = teamMat(1); });
   const g = new THREE.Group();
   g.add(h.group);
   fig.group.position.set(0, h.saddle.y + 0.08 - fig.bones.hips.y, h.saddle.z - fig.bones.hips.z);
@@ -253,7 +253,7 @@ async function mount(fig, { caparison } = {}) {
     h.group.updateMatrixWorld(true);
     const tris = [], v = new THREE.Vector3();
     h.group.traverse(m => {
-      if (!m.isMesh || m.geometry.type === 'BoxGeometry') return;
+      if (!m.isMesh || m.userData.saddleCloth) return;
       const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, p = geo.attributes.position;
       for (let i = 0; i < p.count; i += 3) {
         const t = [0, 1, 2].map(k => v.fromBufferAttribute(p, i + k).applyMatrix4(m.matrixWorld).clone());
@@ -356,6 +356,58 @@ async function lordParty(body, tint) {
   const g = new THREE.Group(); g.add(lord, bearer);
   return g;
 }
+// ---- Norrhold's host: northern, wintry ----
+// A big rough-coated war dog, facing +z: grey with a pale chest, a team cloth over the shoulders and a
+// spiked collar. About 0.8 m at the shoulder.
+function warDog() {
+  const g = new THREE.Group(), fur = plain('#5d5650'), pale = plain('#b8ae9e'), dark = plain('#2b2622');
+  const add = (geo, mat, x, y, z, { rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1 } = {}) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.scale.set(sx, sy, sz); g.add(m); return m; };
+  const ball = new THREE.IcosahedronGeometry(1, 1);
+  add(ball, fur, 0, 0.62, -0.12, { sx: 0.24, sy: 0.24, sz: 0.5 });          // body
+  add(ball, fur, 0, 0.68, 0.24, { sx: 0.28, sy: 0.3, sz: 0.3 });            // deep chest and shoulders
+  add(ball, pale, 0, 0.58, 0.38, { sx: 0.17, sy: 0.2, sz: 0.12 });          // pale chest
+  add(new THREE.CylinderGeometry(0.11, 0.15, 0.36, 7), fur, 0, 0.86, 0.46, { rx: 0.75 });   // neck
+  add(new THREE.BoxGeometry(0.26, 0.24, 0.3), fur, 0, 0.98, 0.62);          // head
+  add(new THREE.BoxGeometry(0.17, 0.14, 0.24), pale, 0, 0.92, 0.86);        // muzzle
+  add(new THREE.BoxGeometry(0.08, 0.06, 0.05), dark, 0, 0.96, 0.98);        // nose
+  for (const s of [-1, 1]) {
+    add(new THREE.ConeGeometry(0.06, 0.15, 4), fur, s * 0.09, 1.15, 0.58, { rz: -s * 0.25, rx: -0.2 });   // ears
+    add(new THREE.CylinderGeometry(0.06, 0.045, 0.6, 6), fur, s * 0.13, 0.3, 0.3, { rx: -0.12 });         // fore legs
+    add(new THREE.CylinderGeometry(0.075, 0.045, 0.6, 6), fur, s * 0.13, 0.31, -0.45, { rx: 0.18 });      // hind legs
+    for (const z of [0.34, -0.38]) add(new THREE.BoxGeometry(0.1, 0.05, 0.14), dark, s * 0.13, 0.025, z + 0.03);   // paws
+  }
+  add(new THREE.CylinderGeometry(0.035, 0.05, 0.45, 5), fur, 0, 0.82, -0.66, { rx: -0.9 });    // tail, carried high
+  const collar = add(new THREE.TorusGeometry(0.14, 0.035, 5, 10), teamMat(0.8), 0, 0.84, 0.5, { rx: 0.75 + Math.PI / 2 });
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2, sp = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.09, 4), plain('#9aa0a6'));
+    sp.position.set(Math.cos(a) * 0.17, Math.sin(a) * 0.17, 0); sp.rotation.z = a - Math.PI / 2; collar.add(sp);
+  }
+  // a short war-coat over the back in the team colour
+  add(new THREE.CylinderGeometry(0.29, 0.31, 0.62, 10, 1, true, -Math.PI / 2, Math.PI), teamMat(1), 0, 0.64, 0.02, { rx: Math.PI / 2, sy: 1 }).material.side = THREE.DoubleSide;
+  return g;
+}
+// Fur over the shoulders: a pale shaggy mantle.
+const FUR = { bones: ['ShoulderL', 'ShoulderR', 'Chest', 'UpperArmL', 'UpperArmR'], push: 0.07, color: '#cfc4b0' };
+const MAIL = { bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR', 'Hips'], push: 0.03, color: '#7d848c', metal: true };
+const NORRHOLD = {
+  // A long two-handed bearded axe held across the body; mail under a fur mantle; no shield.
+  axeman: async () => {
+    const f = await people('Male_Adventurer', { armour: [MAIL, { ...SURCOAT, bones: ['Abdomen', 'Hips'] }, FUR], tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', Brown: '#4a3b2e' } });
+    await R.hang(f, { item: 'Helmet2', at: 'head' });
+    await R.hang(f, { item: 'W_Axe', at: 'R', len: 1.75, off: [-0.1, 0.25, 0.12], rot: [-25, 90, 25] });
+    return f;
+  },
+  // Light: a felt hood and leather, a short spear in hand and heavy javelins slung on the back.
+  javelin: async () => {
+    const f = await people('Male_Adventurer', { armour: [{ bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: '#7a5a3c' }, FUR] });
+    await R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
+    await R.hang(f, { item: 'W_Spear', at: 'R', len: 1.9, off: [0, -0.02, 0.04], rot: [8, 0, 0] });
+    for (const [x, t] of [[-0.04, 8], [0, 10], [0.04, 12]]) await R.hang(f, { item: 'W_Spear', at: 'chest', len: 1.45, off: [x, -0.15, -0.24], rot: [-12, 0, -t] });
+    return f;
+  },
+  wardog: async () => warDog(),
+};
+
 // Trial pieces for the line, shown beside today's soldiers before anything changes.
 const TRIAL = {
   'trial.levy': async () => { const f = await people('Male_Farmer', { tint: FARMER, armour: [GAMBESON] }); kettleHat(f); await R.hang(f, R.KIT.spear[0]); return f; },
@@ -424,6 +476,7 @@ const MORE_UNITS = {
 for (const k of ['knight', 'captain', 'lightcav', 'cav']) MORE_UNITS[k].heavy = true;
 // one lord on a field: a richer light version, two riders and two horses
 for (const k of ['lord', 'lady']) MORE_UNITS[k].budget = 6000;
+Object.assign(MORE_UNITS, NORRHOLD);
 
 // ---- buildings with levels, and the new ones ----
 const MORE_BUILDINGS = {
