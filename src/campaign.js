@@ -572,7 +572,7 @@ function worldPanel() {
       if (lord) {
         const o = opinion(world, lord), e = it.eco, T = TEMPERS[lord.temper];
         set('vassal', `<p title="${o.why.map(([n, t]) => `${n > 0 ? '+' : ''}${n} ${t}`).join('\n')}"><b style="color:${moodColor(o.total)}">${moodWord(o.total)} (${o.total > 0 ? '+' : ''}${o.total})</b> · ${T.name}: ${T.about}</p>`
-          + `<p class="note">Wants ${WANTS[lord.want].text}. Hover the opinion for the reasons.</p>`
+          + `<p class="note">${WANTS[lord.want].met(world, lord) ? "Has" : "Wants"} ${WANTS[lord.want].text}. Hover the opinion for the reasons.</p>`
           + `<p>${Math.round(e.pop)} people · ${builtCount(e)} buildings · stores worth about ${worth(e.stock)} gold</p>`
           + `<p>Has paid you ${Math.floor(lord.paid)} gold and sent ${lord.sent} men${lord.refusing ? ' · <b class="war">refuses dues and levies</b>' : ''}</p>`);
         set('dues', `${DUES[lord.dues].name} (${Math.round(DUES[lord.dues].share * 100)}%)`);
