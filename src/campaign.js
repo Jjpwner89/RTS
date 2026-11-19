@@ -12,7 +12,7 @@ import { TownHud } from './townhud.js';
 import { thinkAI } from './ai.js';
 import { attachSiege } from './siegeui.js';
 import { SiegeView } from './siegeview.js';
-import { addCopses, makeRiver, carveRiver } from './battlefield.js';
+import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
@@ -271,6 +271,7 @@ function startField(enc) {
   b.controls = new Controls(stage.camera, canvas, battle, view, heightAt, b.hooks);
   Object.assign(b.controls.cam, { x: 0, z: 135, dist: 105, yaw: 0 });
   battle.step(0.001);
+  battle.setWeather(pickWeather(fseed));   // clear, rain or fog (battlefield.js)
   battle.startDeployment(0);        // place the army before the fight (battle.js)
   $('field-title').textContent = assault ? `Battle for ${enc.poi.name}` : 'Battle on the road';
   setMode('field', b);

@@ -1,6 +1,6 @@
 // Regiment cards along the bottom, time controls on top, and battle messages.
 import { drawIcon, SIDE_COLORS } from './view.js';
-import { FORMATIONS } from './battle.js';
+import { FORMATIONS, WEATHER } from './battle.js';
 
 export class Hud {
   // endPanel: show the Victory / Defeat box when the battle is decided. fresh: only
@@ -136,7 +136,8 @@ export class Hud {
     this.deployEl.classList.toggle('open', b.deploying?.side === 0);
     const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     document.getElementById('strength').innerHTML =
-      `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`;
+      `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`
+      + (b.weather && b.weather !== 'clear' ? ` &nbsp;·&nbsp; ${WEATHER[b.weather].name}` : '');
     const m = Math.floor(b.time / 60), s = Math.floor(b.time % 60);
     document.getElementById('clock').textContent = `${m}:${String(s).padStart(2, '0')}`;
     document.getElementById('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';

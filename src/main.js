@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { createStage } from './stage.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from './terrain.js';
-import { addCopses, makeRiver, carveRiver } from './battlefield.js';
+import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js';
 import { FieldView } from './fieldview.js';
 import { Battle } from './battle.js';
 import { BattleView, keepModel } from './view.js';
@@ -41,6 +41,8 @@ drawTrees(scene, heightAt, trees);
 const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', ...(homes ? { homes } : {}) });
 battle.setWoods(trees);
 battle.setRiver(river);
+// Light weather on the field (?weather=clear, rain or fog; sieges are clear unless asked).
+battle.setWeather(params.get('weather') || (mode === 'field' ? pickWeather(seed) : 'clear'));
 const view = new BattleView(scene, battle, heightAt, { keeps: mode === 'field' });
 const siegeView = new SiegeView(scene, battle, heightAt);
 const fieldView = new FieldView(scene, battle);

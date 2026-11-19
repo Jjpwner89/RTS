@@ -1,6 +1,6 @@
 // Draws what battlefield.js puts on a field: the river's water and its bridges, which
-// smoke and flame while they burn and leave charred posts behind; and, while an army
-// deploys, the ground it may deploy on.
+// smoke and flame while they burn and leave charred posts behind; while an army deploys,
+// the ground it may deploy on; and the weather: rain falling, or fog closing in.
 import * as THREE from 'three';
 
 export class FieldView {
@@ -11,6 +11,8 @@ export class FieldView {
     scene.add(this.group);
     this.bridges = [];
     this.zone = null;
+    this.weather = 'clear';
+    this.rain = null;
     const R = battle.river;
     if (!R) return;
     this.drawWater(R);
@@ -29,14 +31,14 @@ export class FieldView {
       pos.setXYZ(i, x, H(x, z), z);
     }
     geo.computeVertexNormals();
-    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })));
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, fog: false })));
     const edge = [];
     const run = (xa, za, xb, zb) => {
       const n = Math.ceil(Math.hypot(xb - xa, zb - za) / 3);
       for (let i = 0; i < n; i++) { const x = xa + (xb - xa) * i / n, z = za + (zb - za) * i / n; edge.push(new THREE.Vector3(x, H(x, z) + 0.1, z)); }
     };
     run(D.x0, D.z0, D.x1, D.z0); run(D.x1, D.z0, D.x1, D.z1); run(D.x1, D.z1, D.x0, D.z1); run(D.x0, D.z1, D.x0, D.z0);
-    g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.8 })));
+    g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.8, fog: false })));
     this.group.add(g);
     return g;
   }
@@ -119,7 +121,67 @@ export class FieldView {
     return { b, g, deck, fire, flames, smoke, planks, wood, state: 'up' };
   }
 
+  // Greyer sky, closer fog and duller light for the battle's weather; rain falls around
+  // wherever the camera looks.
+  setWeather(kind) {
+    const scene = this.scene;
+    if (!this.clearSky) {
+      this.clearSky = { bg: scene.background?.clone?.(), fog: scene.fog && { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far }, lights: [] };
+      scene.traverse(o => { if (o.isLight) this.clearSky.lights.push([o, o.intensity]); });
+    }
+    const C = this.clearSky;
+    const look = { clear: null, rain: { sky: '#8d969c', near: 90, far: 480, light: 0.72 }, fog: { sky: '#c4c8c4', near: 20, far: 200, light: 0.85 } }[kind];
+    const sky = look ? new THREE.Color(look.sky) : null;
+    if (C.bg && scene.background?.isColor) scene.background.copy(sky || C.bg);
+    if (C.fog && scene.fog) {
+      scene.fog.color.copy(sky || C.fog.color);
+      scene.fog.near = look ? look.near : C.fog.near;
+      scene.fog.far = look ? look.far : C.fog.far;
+    }
+    for (const [l, i] of C.lights) l.intensity = i * (look ? look.light : 1);
+    if (kind === 'rain' && !this.rain) this.rain = this.makeRain();
+    if (this.rain) this.rain.visible = kind === 'rain';
+    this.weather = kind;
+  }
+
+  makeRain() {
+    const N = 3500, W = 180, Hh = 70;
+    const pos = new Float32Array(N * 6);
+    const drops = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) { drops[i * 3] = (Math.random() - 0.5) * W; drops[i * 3 + 1] = Math.random() * Hh; drops[i * 3 + 2] = (Math.random() - 0.5) * W; }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#c8d2da', transparent: true, opacity: 0.45, depthWrite: false }));
+    lines.frustumCulled = false;
+    const H = this.battle.heightAt;
+    // Centred each frame on the ground where the camera looks.
+    lines.onBeforeRender = (renderer, scene, camera) => {
+      const dir = camera.getWorldDirection(new THREE.Vector3()), c = camera.position;
+      const t = dir.y < -0.05 ? Math.min(400, (c.y - H(c.x, c.z)) / -dir.y) : 120;
+      lines.position.set(c.x + dir.x * t, H(c.x + dir.x * t, c.z + dir.z * t), c.z + dir.z * t);
+      lines.updateMatrixWorld();
+    };
+    lines.userData = { drops, N, Hh };
+    this.group.add(lines);
+    return lines;
+  }
+
+  updateRain(dt) {
+    const { drops, N, Hh } = this.rain.userData, pos = this.rain.geometry.attributes.position.array;
+    for (let i = 0; i < N; i++) {
+      let y = drops[i * 3 + 1] - dt * 28;
+      if (y < 0) y += Hh;
+      drops[i * 3 + 1] = y;
+      const x = drops[i * 3], z = drops[i * 3 + 2];
+      pos[i * 6] = x; pos[i * 6 + 1] = y; pos[i * 6 + 2] = z;
+      pos[i * 6 + 3] = x - 0.15; pos[i * 6 + 4] = y + 1.4; pos[i * 6 + 5] = z;
+    }
+    this.rain.geometry.attributes.position.needsUpdate = true;
+  }
+
   update(dt) {
+    if (this.battle.weather !== this.weather) this.setWeather(this.battle.weather);
+    if (this.rain?.visible) this.updateRain(dt);
     const D = this.battle.deploying;
     if (D && D.side === this.battle.viewer && !this.zone) this.zone = this.drawZone(D);
     if (this.zone && !D) {

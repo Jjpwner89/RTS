@@ -38,6 +38,12 @@ export function addCopses(trees, seed, { avoid = () => false, count = null } = {
   return trees;
 }
 
+// The day's weather: mostly clear, some rain, now and then fog.
+export function pickWeather(seed) {
+  const k = seeded(seed, 541)();
+  return k < 0.6 ? 'clear' : k < 0.85 ? 'rain' : 'fog';
+}
+
 // ---- rivers ----
 
 const smooth = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);

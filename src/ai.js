@@ -28,7 +28,18 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
   // Only what it can see: regiments hidden in woods are not there for it yet.
   const foes = battle.regs.filter(r => r.side !== side && !r.gone && battle.sees(side, r));
   const standing = foes.filter(r => !r.routing && !r.regrouping);
-  if (!standing.length) return;
+  if (!standing.length) {
+    // Nothing in sight but the enemy is out there (in fog, say): feel forward toward their side.
+    const hidden = battle.regs.some(r => r.side !== side && !r.gone && !r.routing);
+    if (!hidden || hold) return;
+    const h = battle.homes[1 - side];
+    for (const r of mine) {
+      if (r.dest || r.targetReg || r.posts || r.targetWall || Math.hypot(h.x - r.cx, h.z - r.cz) < 40) continue;
+      const ang = Math.atan2(h.x - r.cx, h.z - r.cz);
+      r.dest = { x: r.x + Math.sin(ang) * 20, z: r.z + Math.cos(ang) * 20, angle: ang };
+    }
+    return;
+  }
 
   // Until the lines are close, march forward together and keep formation.
   const gap = Math.min(...mine.map(r => dist(r, nearest(r, standing))));

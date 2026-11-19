@@ -87,6 +87,13 @@ const turnToward = (a, b, maxStep) => {
 };
 const live = s => s.alive && !s.gone;
 
+const FOG_SIGHT = 70;
+export const WEATHER = {
+  clear: { name: 'Clear' },
+  rain: { name: 'Rain', say: 'Rain: bows fall short and miss more, and the ground is heavy for horses.' },
+  fog: { name: 'Fog', say: `Fog: nobody can see more than ${FOG_SIGHT} m.` },
+};
+
 // The ground's height, cached on a 1 m grid and blended between points: the terrain's
 // own function is noise and costs too much to call for every soldier every step.
 function cachedHeight(heightAt) {
@@ -145,6 +152,8 @@ export class Battle {
     this.woods = null;         // how wooded each 4 m cell is, 0..1
     this.viewer = 0;           // the side whose eyes the view uses: enemies it can't see are not drawn
     this.river = null;         // battlefield.js makeRiver(): water, fords and bridges
+    this.weather = 'clear';    // 'clear', 'rain' or 'fog' (setWeather)
+    this.weatherSaid = true;
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
@@ -283,8 +292,9 @@ export class Battle {
       for (const m of r.soldiers) if (m.alive && !m.gone) { n++; if (this.woodAt(m.x, m.z) > 0.3) inWood++; }
       const cover = n > 0 && inWood >= n * 0.6 && near > 30;
       const busy = r.engaged > 0 || this.time - (r.lastShot ?? -99) < 3 || r.routing;
-      const hidden = cover && !busy;
-      if (hidden) { r.hiddenAt = this.time; r.ambushed = false; }
+      // In fog nobody sees further than FOG_SIGHT; only cover in the woods makes an ambush.
+      const hidden = (cover || (this.weather === 'fog' && near > FOG_SIGHT)) && !busy;
+      if (hidden && cover) { r.hiddenAt = this.time; r.ambushed = false; }
       r.seen = !hidden;
       r.unseen = hidden && r.side !== this.viewer;
     }
@@ -292,6 +302,14 @@ export class Battle {
 
   // Whether `side` can see regiment o (its own always).
   sees(side, o) { return o.side === side || o.seen !== false; }
+
+  // Light weather, the same for both sides. Rain: bows fall short, wet strings miss more,
+  // and the ground is heavy, worst for horses. Fog: nobody sees far (updateSight).
+  // The player is told of it once the fighting starts.
+  setWeather(kind = 'clear') {
+    this.weather = WEATHER[kind] ? kind : 'clear';
+    this.weatherSaid = !WEATHER[this.weather].say;
+  }
   label(r) { return `${r.side ? 'Enemy ' : ''}${r.name}`; }
 
   // Side 0 (the player) deploys on +z facing -z; side 1 on -z facing +z.
@@ -845,6 +863,7 @@ export class Battle {
   step(dt) {
     // Time stands still while an army deploys.
     if (this.deploying) return;
+    if (!this.weatherSaid) { this.weatherSaid = true; this.event(0, WEATHER[this.weather].say); }
     if (this.winner !== null) dt *= 0.3;
     this.time += dt;
     if (this.walls.sites) this.walls.build(dt, this.masons);
@@ -1483,7 +1502,8 @@ export class Battle {
     const wood = this.trees ? this.woodAt(s.x, s.z) * (s.reg.T.mounted ? 0.5 : 0.3) : 0;
     const water = this.river ? [1, 0.6, 0.35][this.river.depthAt(s.x, s.z)] : 1;
     if (this.river?.onBridge(s.x, s.z)) return 1;
-    return Math.max(0.55, Math.min(1.15, 1 - grade * k)) * (1 - wood) * water;
+    const mud = this.weather === 'rain' ? (s.reg.T.mounted ? 0.88 : 0.95) : 1;
+    return Math.max(0.55, Math.min(1.15, 1 - grade * k)) * (1 - wood) * water * mud;
   }
 
   // Fatigue, 0 (fresh) to 1 (spent): fighting, charging and running wear men out; a
@@ -1779,10 +1799,10 @@ export class Battle {
 
   // How far this regiment's bows reach: further from a wall, furthest from a tower.
   rangeOf(r) {
-    const T = r.T;
-    if (!r.posts) return T.range;
+    const T = r.T, wet = this.weather === 'rain' ? (T.pierce ? 0.9 : 0.8) : 1;
+    if (!r.posts) return T.range * wet;
     const towers = r.posts.filter(p => p.perch.kind === 'tower').length;
-    return T.range * (towers > r.posts.length / 2 ? 1.5 : 1.3);
+    return T.range * wet * (towers > r.posts.length / 2 ? 1.5 : 1.3);
   }
 
   updateArchers(r, dt) {
@@ -1872,6 +1892,7 @@ export class Battle {
       // Merlons cover men on a wall; a ram's roof covers its crew.
       if (hit.level === 1 && hit.perch) chance *= hit.perch.material === 'stone' ? 0.45 : 0.7;
       if (hit.reg.engine?.roof && !hit.reg.routing) chance *= hit.reg.engine.roof;
+      if (this.weather === 'rain') chance *= pierce ? 0.9 : 0.75;
       if (this.rand() < chance) {
         hit.reg.morale -= 0.25;
         audio.play('arrowhit', hit, this); // audio
