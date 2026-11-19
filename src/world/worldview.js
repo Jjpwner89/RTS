@@ -8,6 +8,7 @@ import { unitModel, buildingModel, HOUSE_STYLES } from '../models.js';
 import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
+import { TYPES, lookChain } from '../battle.js';
 
 // The map's half-width follows world.half, which grows when the north opens in Part 2.
 export const WORLD_HALF = REALM_RADIUS + 140;
@@ -18,27 +19,59 @@ const nearSegment = (x, z, a, b) => {
   return Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
 };
 
-// An army on the map: a small block of soldiers under a banner. Gear keeps its colours; cloth takes the side's.
+// An army on the map: its own troops in small blocks under a banner, about one figure for every ten men (at
+// least one per unit, at most 48 in all). Foot stand in front, bowmen behind them, horse on the right flank,
+// dogs ahead and engines in the rear. Gear keeps its colours; cloth takes the side's.
 // A starving army is ragged: men missing from the ranks, the rest straggling, the banner dipped.
-function armyModel(ragged = false) {
-  const u = unitModel('spear');
-  if (!u) return null;
-  const gear = [], cloth = [];
-  let seed = 5;
+const FIGURES = 48;
+const roleOf = T => !T ? 1 : T.engine ? 4 : T.key === 'wardog' ? 0 : T.mounted ? 3 : T.range && !T.javelin ? 2 : 1;
+const lookOf = key => lookChain(key).map(unitModel).find(Boolean) || unitModel('spear');
+const armySig = units => units.filter(u => u.count > 0).map(u => `${u.key}:${Math.ceil(u.count / 10)}`).join(',');
+function armyModel(units, ragged = false) {
+  if (!unitModel('spear')) return null;
+  const live = units.filter(u => u.count > 0), men = live.reduce((n, u) => n + u.count, 0) || 1;
+  const per = Math.max(10, men / FIGURES);
+  const groups = live.map(u => ({ key: u.key, T: TYPES[u.key], n: Math.max(1, Math.round(u.count / per)) }))
+    .sort((a, b) => roleOf(a.T) - roleOf(b.T));
+  const gear = [], cloth = [], plain = g => { const o = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); return o; };
+  let seed = 5, footZ = 0, horseZ = 0, footW = 0;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let r = 0; r < 3; r++) for (let f = 0; f < 4; f++) {
-    if (ragged && (r * 4 + f) % 3 === 1) continue;
-    const x = (f - 1.5) * 1.5 + (ragged ? (rand() - 0.5) * 1.2 : 0), z = -r * 1.6 - (ragged ? rand() * 1.8 : 0);
-    const turn = ragged ? (rand() - 0.5) * 0.9 : 0;
-    gear.push(u.gearLight.clone().rotateY(turn).translate(x, 0, z));
-    cloth.push(u.clothLight.clone().rotateY(turn).translate(x, 0, z));
+  const place = (m, x, z, turn = 0) => {
+    gear.push(plain(m.gearLight.clone().rotateY(turn).translate(x, 0, z)));
+    cloth.push(plain(m.clothLight.clone().rotateY(turn).translate(x, 0, z)));
+  };
+  // a block of figures, its front rank at z, centred on x0; returns its depth
+  const block = (m, n, x0, z, dx, dz, files) => {
+    let i = 0;
+    for (; i < n; i++) {
+      const f = i % files, r = Math.floor(i / files), row = Math.min(files, n - r * files);
+      if (ragged && i % 3 === 1) continue;
+      const jx = ragged ? (rand() - 0.5) * 1.2 : 0, jz = ragged ? rand() * 1.8 : 0;
+      place(m, x0 + (f - (row - 1) / 2) * dx + jx, z - r * dz - jz, ragged ? (rand() - 0.5) * 0.9 : 0);
+    }
+    return Math.ceil(n / files) * dz;
+  };
+  const foot = groups.filter(g => roleOf(g.T) === 1 || roleOf(g.T) === 2);
+  for (const g of foot) footW = Math.max(footW, Math.min(6, g.n) * 1.5);
+  footW = Math.max(footW, 4.5);
+  for (const g of foot) footZ -= block(lookOf(g.key), g.n, 0, footZ, 1.5, 1.6, 6) + 0.8;
+  const horseX = footW / 2 + 3;
+  for (const g of groups.filter(g => roleOf(g.T) === 3)) horseZ -= block(lookOf(g.key), g.n, horseX, horseZ, 2.4, 3.4, 3) + 1;
+  for (const g of groups.filter(g => roleOf(g.T) === 0)) block(lookOf(g.key), g.n, 0, 2, 1.4, 1.4, 6);
+  // engines are drawn from the buildings file, a little smaller than in battle
+  let engineZ = Math.min(footZ, horseZ) - 4;
+  for (const g of groups.filter(g => roleOf(g.T) === 4)) {
+    const geo = buildingModel('siege.' + g.T.engine.kind);
+    if (!geo) continue;
+    const e = plain(geo.clone()).scale(0.45, 0.45, 0.45).translate(0, 0, engineZ);
+    gear.push(e); engineZ -= 8;
   }
-  const pole = part(box(0.12, 5, 0.12), WOOD, { x: -3.2, y: 2.5, z: 1 });
-  const banner = part(box(0.06, 1.4, 1.6), '#ffffff', { x: -3.2, y: 4.2, z: 0.2 });
+  const bx = -footW / 2 - 1.5;
+  const pole = part(box(0.12, 5, 0.12), WOOD, { x: bx, y: 2.5, z: 1 });
+  const banner = part(box(0.06, 1.4, 1.6), '#ffffff', { x: bx, y: 4.2, z: 0.2 });
   // dipped about the foot of the pole
-  if (ragged) for (const g of [pole, banner]) g.translate(3.2, 0, -1).rotateZ(0.4).translate(-3.2, 0, 1);
-  const plain = g => { const o = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); return o; };
-  return { gear: mergeGeometries([...gear, pole].map(plain)), cloth: mergeGeometries([...cloth, banner].map(plain)) };
+  if (ragged) for (const g of [pole, banner]) g.translate(-bx, 0, -1).rotateZ(0.4).translate(bx, 0, 1);
+  return { gear: mergeGeometries([...gear, pole].map(plain)), cloth: mergeGeometries([...cloth, banner].map(plain)), lordAt: [bx - 4, 0, 3.5] };
 }
 
 // A supply wagon: the cart under a canvas tilt in its side's colour, with a carter walking ahead.
@@ -119,8 +152,7 @@ export class WorldView {
     this.fog = this.makeFog();
 
     this.columnGeo = columnModel();
-    this.armyGeo = armyModel();
-    this.raggedGeo = armyModel(true);
+    this.armyGeo = new Map();   // each army's figure, by its troops and whether it is ragged
     this.wagonGeo = wagonModel();
     this.armies = new Map();
     this.ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(
@@ -214,14 +246,11 @@ export class WorldView {
           const cloth = this.mat.clone(); cloth.color.copy(colour).lerp(new THREE.Color('#e8dcc0'), 0.55);
           mesh.add(new THREE.Mesh(this.wagonGeo.gear, this.mat), new THREE.Mesh(this.wagonGeo.cloth, cloth));
           mesh.scale.setScalar(2.6);
-        } else if (this.armyGeo) {
+        } else if (unitModel('spear')) {
           const cloth = this.mat.clone(); cloth.color.copy(colour);
-          mesh.add(new THREE.Mesh(this.armyGeo.gear, this.mat), new THREE.Mesh(this.armyGeo.cloth, cloth));
+          mesh.add(new THREE.Mesh(undefined, this.mat), new THREE.Mesh(undefined, cloth));
           mesh.userData.ranks = mesh.children.slice(0, 2);
           mesh.scale.setScalar(2.6);
-          // a siege train follows an army laying siege
-          const engine = buildingModel('siege.trebuchet');
-          if (engine) { const t = new THREE.Mesh(engine, this.mat); t.position.set(7, 0, -6); t.scale.setScalar(0.45); t.visible = false; mesh.add(t); mesh.userData.engine = t; }
         } else {
           const mat = this.mat.clone();
           mat.color.copy(colour).lerp(new THREE.Color('#ffffff'), 0.15);
@@ -233,7 +262,6 @@ export class WorldView {
         this.armies.set(a, o = { mesh, label: this.label(`army side${a.side ? 1 : 0}`) });
         o.label.style.borderColor = FACTIONS[a.side].color;
       }
-      if (o.mesh.userData.engine) o.mesh.userData.engine.visible = a.mode === 'siege';
       // A great lord riding with the army: their figure and bannerman at its head, in their house's colour.
       const lord = a.wagon ? null : a.lord ?? null;
       if (o.lord !== lord) {
@@ -244,18 +272,28 @@ export class WorldView {
           const g = new THREE.Group(), cloth = this.mat.clone();
           cloth.color.set(FACTIONS[lord]?.color || FACTIONS[a.side].color);
           g.add(new THREE.Mesh(L.gearLight, this.mat), new THREE.Mesh(L.clothLight, cloth));
-          g.position.set(-0.6, 0, 2.6);
+          g.position.set(...(o.lordAt || [-4, 0, 2]));
           g.traverse(m => { m.castShadow = true; });
           o.mesh.add(g);
           o.mesh.userData.lord = g;
         }
       }
-      // a starving army straggles
-      const ranks = o.mesh.userData.ranks, ragged = !a.wagon && a.food <= 0 && !!this.raggedGeo;
-      if (ranks && o.ragged !== ragged) {
-        o.ragged = ragged;
-        const g = ragged ? this.raggedGeo : this.armyGeo;
-        ranks[0].geometry = g.gear; ranks[1].geometry = g.cloth;
+      // the figure follows the army's troops as they fall, join and starve
+      const ranks = o.mesh.userData.ranks;
+      if (ranks) {
+        const sig = armySig(a.units) + (a.food <= 0 ? '!' : '');
+        if (o.sig !== sig) {
+          o.sig = sig;
+          let g = this.armyGeo.get(sig);
+          if (!g) {
+            // armies change often; let old figures go (three uploads any still drawn again)
+            if (this.armyGeo.size > 60) { for (const old of this.armyGeo.values()) { old.gear.dispose(); old.cloth.dispose(); } this.armyGeo.clear(); }
+            this.armyGeo.set(sig, g = armyModel(a.units, a.food <= 0));
+          }
+          ranks[0].geometry = g.gear; ranks[1].geometry = g.cloth;
+          if (o.mesh.userData.lord) o.mesh.userData.lord.position.set(...g.lordAt);
+          o.lordAt = g.lordAt;
+        }
       }
       // Armies out of sight are hidden.
       o.mesh.visible = a.visible;
