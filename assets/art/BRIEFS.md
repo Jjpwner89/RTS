@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -17,6 +17,7 @@ Paths here are relative to the repository root (`RTS/`). The game itself is desc
   | Heraldry | `assets/art/heraldry/<id>.png` | 512×512, transparent |
   | Map style | `assets/art/map/…` | see section 3 |
   | UI kit | `assets/art/ui/…` | see section 4 |
+  | Event pictures | `assets/art/events/<id>.png` | 640×360 (16:9), opaque |
 
   `<id>` is `varn`, `carrow`, `stonemere`, `wyndham`, `penhallow`, `dunmore`, or `player` (with `player-f` for the second player portrait).
 - Make two or three takes of each image and pick the best. Keep the others in `wip/` for the creator to look at.
@@ -206,7 +207,55 @@ The game already uses plain silhouettes for these names, in `assets/icons/<name>
 2. **Goods:** planks, ore, iron, flax, string, feathers, hides, leather, bread, flour, horses, shields, bows, arrows, bolts, crossbows, spears, lances, swords, mail, armour.
 3. **Buildings:** house, storehouse, well, woodcutter, quarry, mine, hunter, farm, flaxfield, mill, bakery, carpenter, ropemaker, tanner, smelter, bowyer, weaponsmith, armourer, stable, barracks, market, monastery, hall, keep, castle, siegeworks.
 4. **World map:** map, camp, warcamp, ford, pass, raid, retreat, invader, siege.
+5. **Armour levels,** for regiment cards and banners: armour-none (a plain belted tunic), armour-leather (a laced leather jerkin), armour-mail (a mail shirt), armour-plate (a breastplate with shoulder plates), no-shield (a shield struck through).
 
 Then, if there is time, these new ones: the orders (move, attack, hold, charge, fire at will, hold fire, line, column, wedge, schiltron, rally, disband), and the realm (mood happy, mood content, mood angry, war as crossed swords, peace as an olive branch, truce as a white flag, alliance as clasped hands, tribute as a coin chest, vassal as a kneeling figure, scout as an eye, fire).
 
 *Design context, not for the image prompt:* the HUD is HTML and CSS over the 3D view. `src/skin.css` holds the whole parchment look as CSS variables (`--grain`, `--surface`, `--bar-surface`, `--btn`, `--btn-on` and so on); the tiles go into those, and the frames go in as `border-image` with the borders above drawn at about half size. Icons are drawn by `ico()` in `src/icons.js` as one-colour CSS masks today; painted icons need it to use the PNG as a plain image when one exists. The regiment-card unit icons are drawn on a canvas in `src/view.js` (`drawIcon`) and are not part of this kit. The Art workstream wires the kit in once it lands.
+
+---
+
+## 5. Event pictures
+
+Six paintings for the choices that come up during a campaign (a blight, a fever, a wandering knight and so on). Each sits at the top of a small prompt box above the text and the choice buttons, at about 640×360 and sometimes half that on a phone. The box hides the picture while a file is missing, so each can land on its own. Do these **after the portraits and heraldry**.
+
+**Shared framing:** landscape, 640×360, opaque. One clear scene with one focal group in the middle third, readable at half size. Same painting hand and finish as the portraits (section 1), so the prompt box feels like part of the same game. A low-poly countryside of timber villages, stone keeps, fields and woods, about the 13th century. People are ordinary and grounded: no heroes posing, no magic. No text, banners with writing, or numbers. Keep the edges calm, since the text box sits right below.
+
+### 5.1 `harvest`: blight in the fields
+
+Late summer. A village's grain strips have gone patchy and grey-brown with rot among the gold. Two or three villagers stand at the field's edge, one crouched holding a blackened ear of wheat, the others looking on with worry. Thatched cottages and a timber barn behind, an overcast sky.
+
+**Must keep:** the spoiled crop is the subject; worry, not horror.
+
+### 5.2 `fever`: sickness in a village
+
+A quiet village lane at dusk. A door marked with a simple chalk cross, a woman in a linen headcloth carrying a water jug toward it, and a monk or healer with a satchel speaking to a man at the threshold. Smoke from a few chimneys, lamplight in one window. Nothing graphic: illness is shown by the hush and the care, not by bodies.
+
+**Must keep:** tender and sombre; no corpses, sores or skulls.
+
+### 5.3 `knight`: a wandering knight
+
+A knight errant arriving on a road toward a village gate in morning light. He rides a tall horse in a plain faded caparison, in mail with a worn surcoat, his helm hanging at the saddle. A young squire walks beside him leading a packhorse with two or three lances. Villagers glance up from their work. His colours are muted and undyed (greys, browns, a faded green), so he reads as belonging to no great house.
+
+**Must keep:** a capable stranger offering service; not one of the houses' colours.
+
+### 5.4 `refugees`: families at the gate
+
+A small crowd of families gathered at a village's timber gate: carts piled with bundles, a cow on a rope, children holding hands, an old man leaning on a staff. Two of the village's spearmen stand at the gate, unsure. In the far distance, a thin column of smoke where these people came from.
+
+**Must keep:** need and uncertainty; the choice to take them in or turn them away should feel real.
+
+### 5.5 `fair`: a midsummer fair
+
+A bright midsummer day in a meadow outside a village. Striped stalls, bunting, a maypole with ribbons, jugglers, a pie seller, children running, a few merchants with carts. The village keep is visible on a rise behind.
+
+**Must keep:** the happiest picture of the set; warm sunlight and colour, everyday joy.
+
+### 5.6 `bandits`: a bandit chief sends terms
+
+A rough clearing at the edge of a wood. A scarred bandit chief in mismatched armour sits on a tree stump, holding out a rolled message to a nervous village messenger who stands before him, cap in hand. Five or six armed outlaws lounge around a fire behind, with stolen goods piled under a lean-to.
+
+**Must keep:** menace through posture and setting, not violence; the chief is clearly the one setting terms.
+
+*Design context, not for the image prompt:* these illustrate the campaign's event choices (`src/world/`, Realm workstream). Each event id matches the file name.
+
