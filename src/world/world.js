@@ -6,7 +6,7 @@
 import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, DUES, LEVIES, COUNCIL, GIFT, RECONCILE } from './vassals.js';
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
-import { assignCaptain, releaseCaptain, tickRansoms } from './captains.js';
+import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, ELITE, HALL, gearOf, carry, armourWeight, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
@@ -539,11 +539,13 @@ export class World {
     // and anyone else waits their turn.
     if (p.town?.hostile) {
       const angle = this.angle(p, came === p ? p.links[0] : came);
-      if (a.side === 0) { p.town.addTroops(a.units, angle, { stand: 95 }); this.removeArmy(a); this.log(`${a.name} joins the attack on ${p.name}.`); }
+      if (a.side === 0) { const c = captainOf(this, a); this.seatCaptain(p.town.battle, 0, c, p.town.addTroops(a.units, angle, { stand: 95 })); this.removeArmy(a); this.log(`${a.name} joins the attack on ${p.name}.`); }
       else if (a.side === p.owner) {
+        const c = captainOf(this, a);
         this.removeArmy(a);
         p.town.receiveAttack(a.units, angle, { mode: 'assault', name: a.name, house: a.side,
           onLeave: left => { if (left.length) this.retreat(this.spawnArmy(a.side, left, p, a.name)); } });
+        this.seatCaptain(p.town.battle, 1, c, p.town.lastRegs);
         this.log(`${a.name} has come to relieve ${p.name}!`, 1);
       } else this.retreat(a);
       return;
@@ -959,7 +961,7 @@ export class World {
     town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came };
     town.flagColor = H.color;
     town.holdKeep(defenders, came, { house: owner ?? 1 });
-    town.addTroops(a.units, came, { stand: 100 });
+    this.seatCaptain(town.battle, 0, captainOf(this, a), town.addTroops(a.units, came, { stand: 100 }));
     // A beaten garrison may ask for terms (battle.js); a hungry place asks sooner. Yielding,
     // its men march out under arms to their lord, and the place is yours whole: no more
     // burning, and more of its people stay.
@@ -1043,9 +1045,16 @@ export class World {
     this.checkEnd();
   }
 
+  // An army's captain rides into a fight in a village with its biggest foot regiment.
+  seatCaptain(battle, side, c, regs) {
+    if (!c || !regs?.length) return;
+    const foot = regs.filter(r => !r.T.range && !r.T.engine).sort((x, y) => y.alive - x.alive);
+    battle.setCaptain(side, c, foot[0] || regs[0]);
+  }
+
   // A rival marches on one of your villages: the fight happens there, in the village itself.
   attackTown(a, p, came) {
-    const t = p.town, H = FACTIONS[a.side];
+    const t = p.town, H = FACTIONS[a.side], c = captainOf(this, a);
     if (!H.bandit) this.meet(a.side);
     this.removeArmy(a);
     t.receiveAttack(a.units, this.angle(p, came), {
@@ -1056,6 +1065,7 @@ export class World {
         this.retreat(back);
       },
     });
+    this.seatCaptain(t.battle, 1, c, t.lastRegs);
     // The village's own message says it when you are there to see it.
     if (this.hooks.watching() !== p) {
       this.log(a.mode === 'raid' ? `${H.short} raiders have reached ${p.name}!`

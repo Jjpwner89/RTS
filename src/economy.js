@@ -1332,6 +1332,7 @@ export class Town {
       return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
+    this.lastRegs = regs;
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
       : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
     audio.play('horn', null, this.battle); audio.play('drums', null, this.battle); // audio
@@ -1547,11 +1548,13 @@ export class Town {
   addTroops(specs, angle, { stand: standAt = 40 } = {}) {
     const entry = this.edgePoint(angle);
     const face = Math.atan2(-entry.x, -entry.z);
+    const added = [];
     for (const sp of specs) {
       const from = [];
       for (let i = 0; i < sp.count; i++) from.push({ x: entry.x + (this.rand() - 0.5) * 14, z: entry.z + (this.rand() - 0.5) * 14 });
       const fit = carry(sp);
       const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0, ...fit });
+      added.push(r);
       Object.assign(r, fit);
       r.levy = sp.levy || null;
       r.retinue = !!sp.retinue;
@@ -1565,6 +1568,7 @@ export class Town {
       const stand = { x: Math.sin(angle) * standAt, z: Math.cos(angle) * standAt };
       r.dest = { x: stand.x, z: stand.z, angle: Math.atan2(stand.x, stand.z) };
     }
+    return added;
   }
 
   // Regiments leaving for the world map. Levies take their villagers with them.
