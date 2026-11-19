@@ -42,7 +42,7 @@ function deployArmy(side, list, cx, cz, angle) {
 
 if (FORT) {
   buildFort(battle.walls, FORT.side, FORT.x, FORT.z, 44, { material: 'stone', sides: 6, gateAngle: FORT.side === 1 ? 0 : Math.PI });
-  const keep = new THREE.Mesh(keepModel(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+  const keep = new THREE.Mesh(keepModel({ palisade: false }), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
   keep.position.set(FORT.x, heightAt(FORT.x, FORT.z) - 0.5, FORT.z);
   keep.scale.setScalar(0.7);
   keep.castShadow = keep.receiveShadow = true;
