@@ -784,11 +784,13 @@ export class Battle {
         const stepLen = Math.min(d, pace * dt);
         const nx = r.x + dx / d * stepLen, nz = r.z + dz / d * stepLen;
         // Never march the anchor into a wall; one already stuck in one (or an engine
-        // left without its crew) falls back to where its men are.
-        if (this.nav.any && this.nav.blockedAt(r.side, r.x, r.z) || (r.engine && !this.crewed(r))) {
+        // left without its crew) falls back to where its men are. The last few metres to
+        // a wall it is attacking are allowed: a ram or ladder has to touch it.
+        const walled = this.nav.any && !(r.targetWall && left < 4);
+        if (walled && this.nav.blockedAt(r.side, r.x, r.z) || (r.engine && !this.crewed(r))) {
           const k = Math.min(1, dt * 0.8);
           r.x += (r.cx - r.x) * k; r.z += (r.cz - r.z) * k; r.viaCd = 0;
-        } else if (!(this.nav.any && this.nav.blockedAt(r.side, nx, nz))) { r.x = nx; r.z = nz; }
+        } else if (!(walled && this.nav.blockedAt(r.side, nx, nz))) { r.x = nx; r.z = nz; }
         else r.viaCd = 0;
       } else if (!r.via) {
         r.angle = turnToward(r.angle, r.dest.angle, dt * 1.2);

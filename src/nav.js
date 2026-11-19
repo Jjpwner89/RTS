@@ -222,6 +222,12 @@ export class Nav {
     const c = this.cellOf(x, z);
     if (c < 0) return null;
     const goalRegion = this.regionAt(side, tx, tz);
+    // Same side of the walls but no straight line (round the outside of a ring to its
+    // gate, say): walk the ground to the goal itself; no opening is needed.
+    if (goalRegion && goalRegion === this.regionAt(side, x, z)) {
+      const way = this.follow(side, this.field(side, tx, tz), x, z);
+      if (way) return way;
+    }
     // The opening that makes for the shortest walk: there along the ground, then on in a line.
     let best = null, bs = Infinity, bf = null;
     for (const o of this.openings[side]) {
