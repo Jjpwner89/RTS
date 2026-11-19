@@ -77,6 +77,31 @@ function armyModel(units, ragged = false) {
   return { gear: mergeGeometries([...gear, pole].map(plain)), cloth: mergeGeometries([...cloth, banner].map(plain)), lordAt: [bx - 4, 0, 3.5] };
 }
 
+// A cairn where a field battle was fought (world.cairns): a low pile of grey stones round a leaning pole with
+// a torn, faded pennant. One shape, turned and sized a little differently at each spot.
+function cairnModel() {
+  let seed = 3;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const stones = [];
+  for (let i = 0; i < 9; i++) {
+    const ring = i < 6, a = i / 6 * Math.PI * 2 + rand() * 0.4, r = ring ? 1.5 : 0.6 * rand();
+    const size = ring ? 0.75 + rand() * 0.35 : 0.7 + rand() * 0.3, y = ring ? 0.45 : 1.1 + (i - 6) * 0.55;
+    const tone = ['#8d8a82', '#9c988e', '#7c7a74', '#a8a398'][Math.floor(rand() * 4)];
+    stones.push(part(new THREE.DodecahedronGeometry(size, 0).scale(1, 0.7, 1), tone, { x: Math.sin(a) * r, y, z: Math.cos(a) * r, rx: rand(), ry: rand() * 3, rz: rand() }));
+  }
+  stones.push(part(box(0.12, 4.4, 0.12), WOOD, { y: 3.1, rz: 0.12 }));
+  // the pennant: a swallow-tailed strip, its end torn short
+  const pen = new THREE.BufferGeometry();
+  const front = [0, 0, 0, 1.9, -0.1, 0, 1.4, -0.35, 0, 0, 0, 0, 1.4, -0.35, 0, 1.7, -0.62, 0, 0, 0, 0, 1.7, -0.62, 0, 0, -0.7, 0];
+  const back = [];   // the same cloth facing the other way, so it isn't dark from behind
+  for (let i = 0; i < front.length; i += 9) back.push(...front.slice(i, i + 3), ...front.slice(i + 6, i + 9), ...front.slice(i + 3, i + 6));
+  pen.setAttribute('position', new THREE.Float32BufferAttribute([...front, ...back], 3));
+  pen.computeVertexNormals();
+  stones.push(part(pen, '#b9a68a', { x: -0.3, y: 5.1, z: 0, ry: 0.4 }));
+  const plain = g => { const o = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); if (!o.attributes.normal) o.computeVertexNormals(); return o; };
+  return mergeGeometries(stones.map(plain));
+}
+
 // A supply wagon: the cart under a canvas tilt in its side's colour, with a carter walking ahead.
 function wagonModel() {
   const cart = buildingModel('wagon'), u = unitModel('villager');
@@ -157,6 +182,8 @@ export class WorldView {
     this.columnGeo = columnModel();
     this.armyGeo = new Map();   // each army's figure, by its troops and whether it is ragged
     this.wagonGeo = wagonModel();
+    this.cairnGeo = cairnModel();
+    this.cairns = new Map();   // world.cairns entry → { mesh, label }
     this.armies = new Map();
     this.ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(
       Array.from({ length: 48 }, (_, i) => new THREE.Vector3(Math.sin(i / 48 * Math.PI * 2), 0, Math.cos(i / 48 * Math.PI * 2)))),
@@ -226,8 +253,10 @@ export class WorldView {
       const men = p.town ? p.town.garrison().reduce((n, r) => n + r.alive, 0) : p.visible ? headcount(p.garrison) : p.known?.men;
       const alarm = p.town?.underAttack ? ` ${ico('battle', '#ff8a5a')}` : '';
       const K = KINDS[p.kind];
+      // a place named for a battle fought by it says so when you look closely
+      const told = p.epithet && p.seen && camera.position.distanceTo(v.set(p.x, this.heightAt(p.x, p.z), p.z)) < 420 ? `<small class="epithet">${p.epithet}</small>` : '';
       const html = !p.seen ? `<b style="color:${own.color}">${ico(K.icon)} ${p.name}</b><small>unexplored</small>`
-        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b><small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
+        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46 });
@@ -320,6 +349,27 @@ export class WorldView {
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; o.label.style.borderColor = know > 1 ? FACTIONS[a.side].color : '#8a8070'; }
       o.label.classList.toggle('selected', selected === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });
+    }
+
+    // Cairns where your field battles were fought; their words show when you look closely.
+    const now = new Set(w.cairns || []);
+    for (const [c, o] of this.cairns) if (!now.has(c)) { this.scene.remove(o.mesh); o.label.remove(); this.cairns.delete(c); }
+    for (const c of now) {
+      let o = this.cairns.get(c);
+      if (!o) {
+        const mesh = new THREE.Mesh(this.cairnGeo, this.mat), k = 0.9 + ((c.x * 7 + c.z * 13) % 10 + 10) % 10 / 25;
+        mesh.position.set(c.x, this.heightAt(c.x, c.z) - 0.2, c.z);
+        mesh.rotation.y = (c.x * 0.37 + c.z * 0.11) % (Math.PI * 2);
+        mesh.scale.setScalar(1.6 * k);
+        mesh.castShadow = mesh.receiveShadow = true;
+        this.scene.add(mesh);
+        this.cairns.set(c, o = { mesh, label: this.label('cairn') });
+        o.label.textContent = c.text;
+      }
+      const s = toScreen(c.x, this.heightAt(c.x, c.z) + 11, c.z);
+      const near = camera.position.distanceTo(o.mesh.position) < 260;
+      o.label.style.display = s.behind || !near ? 'none' : '';
+      if (near) o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
     }
 
     // A ring under whatever is selected, and the road a selected army will take.

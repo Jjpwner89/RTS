@@ -144,6 +144,8 @@ body.campaign.mode-town #cards { left: 372px; }
 .wlabel.army { font-weight: 700; padding: 1px 6px; }
 .wlabel.side0 { border-color: #5a8af0; }
 .wlabel.side1 { border-color: #e0574d; color: #ffb3a8; }
+#world-labels .wlabel.cairn { background: none; border: none; box-shadow: none; outline: none; font-style: italic; font-size: 12px; color: #f2ead8; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
+.wlabel .epithet { display: block; font-style: italic; }
 .wlabel.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
 #wpanel { position: fixed; top: 64px; right: 16px; width: 280px; background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 4px 14px 12px; max-height: calc(100vh - 80px); overflow-y: auto; }
 #wpanel h3 { margin: 8px 0 4px; font-size: 16px; }
