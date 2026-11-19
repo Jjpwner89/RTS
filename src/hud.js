@@ -31,7 +31,8 @@ export class Hud {
     el.innerHTML = `<span class="group">${f}</span><span class="group">
       <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge</button>
       <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold</button>
-      <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will</button></span>`;
+      <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will</button>
+      <button data-c="burn" title="Set the nearest bridge alight from this bank (B)">Burn bridge</button></span>`;
     el.onclick = e => {
       const btn = e.target.closest('button');
       if (!btn || !this.selection?.size) return;
@@ -40,6 +41,7 @@ export class Hud {
       if (btn.dataset.c === 'charge') b.orderCharge(sel);
       if (btn.dataset.c === 'hold') b.setHold(sel, !sel.every(r => r.hold));
       if (btn.dataset.c === 'fire') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+      if (btn.dataset.c === 'burn') { const br = this.bridgeFor(sel); if (br) b.orderBurnBridge(sel, br); }
     };
     this.ordersEl = el;
   }
@@ -58,6 +60,16 @@ export class Hud {
     on('charge', r => this.battle.time < r.chargeUntil).disabled = sel.every(r => r.T.range || r.T.engine);
     on('hold', r => r.hold);
     on('fire', r => r.fireAtWill).disabled = !sel.some(r => r.T.range);
+    // Only shown with a standing bridge near the selection.
+    const burn = on('burn', r => !!r.burnBridge);
+    burn.hidden = !this.bridgeFor(sel);
+  }
+
+  bridgeFor(sel) {
+    const b = this.battle;
+    if (!b.river) return null;
+    for (const r of sel) { const br = b.bridgeNear(r.cx, r.cz, 60); if (br && !r.T.engine) return br; }
+    return null;
   }
 
   // Cards for regiments raised since the last frame; disbanded regiments lose theirs.

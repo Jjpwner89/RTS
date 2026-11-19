@@ -12,7 +12,8 @@ import { TownHud } from './townhud.js';
 import { thinkAI } from './ai.js';
 import { attachSiege } from './siegeui.js';
 import { SiegeView } from './siegeview.js';
-import { addCopses } from './battlefield.js';
+import { addCopses, makeRiver, carveRiver } from './battlefield.js';
+import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
@@ -235,15 +236,18 @@ function startField(enc) {
   const fseed = seed + 50000 + Math.floor(world.time * 7);
   const assault = enc.kind === 'assault';
   const keepAt = { x: 0, z: -150 };
-  const heightAt = makeHeight(fseed, assault ? [keepAt, HOMES[0]] : HOMES);
+  const river = makeRiver(fseed, { chance: 0.4 });       // sometimes a river to cross (battlefield.js)
+  const heightAt = carveRiver(makeHeight(fseed, assault ? [keepAt, HOMES[0]] : HOMES), river);
   const scene = stage.newScene();
   drawGround(scene, heightAt, fseed);
-  const trees = plantTrees(fseed, (x, z) => (Math.abs(x) < 120 && Math.abs(z) < 250) || (assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 60), 0.56, 900);
-  addCopses(trees, fseed, { avoid: (x, z) => assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 60 });   // woods to hide in (battlefield.js)
+  const wet = (x, z) => river && Math.abs(river.across(x, z)) < river.half + 3;
+  const trees = plantTrees(fseed, (x, z) => (Math.abs(x) < 120 && Math.abs(z) < 250) || (assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 60) || wet(x, z), 0.56, 900);
+  addCopses(trees, fseed, { avoid: (x, z) => (assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 60) || wet(x, z) });   // woods to hide in (battlefield.js)
   drawTrees(scene, heightAt, trees);
   // You come from the south; defenders of a place run back to its keep, others leave the field.
   const battle = new Battle(heightAt, fseed, { deploy: false, homes: [{ x: 0, z: 240 }, assault ? keepAt : { x: 0, z: -240 }], disbandAtHome: [true, !assault] });
   battle.setWoods(trees);
+  battle.setRiver(river);
   deploy(battle, 0, enc.army.units, 0, 95, Math.PI);
   deploy(battle, 1, enc.defenders, 0, assault ? -95 : -95, 0);
   battle.checkWinner = true;
@@ -655,7 +659,8 @@ function frame(now) {
     b.controls.update(dt);
     stage.placeSun(b.controls.cam, b.heightAt);
     b.view.update(b.controls.selection);
-    if (b.siege) b.siege.update(dt); else (b.siegeView ||= new SiegeView(b.scene, b.battle, b.heightAt)).update(dt);
+    if (b.siege) b.siege.update(dt);
+    else { (b.siegeView ||= new SiegeView(b.scene, b.battle, b.heightAt)).update(dt); (b.fieldView ||= new FieldView(b.scene, b.battle)).update(dt); }
     hud.update(b.controls.selection, paused, speed);
     if (mode === 'town') {
       const st = b.st;

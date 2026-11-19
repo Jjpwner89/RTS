@@ -1,10 +1,12 @@
 // Battle test: wires the terrain, simulation, view, controls and HUD together.
 // URL options: ?seed=123 for a fixed map, ?scale=3 to stack more regiments per side,
-// ?mode=siege to storm a walled fort with engines, ?mode=defend to hold one.
+// ?mode=siege to storm a walled fort with engines, ?mode=defend to hold one,
+// ?river=1 or 0 to have a river across the field or not (else half of fields do).
 import * as THREE from 'three';
 import { createStage } from './stage.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from './terrain.js';
-import { addCopses } from './battlefield.js';
+import { addCopses, makeRiver, carveRiver } from './battlefield.js';
+import { FieldView } from './fieldview.js';
 import { Battle } from './battle.js';
 import { BattleView, keepModel } from './view.js';
 import { SiegeView } from './siegeview.js';
@@ -28,16 +30,20 @@ const homes = mode === 'siege' ? [{ x: 0, z: 225 }, { x: 0, z: -120 }] : mode ==
 const canvas = document.getElementById('view');
 const { renderer, scene, camera, placeSun } = createStage(canvas);
 
-const heightAt = makeHeight(seed, homes || undefined);
+const riverParam = params.get('river');
+const river = mode === 'field' && riverParam !== '0' ? makeRiver(seed, { force: riverParam === '1' }) : null;
+const heightAt = carveRiver(makeHeight(seed, homes || undefined), river);
 drawGround(scene, heightAt, seed);
 // Forest round the edges; a few copses out in the field (none round a fort).
-const trees = plantTrees(seed, (x, z) => Math.abs(x) < (FORT ? 150 : 120) && Math.abs(z) < 250, 0.56, 900);
-if (!FORT) addCopses(trees, seed);
+const trees = plantTrees(seed, (x, z) => (Math.abs(x) < (FORT ? 150 : 120) && Math.abs(z) < 250) || (river && Math.abs(river.across(x, z)) < river.half + 3), 0.56, 900);
+if (!FORT) addCopses(trees, seed, { avoid: (x, z) => river && Math.abs(river.across(x, z)) < river.half + 3 });
 drawTrees(scene, heightAt, trees);
 const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', ...(homes ? { homes } : {}) });
 battle.setWoods(trees);
+battle.setRiver(river);
 const view = new BattleView(scene, battle, heightAt, { keeps: mode === 'field' });
 const siegeView = new SiegeView(scene, battle, heightAt);
+const fieldView = new FieldView(scene, battle);
 const rand = rng(seed + 5);
 
 // A list of [key, x, back, count?] from a front centre, facing `angle`.
@@ -111,6 +117,7 @@ function frame(now) {
   placeSun(controls.cam, heightAt);
   view.update(controls.selection);
   siegeView.update(dt);
+  fieldView.update(dt);
   hud.update(controls.selection, paused, speed);
   audio.frame(camera, controls.cam, { battle, field: true, siege: mode !== 'field', paused }); // audio
   renderer.render(scene, camera);
@@ -120,4 +127,4 @@ function frame(now) {
 battle.step(0.001);
 requestAnimationFrame(frame);
 
-window.game = { battle, view, siegeView, controls, seed, scale, mode, thinkAI };
+window.game = { battle, view, siegeView, fieldView, controls, seed, scale, mode, thinkAI };

@@ -104,6 +104,11 @@ export class Controls {
     else if (key === 'c') b.orderCharge(sel);
     else if (key === 'g') b.setHold(sel, !sel.every(r => r.hold));
     else if (key === 'r') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+    else if (key === 'b' && b.river) {
+      const br = sel.map(r => b.bridgeNear(r.cx, r.cz, 60)).find(Boolean);
+      if (!br) return false;
+      b.orderBurnBridge(sel, br);
+    }
     else return false;
     this.hooks.commandsChanged?.();
     return true;

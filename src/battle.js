@@ -144,6 +144,7 @@ export class Battle {
     this.trees = null;         // the field's trees, for woods (setWoods)
     this.woods = null;         // how wooded each 4 m cell is, 0..1
     this.viewer = 0;           // the side whose eyes the view uses: enemies it can't see are not drawn
+    this.river = null;         // battlefield.js makeRiver(): water, fords and bridges
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
@@ -152,6 +153,100 @@ export class Battle {
   // ---- woods and sight ----
 
   setWoods(trees) { this.trees = trees; this.woodsAt = -Infinity; }
+
+  // ---- rivers ----
+
+  setRiver(river) { this.river = river; }
+
+  // 0 dry, 1 shallow, 2 deep.
+  waterAt(x, z) { return this.river ? this.river.depthAt(x, z) : 0; }
+
+  // Where a man stands: the ground, or the deck of a bridge he is on.
+  groundY(x, z) {
+    const b = this.river?.onBridge(x, z);
+    return b ? Math.max(this.heightAt(x, z), this.river.deckY(b)) : this.heightAt(x, z);
+  }
+
+  // A regiment (or a man) bound for the far bank goes by the best ford or bridge, not through
+  // deep water, unless the wade is short and the way round long: deep water counts six times over (slow going, and no place to be caught).
+  riverWay(r, tx, tz) {
+    const R = this.river, a = R.bank(r.x, r.z), b = R.bank(tx, tz);
+    // Over: straight on out of the water before turning, so the tail doesn't wade.
+    if (r.exit) {
+      if (R.bank(r.exit.x, r.exit.z) === b && Math.hypot(r.exit.x - r.x, r.exit.z - r.z) > 2) return r.exit;
+      r.exit = null;
+    }
+    if (a === b) return null;
+    // A man pushed off the side of a bridge or ford into deep water steps back onto it.
+    if (!r.soldiers && R.depthAt(r.x, r.z) === 2) {
+      for (const c of R.crossings()) {
+        const h = (c.ref.half || 3) - 0.8;
+        if (Math.abs(r.x - c.x) < h + 6) return { x: Math.max(c.x - h, Math.min(c.x + h, r.x)), z: r.z + b * 0.5 };
+      }
+    }
+    // Wading straight over is fine where the way crosses at a ford or bridge.
+    const cx = r.x + (tx - r.x) * Math.abs(R.across(r.x, r.z)) / (Math.abs(R.across(r.x, r.z)) + Math.abs(R.across(tx, tz)) || 1);
+    const m = r.soldiers ? 3 : 0.5;          // a regiment needs room for its files either side
+    if (R.depthAt(cx - m, R.zAt(cx - m)) < 2 && R.depthAt(cx + m, R.zAt(cx + m)) < 2) return null;
+    let best = null, bs = Infinity;
+    for (const c of R.crossings()) {
+      const p = c.end(a), q = c.end(b);
+      const cost = Math.hypot(p.x - r.x, p.z - r.z) + Math.hypot(q.x - p.x, q.z - p.z) + Math.hypot(tx - q.x, tz - q.z);
+      if (cost < bs) { bs = cost; best = c; }
+    }
+    if (!best) return null;
+    if (Math.hypot(tx - r.x, tz - r.z) + R.half * 2 * 5 < bs) return null;
+    // A regiment lines up on the middle of the crossing first, so its outer files don't step off.
+    const tol = (best.ref.half || 3) * 0.7, lined = Math.abs(r.x - best.x) < (r.soldiers ? Math.min(tol, 1.6) : tol) && Math.abs(R.across(r.x, r.z)) < R.half + 6;
+    if (!lined) return best.end(a);
+    // A regiment marches its whole column clear; a man only needs to get his feet dry.
+    r.exit = { x: best.x, z: R.zAt(best.x) + b * (R.half + (r.soldiers ? 16 : 3)) };
+    return r.exit;
+  }
+
+  // Send regiments to set a bridge alight from their own bank.
+  orderBurnBridge(regs, bridge) {
+    for (const r of regs) {
+      if (!this.usable(r) || r.engine || bridge.state !== 'up') continue;
+      this.clearPosts(r);
+      r.targetReg = null;
+      r.burnBridge = bridge;
+      const side = this.river.bank(r.cx, r.cz), end = { x: bridge.x, z: this.river.zAt(bridge.x) + side * (this.river.half + 5) };
+      r.dest = { ...end, angle: side > 0 ? Math.PI : 0 };
+    }
+  }
+
+  // The bridge nearest (x, z) within `within` m, if it still stands.
+  bridgeNear(x, z, within = 40) {
+    let best = null, bd = within;
+    for (const b of this.river?.bridges || []) {
+      const d = Math.hypot(b.x - x, b.z - z);
+      if (b.state === 'up' && d < bd) { bd = d; best = b; }
+    }
+    return best;
+  }
+
+  // Once a second: men at a bridge with orders to burn it set it going; it burns down in a while.
+  riverTick() {
+    for (const r of this.regs) {
+      const b = r.burnBridge;
+      if (!b) continue;
+      if (r.gone || r.routing || b.state !== 'up' || r.targetReg) { r.burnBridge = null; continue; }
+      if (r.engaged > 0 || Math.hypot(r.cx - b.x, r.cz - b.z) > this.river.half + 12) continue;
+      b.burning = Math.max(b.burning, 1);
+      b.hp -= Math.min(12, 1 + r.alive * 0.4);
+    }
+    for (const b of this.river?.bridges || []) {
+      if (b.state !== 'up' || b.burning <= 0) continue;
+      b.hp -= 2;           // once alight it keeps burning
+      if (b.hp <= 0) {
+        b.state = 'burnt';
+        b.burning = 0;
+        this.event(0, 'The bridge has burned down.');
+        for (const r of this.regs) if (r.burnBridge === b) r.burnBridge = null;
+      }
+    }
+  }
 
   // How wooded the ground is at (x, z): 0 open, 1 thick wood. Rebuilt now and then, as trees fall.
   woodAt(x, z) {
@@ -293,7 +388,7 @@ export class Battle {
       const i = Math.floor(Math.sqrt(k)), j = k - i * i;
       lx = (j - i) * sp * 0.75; lz = -i * dp;
     } else {
-      const files = Math.max(1, Math.min(r.column ? Math.min(r.files, COLUMN) : r.files, r.alive));
+      const files = Math.max(1, Math.min(r.column ? Math.min(r.files, r.narrow || COLUMN) : r.files, r.alive));
       const rank = Math.floor(k / files), f = k % files;
       const lastRank = Math.floor((r.alive - 1) / files);
       const inRank = rank === lastRank ? r.alive - rank * files : files;
@@ -340,7 +435,7 @@ export class Battle {
       s._l = dx * cos - dz * sin;
     }
     list.sort((a, b) => b._f - a._f);
-    const files = Math.max(1, Math.min(r.column ? Math.min(r.files, COLUMN) : r.files, list.length));
+    const files = Math.max(1, Math.min(r.column ? Math.min(r.files, r.narrow || COLUMN) : r.files, list.length));
     for (let i = 0; i < list.length; i += files) {
       const rank = list.slice(i, i + files).sort((a, b) => a._l - b._l);
       rank.forEach((s, j) => { s.slot = i + j; });
@@ -706,6 +801,7 @@ export class Battle {
     if (Math.floor(this.time) !== Math.floor(this.time - dt)) {
       this.checkVictory();
       this.updateSight();
+      if (this.river) this.riverTick();
       this.answerFoes();
       if (this.walls.any) this.wallsTick();
     }
@@ -813,13 +909,16 @@ export class Battle {
     } else if (r.dest) {
       let tx = r.dest.x, tz = r.dest.z;
       // Round the walls: steer for the next point on the way, marching in a narrow column.
-      if (this.nav.any) {
+      if (this.nav.any || this.river) {
         r.viaCd -= dt;
         if (r.viaCd <= 0) {
           r.viaCd = 0.5;
-          r.via = this.nav.steer(r.side, r.x, r.z, tx, tz);
-          const col = !!r.via || (r.column && r.lag > 3);
-          if (col !== r.column && !T.engine) { r.column = col; this.assignSlots(r); }
+          r.via = (this.nav.any ? this.nav.steer(r.side, r.x, r.z, tx, tz) : null) || (this.river ? this.riverWay(r, tx, tz) : null);
+          // A narrow column through gates and round walls, and over a river until clear of it;
+          // three abreast to fit a bridge.
+          const col = !!r.via || (r.column && r.lag > 3) || (!!this.river && Math.abs(this.river.across(r.x, r.z)) < this.river.half + 12);
+          const narrow = col && this.river && this.bridgeNear(r.x, r.z, this.river.half + 20) ? 3 : null;
+          if ((col !== r.column || narrow !== (r.narrow || null)) && !T.engine) { r.column = col; r.narrow = narrow; this.assignSlots(r); }
         }
         if (r.via) {
           tx = r.via.x; tz = r.via.z;
@@ -1160,7 +1259,7 @@ export class Battle {
     }
     s.vx = (s.x - px) / dt; s.vz = (s.z - pz) / dt;
     s.v = Math.hypot(s.vx, s.vz);
-    if (s.climb <= 0) s.y = s.level === 1 ? this.walls.walkY(s.perch, s.x, s.z) : this.heightAt(s.x, s.z);
+    if (s.climb <= 0) s.y = s.level === 1 ? this.walls.walkY(s.perch, s.x, s.z) : this.river ? this.groundY(s.x, s.z) : this.heightAt(s.x, s.z);
     s.phase += s.v * dt * 2.2;
   }
 
@@ -1259,11 +1358,11 @@ export class Battle {
 
   // On the ground, round the walls when they are in the way.
   groundMove(s, tx, tz, speed, dt) {
-    if (this.nav.any) {
+    if (this.nav.any || this.river) {
       s.viaCd -= dt;
       if (s.viaCd <= 0 || (s.via && Math.hypot(s.via.x - s.x, s.via.z - s.z) < 0.8)) {
         s.viaCd = 0.35 + this.rand() * 0.25;
-        s.via = this.nav.steer(s.reg.side, s.x, s.z, tx, tz);
+        s.via = (this.nav.any ? this.nav.steer(s.reg.side, s.x, s.z, tx, tz) : null) || (this.river ? this.riverWay(s, tx, tz) : null);
       }
       if (s.via) { tx = s.via.x; tz = s.via.z; }
     }
@@ -1314,7 +1413,9 @@ export class Battle {
     const grade = (this.heightAt(s.x + ux * 1.5, s.z + uz * 1.5) - this.heightAt(s.x, s.z)) / 1.5;
     const k = s.reg.T.mounted ? 1.6 : 1.1;
     const wood = this.trees ? this.woodAt(s.x, s.z) * (s.reg.T.mounted ? 0.5 : 0.3) : 0;
-    return Math.max(0.55, Math.min(1.15, 1 - grade * k)) * (1 - wood);
+    const water = this.river ? [1, 0.6, 0.35][this.river.depthAt(s.x, s.z)] : 1;
+    if (this.river?.onBridge(s.x, s.z)) return 1;
+    return Math.max(0.55, Math.min(1.15, 1 - grade * k)) * (1 - wood) * water;
   }
 
   // How steeply a stands above b, from -1 to 1: a grade of 1 in 5 counts fully. For men
@@ -1385,9 +1486,11 @@ export class Battle {
     const FA = FORMATIONS[ar.formation] || FORMATIONS.line, FD = FORMATIONS[tr.formation] || FORMATIONS.line;
     s.lunge = 1;
     // Among trees no formation holds together and no charge gathers pace.
-    const wood = this.trees ? Math.max(this.woodAt(t.x, t.z), this.woodAt(s.x, s.z)) : 0;
+    // Water does the same, and men standing in it fight badly.
+    const wetA = this.river ? this.river.depthAt(s.x, s.z) : 0, wetD = this.river ? this.river.depthAt(t.x, t.z) : 0;
+    const wood = Math.max(this.trees ? Math.max(this.woodAt(t.x, t.z), this.woodAt(s.x, s.z)) : 0, Math.max(wetA, wetD) * 0.4);
     let flank = tr.routing ? 0 : this.flankOf(s.x, s.z, t);
-    let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015;
+    let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
     // Out of hiding: the first blows of an ambush shake the men they fall on.
     if (!ar.ambushed && this.time - (ar.hiddenAt ?? -99) < 6 && ar.side !== tr.side) {
       ar.ambushed = true;
@@ -1714,6 +1817,7 @@ export class Battle {
     if (E && r.targetWall) return r.dest ? 'Moving up' : E.ready < (E.setup || 0) ? 'Setting up' : 'Battering';
     if (r.posts) return r.posts[0]?.perch.side === r.side ? 'On the walls' : 'Storming the walls';
     if (r.targetWall) return 'Attacking the wall';
+    if (r.burnBridge) return 'Burning the bridge';
     if (r.seen === false) return 'Hidden in the woods';
     if (r.hold) return 'Holding';
     return '';
