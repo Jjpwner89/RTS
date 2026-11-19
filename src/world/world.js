@@ -12,6 +12,7 @@ import { buildFort } from '../walls.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, provision, takeFood, capacity, wound, heal } from './supply.js';
+import { govern } from './governor.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -313,6 +314,7 @@ export class World {
     const trees = plantTrees(p.seed, (x, z) => Math.hypot(x, z) < 45 || onRoad(x, z), 0.5, 1500);
     const battle = new Battle(heightAt, p.seed, { deploy: false, homes: [{ x: 0, z: 0 }, { x: 0, z: -225 }], disbandAtHome: [false, true] });
     const town = new Town(battle, heightAt, trees, rng(p.seed + 7), { kind: p.kind, ...opts });
+    town.purse = FACTIONS[0];
     town.onFall = () => { p.falling = true; };
     Object.assign(p, { town, heightAt, trees, garrison: [], aiClock: 0, pruneClock: 30, onRoad });
     return town;
@@ -881,7 +883,7 @@ export class World {
   // send a share of theirs.
   collectTaxes(dt) {
     const me = FACTIONS[0];
-    for (const p of this.pois) if (p.owner === 0 && p.town) me.gold += dt * p.town.population * 0.012 * KINDS[p.kind].gold;
+    for (const p of this.pois) if (p.owner === 0 && p.town && !p.town.hostile) me.gold += dt * p.town.population * p.town.taxRate * KINDS[p.kind].gold;
     for (const h of FACTIONS) if (this.dip?.[h.index]?.vassal && h.alive) { const n = Math.min(h.gold, dt * 0.6); h.gold -= n; me.gold += n; }
   }
 
@@ -901,6 +903,7 @@ export class World {
     }
     p.pruneClock -= dt;
     if (p.pruneClock <= 0) { p.pruneClock = 30; b.prune(); }
+    if (p.owner === 0 && this.hooks.watching() !== p) govern(t, dt);
     if (p.falling) this.fall(p);
     if (t.hostile) this.checkStorm(p);
   }

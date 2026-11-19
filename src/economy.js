@@ -8,6 +8,7 @@
 import { audio } from './audio.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
+import { TYPES } from './battle.js';
 
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
@@ -16,19 +17,29 @@ export const GOODS = {
   flax: { name: 'Flax', icon: 'flax', color: '#9fc46e' },
   feathers: { name: 'Feathers', icon: 'feathers', color: '#ece6d6' },
   ore: { name: 'Iron ore', icon: 'ore', color: '#c47a58' },
+  hides: { name: 'Hides', icon: 'hunter', color: '#b08560' },
   planks: { name: 'Planks', icon: 'planks', color: '#e0b47a' },
   string: { name: 'String', icon: 'string', color: '#e6d6a6' },
   iron: { name: 'Iron', icon: 'iron', color: '#aeb8c4' },
+  leather: { name: 'Leather', icon: 'hunter', color: '#9a6a44' },
+  flour: { name: 'Flour', icon: 'food', color: '#efe6cf' },
+  bread: { name: 'Bread', icon: 'food', color: '#e3b26a' },
   shields: { name: 'Shields', icon: 'shields', color: '#d2a05a' },
   bows: { name: 'Bows', icon: 'bows', color: '#c89060' },
   arrows: { name: 'Arrows', icon: 'arrows', color: '#e2d4b0' },
   spears: { name: 'Spears', icon: 'spears', color: '#c4ccd6' },
   swords: { name: 'Swords', icon: 'swords', color: '#dfe4ea' },
+  crossbows: { name: 'Crossbows', icon: 'bows', color: '#a8b0b8' },
+  bolts: { name: 'Bolts', icon: 'arrows', color: '#b8c0c8' },
+  lances: { name: 'Lances', icon: 'spears', color: '#e8d8a8' },
+  mail: { name: 'Mail', icon: 'shields', color: '#9aa4ae' },
+  armour: { name: 'Plate armour', icon: 'shields', color: '#d8dee6' },
+  horses: { name: 'Horses', icon: 'people', color: '#a07850' },
 };
 export const GOOD_GROUPS = [
-  ['Raw', ['wood', 'stone', 'food', 'flax', 'feathers', 'ore']],
-  ['Made', ['planks', 'string', 'iron']],
-  ['Arms', ['shields', 'bows', 'arrows', 'spears', 'swords']],
+  ['Raw', ['wood', 'stone', 'food', 'flax', 'feathers', 'ore', 'hides']],
+  ['Made', ['planks', 'string', 'iron', 'leather', 'flour', 'bread']],
+  ['Arms', ['shields', 'bows', 'arrows', 'spears', 'swords', 'crossbows', 'bolts', 'lances', 'mail', 'armour', 'horses']],
 ];
 
 // gather: villagers walk out to a resource and carry it back.
@@ -50,7 +61,7 @@ export const BUILDINGS = {
   mine: { name: 'Mine', icon: 'mine', group: 'Gather', cost: { wood: 15, stone: 5 }, radius: 3.5, build: 15, jobs: 2, hp: 150,
     gather: { node: 'ore', range: 30, need: 1, time: 9, out: { ore: 2 } }, desc: 'Digs iron ore from a rust-red deposit. Build it close to one.' },
   hunter: { name: "Hunter's lodge", icon: 'hunter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 2, hp: 120,
-    gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 3, feathers: 2 } }, desc: 'Hunts in the woods for food and feathers.' },
+    gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 3, feathers: 2, hides: 1 } }, desc: 'Hunts in the woods for food, feathers and hides.' },
   farm: { name: 'Farm', icon: 'farm', group: 'Gather', cost: { wood: 12 }, radius: 9, build: 12, jobs: 2, hp: 100,
     gather: { node: 'field', time: 7, out: { food: 4 } }, desc: 'Grows grain on its own field. Needs open ground.' },
   flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
@@ -66,19 +77,58 @@ export const BUILDINGS = {
     recipes: [{ in: { planks: 2, string: 1 }, out: { bows: 1 }, time: 10 }, { in: { planks: 1, feathers: 2 }, out: { arrows: 10 }, time: 8 }],
     desc: 'Makes bows from planks and string, and arrows from planks and feathers.' },
   weaponsmith: { name: 'Weaponsmith', icon: 'weaponsmith', group: 'Craft', cost: { planks: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
-    recipes: [{ in: { iron: 1, planks: 1 }, out: { spears: 1 }, time: 9 }, { in: { iron: 2 }, out: { swords: 1 }, time: 12 }],
-    desc: 'Fits iron heads to spear shafts, and forges swords.' },
+    recipes: [{ in: { iron: 1, planks: 1 }, out: { spears: 1 }, time: 9 }, { in: { iron: 2 }, out: { swords: 1 }, time: 12 },
+      { in: { planks: 2, iron: 1, string: 1 }, out: { crossbows: 1 }, time: 12, off: true }, { in: { planks: 1, iron: 1 }, out: { bolts: 10 }, time: 8, off: true },
+      { in: { planks: 2, iron: 1 }, out: { lances: 1 }, time: 10, off: true }],
+    desc: 'Fits iron heads to spear shafts, forges swords, and makes crossbows, bolts and lances.' },
+  armourer: { name: 'Armourer', icon: 'weaponsmith', group: 'Craft', cost: { planks: 15, stone: 20 }, radius: 4, build: 18, jobs: 1, hp: 160,
+    recipes: [{ in: { iron: 2, leather: 1 }, out: { mail: 1 }, time: 12 }, { in: { mail: 1, iron: 2, leather: 1 }, out: { armour: 1 }, time: 18, off: true }],
+    desc: 'Rivets mail shirts from iron and leather, and beats plate for knights.' },
+  tanner: { name: 'Tanner', icon: 'hunter', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
+    recipes: [{ in: { hides: 2 }, out: { leather: 1 }, time: 8, keep: 20 }], desc: "Cures the hunters' hides into leather." },
+  mill: { name: 'Mill', icon: 'farm', group: 'Craft', cost: { wood: 20, stone: 5 }, radius: 4.5, build: 14, jobs: 1, hp: 140,
+    recipes: [{ in: { food: 4 }, out: { flour: 3 }, time: 6, keep: 30 }], desc: 'Grinds grain into flour for the bakery.' },
+  bakery: { name: 'Bakery', icon: 'food', group: 'Craft', cost: { wood: 15, stone: 10 }, radius: 4, build: 14, jobs: 1, hp: 140,
+    recipes: [{ in: { flour: 2, wood: 1 }, out: { bread: 4 }, time: 8, keep: 80 }],
+    desc: 'Bakes bread: more meals from the same grain, and a happier village.' },
   barracks: { name: 'Barracks', icon: 'barracks', group: 'Military', cost: { planks: 20, stone: 20 }, radius: 6, build: 20, hp: 250,
     desc: 'Holds the arms, and calls up villagers as soldiers when their kit is here.' },
+  stable: { name: 'Stable', icon: 'barracks', group: 'Military', cost: { planks: 20, wood: 10 }, radius: 7, build: 18, jobs: 2, hp: 180,
+    recipes: [{ in: { food: 6 }, out: { horses: 1 }, time: 24 }], desc: 'Breeds and breaks horses for cavalry and knights, on grain.' },
+  siegeworks: { name: 'Siege workshop', icon: 'siege', group: 'Military', cost: { planks: 25, stone: 10 }, radius: 7, build: 20, hp: 200,
+    engines: true, desc: 'Builds rams, ladders and stone-throwers from the materials carried here. Villagers go with them as crew.' },
+  market: { name: 'Market', icon: 'market', group: 'Village', cost: { planks: 15, stone: 10 }, radius: 6, build: 16, jobs: 1, hp: 150, mood: 6,
+    recipes: [
+      { in: { wood: 10 }, out: {}, gold: 6, time: 4, above: 150 }, { in: { stone: 10 }, out: {}, gold: 7, time: 4, above: 80 },
+      { in: { food: 10 }, out: {}, gold: 7, time: 4, above: 120 }, { in: { planks: 10 }, out: {}, gold: 12, time: 4, above: 60, off: true },
+      { in: { iron: 5 }, out: {}, gold: 16, time: 4, above: 20, off: true }, { in: { swords: 2 }, out: {}, gold: 18, time: 4, above: 10, off: true },
+    ],
+    desc: 'Sells what the village has spare for gold, and lifts the mood. It only sells above a reserve; switch off what you want to keep.' },
+  well: { name: 'Well', icon: 'village', group: 'Village', cost: { stone: 10 }, radius: 2.5, build: 8, hp: 150, mood: 3, desc: 'Clean water close by. Lifts the mood a little.' },
+  monastery: { name: 'Chapel', icon: 'monastery', group: 'Village', cost: { stone: 30, planks: 10 }, radius: 6, build: 24, hp: 250, mood: 10,
+    desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
 };
+// Building upgrades: gold and goods, once the village is big enough. Each level works
+// faster, houses hold more and stores keep more haulers.
+export const UPGRADES = [null, null,
+  { gold: 40, cost: { planks: 10, stone: 10 }, pop: 30 },
+  { gold: 120, cost: { planks: 20, stone: 30 }, pop: 60 }];
+export const SPEED = [1, 1, 1.35, 1.7];
+// Tax rates: gold collected for each villager, and what the village thinks of it.
+export const TAXES = [
+  { name: 'No taxes', gold: 0, mood: 12 }, { name: 'Low taxes', gold: 0.5, mood: 6 }, { name: 'Fair taxes', gold: 1, mood: 0 },
+  { name: 'High taxes', gold: 1.6, mood: -12 }, { name: 'Cruel taxes', gold: 2.3, mood: -26 },
+];
+// Hired men, paid in gold at the keep. They cost no villagers.
+export const HIRES = ['sellsword', 'hiredxbow', 'household'].map(k => ({ key: k, name: TYPES[k].name, count: TYPES[k].count, gold: TYPES[k].gold * TYPES[k].count }));
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
 
-// What each villager needs to become a soldier of that type.
-export const KITS = {
-  spear: { name: 'Spearmen', kit: { spears: 1, shields: 1 } },
-  archer: { name: 'Archers', kit: { bows: 1, arrows: 10 } },
-  sword: { name: 'Swordsmen', kit: { swords: 1, shields: 1 } },
-};
+// What each villager needs to become a soldier of that type (battle.js sets the kits).
+// Engines are raised at the siege workshop: their cost once, and a full crew.
+export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 'maa', 'lightcav', 'cav', 'knight']
+  .map(k => [k, { name: TYPES[k].name, kit: TYPES[k].kit }]));
+export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuchet']
+  .map(k => [k, { name: TYPES[k].name, cost: TYPES[k].cost, crew: TYPES[k].count }]));
 
 const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
@@ -86,7 +136,7 @@ const WALK = 3.4;
 
 // A crate holds 10 of most goods; a yard or workshop holds 30 of each before it stops
 // for haulers. Arrows are light and go four times as far.
-const CRATE = 10, HOLD = 30, BULK = { arrows: 4 };
+const CRATE = 10, HOLD = 30, BULK = { arrows: 4, bolts: 4 };
 const crate = g => CRATE * (BULK[g] || 1);
 const holdOf = g => HOLD * (BULK[g] || 1);
 const ARMS = GOOD_GROUPS[2][1];
@@ -120,6 +170,14 @@ export class Town {
     this.nextMeal = 30;
     this.nextArrival = 20;
     this.hungry = false;
+    // Gold goes to the lord's purse: the realm's treasury on the world map, the village's own here.
+    this.purse = { gold: 0 };
+    this.taxes = 2;
+    this.mood = 60;
+    this.moodWhy = [];
+    this.grief = 0;
+    this.moodClock = 0;
+    this.leaveClock = 40;
     this.timedRaids = timedRaids;
     this.raid = { next: 300, wave: 0 };
     this.attackers = [];
@@ -165,7 +223,10 @@ export class Town {
     return v;
   }
 
-  get housing() { return KEEP.housing + this.buildings.filter(b => b.state === 'active' && b.B.housing).reduce((n, b) => n + b.B.housing, 0); }
+  get housing() { return KEEP.housing + this.buildings.filter(b => b.state === 'active' && b.B.housing).reduce((n, b) => n + b.B.housing + 3 * ((b.level || 1) - 1), 0); }
+  // Workers a building takes: stores keep one more hauler for each level.
+  jobs(b) { return (b.B.jobs || 0) + (b.B.haul ? (b.level || 1) - 1 : 0); }
+  speed(b) { return SPEED[b.level || 1]; }
   get population() { return this.villagers.length; }
   get idle() { return this.villagers.filter(v => v.state === 'idle' || v.state === 'haul').length; }
   get hauling() { return this.villagers.filter(v => v.task?.kind === 'haul').length; }
@@ -205,6 +266,7 @@ export class Town {
     if (b.state === 'site') return b.B.cost;
     if (b.state !== 'active' || b.paused) return {};
     if (b.kind === 'barracks') return Object.fromEntries(ARMS.map(g => [g, Infinity]));
+    if (b.B.engines) return { wood: 45, planks: 45, string: 12, iron: 8 };
     if (!b.B.recipes) return {};
     const w = {};
     for (const r of this.wantedRecipes(b)) {
@@ -219,7 +281,9 @@ export class Town {
   // Recipes switched on that the village still wants and the workshop has room for.
   wantedRecipes(b) {
     return b.B.recipes.filter((r, i) => !b.off.has(i)
-      && Object.keys(r.out).every(k => this.stock[k] < (r.keep ?? Infinity) && (b.store[k] || 0) < holdOf(k)));
+      && Object.keys(r.out).every(k => this.stock[k] < (r.keep ?? Infinity) && (b.store[k] || 0) < holdOf(k))
+      // a market sells only what is spare above its reserve
+      && (r.above === undefined || Object.entries(r.in).every(([g, n]) => this.free(g) >= r.above + n)));
   }
 
   // What may be carried away from a building. Workshops keep what they need themselves;
@@ -235,6 +299,7 @@ export class Town {
     if (gone(b)) return false;
     if (b.state === 'site' || b.B.storage) return true;
     if (b.kind === 'barracks') return ARMS.includes(g);
+    if (b.B.engines) return g in this.wants(b);
     return !!b.B.recipes?.some(r => g in r.in || g in r.out);
   }
 
@@ -394,7 +459,7 @@ export class Town {
     for (const t of this.nodes.tree) if (t.standing && Math.hypot(t.x - x, t.z - z) < B.radius + 2) this.trees.fell(t);
     const b = { id: this.buildings.length + 1, kind, B, x, z, angle: Math.atan2(-x, -z), state: 'site', progress: 0,
       hp: B.hp, workers: [], builders: [], paused: false, recipe: null, timer: 0, status: 'Waiting for builders',
-      off: new Set(), turn: 0, store: {}, incoming: {}, reserved: {} };
+      off: new Set((B.recipes || []).flatMap((r, i) => r.off ? [i] : [])), turn: 0, store: {}, incoming: {}, reserved: {} };
     if (ready) Object.assign(b, { state: 'active', progress: 1, status: B.jobs ? 'Waiting for workers' : '' });
     this.buildings.push(b);
     this.stockCache = null;
@@ -491,12 +556,133 @@ export class Town {
       if (!s.alive || s.gone || !s.villager) continue;
       const v = s.villager;
       Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null });
-      for (const [g, n] of Object.entries(KITS[r.levy].kit)) this.put(rack, g, n);
+      if (KITS[r.levy]) for (const [g, n] of Object.entries(KITS[r.levy].kit)) this.put(rack, g, n);
     }
     this.battle.disband(r);
     this.event(`${r.name} went home to work.`);
     return true;
   }
+
+  // ---- engines, hired men and upgrades ----
+
+  // An engine is built from the materials in this workshop and crewed by villagers.
+  engineCheck(key, works) {
+    const E = ENGINES[key], have = g => Math.floor(works.store[g] || 0);
+    const short = Object.entries(E.cost).filter(([g, n]) => have(g) < n).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);
+    const free = this.villagers.filter(v => v.state !== 'soldier').length;
+    const reason = short.length ? `Needs ${short.join(' and ')}` : free < E.crew ? `Needs ${E.crew} villagers as crew` : null;
+    return { ok: !reason, reason };
+  }
+
+  buildEngine(key, works) {
+    const check = this.engineCheck(key, works);
+    if (!check.ok) return check;
+    const E = ENGINES[key];
+    const rank = v => (v.state === 'idle' ? 0 : v.job && v.job.B.gather ? 1 : 2) * 1000 + dist(v, works);
+    const men = this.villagers.filter(v => v.state !== 'soldier').sort((a, b) => rank(a) - rank(b)).slice(0, E.crew);
+    for (const [g, n] of Object.entries(E.cost)) this.put(works, g, -n);
+    const out = Math.atan2(works.x, works.z);
+    const fx = works.x + Math.sin(out) * 16, fz = works.z + Math.cos(out) * 16;
+    for (const v of men) { this.release(v); v.hidden = false; }
+    const r = this.battle.addRegiment(0, key, fx, fz, out, { count: men.length, from: men, name: E.name });
+    r.levy = key;
+    r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
+    audio.play('drums', works, this.battle); // audio: an engine rolled out
+    this.event(`A ${E.name.toLowerCase()} is ready, with ${men.length} villagers to work it.`);
+    return { ok: true, reg: r };
+  }
+
+  hireCheck(key) {
+    const H = HIRES.find(h => h.key === key);
+    return this.purse.gold >= H.gold ? { ok: true } : { ok: false, reason: `Needs ${H.gold} gold (have ${Math.floor(this.purse.gold)})` };
+  }
+
+  // Hired men march in from the road and stand by the keep. They cost no villagers.
+  hire(key) {
+    const check = this.hireCheck(key);
+    if (!check.ok) return check;
+    const H = HIRES.find(h => h.key === key);
+    this.purse.gold -= H.gold;
+    const a = this.rand() * Math.PI * 2;
+    const r = this.battle.addRegiment(0, key, Math.sin(a) * 30, Math.cos(a) * 30, a + Math.PI, { count: H.count, name: H.name });
+    if (TYPES[key].retinue) r.retinue = true;
+    audio.play('drums', this.keep, this.battle); // audio
+    this.event(`${H.count} ${H.name.toLowerCase()} have taken your gold.`);
+    return { ok: true, reg: r };
+  }
+
+  upgradeCheck(b) {
+    const U = UPGRADES[(b.level || 1) + 1];
+    if (!U || b.state !== 'active') return { ok: false, reason: 'Fully upgraded', done: true };
+    if (this.population < U.pop) return { ok: false, reason: `Needs a village of ${U.pop} people` };
+    if (this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
+    if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
+    return { ok: true, U };
+  }
+
+  upgrade(b) {
+    const check = this.upgradeCheck(b);
+    if (!check.ok) return check;
+    this.purse.gold -= check.U.gold;
+    this.spend(check.U.cost);
+    b.level = (b.level || 1) + 1;
+    this.event(`The ${b.B.name.toLowerCase()} is now level ${b.level}.`);
+    return { ok: true };
+  }
+
+  // Takes goods out of the stores first, then from anywhere they lie.
+  spend(cost) {
+    for (const [g, n] of Object.entries(cost)) {
+      let left = n;
+      for (const b of [...this.stores(), ...this.holders()]) {
+        const k = Math.min(left, b.store[g] || 0);
+        if (k > 0) { this.put(b, g, -k); left -= k; }
+        if (left <= 0) break;
+      }
+    }
+  }
+
+  // ---- mood ----
+  // Each village has a mood from its food, its comforts, its taxes and its losses. Mood
+  // draws newcomers (or drives families away) and sets how much tax comes in.
+  updateMood(dt) {
+    this.grief *= Math.exp(-dt / 240);
+    this.moodClock -= dt;
+    if (this.moodClock <= 0) {
+      this.moodClock = 3;
+      const why = [];
+      const add = (n, text) => { if (n) why.push([n, text]); };
+      const meals = this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0);
+      add(this.hungry ? -30 : meals >= this.population * 2 ? 8 : 0, this.hungry ? 'going hungry' : 'full larders');
+      add(this.hadBread ? 8 : 0, 'bread on the table');
+      const comfort = {};
+      for (const b of this.buildings) if (b.state === 'active' && b.B.mood) (comfort[b.kind] = comfort[b.kind] || []).push(b.B.mood * (1 + 0.25 * ((b.level || 1) - 1)));
+      for (const [k, list] of Object.entries(comfort)) add(Math.round(list.sort((a, b) => b - a).slice(0, 3).reduce((n, m, i) => n + m / (i + 1), 0)), BUILDINGS[k].name.toLowerCase());
+      add(TAXES[this.taxes].mood, TAXES[this.taxes].name.toLowerCase());
+      add(this.population >= this.housing ? -5 : 0, 'crowded homes');
+      add(-Math.round(Math.min(35, this.grief)), 'mourning the dead');
+      add(this.underAttack ? -10 : 0, 'under attack');
+      this.moodWhy = why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
+      this.moodWant = Math.max(0, Math.min(100, 50 + why.reduce((n, [k]) => n + k, 0)));
+    }
+    this.mood += Math.sign(this.moodWant - this.mood) * Math.min(Math.abs(this.moodWant - this.mood), dt * 0.5);
+    // Miserable villages lose families to kinder lords.
+    if (this.mood < 20 && !this.underAttack) {
+      this.leaveClock -= dt;
+      if (this.leaveClock <= 0) {
+        this.leaveClock = 40;
+        const v = this.villagers.find(o => o.state === 'idle') || this.villagers.find(o => o.state !== 'soldier' && o.state !== 'shelter');
+        if (v && this.population > 6) {
+          this.release(v);
+          this.villagers = this.villagers.filter(o => o !== v);
+          this.event('A family has packed up and left for kinder lords.', 1);
+        }
+      }
+    }
+  }
+
+  // Gold for each villager each second at this tax rate, weighed by the mood.
+  get taxRate() { return 0.012 * TAXES[this.taxes].gold * (0.6 + this.mood / 125); }
 
   // ---- simulation ----
 
@@ -539,7 +725,7 @@ export class Town {
   updateVillager(v, dt) {
     if (v.state === 'soldier') {
       // A levy who falls in battle is a villager lost.
-      if (!v.soldier.alive) { v.dead = true; this.release(v); }
+      if (!v.soldier.alive) { v.dead = true; this.release(v); this.grief += 3; }
       return;
     }
     v.v = 0;
@@ -608,7 +794,7 @@ export class Town {
     }
     if (best) { best.builders.push(v); v.state = 'build'; v.job = null; v.site = best; return; }
     for (const b of [this.keep, ...this.buildings]) {
-      if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= b.B.jobs) continue;
+      if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= this.jobs(b)) continue;
       const d = dist(v, b);
       if (d < bd) { bd = d; best = b; }
     }
@@ -650,7 +836,7 @@ export class Town {
       b.builders = [];
       for (const o of crew) { o.state = 'idle'; o.site = null; }
       // Builders stay on as the first workers.
-      for (const o of crew) if (b.B.jobs && b.workers.length < b.B.jobs) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
+      for (const o of crew) if (b.B.jobs && b.workers.length < this.jobs(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
       audio.play('built', b, this.battle); // audio
     }
@@ -669,7 +855,7 @@ export class Town {
     if (t.phase === 'out') {
       if (!t.spot) t.spot = this.pickSpot(b);
       if (!t.spot) { b.status = 'Nothing left to gather'; return; }
-      if (this.walk(v, t.spot.x, t.spot.z, dt)) { t.phase = 'gather'; t.timer = g.time; }
+      if (this.walk(v, t.spot.x, t.spot.z, dt)) { t.phase = 'gather'; t.timer = g.time / this.speed(b); }
     } else if (t.phase === 'gather') {
       t.timer -= dt;
       v.phase += dt * 5;
@@ -711,6 +897,7 @@ export class Town {
       audio.tick('hammer', b, dt, 0.6, this.battle); // audio
       if (b.timer <= 0) {
         for (const [k, n] of Object.entries(b.recipe.out)) this.put(b, k, n);
+        if (b.recipe.gold) { this.purse.gold += b.recipe.gold; this.earned = (this.earned || 0) + b.recipe.gold; }
         b.recipe = null;
       }
       return;
@@ -728,8 +915,8 @@ export class Town {
     if (ready) {
       for (const [k, n] of Object.entries(ready.in)) this.put(b, k, -n);
       b.recipe = ready;
-      b.timer = ready.time;
-      b.status = `Making ${GOODS[Object.keys(ready.out)[0]].name.toLowerCase()}`;
+      b.timer = ready.time / this.speed(b);
+      b.status = ready.gold ? `Selling ${GOODS[Object.keys(ready.in)[0]].name.toLowerCase()}` : `Making ${GOODS[Object.keys(ready.out)[0]].name.toLowerCase()}`;
       return;
     }
     if (b.off.size === list.length) { b.status = 'Nothing switched on'; return; }
@@ -745,6 +932,7 @@ export class Town {
   }
 
   updateBuilding(b, dt) {
+    if (b.B.engines) b.status = Object.keys(ENGINES).some(k => this.engineCheck(k, b).ok) ? 'Ready to build an engine' : 'Waiting for materials';
     if (!b.B.jobs) return;
     if (b.paused) b.status = 'Paused';
     else if (!b.workers.length) b.status = 'No workers';
@@ -765,19 +953,23 @@ export class Town {
     if (this.nextMeal <= 0) {
       this.nextMeal = 30;
       // Meals come out of the keep and storehouses, not food still lying at the farms.
+      // Bread goes first: a loaf is a meal, and it goes further than the grain it came from.
       let need = Math.ceil(this.population / 2);
       const stores = this.stores();
-      this.hungry = stores.reduce((n, b) => n + (b.store.food || 0), 0) < need;
-      for (const b of stores) {
-        const n = Math.min(need, b.store.food || 0);
-        if (n > 0) { this.put(b, 'food', -n); need -= n; }
+      this.hungry = stores.reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0) < need;
+      this.hadBread = stores.some(b => (b.store.bread || 0) >= 1);
+      for (const g of ['bread', 'food']) for (const b of stores) {
+        const n = Math.min(need, b.store[g] || 0);
+        if (n > 0) { this.put(b, g, -n); need -= n; }
       }
       if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
     }
+    this.updateMood(dt);
     this.nextArrival -= dt;
     if (this.nextArrival <= 0) {
-      this.nextArrival = 18;
-      if (!this.hungry && this.population < this.housing && !this.underAttack) {
+      // A happy village draws newcomers faster; a sullen one draws nobody.
+      this.nextArrival = this.mood >= 75 ? 11 : 18;
+      if (!this.hungry && this.mood >= 35 && this.population < this.housing && !this.underAttack) {
         const a = this.rand() * Math.PI * 2;
         const v = this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120);
         v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
@@ -860,6 +1052,7 @@ export class Town {
     }
     t.state = 'ruined';
     t.status = this.hostile ? 'Burned by your men' : 'Burned by raiders';
+    if (!this.hostile) this.grief += 4;
     if (g) g.burned++;
     for (const v of [...t.workers, ...t.builders]) this.release(v);
     // Whatever was kept there is carried off or lost in the fire.

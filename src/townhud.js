@@ -1,13 +1,15 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, KITS, listCost } from './economy.js';
+import { GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost } from './economy.js';
 import { ico } from './icons.js';
 
 const gi = g => ico(GOODS[g].icon, GOODS[g].color);
 // Writes HTML only when it changed, so icons are not rebuilt every frame.
 const put = (el, html) => { if (el.dataset.was !== html) { el.dataset.was = html; el.innerHTML = html; } };
 
+const goldIco = () => ico('gold', '#e8c45a');
+const moodWord = m => m >= 80 ? 'Joyful' : m >= 62 ? 'Content' : m >= 45 ? 'Settled' : m >= 30 ? 'Uneasy' : m >= 18 ? 'Unhappy' : 'Miserable';
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export class TownHud {
@@ -25,7 +27,11 @@ export class TownHud {
       this.buildStock();
       this.buildMenu();
       // Clicking the alarm takes you to the attackers.
-      this.stockEl.onclick = e => { if (e.target.closest('.raid.now')) this.hooks.findAttackers?.(); };
+      this.stockEl.onclick = e => {
+        if (e.target.closest('.raid.now')) this.hooks.findAttackers?.();
+        const tax = e.target.closest('[data-tax]');
+        if (tax) town.taxes = Math.max(0, Math.min(TAXES.length - 1, town.taxes + +tax.dataset.tax));
+      };
     }
     this.buildEl.hidden = !!town.hostile;
     // onclick rather than addEventListener: a new village's panels replace the old handlers.
@@ -61,6 +67,8 @@ export class TownHud {
   buildStock() {
     this.stockEl.innerHTML = `
       <div class="people"><span data-s="pop"></span><span data-s="idle"></span></div>
+      <div class="people mood"><span data-s="mood"></span><span class="tax"><button data-tax="-1" title="Lower taxes">−</button><span data-s="tax"></span><button data-tax="1" title="Raise taxes">+</button></span></div>
+      <div class="people"><span data-s="gold"></span></div>
       <div class="warn" data-s="hunger"></div>
       <div class="raid" data-s="raid"></div>
       ${GOOD_GROUPS.map(([label, goods]) => `
@@ -100,7 +108,12 @@ export class TownHud {
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
     set('pop', `${ico('people')} ${t.population} / ${t.housing}`);
     set('idle', `${t.hauling} carrying · ${t.idle} idle`);
-    set('hunger', t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
+    const m = Math.round(t.mood);
+    set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
+    this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
+    set('tax', TAXES[t.taxes].name);
+    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · ${(t.population * t.taxRate * 60).toFixed(0)} a minute in taxes`);
+    set('hunger', t.mood < 20 ? 'The village is miserable: families are leaving.' : t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
 
@@ -117,7 +130,7 @@ export class TownHud {
 
   updateInfo(selected, regs) {
     const reg = !selected && regs.length === 1 ? regs[0] : null;
-    const key = selected ? `b${selected.id || 'keep'}:${selected.state}` : reg ? `r${reg.id}` : '';
+    const key = selected ? `b${selected.id || 'keep'}:${selected.state}:${selected.level || 1}` : reg ? `r${reg.id}` : '';
     this.selected = selected;
     this.reg = reg;
     if (key !== this.infoKey) {
@@ -132,6 +145,8 @@ export class TownHud {
       el.disabled = !ok;
       el.title = title || '';
       if (el.dataset.act.startsWith('raise:')) el.querySelector('small').textContent = title || `${this.town.levyCheck(el.dataset.act.slice(6), selected).n} men`;
+      if (el.dataset.act === 'upgrade') { const c = this.town.upgradeCheck(selected); el.hidden = !!c.done; el.querySelector('small').textContent = c.ok ? 'ready' : c.reason; }
+      if (el.dataset.act.startsWith('engine:') || el.dataset.act.startsWith('hire:')) el.querySelector('small').textContent = title || 'ready';
       if (el.dataset.act === 'pause') el.textContent = selected.paused ? 'Resume work' : 'Pause work';
       if (el.dataset.act.startsWith('recipe:')) {
         const off = selected.off.has(+el.dataset.act.slice(7));
@@ -143,7 +158,7 @@ export class TownHud {
 
   buildingHtml(b) {
     const B = b.B;
-    const rows = [`<h3>${ico(B.icon)} ${B.name}</h3>`, `<p class="status" data-f="status"></p>`];
+    const rows = [`<h3>${ico(B.icon)} ${B.name}${(b.level || 1) > 1 ? ` <small>level ${b.level}</small>` : ''}</h3>`, `<p class="status" data-f="status"></p>`];
     if (this.town.hostile) {
       rows.push(`<p data-f="hp"></p>`);
       if (b.kind === 'keep') rows.push(`<p class="note">Their keep. Beat or rout the men defending it and the place is yours.</p>`);
@@ -152,7 +167,11 @@ export class TownHud {
     }
     if (b.kind === 'keep') {
       rows.push(`<p data-f="workers"></p><p data-f="hp"></p><p class="store" data-f="store"></p>`,
-        `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`);
+        `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`,
+        `<h4>The village's mood</h4><p class="note" data-f="mood"></p>`,
+        `<button data-act="governor" class="wide"><span data-f="gov"></span><small>builds houses, farms and the like while you are away</small></button>`,
+        `<h4>Hire men</h4><p class="note">Paid in gold from your treasury. They cost no villagers.</p>`,
+        ...HIRES.map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}</span><small></small></button>`));
       return rows.join('');
     }
     if (b.state === 'site') rows.push(`<p data-f="progress"></p><p data-f="materials"></p>`);
@@ -162,15 +181,25 @@ export class TownHud {
     if (B.storage) rows.push(`<p class="note">Haulers carry goods from here, and from the buildings nearby, to wherever they are needed. Build it close to your workshops to save them walking.</p>`);
     if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip, and stacks it here until haulers take it away.</p>`);
     if (B.recipes) {
-      rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${this.goodsList(r.in)} → ${this.goodsList(r.out)}</span><small></small></button>`).join('')}</div>`);
-      if (B.recipes.length > 1) rows.push(`<p class="note">Click to switch what this workshop makes. With several on, it takes turns. Build a second one to make both at full speed.</p>`);
+      rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${this.goodsList(r.in)} → ${r.gold ? `${r.gold} ${goldIco()}` : this.goodsList(r.out)}</span><small></small></button>`).join('')}</div>`);
+      if (b.kind === 'market') rows.push(`<p class="note">Sells only what is spare: wood above ${B.recipes[0].above}, stone above ${B.recipes[1].above}, food above ${B.recipes[2].above}, and so on. The gold goes to your treasury.</p>`);
+      else if (B.recipes.length > 1) rows.push(`<p class="note">Click to switch what this workshop makes. With several on, it takes turns. Build a second one to make both at full speed.</p>`);
     }
-    if (B.housing) rows.push(`<p class="note">Room for ${B.housing} more villagers.</p>`);
+    if (B.housing) rows.push(`<p class="note">Room for ${B.housing + 3 * ((b.level || 1) - 1)} more villagers.</p>`);
+    if (B.mood) rows.push(`<p class="note">Lifts the village's mood by ${B.mood}.</p>`);
+    if (B.engines && b.state === 'active') {
+      rows.push(`<h4>Build an engine</h4><p class="note">Materials must be carried here first. Villagers go with it as crew.</p>`);
+      for (const [k, E] of Object.entries(ENGINES)) rows.push(`<button data-act="engine:${k}" class="wide"><span>${E.name} · ${E.crew} crew</span><small></small></button><p class="kit">needs ${this.goodsList(E.cost)} in this workshop</p>`);
+    }
     if (b.kind === 'barracks' && b.state === 'active') {
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
       for (const [k, K] of Object.entries(KITS)) {
         rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks</p>`);
       }
+    }
+    if (b.state === 'active' && UPGRADES[2] && b.kind !== 'well') {
+      const U = UPGRADES[(b.level || 1) + 1];
+      if (U) rows.push(`<button data-act="upgrade" class="wide"><span>Upgrade to level ${(b.level || 1) + 1} · ${U.gold} ${goldIco()} + ${this.goodsList(U.cost)}</span><small></small></button>`);
     }
     const buttons = [];
     if (B.jobs && b.state === 'active') buttons.push(`<button data-act="pause"></button>`);
@@ -194,7 +223,9 @@ export class TownHud {
     if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.population} villagers · ${b.status.toLowerCase()}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
-    if (f === 'workers') return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} / ${b.B.jobs}`;
+    if (f === 'gov') return this.town.governor === false ? 'Governor: off' : 'Governor: on';
+    if (f === 'workers') return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} / ${this.town.jobs(b)}`;
+    if (f === 'mood') return `${moodWord(this.town.mood)} (${Math.round(this.town.mood)}): ${this.town.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join(', ') || 'nothing much either way'}. A happy village grows faster and pays more tax; a miserable one loses families.`;
     if (f === 'store') {
       const held = Object.entries(b.store).filter(([, n]) => n >= 1);
       return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${gi(g)}`).join(' · ')}` : 'Holds nothing';
@@ -209,6 +240,9 @@ export class TownHud {
     const t = this.town;
     if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6), this.selected); return [c.ok, c.reason]; }
     if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
+    if (act === 'upgrade') { const c = t.upgradeCheck(this.selected); return [c.ok, c.reason]; }
+    if (act.startsWith('engine:')) { const c = t.engineCheck(act.slice(7), this.selected); return [c.ok, c.reason]; }
+    if (act.startsWith('hire:')) { const c = t.hireCheck(act.slice(5)); return [c.ok, c.reason]; }
     return [true];
   }
 
@@ -223,6 +257,13 @@ export class TownHud {
     if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
     if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
     if (act === 'disband' && t.disband(this.reg)) this.hooks.deselect();
+    if (act === 'upgrade') { const r = t.upgrade(this.selected); if (!r.ok) this.flash(r.reason); }
+    if (act === 'governor') t.governor = t.governor === false;
+    if (act.startsWith('engine:') || act.startsWith('hire:')) {
+      const res = act.startsWith('engine:') ? t.buildEngine(act.slice(7), this.selected) : t.hire(act.slice(5));
+      if (!res.ok) this.flash(res.reason);
+      else this.hooks.selectRegiment(res.reg);
+    }
     if (act.startsWith('raise:')) {
       const res = t.raise(act.slice(6), this.selected);
       if (!res.ok) this.flash(res.reason);

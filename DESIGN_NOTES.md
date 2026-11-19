@@ -112,6 +112,16 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - **Part 2**: once crowned, the screen shatters, the old wall to the north falls, and the Norrhold host pours through in growing tides. The lords kneel as vassals; Norrhold can't be bargained with.
 - **Food supply** (`src/world/supply.js`): a man eats one food every two minutes. Armies set out with up to four minutes of food, loaded from the village stores, and refill near their own (or a vassal's or ally's) places. Out of food, men desert. A third of the fallen in a fight are wounded: they follow the army and rejoin when it rests fed at home. From an army's panel you can send a wagon of food from your nearest village; it drives straight to the army, and enemy armies that meet it take its food.
 
+**Villages grow up** (Realm workstream), 2026-11-19:
+- **Every unit can be raised.** Barracks call up spearmen, archers, swordsmen, crossbowmen, men-at-arms, light and heavy cavalry and knights, each from its kit. New chains feed them: hunters bring hides, a tanner makes leather, an armourer makes mail (and plate, switched off by default), a stable breeds horses on grain, and the weaponsmith adds crossbows, bolts and lances (off until you switch them on).
+- **Siege workshop**: materials carried there build a ladder team, a ram, a mangonel or a trebuchet, crewed by villagers.
+- **Hired men** at the keep, paid in gold from your treasury: sellswords, hired crossbows and a household guard. They cost no villagers.
+- **Bread**: a mill grinds grain into flour and a bakery bakes it; a loaf is a meal, so the same grain feeds more people, and bread on the table lifts the mood.
+- **Mood** from 0 to 100: full larders, bread, a well, a market and a chapel raise it; hunger, crowding, high taxes, the dead and being attacked lower it. Hover the mood in the stock panel, or open the keep, for the reasons. A happy village draws newcomers faster and pays more tax; below 35 nobody new settles, and below 20 families leave.
+- **Taxes** are set per village with − and + in the stock panel, from none to cruel. Gold also comes from a **market**, which sells only what is spare above a reserve (wood, stone and food on; planks, iron and swords off until you switch them on).
+- **Upgrades**: any building can be raised to level 2 (40 gold, a village of 30) and level 3 (120 gold, a village of 60). Each level works faster, houses hold three more, and stores keep another hauler.
+- **The governor** (`src/world/governor.js`) builds in any village of yours you are not watching: farms when food runs short, houses when it is full, woodcutters, a storehouse, then a well, market, chapel, mill and bakery. One building at a time from the village's own goods; it never raises men or spends gold. Switch it off at the keep.
+
 **Village** (`town.html`), 2026-11-18, the first point of interest:
 - A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
 - Free building placement with a green or red ghost. Gatherers must be near their resource, and a ring shows their reach. Trees are cleared where you build.
