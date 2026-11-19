@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTS Credits</title>
+<style>
+  :root { --ink: #efe6d2; --dim: #b8ab90; --gold: #ffd970; --edge: rgba(224, 194, 122, 0.35); }
+  body { margin: 0; background: #1a1612; color: var(--ink); font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { width: min(980px, calc(100vw - 32px)); margin: 32px auto 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; color: var(--gold); margin: 28px 0 8px; }
+  h3 { font-size: 16px; margin: 20px 0 6px; }
+  p { color: var(--dim); margin: 0 0 10px; }
+  a { color: var(--gold); }
+  .back { display: inline-block; margin-bottom: 18px; }
+  .wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--edge); vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; }
+  code { font-size: 12.5px; color: var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← Back to the menu</a>
+  <h1>Credits</h1>
+  <p>Everything in this game that was not made for it is free to use. Thank you to everyone below.</p>
+
+  <h2>3D models</h2>
+  <p>All models are by <a href="https://quaternius.com">Quaternius</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0</a> (public domain). Credit is not required, but given here gladly.</p>
+  <div class="wrap"><table>
+    <tr><th>Pack</th><th>Used for</th><th>Licence</th></tr>
+    <tr><td>Ultimate Modular Characters</td><td>Soldiers and villagers</td><td>CC0</td></tr>
+    <tr><td>Knight and Medieval Weapons packs (2018)</td><td>Helmets, shoulder pads, weapons and shields</td><td>CC0</td></tr>
+    <tr><td>Ultimate Fantasy RTS</td><td>The keep, houses, castles, farms, mines, barracks and other buildings</td><td>CC0</td></tr>
+    <tr><td>Medieval Village Pack</td><td>Sawmill (carpenter) and blacksmith (smelter, weaponsmith)</td><td>CC0</td></tr>
+  </table></div>
+
+  <div id="audio"><h2>Music and sound</h2><p>Loading the audio credits…</p></div>
+
+  <h2>Code</h2>
+  <p><a href="https://threejs.org">three.js</a>, MIT licence.</p>
+</main>
+<script type="module">
+// The audio credits live in assets/audio/CREDITS.md; this draws its headings, paragraphs
+// and tables.
+const el = document.getElementById('audio');
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const inline = s => esc(s)
+  .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
+  .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  .replace(/`([^`]+)`/g, '<code>$1</code>');
+const cells = line => line.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+
+try {
+  const md = await (await fetch('assets/audio/CREDITS.md')).text();
+  const lines = md.split('\n');
+  let html = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^#\s/.test(line)) html += `<h2>${inline(line.replace(/^#\s+/, ''))}</h2>`;
+    else if (/^##\s/.test(line)) html += `<h3>${inline(line.replace(/^##\s+/, ''))}</h3>`;
+    else if (line.trim().startsWith('|')) {
+      const head = cells(line);
+      i++;                                  // the --- row
+      let rows = '';
+      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|')) rows += `<tr>${cells(lines[++i]).map(c => `<td>${inline(c)}</td>`).join('')}</tr>`;
+      html += `<div class="wrap"><table><tr>${head.map(c => `<th>${inline(c)}</th>`).join('')}</tr>${rows}</table></div>`;
+    } else if (line.trim()) html += `<p>${inline(line)}</p>`;
+  }
+  el.innerHTML = html;
+} catch {
+  el.innerHTML = '<h2>Music and sound</h2><p>See <a href="assets/audio/CREDITS.md">assets/audio/CREDITS.md</a>.</p>';
+}
+</script>
+</body>
+</html>
