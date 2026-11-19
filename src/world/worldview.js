@@ -9,9 +9,8 @@ import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
 
+// The map's half-width follows world.half, which grows when the north opens in Part 2.
 export const WORLD_HALF = REALM_RADIUS + 140;
-const EXTENT = WORLD_HALF + 140;      // woods reach this far
-const GROUND = WORLD_HALF * 2.2;      // the ground runs on past them so the edge never shows
 
 const nearSegment = (x, z, a, b) => {
   const dx = b.x - a.x, dz = b.z - a.z, L = dx * dx + dz * dz;
@@ -56,9 +55,12 @@ export class WorldView {
     this.scene = stage.newScene({ fog: [1300, 3000] });
     this.heightAt = makeHeight(world.seed, world.pois.map(p => ({ x: p.x, z: p.z })));
     const h = this.heightAt;
-    drawGround(this.scene, h, world.seed, { extent: GROUND, seg: 320 });
+    this.half = world.half || WORLD_HALF;
+    const EXTENT = this.half + 140;       // woods reach this far
+    const GROUND = this.half * 2.2;       // the ground runs on past them so the edge never shows
+    drawGround(this.scene, h, world.seed, { extent: GROUND, seg: Math.round(320 * Math.min(1.6, this.half / WORLD_HALF)) });
     const trees = plantTrees(world.seed, (x, z) => world.pois.some(p => Math.hypot(x - p.x, z - p.z) < (p.kind === 'crown' ? 175 : 80))
-      || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12), 0.52, 6500, EXTENT);
+      || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12), 0.52, Math.round(6500 * (EXTENT / (WORLD_HALF + 140)) ** 2), EXTENT);
     for (const t of trees.spots) { t.k *= 1.8; t.tall *= 1.8; }
     drawTrees(this.scene, h, trees);
     for (const r of world.roads) this.scene.add(this.road(r.a, r.b));
@@ -381,7 +383,7 @@ export class WorldView {
   makeFog() {
     const N = 256, cv = document.createElement('canvas');
     cv.width = cv.height = N;
-    const size = WORLD_HALF * 2.4, seg = 150;
+    const size = this.half * 2.4, seg = Math.round(150 * Math.min(1.6, this.half / WORLD_HALF));
     const geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;

@@ -26,6 +26,11 @@ export const HOUSES = [
     taunts: ['Meet me in the open field, if you dare.', 'My knights are bored. You will do.', 'Hide behind your walls, then. I will ride around them.'] },
 ];
 export const PLAYER_HOUSE = { id: 'player', name: 'Your house', short: 'Your', lord: 'You', trait: 'player', color: '#3d6fd6', blurb: '' };
+// Part 2: the host that comes down from the north once you are crowned. No terms, no
+// marriages: it raids, it burns, and it keeps coming while it holds the pass.
+export const INVADER = { id: 'norrhold', name: 'The Norrhold Host', short: 'Norrhold', lord: 'King Askar of Norrhold', trait: 'invader', color: '#9cc3dc',
+  blurb: 'From beyond the old wall. Raids without end, and hosts in their thousands.', invader: true,
+  taunts: ['Your wall was old. Your kingdom is older. Both fall.', 'We do not take tribute. We take everything.', 'Count your men, little king. We stopped counting ours.'] };
 export const BANDITS = { id: 'bandits', name: 'Bandits', short: 'Bandit', lord: 'Bandit chiefs', trait: 'bandit', color: '#5a5048', blurb: '', bandit: true };
 
 // What each kind of place is good for, on the map and as a village.
@@ -37,6 +42,8 @@ export const KINDS = {
   monastery: { name: 'Abbey', icon: 'monastery', about: 'Monks, granaries and learning: people grow quickly and stay content.', pop: 1.2, gold: 1.2, arms: 0.5, defence: 1 },
   market: { name: 'Market town', icon: 'market', about: 'Trade and gold.', pop: 1.1, gold: 2, arms: 0.8, defence: 1 },
   crown: { name: 'Royal seat', icon: 'crown', about: 'The old royal city. Hold it, and most of the realm, to be crowned.', pop: 1.5, gold: 2, arms: 1.2, defence: 1.8, garrison: 2 },
+  pass: { name: 'Mountain gate', icon: 'pass', about: 'Where the northern host pours through. While they hold it, more keep coming.', pop: 0.5, gold: 0.4, arms: 2, defence: 2, garrison: 3 },
+  warcamp: { name: 'War camp', icon: 'warcamp', about: 'A great camp of the northern host: stockades, tents and fighting men.', pop: 0.4, gold: 0.3, arms: 2.5, defence: 1.3, garrison: 2 },
   camp: { name: 'Bandit camp', icon: 'camp', about: 'Outlaws who raid the roads and villages nearby.', pop: 0.3, gold: 0.3, arms: 0.5, defence: 0.9 },
 };
 
@@ -155,4 +162,59 @@ function shuffle(list, rand) {
   const a = [...list];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
+}
+
+// ---- beyond the wall ----
+// The old wall runs along the north of the realm. Past it lie a dozen places of the north:
+// the mountain gate farthest out, war camps nearest the wall, and northern villages
+// between. Made at the start so the land is fixed; only opened in Part 2.
+const NPRE = ['Hrim', 'Skar', 'Vald', 'Grim', 'Ulf', 'Thrym', 'Kol', 'Drak', 'Isen', 'Frost', 'Hald', 'Ror', 'Sval', 'Ygg', 'Brun', 'Eld'];
+const NSUF = ['heim', 'vik', 'gard', 'stad', 'holt', 'fell', 'mark', 'nes', 'by', 'havn'];
+export const WALL_RADIUS = REALM_RADIUS + 70;
+export const WALL_SPAN = 1.05;   // radians either side of north
+
+export function generateBeyond(seed, realmPlaces) {
+  const rand = rng(seed + 4111);
+  const pts = [];
+  for (let tries = 0; tries < 8000 && pts.length < 12; tries++) {
+    const a = Math.PI + (rand() * 2 - 1) * 0.85, r = WALL_RADIUS + 110 + rand() * 470;
+    const p = { x: Math.sin(a) * r, z: Math.cos(a) * r };
+    if (pts.every(q => dist(p, q) > 165)) pts.push(p);
+  }
+  const places = pts.map((p, i) => ({ id: `n${i}`, x: Math.round(p.x), z: Math.round(p.z), kind: 'village', owner: null, links: [], beyond: true }));
+  const roads = [];
+  const join = (a, b) => { if (!a.links.includes(b)) { a.links.push(b); b.links.push(a); roads.push({ a, b }); } };
+  for (let i = 0; i < places.length; i++) {
+    for (let j = i + 1; j < places.length; j++) {
+      const d = dist(places[i], places[j]);
+      if (!places.some((k, n) => n !== i && n !== j && Math.max(dist(k, places[i]), dist(k, places[j])) < d)) join(places[i], places[j]);
+    }
+  }
+  // The gate is the farthest place; the three nearest the wall are war camps.
+  const out = p => Math.hypot(p.x, p.z);
+  const byOut = [...places].sort((p, q) => out(q) - out(p));
+  byOut[0].kind = 'pass';
+  const near = [...places].sort((p, q) => out(p) - out(q));
+  for (const p of near.slice(0, 3)) p.kind = 'warcamp';
+  const deck = ['village', 'village', 'village', 'mine', 'castle', 'market'];
+  for (const p of places) if (p.kind === 'village') p.kind = deck[Math.floor(rand() * deck.length)];
+  const used = new Set();
+  const name = () => { for (;;) { const n = NPRE[Math.floor(rand() * NPRE.length)] + NSUF[Math.floor(rand() * NSUF.length)]; if (!used.has(n)) { used.add(n); return n; } } };
+  for (const p of places) {
+    const b = name();
+    p.name = p.kind === 'pass' ? `The Gate of ${b}` : p.kind === 'warcamp' ? `${b} War Camp` : p.kind === 'castle' ? `${b} Hold` : p.kind === 'market' ? `${b} Market` : b;
+  }
+  // Breaches: each war camp's road through the wall to the nearest place of the realm.
+  const breaches = [];
+  for (const c of near.slice(0, 3)) {
+    const to = realmPlaces.filter(q => q.z < 0).sort((p, q) => dist(p, c) - dist(q, c))[0];
+    if (!to) continue;
+    breaches.push({ from: c, to });
+  }
+  const wall = [];
+  for (let i = 0; i <= 40; i++) {
+    const a = Math.PI - WALL_SPAN + (i / 40) * WALL_SPAN * 2;
+    wall.push({ x: Math.round(Math.sin(a) * WALL_RADIUS), z: Math.round(Math.cos(a) * WALL_RADIUS) });
+  }
+  return { places, roads, breaches, wall, pass: byOut[0] };
 }

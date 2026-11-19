@@ -4,7 +4,7 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, GRACE, power, headcount, takeUnits, dist } from './world.js';
+import { FACTIONS, GRACE, power, headcount, takeUnits, dist, recruit } from './world.js';
 import { protectedFrom } from './diplomacy.js';
 import { TYPES } from '../battle.js';
 
@@ -15,13 +15,19 @@ const BENT = {
   merchant: { probe: 170, raidCd: 125, war: 0.8, need: 1.5 },
   builder:  { probe: 240, raidCd: 160, war: 0.55, need: 1.7 },
   turtler:  { probe: 220, raidCd: 170, war: 0.5, need: 1.8 },
+  invader:  { probe: 50,  raidCd: 32,  war: 2,   need: 1.15 },
 };
+// The north: a fresh host comes through the gate every few minutes while they hold it,
+// each bigger than the last and sized against your own strength.
+const TIDE = { first: 100, every: 200 };
 const THINK = 8;
 
 export function startHouseMinds(w) {
-  for (const h of FACTIONS) {
-    h.ai = { think: 20 + h.index * 3, plan: null, cool: 60, raidCd: 120 + w.rand() * 80, warClock: 240 + w.rand() * 240, warsSince: {} };
-  }
+  for (const h of FACTIONS) startMind(w, h);
+}
+
+export function startMind(w, h) {
+  h.ai = { think: 20 + h.index * 3, plan: null, cool: h.invader ? 20 : 60, raidCd: h.invader ? 40 : 120 + w.rand() * 80, warClock: 240 + w.rand() * 240, warsSince: {}, tide: TIDE.first, wave: 0 };
 }
 
 export function thinkHouses(w, dt) {
@@ -31,6 +37,7 @@ export function thinkHouses(w, dt) {
     if (h.ai.think > 0) continue;
     h.ai.think = THINK;
     if (h.bandit) banditMind(w, h);
+    else if (h.invader) invaderMind(w, h);
     else houseMind(w, h);
   }
 }
@@ -89,6 +96,7 @@ function houseMind(w, h) {
 // between rivals burn out after a while; wars with you last until diplomacy ends them.
 function thinkWars(w, h, B) {
   const ai = h.ai;
+  if (h.invader) return;   // at war with everyone, always
   ai.warClock -= THINK;
   const enemies = FACTIONS.filter(o => !o.bandit && o.alive && o !== h && w.atWar(h.index, o.index));
   for (const o of enemies) {
@@ -129,7 +137,8 @@ function choosePlan(w, h, B) {
     if (!from.place || from.length > 900) continue;
     const def = w.defence(p);
     // Free villages and bandit camps are easy pickings; enemy places are a war aim.
-    const prize = p.kind === 'crown' ? 0.7 : p.seat !== undefined ? 0.8 : 1;
+    let prize = p.kind === 'crown' ? 0.7 : p.seat !== undefined ? 0.8 : 1;
+    if (h.invader && p.owner === 0) prize *= 0.6;   // the north comes for the king first
     options.push({ p, staging: from.place, score: (def + from.length * 0.15) * prize });
   }
   if (!options.length) return null;
@@ -218,6 +227,30 @@ function sendRaid(w, h, plan) {
   if (!w.order(a, mark)) { w.removeArmy(a); for (const u of units) from.garrison.push(u); return; }
   plan.raids++;
   if (foe === 0) w.log(`${h.short} raiders are on the road toward ${mark.name}: about ${headcount(units)} men.`, 1);
+}
+
+function invaderMind(w, h) {
+  const ai = h.ai;
+  const gate = w.pois.find(p => p.kind === 'pass' && p.owner === h.index);
+  if (gate) {
+    ai.tide -= THINK;
+    if (ai.tide <= 0) {
+      ai.wave++;
+      ai.tide = TIDE.every;
+      const n = Math.round(Math.min(2400, Math.max(160, w.strength(0) * (0.3 + 0.07 * ai.wave))));
+      const heavy = TYPES.maa ? 'maa' : 'sword', horse = TYPES.knight && ai.wave >= 4 ? 'knight' : TYPES.lightcav ? 'lightcav' : 'cav';
+      for (const [key, share, name] of [['spear', 0.38, 'Northern spears'], [heavy, 0.27, 'Northern axemen'], ['archer', 0.2, 'Northern bows'], [horse, 0.15, 'Northern riders']]) {
+        let left = Math.round(n * share);
+        while (left > 0) { const k = Math.min(160, left); recruit(gate.garrison, key, k, name); left -= k; }
+      }
+      if (ai.wave === 1 || ai.wave % 3 === 0) {
+        w.log(`Another host comes down through ${gate.name}: some ${n} men.`, 1);
+        w.hooks.herald?.({ house: h, title: ai.wave === 1 ? 'The host comes on' : 'More come through the gate', text: `Some ${n} men march down through ${gate.name}. While the north holds the gate, they will keep coming.` });
+      }
+    }
+  }
+  // The gate sends its men on to the war camps, and the camps make war like any house.
+  houseMind(w, h);
 }
 
 // Outlaws in their camps raid whatever is near, yours included once you are settled.

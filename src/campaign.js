@@ -61,8 +61,11 @@ const world = new World(seed, {
   },
   ended: winner => {
     audio.setMood(winner === 0 ? 'victory' : 'defeat'); // audio
-    showResult(winner === 0 ? 'You are crowned' : 'Defeat',
-      winner === 0 ? 'Kingsbridge is yours and the realm kneels. Long live the king.' : 'Your last village has fallen.', 'New campaign', () => location.reload());
+    if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload());
+    if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload());
+    // Crowned: the end of Part 1. The victory card breaks, and the wall with it.
+    const how = world.victory === 'acclaim' ? 'Every great house names you king.' : 'Kingsbridge is yours and the realm kneels.';
+    showResult('You are crowned', `${how} Long live the king.`, 'Continue', () => crownedThenNorth());
   },
   herald: msg => herald(msg),
   offer: o => asks.push({ kind: 'offer', ...o }),
@@ -82,7 +85,7 @@ function showHerald() {
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500);
 }
 
-const worldView = new WorldView(stage, world);
+let worldView = new WorldView(stage, world);
 const worldControls = new WorldControls(stage.camera, canvas, worldView, {
   togglePause: () => { paused = !paused; },
   setSpeed: s => { speed = s; paused = false; },
@@ -307,6 +310,85 @@ function nextAsk() {
   box.classList.add('open');
 }
 
+// ---- Part 2: the victory shatters ----
+
+// The crowned screen breaks into shards that fall away; behind it, the wall is down and
+// the land beyond it is on the map.
+function crownedThenNorth() {
+  const shot = snapshot('You are crowned', 'Long live the king.');
+  if (mode !== 'world') showWorld();
+  world.beginPart2();
+  const old = worldView;
+  worldView = new WorldView(stage, world);
+  worldControls.view = worldView;
+  stage.use(worldView.scene);
+  stage.dispose(old.scene);
+  const b = world.wall.breaches[0];
+  if (b) Object.assign(worldControls.cam, { x: b.x, z: b.z + 220, dist: 760 });
+  selected = null;
+  panelKey = null;
+  paused = false;
+  shatter(shot);
+}
+
+// This frame of the map with the crowned card drawn over it, as an image.
+function snapshot(title, text) {
+  stage.renderer.render(stage.current(), stage.camera);
+  const src = stage.renderer.domElement, c = document.createElement('canvas');
+  c.width = innerWidth; c.height = innerHeight;
+  const g = c.getContext('2d');
+  g.drawImage(src, 0, 0, c.width, c.height);
+  const w = Math.min(460, c.width - 40), h = 150, x = (c.width - w) / 2, y = c.height / 2 - h / 2;
+  g.fillStyle = 'rgba(28, 23, 18, 0.94)'; g.strokeStyle = '#e0c27a'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(x, y, w, h, 12); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.fillStyle = '#f2d98a'; g.font = '600 30px system-ui, sans-serif';
+  g.fillText(title, c.width / 2, y + 62);
+  g.fillStyle = '#e8dcc0'; g.font = '16px system-ui, sans-serif';
+  g.fillText(text, c.width / 2, y + 100);
+  return c.toDataURL();
+}
+
+function shatter(url) {
+  const box = document.createElement('div');
+  box.id = 'shatter';
+  document.body.append(box);
+  const cols = 8, rows = 6, jit = () => (Math.random() - 0.5) * 0.7;
+  const pt = [];
+  for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+    const edge = i === 0 || j === 0 || i === cols || j === rows;
+    pt.push({ x: (i + (edge ? 0 : jit())) / cols * 100, y: (j + (edge ? 0 : jit())) / rows * 100 });
+  }
+  const at = (i, j) => pt[j * (cols + 1) + i];
+  const tris = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const a = at(i, j), b = at(i + 1, j), c = at(i + 1, j + 1), d = at(i, j + 1);
+    if ((i + j) % 2) tris.push([a, b, c], [a, c, d]); else tris.push([a, b, d], [b, c, d]);
+  }
+  const shards = tris.map(t => {
+    const el = document.createElement('div');
+    el.className = 'shard';
+    el.style.backgroundImage = `url(${url})`;
+    el.style.clipPath = `polygon(${t.map(p => `${p.x}% ${p.y}%`).join(',')})`;
+    const cx = t.reduce((n, p) => n + p.x, 0) / 3, cy = t.reduce((n, p) => n + p.y, 0) / 3;
+    el.style.transformOrigin = `${cx}% ${cy}%`;
+    box.append(el);
+    return { el, cx, cy };
+  });
+  document.body.classList.add('quake');
+  // A moment of cracks, then everything falls, the middle first.
+  setTimeout(() => {
+    for (const s of shards) {
+      const dx = s.cx - 50, dy = s.cy - 50, far = Math.hypot(dx, dy);
+      const delay = far * 9 + Math.random() * 120;
+      s.el.style.transition = `transform 1.7s cubic-bezier(.45,.05,.85,.4) ${delay}ms, opacity 1.2s ease-in ${delay + 600}ms`;
+      s.el.style.transform = `translate(${dx * 6}px, ${900 + Math.random() * 400}px) rotate(${(Math.random() - 0.5) * 140}deg) scale(${0.85 + Math.random() * 0.3})`;
+      s.el.style.opacity = '0';
+    }
+  }, 450);
+  setTimeout(() => document.body.classList.remove('quake'), 1100);
+  setTimeout(() => box.remove(), 3600);
+}
+
 function showResult(title, text, button, fn) {
   const box = $('result');
   box.querySelector('h2').textContent = title;
@@ -352,7 +434,7 @@ function worldPanel() {
     const held = world.pois.filter(p => p.owner === 0);
     const men = held.reduce((n, p) => n + p.town.garrison().reduce((k, r) => k + r.alive, 0), 0)
       + world.armies.filter(a => a.side === 0).reduce((n, a) => n + headcount(a.units), 0);
-    set('rank', `${world.rank} of ${world.home.owner === 0 ? world.home.name : 'nowhere'}`);
+    set('rank', world.crowned ? (world.part === 2 ? 'King of the realm · the north is at war with you' : 'King of the realm') : `${world.rank} of ${world.home.owner === 0 ? world.home.name : 'nowhere'}`);
     set('realm', `${held.length} of ${world.pois.length} places held · ${men} soldiers`);
     const backing = FACTIONS.filter(h => world.dip[h.index]?.backs && h.alive).length;
     set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
@@ -365,7 +447,7 @@ function worldPanel() {
       const d = world.dip[h.index];
       const tie = d.vassal ? 'your vassal' : d.married ? 'married' : d.allied ? 'allied' : war ? 'at war' : 'peace';
       return `<div class="h${h.alive ? "" : " gone"}${met && h.alive ? ' pick' : ''}" data-house="${h.index}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${mood(d.opinion).toLowerCase()}` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : tie}</small></div>`;
-    }).join('') + (unmet.length ? `<div class="h unmet"><i style="background:#8a8478"></i><span>${unmet.length === FACTIONS.slice(1, world.bandits).length ? `${unmet.length} great houses` : `${unmet.length} more house${unmet.length > 1 ? 's' : ''}`}<br><small>not yet met: explore to find their lands</small></span><small></small></div>` : '');
+    }).join('') + (world.invader !== null ? (h => `<div class="h${h.alive ? '' : ' gone'}"><i style="background:${h.color}"></i><span>${h.lord}<br><small>${h.name} · no terms</small></span><small class="war">${h.alive ? 'at war' : 'broken'}</small></div>`)(FACTIONS[world.invader]) : '') + (unmet.length ? `<div class="h unmet"><i style="background:#8a8478"></i><span>${unmet.length === FACTIONS.slice(1, world.bandits).length ? `${unmet.length} great houses` : `${unmet.length} more house${unmet.length > 1 ? 's' : ''}`}<br><small>not yet met: explore to find their lands</small></span><small></small></div>` : '');
     if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }
   } else if (it.units) {
     set('men', `${headcount(it.units)} men`);
@@ -538,4 +620,4 @@ setMode('world', null);
 worldControls.lookAt(world.byId.ashford);
 requestAnimationFrame(frame);
 
-window.game = { world, worldView, worldControls, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, enterTown, showWorld, startField };
+window.game = { world, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, enterTown, showWorld, startField };

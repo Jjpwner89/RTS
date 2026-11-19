@@ -29,8 +29,9 @@ export class WorldControls {
     if (k.has('d') || k.has('arrowright')) { c.x += rx * pan; c.z += rz * pan; }
     if (k.has('q')) c.yaw += dt * 1.6;
     if (k.has('e')) c.yaw -= dt * 1.6;
-    c.x = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, c.x));
-    c.z = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, c.z));
+    const H = this.view.half || WORLD_HALF;
+    c.x = Math.max(-H, Math.min(H, c.x));
+    c.z = Math.max(-H, Math.min(H, c.z));
     const t = Math.min(1, (c.dist - 80) / (1100 - 80));
     const pitch = 0.5 + t * 0.6;
     const h = this.view.heightAt, ty = h(c.x, c.z), cp = Math.cos(pitch) * c.dist;

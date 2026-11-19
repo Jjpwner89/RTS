@@ -22,7 +22,7 @@ export const mood = o => (o >= 60 ? 'Devoted' : o >= 30 ? 'Friendly' : o >= 10 ?
 
 // Something happened between you and a house: battles won and lost, places taken.
 export function note(w, h, kind) {
-  if (h === null || h === undefined || h === 0 || h === w.bandits || !w.dip) return;
+  if (h === null || h === undefined || h === 0 || h === w.bandits || h === w.invader || !w.dip) return;
   const d = w.dip[h];
   const delta = { wonField: 10, lostField: -8, tookPlace: 25, lostPlace: -20, wonSiege: 15 }[kind] || 0;
   d.score += delta;
@@ -58,7 +58,7 @@ export function thinkDiplomacy(w, dt) {
   w.dipClock = 10;
   for (const H of FACTIONS) {
     const h = H.index;
-    if (h === 0 || H.bandit || !H.alive) continue;
+    if (h === 0 || H.bandit || H.invader || !H.alive) continue;
     const d = w.dip[h];
     d.gift = Math.max(0, d.gift - 1.5);
     d.opinion += (target(w, h) - d.opinion) * 0.12;

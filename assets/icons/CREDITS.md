@@ -49,3 +49,6 @@ The background square was removed so each icon is a plain silhouette.
 | gold.svg | two-coins | Delapouite |
 | warning.svg | hazard-sign | Lorc |
 | map.svg | treasure-map | Lorc |
+| pass.svg | mountain-road | Delapouite |
+| warcamp.svg | barracks-tent | Delapouite |
+| invader.svg | horned-helm | Lorc |

@@ -8,8 +8,8 @@ import { Town } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
 import { rng } from '../noise.js';
 import { thinkAI } from '../ai.js';
-import { generateRealm, KINDS, BANDITS, REALM_RADIUS } from './realm.js';
-import { thinkHouses, startHouseMinds } from './rivals.js';
+import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
+import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -96,6 +96,11 @@ export class World {
       if (p.owner === 0) { const t = this.makeTown(p, { kind: p.kind }); prebuild(t, ['house', 'house'], t.rand); }
       else this.seedHolding(p);
     }
+    // The north, past the old wall: fixed now, opened in Part 2. `wall` is for drawing.
+    this.part = 1;
+    this.invader = null;
+    this.beyond = generateBeyond(seed, this.pois);
+    this.wall = { points: this.beyond.wall, fallen: false, breaches: [] };
     this.ecoClock = 0;
     this.sightClock = 0;
     startHouseMinds(this);
@@ -111,6 +116,7 @@ export class World {
   atWar(i, j) {
     if (i === j || i === null || j === null) return false;
     if (i === this.bandits || j === this.bandits) return true;
+    if (i === this.invader || j === this.invader) return true;
     return this.wars.has(this.warKey(i, j));
   }
   // An army of side `s` may attack place p: free villages and anyone at war with it.
@@ -160,6 +166,7 @@ export class World {
     const vary = 0.7 + this.rand() * 0.6;   // no two places keep quite the same guard
     const n = k => Math.round(k * g * vary);
     if (p.kind === 'camp') p.garrison = [unit('bandit', 30 + Math.floor(this.rand() * 15), `${p.name.replace(/ Camp$/, '')} outlaws`)];
+    else if (FACTIONS[p.owner]?.invader) p.garrison = northGarrison(p, this.rand);
     else if (p.kind === 'crown') p.garrison = [unit('spear', 40, 'Royal guard'), unit('sword', 40, 'Royal men-at-arms'), unit('archer', 30, 'Royal archers'), unit('militia', 40, 'City watch')];
     else if (p.owner === null) p.garrison = [unit('militia', n(26), `${p.name} militia`), unit('archer', n(10), `${p.name} bowmen`)];
     else {
@@ -685,6 +692,13 @@ export class World {
 
   checkEnd() {
     if (this.winner !== null) return;
+    if (this.part === 2) {
+      // Part 2 ends when the north is driven out, or when you have nothing left.
+      if (!this.pois.some(p => p.owner === this.invader) && !this.armies.some(a => a.side === this.invader)) { this.winner = 0; this.victory = 'north'; }
+      else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0)) this.winner = 1;
+      if (this.winner !== null) this.hooks.ended(this.winner);
+      return;
+    }
     // Crowned by the sword (Kingsbridge and half the realm, counting the places of houses
     // that back you) or by acclaim (every great house still standing backs your claim).
     const real = this.pois.filter(p => p.kind !== 'camp');
@@ -695,6 +709,53 @@ export class World {
     else if (!rivals.length || rivals.every(h => B.has(h.index))) { this.crowned = true; this.winner = 0; this.victory = rivals.length ? 'acclaim' : 'sword'; }
     else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0)) this.winner = 1;
     if (this.winner !== null) this.hooks.ended(this.winner);
+  }
+
+  // ---- Part 2: the wall falls ----
+  // You are crowned. Every great house left kneels to you, their wars are ended, and the
+  // old wall in the north comes down: a new land opens beyond it, and a host with it.
+  beginPart2() {
+    if (this.part === 2) return;
+    this.part = 2;
+    this.winner = null;
+    this.wars.clear();
+    for (const H of FACTIONS.slice(1, this.bandits)) {
+      if (!H.alive) continue;
+      const d = this.dip[H.index];
+      Object.assign(d, { vassal: true, backs: true, truceUntil: Infinity, opinion: Math.max(d.opinion, 40) });
+      H.vassalOf = 0;
+      this.meet(H.index);
+    }
+    // The host of the north.
+    const inv = { ...INVADER, index: FACTIONS.length, gold: 2000, arms: 400, alive: true };
+    FACTIONS.push(inv);
+    this.invader = inv.index;
+    this.dip.push({ opinion: -100, gift: 0, truceUntil: 0, allied: false, married: false, backs: false, vassal: false, broken: 0, score: 0, warSince: 0, offerCd: Infinity });
+    // Its land joins the map.
+    const B = this.beyond, start = this.pois.length;
+    const added = B.places.map((p, i) => ({ ...p, owner: inv.index, seed: this.seed + 1000 * (start + i + 1), garrison: [], town: null, seen: false, visible: false }));
+    const byOld = new Map(B.places.map((p, i) => [p, added[i]]));
+    for (const p of added) p.links = p.links.map(q => byOld.get(q));
+    for (const r of B.roads) this.roads.push({ a: byOld.get(r.a), b: byOld.get(r.b) });
+    for (const { from, to } of B.breaches) {
+      const a = byOld.get(from);
+      a.links.push(to); to.links.push(a);
+      this.roads.push({ a, b: to });
+      this.wall.breaches.push({ x: (a.x + to.x) / 2, z: (a.z + to.z) / 2, from: a, to });
+      a.seen = true;   // you can see the camps through the gaps
+    }
+    this.wall.fallen = true;
+    for (const p of added) { this.pois.push(p); this.byId[p.id] = p; }
+    const pass = byOld.get(B.pass);
+    pass.seat = inv.index;
+    inv.seat = pass;
+    for (const p of added) this.seedHolding(p);
+    this.half = Math.max(this.half, ...added.map(p => Math.max(Math.abs(p.x), Math.abs(p.z)) + 140));
+    startMind(this, inv);
+    this.updateVision();
+    for (const p of added) if (p.seen) p.known = { owner: p.owner, men: headcount(p.garrison), level: p.eco?.level ?? null };
+    this.log('The old wall has fallen. The north is coming.', 1);
+    this.hooks.herald?.({ house: inv, title: 'The wall has fallen', text: `“${inv.taunts[0]}” ${inv.lord} brings his host down through the north. Drive them back through ${pass.name}, or lose all you have built.` });
   }
 
   // ---- time ----
@@ -747,6 +808,14 @@ export class World {
 }
 
 export function unit(key, count, name) { return { key, count, name }; }
+
+// The north fights in great numbers, with heavy foot and horse when the battle code has them.
+function northGarrison(p, rand) {
+  const k = { pass: 3.2, warcamp: 2.2, castle: 1.6 }[p.kind] || 0.8;
+  const n = x => Math.round(x * k * (0.8 + rand() * 0.4));
+  const heavy = TYPES.maa ? 'maa' : 'sword', horse = TYPES.lightcav ? 'lightcav' : 'cav';
+  return [unit('spear', n(60), 'Northern spears'), unit(heavy, n(40), 'Northern axemen'), unit('archer', n(30), 'Northern bows'), unit(horse, n(16), 'Northern riders')];
+}
 
 // What a house's workshops turn out, by its lord's bent.
 function pickKind(h, r, time) {
