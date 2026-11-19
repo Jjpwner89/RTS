@@ -391,7 +391,7 @@ function finishAway() {
   const won = bt.winner !== null ? bt.winner === 0 : standing(bt, 0) > standing(bt, 1);
   const where = b.enc.poi ? b.enc.poi.name : 'the road';
   const mine = survivors(bt, 0), theirs = survivors(bt, 1);
-  afterBattle(world, bt, [b.enc.army, b.enc.enemy], b.enc.poi?.name);
+  afterBattle(world, bt, [b.enc.army, b.enc.enemy], b.enc.poi?.name, won);
   world.settle(b.enc, won, mine, theirs);
   flash(`${won ? 'Victory' : 'Defeat'} at ${where}: you lost ${bt.losses[0]}, they lost ${bt.losses[1]}.`, won);
   stage.dispose(b.scene);
@@ -419,7 +419,7 @@ function endField(won) {
   b.done = true;
   const mine = survivors(b.battle, 0), theirs = survivors(b.battle, 1);
   const lost = [0, 1].map(s => b.battle.losses[s]);
-  afterBattle(world, b.battle, [b.enc.army, b.enc.enemy], b.enc.poi?.name);
+  afterBattle(world, b.battle, [b.enc.army, b.enc.enemy], b.enc.poi?.name, won);
   world.settle(b.enc, won, mine, theirs);
   showResult(won ? 'Victory' : b.retreated ? 'Retreat' : 'Defeat',
     `Your losses: ${lost[0]} · Enemy losses: ${lost[1]}`, 'Back to the map', () => {

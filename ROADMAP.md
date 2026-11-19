@@ -143,7 +143,7 @@ All approved. Owners in brackets.
 - **Burn the fields ahead of a siege** (Realm): raiding supply weakens the target first, so skirmishing early pays. **Built (2026-11-19):** *Burn the fields* in the attack prompt: the place loses seven tenths of its food, half its bread, two farms and a mill, and a tenth of its people; the army loses a few men and stays before it, ready to besiege or storm. The lord holds it against you.
 - ~~Tunnelling under walls, counter-tunnels, boiling oil and night sallies (Battles).~~ Done 2026-11-19.
 - **Surrender terms** (Realm + Battles): a garrison yields with conditions (leave free, keep the village, pay ransom). **Built (2026-11-19) for storming:** a walled place you storm may ask for terms (sooner if it is hungry). Accept, and its garrison marches out under arms to its lord's nearest place, while you take the place whole, keeping eight in ten of its people instead of half. Not yet: ransom, keeping the village for a vassal, or your own garrisons yielding.
-- **Ransom** captured captains and lords (Realm).
+- **Ransom** captured captains and lords (Realm). **Built (2026-11-19):** after a field battle you fought or left to a captain, the beaten side's captain is taken one time in three, and a lord wounded on the losing side always is (yours too). Every four minutes the house offers gold for its own (60 + 45 a level for a captain, 350 for a lord) or asks it for yours; refuse and it asks again. A prisoner lord can't ride with his hosts; while you are held you can't ride at all.
 
 **Rivals and drama** (Realm, Battles for the duel)
 - Rivals with memory: grudges, escapes and revenge (section 4).

@@ -6,7 +6,7 @@
 import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, DUES, LEVIES, COUNCIL, GIFT, RECONCILE } from './vassals.js';
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
-import { assignCaptain, releaseCaptain } from './captains.js';
+import { assignCaptain, releaseCaptain, tickRansoms } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, ELITE, HALL, gearOf, carry, armourWeight, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
@@ -1250,7 +1250,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); this.tickSieges(5); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
@@ -1273,6 +1273,7 @@ export class World {
   // Where your lord is: with the army he rides with, if it waits at one of your places;
   // at your seat if he rides with none; nowhere while he is on the road.
   lordAt() {
+    if (this.lordCaptive !== undefined && this.lordCaptive !== null) return null;
     const a = this.armies.find(o => o.lord === 0 && !o.gone);
     if (!a) return FACTIONS[0].seat || this.home;
     return !a.path.length && a.at?.owner === 0 ? a.at : null;
