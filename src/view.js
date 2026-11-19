@@ -9,6 +9,7 @@ import { iconImage } from './icons.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
+const kitOf = r => `${r.vet || 0}|${r.armour || ''}`;
 const lookKey = s => s.look || (s.reg.armour || s.reg.shield === false ? `${s.reg.T.key}|${s.reg.armour || ''}|${s.reg.shield !== false}` : s.reg.T.key);
 
 // Units without their own model or icon borrow the nearest one (battle.js lookChain).
@@ -238,8 +239,10 @@ export function drawIcon(ctx, key, cx, cy, s) {
   ctx.restore();
 }
 
-// A regiment's banner: its kind's icon on the side's colour, with a small badge for its armour when it has any.
-function bannerTexture(colour, key, selected, armour) {
+// A regiment's banner: its kind's icon on the side's colour, and in its top corner a dark badge with its rank
+// as gold chevrons (r.vet: none for green men) beside its armour, as on its card, so two regiments in the
+// same gear are told apart.
+function bannerTexture(colour, key, selected, r = {}) {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 80;
   const ctx = c.getContext('2d');
@@ -253,12 +256,17 @@ function bannerTexture(colour, key, selected, armour) {
   drawIcon(ctx, key, 32, 34, 34);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  if (armour && armour !== 'none') iconImage('armour-' + armour, '#f2ead8', img => {
-    ctx.beginPath(); ctx.arc(50, 14, 12, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(20,16,12,0.9)'; ctx.fill();
-    ctx.drawImage(img, 41, 5, 18, 18);
-    tex.needsUpdate = true;
-  });
+  const vet = Math.min(3, r.vet || 0), armour = r.armour && r.armour !== 'none' ? r.armour : null;
+  if (!vet && !armour) return tex;
+  const right = 62, left = right - (armour ? 24 : 0) - (vet ? 16 : 0) - 2;
+  ctx.beginPath(); ctx.roundRect(left, 2, right - left, 24, 12);
+  ctx.fillStyle = 'rgba(20,16,12,0.9)'; ctx.fill();
+  if (vet) {
+    ctx.strokeStyle = '#e8c45a'; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const x = left + 10, top = 14 - vet * 2.6;
+    for (let i = 0; i < vet; i++) { const y = top + i * 5.2; ctx.beginPath(); ctx.moveTo(x - 5, y + 3); ctx.lineTo(x, y - 1); ctx.lineTo(x + 5, y + 3); ctx.stroke(); }
+  }
+  if (armour) iconImage('armour-' + armour, '#f2ead8', img => { ctx.drawImage(img, right - 22, 4, 19, 19); tex.needsUpdate = true; });
   return tex;
 }
 
@@ -423,15 +431,17 @@ export class BattleView {
 
   syncBanners() {
     for (const r of this.battle.regs.slice(this.banners.length)) {
-      const tex = [bannerTexture(this.sideColor(r.side), r.T.key, false, r.armour), bannerTexture(this.sideColor(r.side), r.T.key, true, r.armour)];
+      const tex = this.bannerTextures(r);
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true }));
       sprite.scale.set(0.032, 0.04, 1);
       sprite.center.set(0.5, 0);
       sprite.renderOrder = 10;
       this.scene.add(sprite);
-      this.banners.push({ r, sprite, tex, selected: false });
+      this.banners.push({ r, sprite, tex, selected: false, kit: kitOf(r) });
     }
   }
+
+  bannerTextures(r) { return [false, true].map(sel => bannerTexture(this.sideColor(r.side), r.T.key, sel, r)); }
 
   bannerPos(r) {
     return new THREE.Vector3(r.cx, this.heightAt(r.cx, r.cz) + (r.T.mounted ? 7 : 6), r.cz);
@@ -505,6 +515,13 @@ export class BattleView {
       if (!bn.sprite.visible) continue;
       bn.sprite.position.copy(this.bannerPos(r));
       const sel = selection.has(r);
+      // a regiment's rank can rise after a fight, or its gear change: redraw its banner
+      if (bn.kit !== kitOf(r)) {
+        bn.kit = kitOf(r);
+        for (const t of bn.tex) t.dispose();
+        bn.tex = this.bannerTextures(r);
+        bn.sprite.material.map = bn.tex[bn.selected ? 1 : 0];
+      }
       if (sel !== bn.selected) {
         bn.selected = sel;
         bn.sprite.material.map = bn.tex[sel ? 1 : 0];
