@@ -2,6 +2,8 @@
 import { drawIcon, SIDE_COLORS } from './view.js';
 import { FORMATIONS, WEATHER } from './battle.js';
 
+const T0 = b => b.terms && b.winner === null;
+
 export class Hud {
   // endPanel: show the Victory / Defeat box when the battle is decided. fresh: only
   // report events from now on, for a battle that was already running.
@@ -33,6 +35,13 @@ export class Hud {
     el.querySelector('.yes').onclick = () => this.battle.acceptTerms();
     el.querySelector('.no').onclick = () => this.battle.refuseTerms();
     this.termsEl = el;
+    // A champion's challenge, for the player to take up or refuse.
+    let d = document.getElementById('duel');
+    if (!d) { d = document.createElement('div'); d.id = 'duel'; document.body.append(d); }
+    d.innerHTML = `<b></b><button class="yes">Accept the challenge</button><button class="no">Refuse</button>`;
+    d.querySelector('.yes').onclick = () => this.battle.acceptDuel();
+    d.querySelector('.no').onclick = () => this.battle.refuseDuel();
+    this.duelEl = d;
   }
 
   // While the army deploys: what to do, and the button that starts the battle.
@@ -154,6 +163,9 @@ export class Hud {
     }
     this.updateOrders(selection);
     this.deployEl.classList.toggle('open', b.deploying?.side === 0);
+    const O = b.duelOffer?.side === 1 && b.winner === null ? b.duelOffer : null;
+    this.duelEl.classList.toggle('open', !!O && !T0(b));
+    if (O) this.duelEl.querySelector('b').textContent = `${O.champion.name} challenges you to single combat${O.decides ? ' to settle the battle' : ''}.`;
     const T = b.terms && b.winner === null ? b.terms : null;
     this.termsEl.classList.toggle('open', !!T);
     if (T && this.termsEl.dataset.side !== String(T.side)) {

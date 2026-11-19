@@ -12,6 +12,8 @@ const centroid = list => ({ cx: list.reduce((n, r) => n + r.cx, 0) / list.length
 // regs: only command these regiments (e.g. one attacking host among several).
 export function thinkAI(battle, side, { hold = false, start = 8, regs = null } = {}) {
   if (battle.time < start || battle.winner !== null) return;
+  // Both armies stand and watch while champions fight.
+  if (battle.duel && !battle.duel.over) return;
   const mine = (regs || battle.regs).filter(r => r.side === side && usable(r));
   if (!mine.length) return;
   const walls = battle.walls;
@@ -82,7 +84,7 @@ function pickFight(battle, r, foes, standing) {
   const reachable = standing.filter(o => !o.posts || r.T.range);
   if (!reachable.length) return;
   let pick;
-  if (r.T.range && r.ammo < 1) r.resupply = true;
+  if (r.T.range && !r.T.javelin && r.ammo < 1) r.resupply = true;
   if (r.resupply && r.ammo >= r.maxAmmo * 0.9) r.resupply = false;
   if (r.resupply) {
     // Out of arrows: back to camp for a full quiver.
@@ -92,7 +94,7 @@ function pickFight(battle, r, foes, standing) {
       battle.orderMove([r], h.x, h.z * 0.92, Math.atan2(-h.x, -h.z));
     }
     return;
-  } else if (r.T.range || r.engine?.range) {
+  } else if ((r.T.range && !(r.T.javelin && r.ammo < 1)) || r.engine?.range) {
     pick = nearest(r, reachable.filter(o => o.engaged === 0)) || nearest(r, reachable);
   } else if (r.T.charge) {
     // Horse rides down routers, then hunts archers and engines, then hits whoever is busiest from the side.

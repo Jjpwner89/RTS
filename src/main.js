@@ -38,7 +38,8 @@ drawGround(scene, heightAt, seed);
 const trees = plantTrees(seed, (x, z) => (Math.abs(x) < (FORT ? 150 : 120) && Math.abs(z) < 250) || (river && Math.abs(river.across(x, z)) < river.half + 3), 0.56, 900);
 if (!FORT) addCopses(trees, seed, { avoid: (x, z) => river && Math.abs(river.across(x, z)) < river.half + 3 });
 drawTrees(scene, heightAt, trees);
-const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', ...(homes ? { homes } : {}) });
+// ?enemy=norrhold: the enemy is a Norrhold host (axemen, javelin men, war dogs).
+const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', hosts: ['south', params.get('enemy') === 'norrhold' ? 'norrhold' : 'south'], ...(homes ? { homes } : {}) });
 battle.setWoods(trees);
 battle.setRiver(river);
 // Light weather on the field (?weather=clear, rain, fog or night; sieges are clear unless asked).
@@ -132,6 +133,8 @@ function frame(now) {
 }
 // One step settles every regiment's centre before the first frame is drawn.
 battle.step(0.001);
+// ?duel=1: the enemy's champion challenges yours (?duel=settle: to settle the battle).
+if (params.get('duel')) battle.challenge(1, { name: 'Sir Hugh of the enemy', level: 3 }, { decides: params.get('duel') === 'settle' });
 // Place your army before the fight (time stands still until Begin battle); ?deploy=0 skips it.
 if (mode !== 'defend' && params.get('deploy') !== '0') { battle.startDeployment(0); paused = false; document.getElementById('help').classList.remove('open'); }
 requestAnimationFrame(frame);

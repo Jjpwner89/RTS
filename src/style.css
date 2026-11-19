@@ -226,10 +226,10 @@ body.campaign.mode-town #cards { left: 372px; }
 #deploy span { color: var(--dim); font-size: 13px; }
 #deploy .go { background: rgba(255, 217, 112, 0.22); border-color: var(--gold); white-space: nowrap; font-weight: 600; }
 body.deploying #paused-tag { display: none; }
-#terms { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--gold); border-radius: 10px; padding: 6px 8px 6px 14px; z-index: 3; max-width: calc(100vw - 32px); }
-#terms.open { display: flex; }
-#terms b { color: var(--gold); }
-#terms .yes { background: rgba(255, 217, 112, 0.22); border-color: var(--gold); }
+#terms, #duel { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--gold); border-radius: 10px; padding: 6px 8px 6px 14px; z-index: 3; max-width: calc(100vw - 32px); }
+#terms.open, #duel.open { display: flex; }
+#terms b, #duel b { color: var(--gold); }
+#terms .yes, #duel .yes { background: rgba(255, 217, 112, 0.22); border-color: var(--gold); }
 body.mining #view { cursor: crosshair; }
 body.town #orders { left: calc(50% + 186px); }
 #defences { position: fixed; bottom: 12px; left: 372px; width: 220px; background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 8px; display: none; }

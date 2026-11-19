@@ -35,6 +35,16 @@ export const TYPES = {
   // Hired and household troops: paid in gold, no villagers. Mercenaries lose heart quickly when a fight goes badly.
   sellsword: { key: 'sellsword', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
   hiredxbow: { key: 'hiredxbow', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
+  // Norrhold, the north's own host for Part 2 (norrhold: true; not raised in the south).
+  // Axemen with long two-handed axes and no shields, who break shield walls; javelin men
+  // who throw a few heavy javelins at close range and then fight; and war dogs, fast and
+  // savage, that unsettle men and run down the broken.
+  axeman: { key: 'axeman', name: 'Norrhold axemen', role: 'Long axes that break shield walls; no shields of their own', count: 60, files: 15, spacing: 1.7, speed: 3.3, hp: 17, atk: 6, def: 3, dmg: 7, reach: 2.1, cooldown: 1.4, morale: 80, shieldbreak: true, norrhold: true, look: 'sword',
+    kit: { axes: 1 } },
+  javelin: { key: 'javelin', name: 'Norrhold javelin men', role: 'A few heavy javelins at close range, then spears', count: 50, files: 17, spacing: 1.7, speed: 3.6, hp: 10, atk: 3, def: 2, dmg: 3.5, reach: 2.2, cooldown: 1.3, morale: 60, range: 38, reload: 3, arrowDmg: 8, pierce: 0.4, quiver: 4, javelin: true, norrhold: true, look: 'militia',
+    kit: { javelins: 4, spears: 1 } },
+  wardog: { key: 'wardog', name: 'War dogs', role: 'Fast and savage: unsettle men, run down the broken', count: 24, files: 12, spacing: 1.5, depth: 1.6, speed: 8, hp: 8, atk: 5, def: 1, dmg: 3, reach: 1.4, cooldown: 0.9, morale: 50, dog: true, norrhold: true, look: 'bandit',
+    kit: { dogs: 1 } },
   household: { key: 'household', name: 'Household guard', role: "The lord's own men: steady and well armed", count: 30, files: 15, spacing: 1.5, speed: 3.2, hp: 16, atk: 7, def: 5, dmg: 6, reach: 1.9, cooldown: 1.1, morale: 95, shield: true, retinue: true, gold: 5, look: 'maa' },
   // Siege engines: the regiment is its crew; the engine goes where they push it.
   ladder: { key: 'ladder', name: 'Ladder men', role: 'Raise ladders against a wall, then climb', count: 12, files: 6, spacing: 1.7, speed: 2.9, hp: 9, atk: 3, def: 1, dmg: 3, reach: 1.8, cooldown: 1.3, morale: 45, look: 'militia',
@@ -72,6 +82,12 @@ const LAYOUT = [
   ['spear', -70, 0], ['maa', -35, 0], ['spear', 0, 0], ['sword', 35, 0], ['spear', 70, 0],
   ['archer', -30, -22], ['crossbow', 30, -22],
   ['cav', -120, -10], ['knight', 120, -10], ['lightcav', -165, -24], ['lightcav', 165, -24],
+];
+// A Norrhold host: axemen in the line, javelin men in front, dogs on the wings.
+const NORRHOLD = [
+  ['axeman', -70, 0], ['axeman', -25, 0], ['spear', 20, 0], ['axeman', 65, 0], ['axeman', 0, -24],
+  ['javelin', -45, 14], ['javelin', 45, 14], ['archer', -40, -22], ['archer', 40, -22],
+  ['wardog', -120, -6], ['wardog', 120, -6], ['lightcav', -160, -20], ['lightcav', 160, -20],
 ];
 
 const CELL = 4, GSPAN = HALF + 60, GN = Math.ceil(GSPAN * 2 / CELL), COLUMN = 6, CLIMB = { tower: 2, gate: 2, ladder: 3.5 }, POUR_REACH = 3.9;
@@ -131,7 +147,8 @@ export const vetRank = xp => (xp >= 6 ? 3 : xp >= 3 ? 2 : xp >= 1 ? 1 : 0);
 export class Battle {
   // homes: where each side's broken regiments run to. disbandAtHome: sides whose
   // routers leave the fight once they get there (raiders going back to camp).
-  constructor(heightAt, seed, { scale = 1, deploy = true, homes = HOMES, disbandAtHome = [false, false] } = {}) {
+  // hosts: which layout each side deploys ('south' or 'norrhold').
+  constructor(heightAt, seed, { scale = 1, deploy = true, homes = HOMES, disbandAtHome = [false, false], hosts = ['south', 'south'] } = {}) {
     this.heightAt = cachedHeight(heightAt);
     this.rand = rng(seed + 99);
     this.time = 0;
@@ -166,12 +183,14 @@ export class Battle {
     this.weather = 'clear';    // 'clear', 'rain' or 'fog' (setWeather)
     this.weatherSaid = true;
     this.mines = [];           // mines dug under walls (orderMine), for the view and the AI
+    this.duel = null;          // champions in single combat (challenge / acceptDuel)
+    this.duelOffer = null;     // a challenge waiting for the player's answer
     this.pours = [];           // boiling oil poured: { x, z, y, time }, for the view
     this.hunger = [0, 0];      // 0 fed .. 1 starving (setHunger)
     this.termsAllowed = false; // a garrison may ask for terms (checkTerms)
     this.terms = null;         // { side, time } while an offer waits for an answer
     this.surrendered = null;   // the side that yielded on terms
-    if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
+    if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale, hosts[side] === 'norrhold' ? NORRHOLD : LAYOUT);
   }
 
   event(side, text) { this.events.push({ time: this.time, side, text }); }
@@ -332,10 +351,10 @@ export class Battle {
   label(r) { return `${r.side ? 'Enemy ' : ''}${r.name}`; }
 
   // Side 0 (the player) deploys on +z facing -z; side 1 on -z facing +z.
-  deploy(side, scale) {
+  deploy(side, scale, layout = LAYOUT) {
     const dir = side === 0 ? -1 : 1;
     for (let line = 0; line < scale; line++) {
-      for (const [key, x, back] of LAYOUT) {
+      for (const [key, x, back] of layout) {
         this.addRegiment(side, key, side === 0 ? -x : x, -dir * (70 - back + line * 50), side === 0 ? Math.PI : 0);
       }
     }
@@ -653,7 +672,7 @@ export class Battle {
   // Charge: at the ordered target, or the nearest enemy ahead. Horse and foot both hit harder for it.
   orderCharge(regs) {
     for (const r of regs) {
-      if (!this.usable(r) || r.T.engine || r.T.range) continue;
+      if (!this.usable(r) || r.T.engine || this.shoots(r)) continue;
       let t = r.targetReg && !r.targetReg.gone ? r.targetReg : null;
       if (!t) {
         let bd = 90;
@@ -1027,6 +1046,102 @@ export class Battle {
     c.reg.captain = null;
   }
 
+  // ---- champion duels ----
+
+  // One side's champion challenges the other to single combat before or during a battle
+  // (Dunmore's challenge). champion: { name, level }. The player answers acceptDuel() or
+  // refuseDuel(); a challenge from the player is taken up at once. decides: the duel
+  // settles the whole battle.
+  challenge(side, champion, { decides = false } = {}) {
+    if (this.duel || this.winner !== null) return;
+    this.duelOffer = { side, champion, decides };
+    this.event(0, side ? `${champion.name} challenges you to single combat${decides ? ' to settle the battle' : ''}!` : `${champion.name} challenges the enemy to single combat.`);
+    if (side === 0) this.acceptDuel();
+  }
+
+  // Who fights for a side: its lord, else its captain, else a champion stepping out of
+  // its best foot regiment. Their hurt is real, and so is a fall.
+  champion(side, data) {
+    const L = this.lords[side], C = this.captains[side];
+    if (L && !L.died && live(L.soldier)) return L.soldier;
+    if (C && !C.died && live(C.soldier)) return C.soldier;
+    const reg = this.regs.filter(r => r.side === side && this.usable(r) && !r.engine && !r.T.range && !r.posts)
+      .sort((a, b) => (b.T.atk + b.T.def + b.vet * 2) - (a.T.atk + a.T.def + a.vet * 2))[0];
+    if (!reg) return null;
+    const lvl = data?.level || 2;
+    const s = this.makeSoldier(reg, -1, reg.angle);
+    s.captain = { name: data?.name || (side ? 'The enemy champion' : 'Our champion'), level: lvl, alive: true, champion: true };
+    s.look = 'captain';
+    s.hp = 40 + lvl * 6;
+    const g = this.goalOf(s);
+    s.x = s.lx = g.x; s.z = s.lz = g.z; s.y = this.heightAt(s.x, s.z);
+    reg.soldiers.push(s);
+    this.soldiers.push(s);
+    return s;
+  }
+
+  acceptDuel() {
+    const O = this.duelOffer;
+    if (!O) return;
+    this.duelOffer = null;
+    const ch = [0, 1].map(side => this.champion(side, side === O.side ? O.champion : null));
+    if (!ch[0] || !ch[1]) return;
+    const c = side => { const m = this.regs.filter(r => r.side === side && !r.gone); return { x: m.reduce((n, r) => n + r.cx, 0) / m.length, z: m.reduce((n, r) => n + r.cz, 0) / m.length }; };
+    const a = c(0), b = c(1);
+    this.duel = { a: ch[0], b: ch[1], x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, decides: O.decides, over: false, winner: null, start: this.time };
+    // Both come to it whole: hurt counts by skill alone.
+    for (const s of ch) { s.duel = this.duel; s.target = null; s.hp = 40 + this.duelLevel(s) * 6; }
+    this.event(0, 'The champions ride out; both armies stand and watch.');
+  }
+
+  // Refused: the challengers jeer and take heart; the refusers lose a little.
+  refuseDuel() {
+    const O = this.duelOffer;
+    if (!O) return;
+    this.duelOffer = null;
+    for (const r of this.regs) if (this.usable(r)) r.morale += r.side === O.side ? 6 : -6;
+    this.event(0, O.side ? 'You refuse the challenge; the enemy jeers.' : 'The enemy refuses the challenge.');
+  }
+
+  duelLevel(c) { return c.captain?.level ?? (c.lordOf !== undefined ? 3 : 2); }
+
+  // A champion walks to the middle, then fights the other one.
+  duelStep(s, dt) {
+    const D = s.duel, o = D.a === s ? D.b : D.a, side = s.reg.side;
+    s.lunge = Math.max(0, s.lunge - dt * 3);
+    if (!live(o) || D.over) { s.duel = null; return; }
+    const dx = o.x - s.x, dz = o.z - s.z, d = Math.hypot(dx, dz) || 1;
+    const met = Math.hypot(D.a.x - D.b.x, D.a.z - D.b.z) < 12;
+    const spot = met ? { x: o.x - dx / d * 1.8, z: o.z - dz / d * 1.8 } : { x: D.x, z: D.z + (s.z > D.z ? 4 : -4) };
+    if (Math.hypot(spot.x - s.x, spot.z - s.z) > 0.3) this.groundMove(s, spot.x, spot.z, s.reg.T.speed * (met ? 1 : 1.2), dt);
+    s.yaw = turnToward(s.yaw, Math.atan2(dx, dz), dt * 6);
+    if (!met || d > 2.6 || s.cd > 0) return;
+    // Champion against champion: only their own skill counts (a lord is level 3 unless given one).
+    const lvl = c => this.duelLevel(c);
+    s.cd = 1.2 * (0.8 + this.rand() * 0.4);
+    s.lunge = 1;
+    if (this.rand() < 0.5 + (lvl(s) - lvl(o)) * 0.06) {
+      audio.play('clash', s, this); // audio
+      this.hurt(o, 5 + lvl(s));
+    }
+  }
+
+  duelTick() {
+    const D = this.duel, a = live(D.a), b = live(D.b);
+    if (a && b) return;
+    D.over = true;
+    const won = a ? D.a : D.b, lost = a ? D.b : D.a;
+    D.winner = won.reg.side;
+    won.duel = null;
+    for (const r of this.regs) if (this.usable(r)) r.morale += r.side === D.winner ? 15 : -20;
+    this.event(D.winner, `${won.captain?.name || 'The champion'} has won the duel!`);
+    if (lost.captain?.champion) lost.captain.alive = false;
+    if (D.decides) {
+      this.winner = D.winner;
+      this.event(D.winner, D.winner === 0 ? 'Victory: the duel settles the battle.' : 'Defeat: the duel settles the battle.');
+    }
+  }
+
   // ---- your lord in person ----
 
   // A side's lord rides with a regiment (usually his household). While he lives every
@@ -1133,6 +1248,7 @@ export class Battle {
       this.updateSight();
       if (this.river) this.riverTick();
       this.answerFoes();
+      if (this.duel && !this.duel.over) this.duelTick();
       if (this.walls.any) this.wallsTick();
     }
   }
@@ -1223,7 +1339,7 @@ export class Battle {
       else {
         const dx = t.cx - r.cx, dz = t.cz - r.cz, d = Math.hypot(dx, dz) || 1;
         const ang = Math.atan2(dx, dz);
-        const range = T.range || r.engine?.range;
+        const range = this.shoots(r) ? T.range : r.engine?.range;
         if (range && d <= range * 0.9 && d >= (r.engine?.min || 0)) r.dest = null;
         else if (range) r.dest = { x: t.cx - dx / d * range * 0.8, z: t.cz - dz / d * range * 0.8, angle: ang };
         else r.dest = { x: t.cx, z: t.cz, angle: ang };
@@ -1231,7 +1347,7 @@ export class Battle {
       }
     }
 
-    if (r.engaged > 0 && !T.range && !r.hold && !r.engine) {
+    if (r.engaged > 0 && !this.shoots(r) && !r.hold && !r.engine) {
       // Locked in melee: let the anchor settle where the fighting is.
       const k = Math.min(1, dt * 0.4);
       r.x += (r.cx - r.x) * k;
@@ -1526,6 +1642,7 @@ export class Battle {
     s.lx = px; s.lz = pz;
 
     if (s.climb > 0) this.climbStep(s, dt);
+    else if (s.duel) this.duelStep(s, dt);
     else if (r.routing) {
       s.target = null;
       if (this.walls.any) {
@@ -1542,7 +1659,7 @@ export class Battle {
     } else {
       s.searchCd -= dt;
       // Men holding their ground only fight whoever reaches them.
-      const engageR = T.range ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
+      const engageR = this.shoots(r) ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
       if (s.target && (!live(s.target) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (engageR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
@@ -1782,7 +1899,7 @@ export class Battle {
 
   // Bowmen get more arrows back at their own camp, or from the stores behind their own walls.
   restock(r, dt) {
-    if (r.ammo >= r.maxAmmo) return;
+    if (r.ammo >= r.maxAmmo || r.T.javelin) return;
     const h = this.fortHome(r.side);
     const own = r.posts && r.posts[0]?.perch.side === r.side;
     const home = Math.hypot(r.cx - h.x, r.cz - h.z) < 45;
@@ -1794,9 +1911,12 @@ export class Battle {
 
   arrowsLabel(r) {
     if (!r.T.range || r.gone) return '';
-    const each = r.ammo / Math.max(1, r.alive);
-    return each < 1 ? 'Out of arrows' : `${Math.floor(each)} arrows`;
+    const each = r.ammo / Math.max(1, r.alive), what = r.T.javelin ? 'javelins' : 'arrows';
+    return each < 1 ? `Out of ${what}` : `${Math.floor(each)} ${what}`;
   }
+
+  // Still a shooting regiment: javelin men who have thrown theirs fight as foot.
+  shoots(r) { return !!r.T.range && !(r.T.javelin && r.ammo < 1); }
 
   // How steeply a stands above b, from -1 to 1: a grade of 1 in 5 counts fully. For men
   // at close quarters, where a metre or two apart the height itself hardly differs.
@@ -1886,7 +2006,8 @@ export class Battle {
     if (tr.routing) chance += 0.35;
     chance += [0, 0.15, 0.3][flank];
     if (D.mounted && A.vsMounted) chance += A.vsMounted;
-    if (D.shield && flank === 0) chance -= 0.05;
+    if (D.shield && flank === 0) chance -= A.shieldbreak ? -0.05 : 0.05;   // long axes hook shields aside
+    if (A.dog) { tr.morale -= 0.4; if (tr.routing) chance += 0.15; }
     // From the walkway, men strike down at climbers and those at the foot of the wall.
     if (s.level === 1 && (t.level !== 1 || t.climb > 0)) chance += 0.25;
     if (t.climb > 0) chance += 0.15;
@@ -2101,7 +2222,7 @@ export class Battle {
       s.fireCd = T.reload * (0.75 + this.rand() * 0.5);
       r.lastShot = this.time;
       this.loose(s, tgt, range);
-      if (--r.ammo < 1) { this.event(r.side, `${this.label(r)} are out of arrows.`); break; }
+      if (--r.ammo < 1) { if (!r.T.javelin) this.event(r.side, `${this.label(r)} are out of arrows.`); break; }
     }
   }
 
@@ -2123,7 +2244,7 @@ export class Battle {
     this.arrows.push({
       x0: s.x, y0: s.y + 1.6, z0: s.z, x1, z1, y1: (o.level === 1 ? o.y : this.heightAt(x1, z1)) + 0.9,
       t: 0, T, h: 2 + d * (s.reg.T.pierce ? 0.08 : 0.16), dmg: s.reg.T.arrowDmg, pierce: s.reg.T.pierce || 0, side: s.reg.side, from: s.reg,
-      bolt: !!s.reg.T.pierce,
+      bolt: !!s.reg.T.pierce && !s.reg.T.javelin, javelin: !!s.reg.T.javelin,
     });
     audio.play('bow', s, this); // audio
   }
@@ -2166,7 +2287,7 @@ export class Battle {
   // Hold, the walls, engines and the siege AI's men keep to what they were doing.
   answerFoes() {
     for (const r of this.regs) {
-      if (!this.usable(r) || r.T.range || r.engine || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.ai === 'siege') continue;
+      if (!this.usable(r) || this.shoots(r) || r.engine || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.ai === 'siege') continue;
       const ok = o => o.side !== r.side && this.usable(o) && !o.posts && !o.gone && o.alive > 0 && this.sees(r.side, o)
         && (!this.nav.any || this.nav.reachable(r.side, r.cx, r.cz, o.cx, o.cz));
       let best = null, bd = 25;
