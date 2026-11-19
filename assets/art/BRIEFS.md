@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 1. Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 2 (icons now match the game's icon file names). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -166,7 +166,9 @@ The game's panels and buttons are currently plain dark boxes with emoji for icon
 
 ### 4.2 Icons
 
-Each icon is **128×128** on a transparent background, saved as `assets/art/ui/icons/<name>.png`. Use one consistent style: an ink outline with flat hand-colouring and a soft parchment-coloured halo so it reads on both light and dark panels. Each must be recognisable at **24 px**: one object, centred, nothing else.
+Each icon is **128×128** on a transparent background, saved as `assets/art/ui/icons/<name>.png`.
+
+The game already has a stand-in set of plain silhouettes (game-icons.net) in `assets/icons/<name>.svg`. Where a painted icon replaces one of them, **use the same file name**, so the game can swap it in: arrows, barracks, battle, bows, bowyer, camp, carpenter, castle, crown, farm, feathers, flax, flaxfield, food, ford, gold, house, hunter, iron, keep, map, market, mine, monastery, ore, people, planks, quarry, raid, retreat, ropemaker, shields, siege, smelter, spears, stone, storehouse, string, swords, village, warning, weaponsmith, wood, woodcutter. Paint those first, then the extra ones listed below. Use one consistent style: an ink outline with flat hand-colouring and a soft parchment-coloured halo so it reads on both light and dark panels. Each must be recognisable at **24 px**: one object, centred, nothing else.
 
 - **Goods:** wood (logs), stone (cut blocks), food (bread and ham), grain (sheaf), flour (sack), bread (loaf), flax (bundle), feathers, iron ore (rust-red rock), iron (bar), planks, string (coil), leather (hide), gold (coins), horses (horse head), shields (round wooden shield), bows, arrows (sheaf), spears, swords, crossbows, mail (mail shirt), plate armour (breastplate).
 - **Buildings:** house, storehouse, woodcutter, quarry, mine, hunter's lodge, farm, flax field, carpenter, ropemaker, smelter, bowyer, weaponsmith, barracks, market, tanner, armourer, stable, mill, bakery, siege workshop, watchtower, wall, gate, tower, keep.
