@@ -53,8 +53,9 @@ const world = new World(seed, {
 const heraldQueue = [];
 function herald(msg) { heraldQueue.push(msg); if (heraldQueue.length === 1) showHerald(); }
 function showHerald() {
-  const msg = heraldQueue[0], el = $('herald'), h = msg.house;
+  const msg = heraldQueue[0];
   if (!msg) return;
+  const el = $('herald'), h = msg.house;
   const initials = (h.lord || h.name).split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
   el.style.setProperty('--hc', h.color);
   el.innerHTML = `<div class="face"><img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')"></div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
