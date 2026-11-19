@@ -25,6 +25,7 @@ import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
+import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
@@ -340,8 +341,15 @@ function nextAsk() {
     const p = a.poi;
     if (!p.town) return nextAsk();
     box.querySelector('h2').textContent = `${p.name} is under attack!`;
-    box.querySelector('p').textContent = `Enemy soldiers are in the village. Your garrison will fight on its own if you stay away.`;
-    buttons.push([`Go to ${p.name}`, () => enterTown(p)], ['Stay here', () => {}]);
+    // The nearest army of yours free to march can be sent to relieve it.
+    const help = world.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.halted && !a.retreating)
+      .map(a => [a, world.route(a.at || a.last, p).length + Math.hypot(a.x - (a.at || a.last).x, a.z - (a.at || a.last).z)])
+      .filter(([, d]) => Number.isFinite(d)).sort((x, y) => x[1] - y[1])[0]?.[0];
+    box.querySelector('p').textContent = `Enemy soldiers are in the village. Your garrison will fight on its own if you stay away.`
+      + (help ? ` ${help.name} (${headcount(help.units)} men) could march to its relief.` : '');
+    buttons.push([`Go to ${p.name}`, () => enterTown(p)]);
+    if (help) buttons.push([`Send ${help.name}`, () => { if (world.order(help, p)) { selected = help; flash(`${help.name} marches to relieve ${p.name}.`, true); } }]);
+    buttons.push(['Stay here', () => {}]);
   } else {
     const enc = a.enc, army = enc.army;
     const them = headcount(enc.defenders), us = headcount(army.units);
@@ -686,6 +694,35 @@ addEventListener('keydown', e => {
 
 // A loaded campaign shows only what happens from now on.
 let seenWorld = loaded ? Math.max(0, world.events.length - 1) : 0;
+// ---- what needs you ----
+// The ranked alerts in the map's corner; in a village, a count on the World map button.
+// Clicking one goes to the map and looks at the place or army.
+let alertsAt = -1, alertsKey = '', shownAlerts = [];
+function alertList() {
+  if (performance.now() - alertsAt < 500) return;
+  alertsAt = performance.now();
+  const list = world.winner === null ? alerts(world) : [];
+  const urgent = list.filter(a => a.level >= 3);
+  const btn = $('to-world');
+  btn.dataset.alerts = urgent.length || '';
+  btn.style.setProperty('--alert', LEVEL_COLOR[urgent[0]?.level || 0] || 'transparent');
+  const shown = list.slice(0, 7), key = shown.map(a => a.level + a.text).join('|') + list.length;
+  if (key === alertsKey) return;
+  alertsKey = key;
+  shownAlerts = shown;
+  const el = $('alerts');
+  el.hidden = !shown.length;
+  el.innerHTML = `<h4>Needs you${list.length > shown.length ? ` <small>and ${list.length - shown.length} more</small>` : ''}</h4>`
+    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level]}">${ico(a.icon)}<span>${a.text}</span></div>`).join('');
+}
+$('alerts').onclick = e => {
+  const a = shownAlerts[+e.target.closest('[data-alert]')?.dataset.alert];
+  if (!a?.at || a.at.gone) return;
+  if (mode === 'town') showWorld();
+  selected = a.at;
+  worldControls.lookAt(a.at);
+};
+
 function worldLog() {
   const logEl = $('log');
   while (seenWorld < world.events.length) {
@@ -768,6 +805,7 @@ function frame(now) {
   }
   topBar();
   goals();
+  alertList();
   worldLog();
   audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events } // audio
     : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events });

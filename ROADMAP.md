@@ -90,6 +90,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 - **Alerts ranked by how serious they are**, in one list (like Stellaris's outliner): sieges at the top, then raids, starving armies, revolts, finished buildings at the bottom.
 - **A choice when a fight starts away from you**: take command, leave it to the captain or garrison, or send help. Time slows while you decide.
 - Later: a small live view of a second fight in a corner of the screen.
+- **Built (2026-11-19):** the *Needs you* list in the map's bottom-left corner, worst first: a village of yours being fought in; enemy columns you can see marching on your places, with how far off they are; revolts; hungry villages and armies; wages owed; storming in progress; aggrieved vassals; and, last, armies of yours idle away from home. Click one to look at it. In a village, the World map button carries a count of the serious ones in the worst one's colour. When a village is attacked the warning (time stopped, as with every prompt) now also offers to send the nearest free army to its relief. Not yet: finished buildings, and a live corner view of a second fight.
 
 ## 4. Character memory (Realm; a hook for Claude)
 
