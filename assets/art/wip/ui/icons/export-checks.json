@@ -1,0 +1,362 @@
+[
+  {
+    "id": "armour",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "arrows",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "battle",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "bolts",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "bows",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "bread",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "crossbows",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "crown",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "feathers",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "flax",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "flour",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "food",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "gold",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "hides",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "horses",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "iron",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "lances",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "leather",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "ore",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "people",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "planks",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "shields",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "spears",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "stone",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "string",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "swords",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "village",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "warning",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "watchtower",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  },
+  {
+    "id": "wood",
+    "size": [
+      128,
+      128
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "ok": true
+  }
+]
