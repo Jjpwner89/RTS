@@ -17,6 +17,7 @@ import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } 
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { govern } from './governor.js';
+import { tickEvents } from './events.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -1117,7 +1118,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
@@ -1377,6 +1378,14 @@ export class World {
 }
 
 export function unit(key, count, name) { return { key, count, name }; }
+
+// An army as you can make it out (updateVision's a.know): its name and size close up, its
+// name and a rough size in the middle distance, at the edge only that an army is there.
+export const roughly = n => (n < 100 ? Math.max(10, Math.round(n / 10) * 10) : Math.round(n / 50) * 50);
+export function seenAs(a) {
+  const know = a.side === 0 ? 3 : a.know ?? 3, men = headcount(a.units);
+  return { know, name: know >= 2 ? a.name : 'An army', men: know >= 3 ? `${men}` : know === 2 ? `about ${roughly(men)}` : '' };
+}
 
 // What each rank brings (the crown has its own moment).
 const RANKS = {

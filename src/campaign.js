@@ -90,6 +90,7 @@ const hooks = {
   herald: msg => herald(msg),
   rankUp: () => { audio.play('drums'); setTimeout(() => audio.play('horn'), 900); },
   offer: o => asks.push({ kind: 'offer', ...o }),
+  choice: ev => asks.push({ kind: 'choice', ev }),
 };
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks);
 
@@ -434,7 +435,19 @@ function nextAsk() {
   if (a.kind === 'encounter' && (a.enc.army.gone || world.encounter !== a.enc)) return nextAsk();
   const box = $('prompt');
   const buttons = [];
-  if (a.kind === 'news') {
+  const pic = box.querySelector('img');
+  pic.hidden = true;
+  if (a.kind === 'choice') {
+    const ev = a.ev;
+    if (ev.at.owner !== 0 || !ev.at.town) { ev.choices.at(-1).run(); return nextAsk(); }
+    box.querySelector('h2').textContent = ev.title;
+    box.querySelector('p').textContent = ev.text;
+    pic.onload = () => { pic.hidden = false; };
+    pic.onerror = () => { pic.hidden = true; };
+    if (pic.src.endsWith(ev.image) && pic.complete) pic.hidden = !pic.naturalWidth;
+    else pic.src = ev.image;
+    for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r, true); }, !c.ok]);
+  } else if (a.kind === 'news') {
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;
     buttons.push(['Good', () => {}]);
@@ -477,9 +490,10 @@ function nextAsk() {
   }
   const row = box.querySelector('.row');
   row.innerHTML = '';
-  for (const [text, fn] of buttons) {
+  for (const [text, fn, off] of buttons) {
     const btn = document.createElement('button');
     btn.textContent = text;
+    btn.disabled = !!off;
     btn.onclick = () => { box.classList.remove('open'); fn(); };
     row.append(btn);
   }
@@ -602,7 +616,7 @@ function worldPanel() {
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
-    else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
+    else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
       + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide">Join with ${o.name} (${headcount(o.units)})</button>`).join('') : '')
@@ -664,6 +678,7 @@ function worldPanel() {
     const hurt = (it.wounded || []).reduce((n, u) => n + u.count, 0);
     // a rival army is only as clear as your eyes on it (world.updateVision): there, how big, which troops
     const know = it.side === 0 ? 3 : it.know ?? 3, men = headcount(it.units);
+    set('name', know >= 2 ? it.name : 'An army in the distance');
     set('men', know < 2 ? 'Too far off to count' : know < 3 ? `About ${men < 100 ? Math.max(10, Math.round(men / 10) * 10) : Math.round(men / 50) * 50} men`
       : `${men} men${hurt ? ` · ${hurt} wounded` : ''}`);
     if (it.side === 0 || it.visible) {

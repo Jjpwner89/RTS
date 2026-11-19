@@ -4,7 +4,7 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, GRACE, power, headcount, takeUnits, dist, recruit } from './world.js';
+import { FACTIONS, GRACE, power, headcount, takeUnits, dist, recruit, roughly } from './world.js';
 import { protectedFrom, leagued, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
@@ -200,7 +200,8 @@ function runPlan(w, h, B, plan) {
     if (!w.order(host, T)) { w.removeArmy(host); return; }
     plan.phase = 'march';
     plan.host = host;
-    if (T.owner === 0 || S.visible) w.log(`${host.name} marches from ${S.name} on ${T.name}: ${headcount(host.units)} men.`, T.owner === 0 ? 1 : 2);
+    // Word of a host on the march: as big as rumour makes it, not the true count.
+    if (T.owner === 0 || S.visible) w.log(`${host.name} marches from ${S.name} on ${T.name}: about ${roughly(headcount(host.units))} men, they say.`, T.owner === 0 ? 1 : 2);
     return;
   }
   if (plan.phase === 'march') {
@@ -271,7 +272,7 @@ function banditMind(w, h) {
     if (camp.raidCd > 0 || headcount(camp.garrison) < 30) continue;
     camp.raidCd = 170 + w.rand() * 130;
     const marks = w.pois.filter(p => p !== camp && p.kind !== 'camp' && p.kind !== 'crown'
-      && (p.owner !== 0 || w.time > 200) && w.route(camp, p).length < 520);
+      && (p.owner !== 0 || (w.time > 200 && !(w.banditPeace > w.time))) && w.route(camp, p).length < 520);
     if (!marks.length) continue;
     const mark = marks.sort((p, q) => w.defence(p) - w.defence(q))[Math.floor(w.rand() * Math.min(3, marks.length))];
     const units = takeUnits(camp.garrison, power(camp.garrison) * 0.6);

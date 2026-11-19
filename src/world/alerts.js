@@ -4,7 +4,7 @@
 //
 // Levels: 5 a village of yours is being fought in, 4 enemies marching on you or a revolt,
 // 3 hunger and pay, 2 grumbling, 1 good to know.
-import { FACTIONS, headcount } from './world.js';
+import { FACTIONS, headcount, seenAs } from './world.js';
 import { foodLeft } from './supply.js';
 import { living, opinion } from './vassals.js';
 
@@ -42,7 +42,8 @@ export function alerts(w) {
     if (!to || to.owner !== 0) continue;
     const eta = ahead(a) / SPEED;
     const raid = a.mode === 'raid' || FACTIONS[a.side]?.bandit;
-    add(4, `${a.name} (${headcount(a.units)}) ${raid ? 'raiding toward' : 'marching on'} ${to.name}, ${mins(eta)} away`, a, raid ? 'raid' : 'invader');
+    const S = seenAs(a);
+    add(4, `${S.name}${S.men ? ` (${S.men})` : ''} ${raid ? 'raiding toward' : 'marching on'} ${to.name}, ${mins(eta)} away`, a, raid ? 'raid' : 'invader');
   }
 
   // Your own armies: storming, hungry.

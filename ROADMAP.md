@@ -114,7 +114,7 @@ Done 2026-11-19: high ground, woods, rivers and bridges, fatigue and arrows, dep
 
 ## 7. Events and onboarding (Realm; Art for pictures)
 
-- **Events with choices**: a failed harvest, sickness, a wandering knight, refugees, a festival, a bandit chief offering terms. Each has a Codex picture, as planned.
+- **Events with choices**: a failed harvest, sickness, a wandering knight, refugees, a festival, a bandit chief offering terms. Each has a Codex picture, as planned. **Built (2026-11-19)** in src/world/events.js: one every seven to twelve minutes at a village you run, never the same twice running. Blight (open the granaries, buy grain, or go hungry), fever (a physician, shut the sick houses, or let it run), a wandering knight (hire his five lances, feast him for the houses' good opinion, or send him on), refugees (take in five to eleven families who bring their own grumbling, more in Part 2), a midsummer fair (pay for good cheer), and a bandit chief (pay him to spare your villages for twenty minutes, hire his band, or refuse). Pictures asked of Art at assets/art/events/<id>.png; the box shows none until they land.
 - **Tutorial opening**: the goals panel (done; folded to the current goal) plus a short guided first village.
 
 ## 8. The wish list
@@ -147,7 +147,7 @@ All approved. Owners in brackets.
 - **Each kind of place plays differently**: abbey relics and pilgrims, toll fights at fords, mine collapses.
 
 **Part 2** (Realm, Battles for units)
-- Refugees flee south and swell your villages, with their own mood problems.
+- Refugees flee south and swell your villages, with their own mood problems. *Built as the refugees event, more often and in bigger numbers in Part 2.*
 - Old rivals fight beside you as vassal armies you can call.
 - Norrhold gets its own original units and tactics: different weapons, war dogs, winter raids. *(Units done: axemen, javelin men, war dogs, and a Norrhold host; winter raids are Realm's.)*
 
