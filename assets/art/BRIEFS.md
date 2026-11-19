@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added; section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist for if Codex can make models, added). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added; section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist, added; section 7's animation clips requested ahead of everything else, after the creator turned down Codex's prototype bodies). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -19,7 +19,7 @@ Paths here are relative to the repository root (`RTS/`). The game itself is desc
   | UI kit | `assets/art/ui/…` | see section 4 |
   | Event pictures | `assets/art/events/<id>.png` | 640×360 (16:9), opaque |
   | Moments, title, cursors, captains | `assets/art/moments/…`, `assets/art/title.png`, `assets/art/title-tall.png`, `assets/art/ui/cursors/…`, `assets/art/captains/…` | see section 6 |
-  | 3D (only if Codex can make it) | `assets/art/3d/…` | see section 7 |
+  | 3D animation clips | `assets/art/3d/…` | see section 7 |
 
   `<id>` is `varn`, `carrow`, `stonemere`, `wyndham`, `penhallow`, `dunmore`, or `player` (with `player-f` for the second player portrait), plus `norrhold` and `bandits` from section 6.
 - Make two or three takes of each image and pick the best. Keep the others in `wip/` for the creator to look at.
@@ -343,9 +343,11 @@ Mix them: ages from about twenty-five to sixty; three of the ten women; two in p
 
 ---
 
-## 7. A 3D wishlist (only if Codex can make 3D)
+## 7. 3D: animation clips for the soldiers
 
-Skip this section unless Codex can export clean glTF. Everything in it is a nice-to-have: the game already has finished models for every unit and building. **Do one test piece first** (7.1's `Spear_Thrust`) and stop there, so the Art workstream can check it in the game before Codex spends time on the rest.
+**Status: 7.1 and 7.2 are requested now (2026-11-19), ahead of anything left in sections 1–6.** The creator looked at Codex's prototype soldiers (`assets/codex-prototypes/`, the asset workshop) and decided **not** to use them: the game keeps its Quaternius soldiers. So no more bodies or soldier models. What they want instead is animation for the soldiers the game already has.
+
+**Do one test clip first** (7.1's `Spear_Thrust`), commit it, and carry on with the rest. The Art workstream checks the test in the game and will write into this section if anything about the rig or format needs to change. The rig's source is already in `assets/art/3d/wip/Male_Adventurer.source.glb`.
 
 ### Format for everything in this section
 
@@ -383,9 +385,9 @@ Rules for the clips: 30 frames per second; loops start and end on the same pose;
 
 The Quaternius horse has Idle, Walk, WalkSlow, Run, Jump and Death. Wanted on its rig, in the same rules: `Gallop` (a full charge, faster and lower than Run), `Rear`, and `Trot`. Save as `assets/art/3d/clips-horse.glb`.
 
-### 7.3 Models (lower priority)
+### 7.3 Models (on hold)
 
-Only after 7.1 and 7.2. Keep each under the triangle budget given, in the Quaternius style: chunky, simple, flat colours.
+Not requested yet: only if the creator asks for them after 7.1 and 7.2 are in. Keep each under the triangle budget given, in the Quaternius style: chunky, simple, flat colours.
 
 | File | Budget | What it is |
 |---|---|---|
@@ -395,4 +397,4 @@ Only after 7.1 and 7.2. Keep each under the triangle budget given, in the Quater
 | `norrhold-gear.glb` | 400 each | For Norrhold's army (6.1): a spangenhelm with a nose guard, a fur mantle that fits over the modular men's shoulders, a bearded axe, as separate nodes. |
 | `banner-pole.glb` | 200 | A tall pole with a crossbar and a plain `cloth` banner hanging from it (the game swaps in the arms). |
 
-*Design context, not for the image prompt:* the soldiers are baked from posed, still models, so on the battlefield they only bob. The Art workstream can already give them walking legs from the rig's own Walk and Run, without Codex. These clips are what would make a spear wall brace, archers draw and a broken regiment run. The siege engines would match the rest of the models better than the Kenney ones.
+*Design context:* the soldiers are baked from posed, still models, so on the battlefield they only bob. The Art workstream will bake the clips (with the rig's own Walk and Run) into the game's soldiers. These clips are what make a spear wall brace, archers draw and a broken regiment run.
