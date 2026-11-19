@@ -148,8 +148,8 @@ All approved. Owners in brackets.
 **Rivals and drama** (Realm, Battles for the duel)
 - Rivals with memory: grudges, escapes and revenge (section 4).
 - **Champion duels**: Dunmore challenges you to settle a battle with a duel. **Built (2026-11-19):** Lord Hal Dunmore, a hothead, challenges in field battles: always when outnumbered (to settle the battle), otherwise one time in two (for honour). You answer in the field; a captain left in command takes up an honour duel but won't stake a battle he is winning.
-- **Tournaments at Kingsbridge** for gold, renown and recruiting knights.
-- **Wyndham's schemes**: a gate opened from inside, a bribed captain, built on the spies in §1.
+- **Tournaments at Kingsbridge** for gold, renown and recruiting knights. **Built (2026-11-19)** as an event at your seat from Lord: send your best captain or ride yourself for 50 gold; a win brings 200 gold, every house's good opinion and four knights who ride home to serve you; a fall costs the entry (and you a few minutes mending).
+- **Wyndham's schemes**: a gate opened from inside, a bribed captain, built on the spies in §1. **Built (2026-11-19), the bribed captain:** while a scheming house is at war with you, an event warns that one of your captains in the field is taking its gold; pay double, take away the command, or ignore it and risk the army marching over to them. The gate opened from inside waits on Battles.
 
 **Economy and the realm** (Realm)
 - **Trade carts** between market towns; bandits raid them, and you can escort them (see the carts in §1b).

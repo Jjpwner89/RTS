@@ -122,6 +122,60 @@ const EVENTS = {
   },
 };
 
+// Tournaments at Kingsbridge: a champion of yours rides for gold, renown and knights.
+// The best captain you have (or you yourself) jousts; a good one wins more often.
+EVENTS.tournament = {
+  when: (w, p) => w.rank !== 'Reeve' && p === (FACTIONS[0].seat || w.home) && !!w.crown && w.time > 1800,
+  title: () => 'A tournament at Kingsbridge',
+  text: (w, p, e) => `Heralds cry a tournament at Kingsbridge: a purse of 200 gold, and the eyes of every great house on the lists. ${e.champ ? `Captain ${e.champ.name} asks to ride for you.` : 'You have no captain fit to ride.'}`,
+  choices: (w, p, e) => {
+    const joust = (who, odds, hurt) => {
+      pay(50);
+      if (w.rand() < odds) {
+        FACTIONS[0].gold += 200;
+        for (const H of FACTIONS) if (H.index && w.dip?.[H.index] && !H.bandit) w.dip[H.index].opinion += 6;
+        w.spawnArmy(0, [{ key: 'knight', count: 4, name: 'Tourney knights', xp: 1, elite: true, armour: 'plate', shield: true }], p, 'Tourney knights');
+        w.chron(`${who} won the tournament at Kingsbridge.`);
+        return `${who} wins the tournament! 200 gold, the realm's applause, and four knights who saw it ride home to serve you.`;
+      }
+      hurt();
+      return `${who} is unhorsed in the third course. The purse goes elsewhere.`;
+    };
+    return [
+      { label: e.champ ? `Send Captain ${e.champ.name} (50 gold)` : 'No captain to send', ok: !!e.champ && gold() >= 50,
+        run: () => joust(`Captain ${e.champ.name}`, 0.25 + e.champ.level * 0.1, () => {}) },
+      { label: 'Ride yourself (50 gold)', ok: gold() >= 50 && !(w.lordHurt > w.time) && (w.lordCaptive ?? null) === null,
+        run: () => joust('You', 0.45, () => { w.lordHurt = w.time + 300; }) },
+      { label: 'Stay away', run: () => 'The tournament goes on without you.' },
+    ];
+  },
+};
+// Wyndham's schemes: the schemer's gold reaches one of your captains in the field.
+// Ignore it, and he may march his army over to her.
+EVENTS.scheme = {
+  when: (w, p) => p === (FACTIONS[0].seat || w.home) && !!schemer(w) && !!turncoat(w),
+  title: () => 'A whisper of treason',
+  text: (w, p, e) => `Captain ${e.cap.name}, who leads ${e.army.name}, has been seen drinking with ${e.house.name}'s agents, and spending more than a captain earns.`,
+  choices: (w, p, e) => [
+    { label: 'Double his pay (100 gold)', ok: gold() >= 100, run: () => { pay(100); return `Captain ${e.cap.name} swears never to have taken a penny. Yours, for now.`; } },
+    { label: 'Take away the command', run: () => { e.army.captain = null; e.cap.army = null; e.cap.alive = false; return `Captain ${e.cap.name} is stripped of his command and sent away. ${e.army.name} marches without a captain.`; } },
+    { label: 'Ignore it', run: () => {
+      if (w.rand() < 0.5 || e.army.gone) return 'Nothing comes of it.';
+      e.army.side = e.house.index;
+      e.army.lord = null;
+      e.army.path = [];
+      e.army.name = `${e.house.short} turncoats`;
+      e.cap.side = e.house.index;
+      w.chron(`Captain ${e.cap.name} took ${e.house.name}'s gold and marched ${e.army.name} over to them.`);
+      w.log(`Captain ${e.cap.name} has gone over to ${e.house.name}, army and all!`, 1);
+      return `Captain ${e.cap.name} has gone over to ${e.house.name}, and the whole army too.`;
+    } },
+  ],
+};
+const schemer = w => FACTIONS.find(H => H.trait === 'schemer' && H.alive && w.atWar(0, H.index));
+const turncoat = w => w.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && a.captain && a.lord !== 0)
+  .map(a => ({ a, c: (w.captains || []).find(c => c.id === a.captain && c.alive) })).find(x => x.c);
+
 // The bandit camp nearest a place, if it is close and still holds men.
 function camp(w, p) {
   return w.pois.filter(c => c.kind === 'camp' && c.owner === w.bandits && headcount(c.garrison || []) > 0 && Math.hypot(c.x - p.x, c.z - p.z) < 500)
@@ -147,6 +201,8 @@ export function fire(w, id, p) {
   const E = EVENTS[id];
   const r = () => w.rand();
   const extra = { name: id === 'knight' ? KNIGHTS[Math.floor(r() * KNIGHTS.length)] : CHIEFS[Math.floor(r() * CHIEFS.length)], n: Math.round((w.part === 2 ? 10 : 5) + r() * 6) };
+  if (id === 'tournament') extra.champ = (w.captains || []).filter(c => c.alive && c.side === 0 && c.captive === undefined).sort((a, b) => b.level - a.level)[0] || null;
+  if (id === 'scheme') { const t = turncoat(w); Object.assign(extra, { cap: t.c, army: t.a, house: schemer(w) }); }
   w.lastEvent = id;
   const choices = E.choices(w, p, extra);
   const ev = { id, image: `assets/art/events/${id}.png`, title: E.title(p), text: E.text(w, p, extra), at: p,
