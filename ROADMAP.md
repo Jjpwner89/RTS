@@ -13,6 +13,7 @@ Difficulty settings come later. Now the job is one fair base game.
 - **Their troop production is slow**: not slower than the player, but a player who builds the economy fast, goes straight into weapons and spears and leaves no slack must be able to raise troops faster than any rival.
 - **The pace is similar on both sides.** A slow or inefficient player falls behind; an efficient one pulls ahead.
 - The gentler opening (20 minutes of grace, buying peace with gold) is a stopgap until this is right.
+- **First pass done (2026-11-19):** rival arms now come from a smithy at a slow, player-like pace, and from villagers; see "Rivals grow by your rules" in DESIGN_NOTES. Next: watch it in real play, and check the long game (60+ minutes, conquests, sellswords) keeps the same shape.
 - Later: Gentle / Normal / Hard on New campaign (grace period and rival growth).
 
 ## 2. The climb: every rank brings new tools and new trouble (Realm)

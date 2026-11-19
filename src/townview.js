@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { BUILDINGS } from './economy.js';
+const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 const TIMBER = '#8a6a48', SHINGLE = '#6d5a48', ROOF_RED = '#7a4a32', CRATE_WOOD = '#a07a4a', CRATE_BAND = '#5e4228';
 
@@ -299,7 +300,7 @@ export class TownView {
       this.selectRing.position.set(selected.x, this.heightAt(selected.x, selected.z) + 0.5, selected.z);
     }
 
-    // Villagers: a gentle bob when walking, a working rhythm when at a task.
+    // Villagers: a gentle bob when walking, a working rhythm when at a task. Rebels wear red.
     const d = this.dummy, P = this.people, c = this.color || (this.color = new THREE.Color());
     const cam = LOD.camera?.position, near2 = LOD.near * LOD.near;
     let n = 0, nl = 0, k = 0;
@@ -314,14 +315,14 @@ export class TownView {
         const i = v.id % 600;
         P.gearLight.setMatrixAt(nl, d.matrix);
         P.clothLight.setMatrixAt(nl, d.matrix);
-        P.clothLight.setColorAt(nl, this.dyes[i]);
+        P.clothLight.setColorAt(nl, v.state === 'rebel' ? REBEL : this.dyes[i]);
         P.gearLight.setColorAt(nl, this.skins[i]);
         nl++;
       } else {
         const i = v.id % 600;
         P.gear.setMatrixAt(n, d.matrix);
         P.cloth.setMatrixAt(n, d.matrix);
-        P.cloth.setColorAt(n, this.dyes[i]);
+        P.cloth.setColorAt(n, v.state === 'rebel' ? REBEL : this.dyes[i]);
         P.gear.setColorAt(n, this.skins[i]);
         n++;
       }

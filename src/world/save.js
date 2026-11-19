@@ -14,6 +14,7 @@ export function canSave(w, { busy = false } = {}) {
   if (w.winner !== null) return { ok: false, reason: 'The campaign is over' };
   if (busy || w.encounter) return { ok: false, reason: 'Finish the fight first' };
   if (w.pois.some(p => p.town && (p.town.hostile || p.town.underAttack))) return { ok: false, reason: 'A village is being fought over' };
+  if (w.pois.some(p => p.town?.revolt)) return { ok: false, reason: 'A village is in revolt' };
   return { ok: true };
 }
 

@@ -693,22 +693,50 @@ export class Town {
     // pitchforks, gather in the woods and come back to burn. Afterwards the rest are cowed.
     this.rebelCool -= dt;
     this.misery = this.mood < 15 && !this.underAttack ? this.misery + dt : Math.max(0, this.misery - dt * 2);
-    if (this.misery >= 120 && this.rebelCool <= 0 && this.population >= 15) this.rebel();
+    if (this.misery >= 120 && this.rebelCool <= 0 && this.population >= 15 && !this.revolt) this.rebel();
   }
 
+  // The angriest drop their work, gather by the keep, march out to the woods, and come
+  // back as a raid by the way they went: you can see it coming the whole time.
   rebel() {
     const n = Math.min(40, Math.max(6, Math.round(this.population * 0.3)));
     const out = this.villagers.filter(v => v.state !== 'soldier' && v.state !== 'shelter').slice(-n);
-    for (const v of out) this.release(v);
-    this.villagers = this.villagers.filter(v => !out.includes(v));
+    const a = this.rand() * Math.PI * 2;
+    for (const v of out) {
+      this.release(v);
+      v.state = 'rebel';
+      v.hidden = false;
+      v.load = null; v.carry = null;
+      v.spot = { x: Math.sin(a) * 26 + (this.rand() - 0.5) * 10, z: Math.cos(a) * 26 + (this.rand() - 0.5) * 10 };
+    }
+    this.revolt = { a, n: out.length, time: 0, phase: 'gather' };
     this.misery = 0;
     this.rebelCool = 600;
     this.mood = Math.min(100, this.mood + 15);
     this.grief = 0;
-    this.event(`${out.length} villagers have risen against you and fled to the woods!`, 1);
-    this.receiveAttack([{ key: 'militia', count: out.length, name: 'Rebel peasants' }], this.rand() * Math.PI * 2,
-      { mode: 'raid', name: 'Rebels', house: this.rebelHouse ?? 1 });
+    this.event(`${out.length} angry villagers have thrown down their tools and are gathering by the keep!`, 1);
     this.onRebel?.(out.length);
+  }
+
+  updateRevolt(dt) {
+    const R = this.revolt;
+    if (!R) return;
+    R.time += dt;
+    const rebels = this.villagers.filter(v => v.state === 'rebel');
+    if (R.phase === 'gather' && R.time > 14) {
+      R.phase = 'leave';
+      this.event('The rebels are marching out to the woods. They will be back with torches.', 1);
+      for (const v of rebels) v.spot = { x: Math.sin(R.a) * 205 + (this.rand() - 0.5) * 16, z: Math.cos(R.a) * 205 + (this.rand() - 0.5) * 16 };
+    }
+    if (R.phase === 'leave' && (!rebels.length || R.time > 90)) {
+      this.villagers = this.villagers.filter(v => v.state !== 'rebel');
+      R.phase = 'away';
+      R.time = 0;
+    }
+    if (R.phase === 'away' && R.time > 25) {
+      this.revolt = null;
+      this.receiveAttack([{ key: 'militia', count: R.n, name: 'Rebel peasants' }], R.a, { mode: 'raid', name: 'Rebels', house: this.rebelHouse ?? 1 });
+    }
   }
 
   // Gold for each villager each second at this tax rate, weighed by the mood.
@@ -753,6 +781,12 @@ export class Town {
   }
 
   updateVillager(v, dt) {
+    if (v.state === 'rebel') {
+      // out past the trees, they are gone from the village
+      if (this.walk(v, v.spot.x, v.spot.z, dt, this.revolt?.phase === 'leave' ? WALK * 1.1 : WALK) && this.revolt?.phase === 'leave') v.gone = true;
+      if (v.gone) this.villagers = this.villagers.filter(o => o !== v);
+      return;
+    }
     if (v.state === 'soldier') {
       // A levy who falls in battle is a villager lost.
       if (!v.soldier.alive) { v.dead = true; this.release(v); this.grief += 3; }
@@ -996,6 +1030,7 @@ export class Town {
       if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
     }
     this.updateMood(dt);
+    this.updateRevolt(dt);
     this.nextArrival -= dt;
     if (this.nextArrival <= 0) {
       // A happy village draws newcomers faster; a sullen one draws nobody.
