@@ -597,12 +597,18 @@ export class World {
     const was = p.owner;
     p.owner = owner;
     if (was !== null && FACTIONS[was]?.seat === p) {
-      const next = this.pois.filter(q => q.owner === was).sort((q, r) => (r.eco?.pop ?? 0) - (q.eco?.pop ?? 0))[0];
+      // (you fall back to a village you run yourself, the biggest first)
+      const size = q => q.town ? 1000 + q.town.population : q.eco?.pop ?? 0;
+      const next = this.pois.filter(q => q.owner === was).sort((q, r) => size(r) - size(q))[0];
       FACTIONS[was].seat = next || null;
       if (next) next.seat = was;
       delete p.seat;
-      if (next && was !== 0 && (p.visible || this.knows(was))) this.log(`${FACTIONS[was].name} has lost its seat and fallen back to ${next.name}.`, was === 0 ? 1 : 2);
+      if (was === 0) {
+        if (next) { this.home = next; this.log(`You have lost ${p.name}. Your seat is now ${next.name}.`, 1); }
+      } else if (next && (p.visible || this.knows(was))) this.log(`${FACTIONS[was].name} has lost its seat and fallen back to ${next.name}.`, 2);
     }
+    // A lord with no seat makes his seat of the first place he takes.
+    if (owner === 0 && (!FACTIONS[0].seat || FACTIONS[0].seat.owner !== 0)) { FACTIONS[0].seat = p; p.seat = 0; this.home = p; }
   }
 
   // A house with no places left is broken; its armies scatter.

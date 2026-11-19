@@ -67,8 +67,9 @@ function houseMind(w, h) {
   if (h.arms >= 6) w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)));
 
   // A rich lord at war buys sellswords rather than sit on his gold.
-  if (!h.bandit && h.gold > 500 && FACTIONS.some(o => o.alive && !o.bandit && o !== h && w.atWar(h.index, o.index))) {
+  if (!h.bandit && h.gold > 500 && w.time > (ai.hiredAt ?? -Infinity) + 300 && FACTIONS.some(o => o.alive && !o.bandit && o !== h && w.atWar(h.index, o.index))) {
     h.gold -= 360;
+    ai.hiredAt = w.time;
     recruit(muster.garrison, 'sellsword', TYPES.sellsword.count, `${h.short} sellswords`);
     if (muster.visible) w.log(`${h.name} has hired sellswords at ${muster.name}.`, 2);
   }

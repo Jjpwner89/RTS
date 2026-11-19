@@ -175,7 +175,10 @@ let goalsShown = -1;
 $('goals').onclick = () => { $('goals').classList.toggle('folded'); goalsShown = -1; };
 function goals() {
   if (mode === 'town') goalSeen.visited = true;
-  for (const g of updateGoals(world, goalSeen)) { world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.`); }
+  for (const g of updateGoals(world, goalSeen)) {
+    const next = GOALS[world.goals];
+    world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.${next ? ` Next: ${next.text[0].toLowerCase()}${next.text.slice(1)}` : ''}`);
+  }
   if (goalsShown === world.goals) return;
   goalsShown = world.goals;
   const el = $('goals');
@@ -578,7 +581,8 @@ addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'm' && mode === 'town') showWorld();
 });
 
-let seenWorld = 0;
+// A loaded campaign shows only what happens from now on.
+let seenWorld = loaded ? Math.max(0, world.events.length - 1) : 0;
 function worldLog() {
   const logEl = $('log');
   while (seenWorld < world.events.length) {
@@ -682,7 +686,7 @@ $('save').onclick = () => {
   savedAt = world.time;
   flash(r.ok ? 'Saved. Continue from the menu any time.' : r.reason, r.ok);
 };
-if (loaded) $('help').classList.remove('open');
+if (loaded) { $('help').classList.remove('open'); paused = false; }
 
 setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);
