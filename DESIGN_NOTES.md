@@ -131,16 +131,65 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - Strategic zoom with banners that stay a fixed size on screen.
 - URL options: `?seed=123` for a fixed map, `?scale=4` for four lines a side.
 
-## Proposed next steps
+## The full game (decided 2026-11-18)
 
-1. **Play the campaign and tune it**: when House Varn moves, how big its armies are, and how fast your villages can answer.
-2. **More factions and diplomacy**, as the creator asked: several houses, peace, alliances and tribute.
-3. **A rival that builds**: Varn's villages becoming real towns instead of a growing number.
-4. Later: sieges and walls, supply on the march, more unit types, saves, and the full climb.
+The creator answered the big design questions for building the full game in one long push. These answers lead; anything left open is Claude's call.
 
-## Open questions for the creator
+### The hook
 
-- **Archery range or barracks?** For now the bowyer uses the Fantasy RTS archery range and the barracks its barracks.
+**One living realm.** Every village is a real place that keeps running whether you watch it or not, every soldier is one of its villagers, and the map, the town and the battle are one game with no loading screens. Only the place you are looking at is drawn; the rest run as cheap simulation. **Your attention is the scarce resource**: while you hold Ashford's walls by hand, your other villages carry on without you.
+
+Second: **sieges with grandeur**. Wars build up: scouts and raiding parties first, skirmishes over villages and supply, and then the great army arrives and lays siege. Skirmishing early should pay (weaken their supply, kill their raiders, burn their camp) so the siege is not just a wall of men.
+
+Third: **named rival lords** with traits and taunts.
+
+### Decisions
+
+| Topic | Decision |
+|---|---|
+| Campaign | One map of 25–40 places, 4–6 rival houses, 6–15 hours. A sandbox with a light tutorial opening. |
+| Winning | Be crowned: hold the royal seat and most of the realm, **or win by diplomacy** when enough houses back your claim (friendship, a marriage alliance, or being far stronger and liked). |
+| Ending | After the victory screen, pressing Next shatters it: a great invasion comes from the edge of the map. |
+| Tone | Grounded medieval, stylised look, no magic. |
+| Sieges | Stronghold style: free-placed walls, towers and gates; ladders, rams, catapults and trebuchets; defenders fight from the walls. The pack's first keep model reads as a fort, not your main keep. |
+| Supply | Simple: armies carry **food**. Wagons bring more from your villages; starving armies desert. Wounded men recover with food and rest. |
+| Money | Gold from taxes and markets. Most things cost goods; gold comes in for upgrades, mercenaries and retinues. |
+| Mood | Each village has a mood from food variety, housing, taxes and war losses; mood drives growth. |
+| Rivals | Real factions on the same rules, simulated cheaply when unwatched. About six named lords with traits and taunts (builder, raider, turtler, schemer…). |
+| Diplomacy | War, truce, peace, alliance, tribute, vassals and **marriage alliances**. |
+| Threats | Bandit camps early, rebellions when mood is low, the invasion at the end. |
+| Fog of war | Yes, on the world map and in towns. Scouts and watchtowers reveal. |
+| Places | About six kinds, each with a speciality: village, castle, mine, ford, monastery, market town. Army camps can grow into holdings. |
+| Chains | Add gold and markets, leather and armour, horses, bread and a siege workshop. Elite units take long chains: ore → iron → mail → armour for knights. |
+| Upgrades | Buildings level up with the village's population and gold. |
+| Unwatched villages | No standing orders: a governor quietly keeps producing and building sensibly. |
+| Battles | Levy spears, swordsmen, archers, crossbows, light and heavy cavalry, men-at-arms, knights, siege engines; retinues and mercenaries as elites. One named captain per army who levels up and can die. Formations, charge, hold, fire at will. Up to about 2,000 on screen. Ways to queue and raise troops at scale. |
+| Art | The Quaternius picks everywhere; Codex for portraits, heraldry, a painted world map and UI while it is available. |
+| Audio | Free music and sound (CC0 or attribution) with a credits screen. |
+| Platform | Desktop browser. Not shareable yet (no GitHub Pages). |
+| Spending | Never spend money. Free assets may be downloaded freely. |
+| Testing | Other Claude models do quick playtests and give their thoughts; no big balance sweeps. |
+| Parked | Seasons and winter. A **Claude director**: later, with an API key, Claude occasionally reads a simplified summary of the game and turns a few dials (a rival's mood, an event, an invasion's timing). Build the game so its state can be summarised and those dials exist. |
+
+### Workstreams and who owns which files
+
+Several sessions build this at once. Each owns its files; small hooks into another's file are fine, but keep them small and pull before pushing. Everyone commits to `main` in small, playable steps.
+
+| Workstream | Owns |
+|---|---|
+| **Realm** (world, rivals, diplomacy, supply, villages' economy, campaign UI) | `src/world/world.js`, new `src/world/*` logic files, `src/economy.js`, `src/townhud.js`, `src/campaign.js`, `world.html` |
+| **Battles and sieges** (walls, gates, towers, siege engines, new units, captains, formations) | `src/battle.js`, `src/ai.js`, `src/controls.js`, `src/hud.js`, new siege and wall files, `battle.html` |
+| **Art** (models, the look, Codex briefs) | `assets/`, `tools/`, `src/models.js`, `src/view.js`, `src/townview.js`, `src/world/worldview.js`, `src/stage.js`, `src/terrain.js` |
+| **Audio** | `src/audio.js`, `assets/audio/`, the credits screen |
+
+### Order of work (Realm)
+
+1. A generated realm of 25–40 places of six kinds, 4–6 houses with named lords, fog of war.
+2. Rival houses that hold real villages and wage wars that build up: scouts, raids, skirmishes, then a siege army.
+3. Diplomacy with relations, marriage and the diplomatic win; the shattering ending and invasion.
+4. Food supply, wagons, desertion and wounded.
+5. Village mood, gold, markets, the new chains, building levels and the governor.
+6. Saves, the tutorial opening, and Claude playtests after each step.
 
 ## Side project
 
