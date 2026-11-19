@@ -207,3 +207,10 @@ body.town #defences { display: block; }
 #defences .sel { margin-top: 6px; font-size: 11px; }
 #defences .sel .row { display: flex; gap: 4px; margin-top: 4px; }
 body.town.has-defences #cards { left: 600px; }
+
+/* Storming a place: the village panel shows the fight instead of the stores */
+#stock .storm { margin: 5px 0; font-size: 13px; }
+#stock .storm:empty { display: none; }
+#stock .note { color: var(--dim); font-size: 12px; line-height: 1.4; margin: 6px 0; }
+#stock button.wide { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
+#stock button.wide small { color: var(--dim); font-size: 11px; }

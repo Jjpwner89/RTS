@@ -302,6 +302,19 @@ export class World {
   arrive(a, p, came) {
     a.path = [];
     a.retreating = false;
+    // A place being stormed: your men join the fight, its own lord's men come to relieve it,
+    // and anyone else waits their turn.
+    if (p.town?.hostile) {
+      const angle = this.angle(p, came === p ? p.links[0] : came);
+      if (a.side === 0) { p.town.addTroops(a.units, angle, { stand: 95 }); this.removeArmy(a); this.log(`${a.name} joins the attack on ${p.name}.`); }
+      else if (a.side === p.owner) {
+        this.removeArmy(a);
+        p.town.receiveAttack(a.units, angle, { mode: 'assault', name: a.name, house: a.side,
+          onLeave: left => { if (left.length) this.retreat(this.spawnArmy(a.side, left, p, a.name)); } });
+        this.log(`${a.name} has come to relieve ${p.name}!`, 1);
+      } else this.retreat(a);
+      return;
+    }
     if (p.owner === a.side) {
       if (a.side !== 0) { mergeInto(p.garrison, a.units); this.removeArmy(a); }
       else if (p.town) this.enterTown(a, p, came);
@@ -449,6 +462,80 @@ export class World {
     for (const k of [...this.wars]) if (k.split(':').map(Number).includes(h)) this.wars.delete(k);
     this.log(`${H.name} is broken. ${H.lord} has fled the realm.`, 0);
     this.hooks.herald?.({ house: H, title: `${H.name} is broken`, text: `${H.lord} has fled the realm.` });
+  }
+
+  // ---- storming a place ----
+  // You fight for a place in the place itself: it is laid out as a real village with
+  // what its people have built, its garrison holds the keep, and your army marches in by
+  // the road it came on. Win and it is yours as it stands, less whatever you burned.
+
+  storm(enc) {
+    const p = enc.poi, a = enc.army, owner = p.owner;
+    this.encounter = null;
+    a.halted = false;
+    const lvl = p.eco?.level ?? 1, pop = p.eco?.pop ?? 20;
+    const defenders = p.garrison;
+    const town = this.makeTown(p, { kind: p.kind, villagers: 0, retinue: false,
+      stock: { wood: 30 + lvl * 20, stone: 10 + lvl * 10, food: 40 + lvl * 20, planks: 10 } });
+    prebuild(town, PREBUILT[Math.min(3, lvl - 1)], town.rand);
+    town.keepLevel = Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
+    const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
+    const H = owner === null ? NEUTRAL : FACTIONS[owner];
+    town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name };
+    town.flagColor = H.color;
+    town.holdKeep(defenders, came, { house: owner ?? 1 });
+    town.addTroops(a.units, came, { stand: 100 });
+    this.removeArmy(a);
+    this.log(`${a.name} is storming ${p.name}.`);
+  }
+
+  // Called each step while a place is being stormed: is it won or lost yet?
+  checkStorm(p) {
+    const t = p.town, b = t.battle;
+    const standing = r => !r.gone && !r.routing;
+    const ours = b.regs.filter(r => r.side === 0 && standing(r));
+    const theirs = t.attackers.flatMap(g => g.regs).filter(standing);
+    if (!theirs.length) this.wonStorm(p);
+    else if (!ours.length) this.endStorm(p, false);
+  }
+
+  wonStorm(p) {
+    const t = p.town, h = t.hostile, was = h.owner;
+    note(this, was, 'tookPlace');
+    this.takePlace(p, 0);
+    t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * 0.5))) });
+    t.flagColor = null;
+    p.eco = null;
+    p.garrison = [];
+    this.log(`You have taken ${p.name}!`);
+    this.hooks.stormEnded?.(p, true);
+    this.hooks.captured(p, was);
+    this.checkBroken(was);
+    this.checkEnd();
+  }
+
+  // The attack is beaten off, or you call it off: the place goes back to its owner as a
+  // holding, poorer for whatever burned, and your survivors fall back.
+  endStorm(p, chose) {
+    const t = p.town, h = t.hostile, b = t.battle;
+    const left = r => r.soldiers.filter(s => s.alive && !s.gone).length;
+    const mine = b.regs.filter(r => r.side === 0 && !r.gone)
+      .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue })).filter(u => u.count >= 3);
+    const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => unit(r.T.key, left(r), r.name)).filter(u => u.count >= 3);
+    const burned = t.buildings.filter(o => o.state === 'ruined').length;
+    p.town = null;
+    p.garrison = theirs;
+    p.eco = h.eco || { pop: h.pop, level: 1, arms: 0 };
+    if (burned) {
+      p.eco.pop *= Math.max(0.4, 1 - burned * 0.1);
+      p.eco.level = Math.max(1, p.eco.level - Math.floor(burned / 3));
+    }
+    if (!chose) note(this, h.owner, 'lostField');
+    const fire = burned ? `, leaving ${burned} of its buildings in ashes` : '';
+    this.log(chose ? `You pull back from ${p.name}${fire}.` : `The attack on ${p.name} has failed${fire}.`, chose ? 0 : 1);
+    if (mine.length) this.retreat(this.spawnArmy(0, mine, p, h.army));
+    this.hooks.stormEnded?.(p, false, chose);
+    this.checkEnd();
   }
 
   // A rival marches on one of your villages: the fight happens there, in the village itself.
@@ -633,6 +720,7 @@ export class World {
     p.pruneClock -= dt;
     if (p.pruneClock <= 0) { p.pruneClock = 30; b.prune(); }
     if (p.falling) this.fall(p);
+    if (t.hostile) this.checkStorm(p);
   }
 
   // How hard a place would be to take, in the same units as power().

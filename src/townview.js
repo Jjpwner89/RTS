@@ -250,6 +250,9 @@ export class TownView {
 
   update(selected) {
     const town = this.town;
+    // A place being stormed flies its owner's colours until it is yours.
+    const flag = town.flagColor || SIDE_COLORS[0];
+    if (flag !== this.flagShown) { this.flagShown = flag; this.flag.material.color.set(flag); }
     const level = this.wantedKeepLevel();
     if (level !== this.keepLevel) {
       this.keepLevel = level;

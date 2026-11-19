@@ -495,6 +495,8 @@ export class Town {
     if (this.lost) return;
     this.time += dt;
     this.stockCache = null;
+    // A place you are storming is only a battlefield until it is yours.
+    if (this.hostile) { this.updateAttacks(dt); this.updateBurning(dt); return; }
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.updatePeople(dt);
@@ -807,7 +809,7 @@ export class Town {
         g.leaving = true;
         this.event('The raiders are making off with their plunder.');
       }
-      if (g.leaving) continue;
+      if (g.leaving || this.hostile) continue;
       // Attackers not fighting set fire to whatever they stand beside.
       for (const r of live) {
         if (r.routing || r.regrouping || !r.raidTarget || r.engaged > 0) continue;
@@ -827,7 +829,7 @@ export class Town {
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
     const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length })).filter(sp => sp.count > 0);
-    if (!this.lost) this.event('The attackers are gone. The village breathes again.');
+    if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
     g.onLeave?.(survivors);
   }
 
@@ -840,14 +842,15 @@ export class Town {
       return;
     }
     t.state = 'ruined';
-    t.status = 'Burned by raiders';
+    t.status = this.hostile ? 'Burned by your men' : 'Burned by raiders';
     if (g) g.burned++;
     for (const v of [...t.workers, ...t.builders]) this.release(v);
     // Whatever was kept there is carried off or lost in the fire.
     const lost = Object.values(t.store).reduce((n, k) => n + k, 0);
     t.store = {};
     this.stockCache = null;
-    this.event(`Raiders burned the ${t.B.name.toLowerCase()}${lost >= 1 ? ` and took ${Math.floor(lost)} goods` : ''}!`, 1);
+    if (this.hostile) this.event(`Your men have burned their ${t.B.name.toLowerCase()}.`);
+    else this.event(`Raiders burned the ${t.B.name.toLowerCase()}${lost >= 1 ? ` and took ${Math.floor(lost)} goods` : ''}!`, 1);
   }
 
   // Practice raids for the standalone village, from bandits who come out of nowhere.
@@ -869,6 +872,7 @@ export class Town {
     for (const g of this.attackers) {
       for (const r of g.regs) {
         if (r.gone || r.routing || r.regrouping || r.ai === 'siege') continue;
+        if (g.mode === 'hold') { this.holdPost(r, defenders); continue; }
         if (g.leaving) {
           // Back down the road and away; only men who are caught still fight.
           r.targetReg = null;
@@ -902,10 +906,86 @@ export class Town {
     }
   }
 
+  // ---- storming someone else's village ----
+  // When you attack a place on the world map, you fight in the place itself. `hostile`
+  // says whose it is; its garrison stands round the keep as a 'hold' group (side 1 is
+  // always the village's enemy here, so the defenders are on that side). Nothing is built
+  // or worked until it is yours. Your men can put its buildings to the torch.
+
+  holdKeep(specs, entryAngle, { house = 1 } = {}) {
+    const b = this.battle, n = specs.length;
+    b.homes[0] = this.edgePoint(entryAngle);            // your broken men run back down the road
+    b.homes[1] = this.edgePoint(entryAngle + Math.PI);  // theirs out the far side
+    const ranged = key => ['archer', 'crossbow', 'hiredxbow'].includes(key);
+    const regs = specs.map((sp, i) => {
+      const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));
+      const d = ranged(sp.key) ? 16 : 32;
+      const r = b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name });
+      r.post = { x: Math.sin(a) * d, z: Math.cos(a) * d, angle: a };
+      return r;
+    });
+    this.attackers.push({ regs, mode: 'hold', entry: { x: 0, z: 0 }, time: 0, burned: 0, leaving: false, onLeave: null, house, prepare: 0 });
+  }
+
+  // A defender fights whoever comes near its post, but never chases far from it.
+  holdPost(r, foes) {
+    const b = this.battle, p = r.post;
+    const reach = r.T.range ? r.T.range + 10 : 55;
+    const near = foes.filter(d => Math.hypot(d.cx - p.x, d.cz - p.z) < reach)
+      .sort((x, y) => Math.hypot(x.cx - r.cx, x.cz - r.cz) - Math.hypot(y.cx - r.cx, y.cz - r.cz))[0];
+    if (near) { if (r.targetReg !== near) b.orderAttack([r], near); return; }
+    if (r.targetReg) r.targetReg = null;
+    if (Math.hypot(r.cx - p.x, r.cz - p.z) > 4 && (!r.dest || Math.hypot(r.dest.x - p.x, r.dest.z - p.z) > 3)) r.dest = { x: p.x, z: p.z, angle: p.angle };
+  }
+
+  // Sends the nearest of your free regiments to set a building alight.
+  burn(t) {
+    if (!this.hostile || t === this.keep || t.state === 'ruined') return null;
+    const regs = this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
+    const r = regs.sort((x, y) => (x.engaged > 0) - (y.engaged > 0) || Math.hypot(x.cx - t.x, x.cz - t.z) - Math.hypot(y.cx - t.x, y.cz - t.z))[0];
+    if (!r) return null;
+    const a = Math.atan2(t.x - r.cx, t.z - r.cz), stand = t.B.radius + 4;
+    r.targetReg = null;
+    r.burnTarget = t;
+    r.burnStand = { x: t.x - Math.sin(a) * stand, z: t.z - Math.cos(a) * stand };
+    r.dest = { ...r.burnStand, angle: a };
+    return r;
+  }
+
+  updateBurning(dt) {
+    for (const r of this.battle.regs) {
+      const t = r.burnTarget;
+      if (!t) continue;
+      const st = r.burnStand;
+      // Given other orders, or the job is done: they stop.
+      if (r.gone || r.routing || t.state === 'ruined' || (r.dest && Math.hypot(r.dest.x - st.x, r.dest.z - st.z) > 4)) { r.burnTarget = null; continue; }
+      if (r.engaged > 0 || Math.hypot(r.cx - t.x, r.cz - t.z) > t.B.radius + 9) continue;
+      t.hp -= dt * r.alive * 0.35;
+      if (t.hp <= 0) { this.ruin(t, null); r.burnTarget = null; }
+    }
+  }
+
+  // The place is yours: its defenders are beaten, its people come out of hiding.
+  claim({ villagers = 10, stock = null } = {}) {
+    const b = this.battle;
+    this.hostile = null;
+    b.homes[0] = { x: 0, z: 0 };
+    b.homes[1] = { x: 0, z: -225 };
+    for (const g of this.attackers.filter(g => g.mode === 'hold')) for (const r of g.regs) if (!r.gone) b.disband(r);
+    this.attackers = this.attackers.filter(g => g.mode !== 'hold');
+    for (const r of b.regs) r.burnTarget = null;
+    for (let i = 0; i < villagers; i++) {
+      const a = this.rand() * Math.PI * 2;
+      this.addVillager(Math.sin(a) * 12, Math.cos(a) * 12);
+    }
+    if (stock) for (const [g, n] of Object.entries(stock)) this.keep.store[g] = (this.keep.store[g] || 0) + n;
+    this.stockCache = null;
+  }
+
   // ---- troops coming and going on the world map ----
 
   // Regiments arriving by road march in from the edge. Levies bring their villagers.
-  addTroops(specs, angle) {
+  addTroops(specs, angle, { stand: standAt = 40 } = {}) {
     const entry = this.edgePoint(angle);
     const face = Math.atan2(-entry.x, -entry.z);
     for (const sp of specs) {
@@ -920,7 +1000,7 @@ export class Town {
           v.state = 'soldier'; v.soldier = s; s.villager = v;
         });
       }
-      const stand = { x: Math.sin(angle) * 40, z: Math.cos(angle) * 40 };
+      const stand = { x: Math.sin(angle) * standAt, z: Math.cos(angle) * standAt };
       r.dest = { x: stand.x, z: stand.z, angle: Math.atan2(stand.x, stand.z) };
     }
   }

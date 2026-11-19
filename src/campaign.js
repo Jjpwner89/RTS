@@ -43,6 +43,19 @@ const world = new World(seed, {
     dropBundle(p);
   },
   captured: () => {},
+  // A place you stormed is won, beaten off, or given up.
+  stormEnded: (p, won, chose) => {
+    const here = mode === 'town' && current.poi === p;
+    if (won) {
+      if (here) { setMode('town', townBundle(p)); flash(`${p.name} is yours!`, true); }
+      else asks.push({ kind: 'news', title: `${p.name} is taken`, text: 'Your army has stormed it. It is yours now, with whatever is left standing.' });
+      return;
+    }
+    if (here) {
+      if (chose) { showWorld(); dropBundle(p); }
+      else showResult('The attack has failed', `${p.name} holds. Your survivors fall back.`, 'Back to the map', () => { showWorld(); dropBundle(p); });
+    } else dropBundle(p);
+  },
   ended: winner => showResult(winner === 0 ? 'You are crowned' : 'Defeat',
     winner === 0 ? 'Kingsbridge is yours and the realm kneels. Long live the king.' : 'Your last village has fallen.', 'New campaign', () => location.reload()),
   herald: msg => herald(msg),
@@ -96,8 +109,10 @@ function townBundle(p) {
     selectCard: (r, add) => b.controls.setSelection([r], add),
     focus: r => b.controls.focus([r]),
     startPlacing: kind => { st.placing = kind; st.selected = null; b.controls.setSelection([]); },
+    pullBack: () => world.endStorm(p, true),
     place: (g, e) => {
       if (!st.placing) return false;
+      if (town.hostile) { st.placing = null; return true; }
       if (!g) return true;
       const res = town.place(st.placing, g.x, g.z);
       if (!res.ok) townHud.flash(res.reason);
@@ -237,7 +252,11 @@ function nextAsk() {
   if (a.kind === 'encounter' && (a.enc.army.gone || world.encounter !== a.enc)) return nextAsk();
   const box = $('prompt');
   const buttons = [];
-  if (a.kind === 'offer') {
+  if (a.kind === 'news') {
+    box.querySelector('h2').textContent = a.title;
+    box.querySelector('p').textContent = a.text;
+    buttons.push(['Good', () => {}]);
+  } else if (a.kind === 'offer') {
     if (!a.house.alive) return nextAsk();
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;
@@ -256,7 +275,10 @@ function nextAsk() {
     box.querySelector('p').textContent = enc.kind === 'assault'
       ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${ownerOf(enc.poi).name.toLowerCase()} with ${them} men.`
       : `${army.name} (${us} men) has met ${enc.enemy.name} (${them} men).`;
-    buttons.push(['Fight it', () => startField(enc)]);
+    buttons.push([enc.kind === 'assault' ? 'Storm it' : 'Fight it', () => {
+      // A place is fought for in the place itself; armies on the road meet in the open.
+      if (enc.kind === 'assault') { world.storm(enc); enterTown(enc.poi); } else startField(enc);
+    }]);
     buttons.push(['Auto-resolve', () => {
       const won = world.autoResolve(enc);
       flash(won ? `Victory at ${where}.` : `Defeat at ${where}.`, won);

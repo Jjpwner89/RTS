@@ -20,13 +20,37 @@ export class TownHud {
     this.toastEl = document.getElementById('toast');
     this.tab = 'Village';
     this.infoKey = null;
-    this.buildStock();
-    this.buildMenu();
+    if (town.hostile) this.buildStorm();
+    else { this.buildStock(); this.buildMenu(); this.stockEl.onclick = null; }
+    this.buildEl.hidden = !!town.hostile;
     // onclick rather than addEventListener: a new village's panels replace the old handlers.
     this.infoEl.onclick = e => {
       const btn = e.target.closest('[data-act]');
       if (btn && !btn.disabled) this.act(btn.dataset.act);
     };
+  }
+
+  // While you storm a place: who holds it, how the fight goes, and a way out.
+  buildStorm() {
+    const h = this.town.hostile;
+    this.stockEl.innerHTML = `
+      <div class="people"><span>${ico('battle', '#ff8a5a')} Storming the village</span></div>
+      <p class="storm" data-s="theirs"></p><p class="storm" data-s="ours"></p><p class="storm" data-s="burned"></p>
+      <p class="note">Beat or rout every defender and the place is yours as it stands. Select one of their buildings to burn it: it costs them dearly even if you fall back, but you lose it too if you win.</p>
+      <button data-act="pullback" class="wide"><span>Pull back</span><small>march away and keep your men</small></button>`;
+    this.stockEl.style.setProperty('--hc', h.color);
+    this.stockEl.onclick = e => { if (e.target.closest('[data-act="pullback"]')) this.hooks.pullBack?.(); };
+    this.buildEl.innerHTML = '';
+  }
+
+  updateStorm() {
+    const t = this.town, b = t.battle;
+    const count = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing).reduce((n, r) => n + r.alive, 0);
+    const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
+    set('theirs', `<b style="color:${t.hostile.color}">${t.hostile.name}</b>: ${count(1)} defenders standing`);
+    set('ours', `<b>Your men</b>: ${count(0)} standing`);
+    const burned = t.buildings.filter(o => o.state === 'ruined').length;
+    set('burned', burned ? `${burned} of their buildings burned` : '');
   }
 
   buildStock() {
@@ -66,6 +90,7 @@ export class TownHud {
 
   update(selected, regs, placing) {
     const t = this.town, s = t.stock;
+    if (t.hostile) { this.updateStorm(); this.updateInfo(selected, regs); return; }
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
     set('pop', `${ico('people')} ${t.population} / ${t.housing}`);
@@ -114,6 +139,12 @@ export class TownHud {
   buildingHtml(b) {
     const B = b.B;
     const rows = [`<h3>${ico(B.icon)} ${B.name}</h3>`, `<p class="status" data-f="status"></p>`];
+    if (this.town.hostile) {
+      rows.push(`<p data-f="hp"></p>`);
+      if (b.kind === 'keep') rows.push(`<p class="note">Their keep. Beat or rout the men defending it and the place is yours.</p>`);
+      else if (b.state !== 'ruined') rows.push(`<button data-act="burn" class="wide"><span>Burn it</span><small>sends your nearest free regiment with torches</small></button>`);
+      return rows.join('');
+    }
     if (b.kind === 'keep') {
       rows.push(`<p data-f="workers"></p><p data-f="hp"></p><p class="store" data-f="store"></p>`,
         `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`);
@@ -155,7 +186,7 @@ export class TownHud {
 
   field(f) {
     const b = this.selected, r = this.reg;
-    if (f === 'status') return b.state === 'ruined' ? 'Burned by raiders' : b.kind === 'keep' ? `${this.town.population} villagers · ${b.status.toLowerCase()}` : b.status;
+    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.population} villagers · ${b.status.toLowerCase()}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'workers') return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} / ${b.B.jobs}`;
@@ -178,6 +209,11 @@ export class TownHud {
 
   act(act) {
     const t = this.town;
+    if (act === 'burn') {
+      const r = t.burn(this.selected);
+      this.flash(r ? `${r.name} go to burn the ${this.selected.B.name.toLowerCase()}.` : 'No regiment is free to send.');
+      return;
+    }
     if (act.startsWith('recipe:')) t.toggleRecipe(this.selected, +act.slice(7));
     if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
     if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
