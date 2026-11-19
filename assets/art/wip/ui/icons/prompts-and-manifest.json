@@ -1,0 +1,408 @@
+{
+  "section": "ui/icons",
+  "brief_revision": 3,
+  "mode": "built-in image_gen",
+  "status": "in_progress",
+  "assets": [
+    {
+      "id": "people",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: Two compact bust silhouettes of ordinary medieval villagers, a man and woman, simple faces, undyed brown and cream hoods; one united population symbol. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-73045190-55df-4b60-8a2d-0e7126704316.png",
+      "output": "assets/art/wip/ui/icons/people-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/people.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "people",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: Two compact bust silhouettes of ordinary medieval villagers, a man and woman, simple faces, undyed brown and cream hoods; one united population symbol. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-ae5c5416-d34f-4328-a5d9-7c11b38242f8.png",
+      "output": "assets/art/wip/ui/icons/people-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "gold",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One small neat stack of three warm gold coins with a single plain coin leaning against it; no stamped letters. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a6ef4908-aec6-47c0-b282-e086dadc58f4.png",
+      "output": "assets/art/wip/ui/icons/gold-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/gold.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "gold",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One small neat stack of three warm gold coins with a single plain coin leaning against it; no stamped letters. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-43da335a-e435-4b87-99e5-b84343391e55.png",
+      "output": "assets/art/wip/ui/icons/gold-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "food",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One tied golden wheat sheaf, broad simple stalks and distinct full ears. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-eecbfead-63e7-40eb-b4c7-0a2fb0017653.png",
+      "output": "assets/art/wip/ui/icons/food-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/food.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "food",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One tied golden wheat sheaf, broad simple stalks and distinct full ears. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-52455d95-2d8a-4a5d-ad16-5492c363e86e.png",
+      "output": "assets/art/wip/ui/icons/food-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "wood",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One short cut firewood log with warm brown bark and a clear pale circular cut end. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-61becc14-110b-47bd-8278-344b0e4fef82.png",
+      "output": "assets/art/wip/ui/icons/wood-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/wood.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "wood",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One short cut firewood log with warm brown bark and a clear pale circular cut end. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-272210a8-151f-4bc1-8cc4-95a8586aaf67.png",
+      "output": "assets/art/wip/ui/icons/wood-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "stone",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One chunky roughly squared grey stone block with three simple facets. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a88e48c2-1b65-447d-9e1d-7ea2a5e5d07e.png",
+      "output": "assets/art/wip/ui/icons/stone-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/stone.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "stone",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One chunky roughly squared grey stone block with three simple facets. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-16dfee04-c087-4a36-9f97-e32979dfd3bf.png",
+      "output": "assets/art/wip/ui/icons/stone-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "crown",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One simple medieval gold crown with three broad points, no gems, sturdy readable silhouette. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b14da5aa-2fec-4240-b7b4-52b7467cfab6.png",
+      "output": "assets/art/wip/ui/icons/crown-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/crown.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "crown",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One simple medieval gold crown with three broad points, no gems, sturdy readable silhouette. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-5be42579-f785-40f4-954b-445ffea8d950.png",
+      "output": "assets/art/wip/ui/icons/crown-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "battle",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: Two broad medieval swords crossed diagonally as one compact battle emblem; steel blades and leather grips. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-0f39343e-27de-450f-a42b-ab691e09f7de.png",
+      "output": "assets/art/wip/ui/icons/battle-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/battle.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "battle",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: Two broad medieval swords crossed diagonally as one compact battle emblem; steel blades and leather grips. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-71a96e5e-3576-4f89-a154-8eccaadf21d6.png",
+      "output": "assets/art/wip/ui/icons/battle-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "warning",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One rust-red triangular warning pennant with a dark central exclamation mark; this requested universal warning symbol is the only mark. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-bed29305-21f2-4ec5-8ff7-2174caed21db.png",
+      "output": "assets/art/wip/ui/icons/warning-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/warning.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "warning",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One rust-red triangular warning pennant with a dark central exclamation mark; this requested universal warning symbol is the only mark. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-d76d37c0-6c62-4c96-a433-5c97080aa338.png",
+      "output": "assets/art/wip/ui/icons/warning-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "village",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One simple cream thatched cottage with dark timber beams, small door and straw roof. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-da272fff-2e24-4e11-99b6-e78730fdcc94.png",
+      "output": "assets/art/wip/ui/icons/village-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/village.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "village",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One simple cream thatched cottage with dark timber beams, small door and straw roof. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-720f46de-47f2-45b3-a0aa-d184f1e25c90.png",
+      "output": "assets/art/wip/ui/icons/village-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    },
+    {
+      "id": "watchtower",
+      "take": 1,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One tall simple square timber watchtower with a covered lookout platform, a ladder implied by three bars. Take 1: crisp friendly hand-painted detail.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f5656e08-3f72-401f-b76b-3298448983d8.png",
+      "output": "assets/art/wip/ui/icons/watchtower-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/icons/watchtower.png",
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Painted take selected for coherent brushwork and strong outlined silhouette."
+    },
+    {
+      "id": "watchtower",
+      "take": 2,
+      "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Use the attached screenshots only as colour and visual context; deliver only the isolated icon. SUBJECT: One tall simple square timber watchtower with a covered lookout platform, a ladder implied by three bars. Take 2: extra restrained broad shapes; minimum interior marks.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-2a4622be-59d1-4049-974e-e11bc30a7cd5.png",
+      "output": "assets/art/wip/ui/icons/watchtower-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "group": "essential",
+      "review": "Simplified alternate retained."
+    }
+  ]
+}
