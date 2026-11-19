@@ -234,6 +234,22 @@ export class WorldView {
         o.label.style.borderColor = FACTIONS[a.side].color;
       }
       if (o.mesh.userData.engine) o.mesh.userData.engine.visible = a.mode === 'siege';
+      // A great lord riding with the army: their figure and bannerman at its head, in their house's colour.
+      const lord = a.wagon ? null : a.lord ?? null;
+      if (o.lord !== lord) {
+        o.lord = lord;
+        if (o.mesh.userData.lord) { o.mesh.remove(o.mesh.userData.lord); o.mesh.userData.lord.children[1].material.dispose(); o.mesh.userData.lord = null; }
+        const L = lord !== null && o.mesh.userData.ranks && unitModel(/^Lady /.test(FACTIONS[lord]?.lord || '') ? 'lady' : 'lord');
+        if (L) {
+          const g = new THREE.Group(), cloth = this.mat.clone();
+          cloth.color.set(FACTIONS[lord]?.color || FACTIONS[a.side].color);
+          g.add(new THREE.Mesh(L.gearLight, this.mat), new THREE.Mesh(L.clothLight, cloth));
+          g.position.set(-0.6, 0, 2.6);
+          g.traverse(m => { m.castShadow = true; });
+          o.mesh.add(g);
+          o.mesh.userData.lord = g;
+        }
+      }
       // a starving army straggles
       const ranks = o.mesh.userData.ranks, ragged = !a.wagon && a.food <= 0 && !!this.raggedGeo;
       if (ranks && o.ragged !== ragged) {
@@ -253,7 +269,7 @@ export class WorldView {
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
       const html = a.wagon ? `${ico('food')} ${a.wagon.food}`
-        : `${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${headcount(a.units)}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
+        : `${a.lord != null ? `${ico('crown')} ` : ''}${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${headcount(a.units)}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });
