@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStage } from './stage.js';
 import { drawGround, plantTrees, drawTrees } from './terrain.js';
-import { unitModel, unitLook, buildingModel, ARMOUR_LEVELS, ARMOUR_DEFAULT, HAS_SHIELD } from './models.js';
+import { unitModel, unitLook, hasLevels, buildingModel, ARMOUR_LEVELS, HAS_SHIELD } from './models.js';
 import { ico } from './icons.js';
 import { TYPES, lookChain } from './battle.js';
 import { WOOD } from './view.js';
@@ -170,7 +170,7 @@ function showOnPlinth(T) {
     const arm = buildingModel(`siege.${T.engine.kind}.arm`), at = { mangonel: { y: 0.75, z: 1.27 }, trebuchet: { y: 6.71, z: 0.88 } }[T.engine.kind];
     if (arm && at) { const m = new THREE.Mesh(arm, gearMat); m.position.set(0, at.y, at.z); shown.add(m); }
   } else {
-    const M = ARMOUR_DEFAULT[T.key] ? unitLook(T.key, kit) : lookOf(T.key);
+    const M = hasLevels(T.key) ? unitLook(T.key, kit) : lookOf(T.key);
     shown.add(new THREE.Mesh(M.gear, gearMat), new THREE.Mesh(M.cloth, clothMat));
   }
   shown.traverse(m => { m.castShadow = true; });
@@ -214,10 +214,10 @@ function pick(T) {
   controls.autoRotate = false;
   card.hidden = false;
   card.innerHTML = `<h3>${T.name}</h3><p>${T.role || ''}</p>` + (LORDS[T.key] ? '' : `<div class="stats">${stat('Men', T.count)}${stat('Health', T.hp)}${stat('Attack', T.atk)}${stat('Defence', T.def)}${stat('Speed', T.speed)}${stat('Range', T.range)}${stat('Morale', T.morale)}</div>`)
-    + (ARMOUR_DEFAULT[T.key] ? `<div class="kit">${ARMOUR_LEVELS.map(l => `<button data-armour="${l}" title="${l === 'none' ? 'No armour' : l[0].toUpperCase() + l.slice(1)}">${ico('armour-' + l)}</button>`).join('')}${HAS_SHIELD[T.key] ? `<button data-shield title="Shields">${ico('shields')}</button>` : ''}</div>` : '')
+    + (hasLevels(T.key) ? `<div class="kit">${ARMOUR_LEVELS.map(l => `<button data-armour="${l}" title="${l === 'none' ? 'No armour' : l[0].toUpperCase() + l.slice(1)}">${ico('armour-' + l)}</button>`).join('')}${HAS_SHIELD[T.key] ? `<button data-shield title="Shields">${ico('shields')}</button>` : ''}</div>` : '')
     + `<div class="acts"><button data-act="follow">Follow on the march</button><button data-act="field">The whole field</button></div>`;
   // try the kind in each armour, with and without shields
-  kit.armour = ARMOUR_DEFAULT[T.key]; kit.shield = true;
+  kit.armour = T.armour; kit.shield = true;
   const mark = () => {
     for (const b of card.querySelectorAll('[data-armour]')) b.classList.toggle('on', b.dataset.armour === kit.armour);
     const sb = card.querySelector('[data-shield]');

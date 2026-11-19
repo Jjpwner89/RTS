@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { TYPES } from './battle.js';
 
 // Soldiers closer to the camera than this many metres are drawn in full detail, the rest in the light version.
 export const LOD = { camera: null, near: 45 };
@@ -33,14 +34,16 @@ const get = name => geos[name.replace(/[[\].:/]/g, '')] || null;
 
 // A soldier's look. Spearmen, swordsmen, bowmen and horse come in pieces (a body with its weapons, a piece per
 // armour level, a shield) and are put together here for the armour and shield a regiment has; without them,
-// each takes its usual look (ARMOUR_DEFAULT). Every other soldier has one look.
+// each wears its kind's usual armour. Every other soldier has one look.
 export const ARMOUR_LEVELS = ['none', 'leather', 'mail', 'plate'];
-export const ARMOUR_DEFAULT = { spear: 'plate', sword: 'plate', archer: 'leather', crossbow: 'mail', cav: 'mail', lightcav: 'leather' };
 export const HAS_SHIELD = { spear: true, sword: true };
+// Whether a kind of soldier is baked in pieces, so it can show any armour level.
+export const hasLevels = key => !!get(`unit.${key}.base.gear`);
 const looks = new Map();
 export function unitLook(key, { armour, shield } = {}) {
-  if (!get(`unit.${key}.base.gear`)) return unitModel(key);
-  const level = ARMOUR_LEVELS.includes(armour) ? armour : ARMOUR_DEFAULT[key] || 'plate';
+  if (!hasLevels(key)) return unitModel(key);
+  // without armour given, a soldier wears what his kind's kit brings (battle.js TYPES[key].armour)
+  const level = ARMOUR_LEVELS.includes(armour) ? armour : ARMOUR_LEVELS.includes(TYPES[key]?.armour) ? TYPES[key].armour : 'none';
   const shielded = HAS_SHIELD[key] && shield !== false;
   const id = `${key}|${level}|${shielded}`;
   if (looks.has(id)) return looks.get(id);
@@ -55,7 +58,7 @@ export function unitLook(key, { armour, shield } = {}) {
 }
 
 export function unitModel(key) {
-  if (get(`unit.${key}.base.gear`)) return unitLook(key);
+  if (hasLevels(key)) return unitLook(key);
   const gear = get(`unit.${key}.gear`), cloth = get(`unit.${key}.cloth`);
   if (!gear || !cloth) return null;
   return { gear, cloth, gearLight: get(`unit.${key}.gear.light`) || gear, clothLight: get(`unit.${key}.cloth.light`) || cloth };

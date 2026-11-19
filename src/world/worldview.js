@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
 import { part, box, keepModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD } from '../view.js';
-import { unitModel, buildingModel, HOUSE_STYLES } from '../models.js';
+import { unitModel, unitLook, hasLevels, buildingModel, HOUSE_STYLES } from '../models.js';
 import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
@@ -25,15 +25,16 @@ const nearSegment = (x, z, a, b) => {
 // A starving army is ragged: men missing from the ranks, the rest straggling, the banner dipped.
 const FIGURES = 48;
 const roleOf = T => !T ? 1 : T.engine ? 4 : T.key === 'wardog' ? 0 : T.mounted ? 3 : T.range && !T.javelin ? 2 : 1;
-const lookOf = key => lookChain(key).map(unitModel).find(Boolean) || unitModel('spear');
+// a unit's look in the armour and shields it carries (models.js unitLook), else the nearest kind's
+const lookOf = (key, gear = {}) => lookChain(key).map(k => hasLevels(k) ? unitLook(k, gear) : unitModel(k)).find(Boolean) || unitModel('spear');
 // a count as you would guess it from a hillside
 const rough = n => n < 100 ? Math.max(10, Math.round(n / 10) * 10) : Math.round(n / 50) * 50;
-const armySig = units => units.filter(u => u.count > 0).map(u => `${u.key}:${Math.ceil(u.count / 10)}`).join(',');
+const armySig = units => units.filter(u => u.count > 0).map(u => `${u.key}${u.armour ? '/' + u.armour : ''}${u.shield === false ? '/bare' : ''}:${Math.ceil(u.count / 10)}`).join(',');
 function armyModel(units, ragged = false) {
   if (!unitModel('spear')) return null;
   const live = units.filter(u => u.count > 0), men = live.reduce((n, u) => n + u.count, 0) || 1;
   const per = Math.max(10, men / FIGURES);
-  const groups = live.map(u => ({ key: u.key, T: TYPES[u.key], n: Math.max(1, Math.round(u.count / per)) }))
+  const groups = live.map(u => ({ key: u.key, gear: { armour: u.armour ?? undefined, shield: u.shield ?? undefined }, T: TYPES[u.key], n: Math.max(1, Math.round(u.count / per)) }))
     .sort((a, b) => roleOf(a.T) - roleOf(b.T));
   const gear = [], cloth = [], plain = g => { const o = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); return o; };
   let seed = 5, footZ = 0, horseZ = 0, footW = 0;
@@ -56,10 +57,10 @@ function armyModel(units, ragged = false) {
   const foot = groups.filter(g => roleOf(g.T) === 1 || roleOf(g.T) === 2);
   for (const g of foot) footW = Math.max(footW, Math.min(6, g.n) * 1.5);
   footW = Math.max(footW, 4.5);
-  for (const g of foot) footZ -= block(lookOf(g.key), g.n, 0, footZ, 1.5, 1.6, 6) + 0.8;
+  for (const g of foot) footZ -= block(lookOf(g.key, g.gear), g.n, 0, footZ, 1.5, 1.6, 6) + 0.8;
   const horseX = footW / 2 + 3;
-  for (const g of groups.filter(g => roleOf(g.T) === 3)) horseZ -= block(lookOf(g.key), g.n, horseX, horseZ, 2.4, 3.4, 3) + 1;
-  for (const g of groups.filter(g => roleOf(g.T) === 0)) block(lookOf(g.key), g.n, 0, 2, 1.4, 1.4, 6);
+  for (const g of groups.filter(g => roleOf(g.T) === 3)) horseZ -= block(lookOf(g.key, g.gear), g.n, horseX, horseZ, 2.4, 3.4, 3) + 1;
+  for (const g of groups.filter(g => roleOf(g.T) === 0)) block(lookOf(g.key, g.gear), g.n, 0, 2, 1.4, 1.4, 6);
   // engines are drawn from the buildings file, a little smaller than in battle
   let engineZ = Math.min(footZ, horseZ) - 4;
   for (const g of groups.filter(g => roleOf(g.T) === 4)) {

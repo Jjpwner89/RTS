@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
 import { HOMES } from './terrain.js';
-import { unitModel, unitLook, buildingModel, LOD, HOUSE_STYLES } from './models.js';
+import { unitModel, unitLook, hasLevels, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { lookChain } from './battle.js';
+import { iconImage } from './icons.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -237,7 +238,8 @@ export function drawIcon(ctx, key, cx, cy, s) {
   ctx.restore();
 }
 
-function bannerTexture(colour, key, selected) {
+// A regiment's banner: its kind's icon on the side's colour, with a small badge for its armour when it has any.
+function bannerTexture(colour, key, selected, armour) {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 80;
   const ctx = c.getContext('2d');
@@ -251,6 +253,12 @@ function bannerTexture(colour, key, selected) {
   drawIcon(ctx, key, 32, 34, 34);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  if (armour && armour !== 'none') iconImage('armour-' + armour, '#f2ead8', img => {
+    ctx.beginPath(); ctx.arc(50, 14, 12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(20,16,12,0.9)'; ctx.fill();
+    ctx.drawImage(img, 41, 5, 18, 18);
+    tex.needsUpdate = true;
+  });
   return tex;
 }
 
@@ -317,7 +325,8 @@ export class BattleView {
   // Baked soldiers get a full and a light pair; each frame, the ones near the camera go in the full pair.
   makeMeshes(look, capacity) {
     const [key, armour, shield] = look.split('|'), chain = lookChain(key);
-    const baked = chain.map((k, i) => i === 0 && look.includes('|') ? unitLook(k, { armour: armour || undefined, shield: shield !== 'false' }) : unitModel(k)).find(Boolean);
+    // a kind that borrows another's model (sellswords wear the swordsman) still shows its own armour and shield
+    const baked = chain.map(k => look.includes('|') && hasLevels(k) ? unitLook(k, { armour: armour || undefined, shield: shield !== 'false' }) : unitModel(k)).find(Boolean);
     const builtIn = chain.find(k => BUILT_IN.includes(k)) || key;
     const model = baked || (builtIn === 'cav' ? cavalry() : infantry(builtIn));
     const inst = geo => {
@@ -414,7 +423,7 @@ export class BattleView {
 
   syncBanners() {
     for (const r of this.battle.regs.slice(this.banners.length)) {
-      const tex = [bannerTexture(this.sideColor(r.side), r.T.key, false), bannerTexture(this.sideColor(r.side), r.T.key, true)];
+      const tex = [bannerTexture(this.sideColor(r.side), r.T.key, false, r.armour), bannerTexture(this.sideColor(r.side), r.T.key, true, r.armour)];
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true }));
       sprite.scale.set(0.032, 0.04, 1);
       sprite.center.set(0.5, 0);
