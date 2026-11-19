@@ -3,7 +3,8 @@
 // an alert goes away by itself when its trouble does.
 //
 // Levels: 5 a village of yours is being fought in, 4 enemies marching on you or a revolt,
-// 3 hunger and pay, 2 grumbling, 1 good to know.
+// 3 hunger and pay, 2 grumbling, 1 good to know, 0 news (buildings finished in the last
+// minute and a half; houses aren't news).
 import { FACTIONS, headcount, seenAs } from './world.js';
 import { foodLeft } from './supply.js';
 import { living, opinion } from './vassals.js';
@@ -79,6 +80,12 @@ export function alerts(w) {
     add(1, `${a.name} waits for orders at ${a.at.name}`, a, 'map');
   }
 
+  const fresh = new Map();
+  for (const b of w.built || []) if (w.time - b.at < 90) (fresh.get(b.p) || fresh.set(b.p, []).get(b.p)).push(b);
+  for (const [id, list] of fresh) {
+    const p = w.byId[id];
+    if (p?.owner === 0) add(0, list.length > 1 ? `${list.length} buildings finished at ${p.name}` : `${list[0].name} finished at ${p.name}`, p, list.at(-1).icon);
+  }
   return out.sort((x, y) => y.level - x.level);
 }
 

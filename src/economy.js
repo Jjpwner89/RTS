@@ -1166,6 +1166,7 @@ export class Town {
       // Builders stay on as the first workers.
       for (const o of crew) if (b.B.jobs && b.workers.length < this.jobs(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
+      this.onBuilt?.(b);
       audio.play('built', b, this.battle); // audio
       if (b.B.hall || b.B.great) this.onMilestone?.(b);
     }

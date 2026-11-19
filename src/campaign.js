@@ -947,7 +947,7 @@ function alertList() {
   const el = $('alerts');
   el.hidden = !shown.length;
   el.innerHTML = `<h4>Needs you${list.length > shown.length ? ` <small>and ${list.length - shown.length} more</small>` : ''}</h4>`
-    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at || a.away ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level]}">${ico(a.icon)}<span>${a.text}</span></div>`).join('');
+    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at || a.away ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level] || '#9fc46e'}">${ico(a.icon)}<span>${a.text}</span></div>`).join('');
 }
 $('alerts').onclick = e => {
   const a = shownAlerts[+e.target.closest('[data-alert]')?.dataset.alert];

@@ -441,6 +441,8 @@ export class World {
     // A knights' hall wants the rank of Count, and its finishing is a moment.
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
     town.greatRule = () => cathedralRule(this);
+    // Finished buildings go on the Needs you list for a while (alerts.js).
+    town.onBuilt = b => { if (p.owner === 0 && b.kind !== 'house') { (this.built ||= []).push({ p: p.id, name: b.B.name, icon: b.B.icon, at: this.time }); if (this.built.length > 12) this.built.shift(); } };
     town.levyMax = () => (['Duke', 'King'].includes(this.rank) ? 40 : 20);
     town.onMilestone = b => {
       if (p.owner !== 0) return;
