@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added; section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -18,8 +18,9 @@ Paths here are relative to the repository root (`RTS/`). The game itself is desc
   | Map style | `assets/art/map/…` | see section 3 |
   | UI kit | `assets/art/ui/…` | see section 4 |
   | Event pictures | `assets/art/events/<id>.png` | 640×360 (16:9), opaque |
+  | Moments, title, cursors, captains | `assets/art/moments/…`, `assets/art/title.png`, `assets/art/ui/cursors/…`, `assets/art/captains/…` | see section 6 |
 
-  `<id>` is `varn`, `carrow`, `stonemere`, `wyndham`, `penhallow`, `dunmore`, or `player` (with `player-f` for the second player portrait).
+  `<id>` is `varn`, `carrow`, `stonemere`, `wyndham`, `penhallow`, `dunmore`, or `player` (with `player-f` for the second player portrait), plus `norrhold` and `bandits` from section 6.
 - Make two or three takes of each image and pick the best. Keep the others in `wip/` for the creator to look at.
 - Before calling an image done, look at it: hands, eyes, faces, armour straps, the shield's charge, and whether it reads at small size.
 - Commit to `main` in small steps (`git pull --rebase` before every push). Don't touch any file outside `assets/art/`.
@@ -259,3 +260,79 @@ A rough clearing at the edge of a wood. A scarred bandit chief in mismatched arm
 
 *Design context, not for the image prompt:* these illustrate the campaign's event choices (`src/world/`, Realm workstream). Each event id matches the file name.
 
+
+---
+
+## 6. Norrhold, outlaws, the big moments and the finishing touches
+
+Six smaller sets that fill the last gaps. Do them **after sections 1–5**, in the order given here. Every piece stands on its own, so stop wherever time runs out.
+
+### 6.1 `norrhold`: King Askar of Norrhold (portrait and arms)
+
+The enemy of Part 2: a king from beyond the old wall in the north, who comes down with hosts in their thousands once the player is crowned. He can't be bargained with. His heralds' messages show his portrait, so it appears as soon as the file lands.
+
+**Portrait** (`assets/art/portraits/norrhold.png`, framed exactly like section 1). House colour pale ice blue `#9cc3dc`. A big, calm man of about fifty with a grey-blond beard in two short braids, a broad weathered face and pale eyes. A plain iron crown, heavy mail under a fur mantle with a pale blue-grey cloak. Grounded northern kit of the 12th–13th century, not a fantasy barbarian: no horned helmets, no skulls, no bare chests. Behind him, a snowy mountain pass at dusk with the campfires of a great host strung down the slope. He looks at the viewer with complete certainty, not anger.
+
+**Must keep:** ice blue; the most frightening portrait in the set through stillness and scale, not snarling.
+
+**Arms** (`assets/art/heraldry/norrhold.png` and `norrhold-banner.png`, by section 2's rules): pale ice-blue field; a black raven with wings spread.
+
+### 6.2 `bandits`: the outlaws (portrait and badge)
+
+**Portrait** (`assets/art/portraits/bandits.png`, framed like section 1). One bandit chief stands for all of them: a lean, sharp-eyed woman or man of about thirty-five in a mismatched brigandine and a stolen, too-fine cloak, hood half down, a knife at the belt. Drab brown and green, house colour `#5a5048`. A dark wood and a cooking fire behind. Sly and confident, not grotesque. This should look like the same chief as the event picture in 5.6 if that one is already made.
+
+**Badge** (`assets/art/heraldry/bandits.png` and `bandits-banner.png`): not proper heraldry. Rough undyed brown cloth with two crossed white daggers, crudely daubed in paint. The banner version is a torn, ragged strip.
+
+### 6.3 Banners for the mercenary companies
+
+Six companies of sellswords hire themselves out at the market towns. Each gets a **banner only** (256×384, transparent background), saved as `assets/art/heraldry/company-<id>.png`. Unlike the houses' banners, these are **swallow-tailed, patched and battle-worn**, so a hired company reads as hired at a glance. The same rules for shapes and colours as section 2 apply: one bold charge, readable at 24 px.
+
+| id | Company | Proposed banner |
+|---|---|---|
+| `grey` | the Grey Company | Grey field; a white sword, point down. |
+| `lanterns` | the Black Lanterns | Black field; a gold lantern. |
+| `hounds` | the Red Hounds | Dark brick-red field; a white running hound. |
+| `salt` | the Salt Brothers | Sea grey-blue field; a white saltire (a diagonal cross). |
+| `ash` | the White Ash Company | White field; a black ash tree. |
+| `ninefold` | the Ninefold | Black field; nine gold coins, set three, three, two, one. |
+
+### 6.4 The big moments
+
+Seven paintings for the campaign's turning points, shown above the text in the result box (and, for the Part 2 opening, full screen). Each is **1280×720, opaque**, saved as `assets/art/moments/<id>.png`. Same painting hand as the portraits and events, but wider and grander: these are the pictures the player remembers. Keep the bottom quarter calm, since text and a button sit over or below it. No text.
+
+| id | When it shows | Scene |
+|---|---|---|
+| `crowned` | You win Part 1 | The player's lord, in blue, kneeling to be crowned in a great stone hall at Kingsbridge, lit by high windows. The six rival lords' colours hang as banners along the walls. Solemn and golden. |
+| `invasion` | Part 2 begins | The old stone wall across the northern hills, breached and falling in a long section, under a dark sky. Through the gap, an endless column of the Norrhold host with ice-blue banners and war dogs, pouring south toward the viewer. The scale is the point. |
+| `north-broken` | You win Part 2 | Dawn after the last battle at the northern gate. The blue banner of the player's house planted on a hill, tired soldiers of every house below it, and the Norrhold host falling back through the mountain pass in the far distance. Earned, quiet triumph. |
+| `defeat` | You lose the campaign | A burned keep on a hill at dusk, smoke rising, the blue banner torn and lying in the mud in the foreground. Grief, not gore. |
+| `battle-won` | You win a battle | A field after a battle in late afternoon light: the blue banner held high, soldiers raising weapons, the enemy routing over a far rise. |
+| `battle-lost` | You lose a battle | Soldiers in blue falling back in good order through rain across a ford, carrying their wounded, the banner still up. Hard, not hopeless. |
+| `storm-failed` | An attack on a stronghold fails | A stone gatehouse still standing, a broken ladder and a battering ram abandoned before it, attackers falling back under arrows. Shown from the attackers' side. |
+
+**Must keep:** grounded and human throughout; the crowning and the invasion are the two most important.
+
+### 6.5 Title painting
+
+`assets/art/title.png`, **1920×1080, opaque**, for the title screen and loading screens. A wide view over the realm in late golden afternoon: rolling green countryside with strip fields, a river with a stone bridge and a walled town (Kingsbridge) on its far bank, timber villages and a castle on a hill. In the middle distance, a column of soldiers under a blue banner marches along the road. Far to the north, faint on the horizon, a long old wall across the hills under a darkening sky, a hint of what is coming. **Keep the left third quiet** (sky and soft hills), because the game's name and menu sit there. No text, no logo.
+
+### 6.6 Mouse cursors
+
+Six cursors in the style of the section 4 icons (ink outline, flat hand-colouring), but each with a **thin light parchment outline** so it reads over grass, snow and dark woods. Paint each at 64×64 and also save a sharp 32×32 version (the game uses 32 px). Transparent background, saved as `assets/art/ui/cursors/<name>.png` and `<name>-32.png`. Note the **hotspot** (the exact pixel that clicks) for each in the manifest.
+
+| name | Look | Hotspot |
+|---|---|---|
+| `pointer` | A steel gauntlet with the index finger pointing up-left. | The fingertip. |
+| `select` | The same gauntlet, its cuff in house blue, for when it is over your own soldiers. | The fingertip. |
+| `move` | A small blue pennant on a short staff, planted. | The foot of the staff. |
+| `attack` | A sword pointing up-left, with a touch of red on the blade. | The sword's point. |
+| `build` | A mason's hammer. | The hammer's head. |
+| `blocked` | A red circle with a slash. | The centre. |
+
+### 6.7 Captains
+
+The named captains who lead every army (and the wandering knights from 5.3) have names, levels and traits but no faces. Paint **ten generic portraits** that the game can hand out, saved as `assets/art/captains/captain-01.png` to `captain-10.png`, at 384×480 (4:5), framed like section 1 but smaller in ambition. They must be **free of any house colour**: browns, greys, undyed wool and steel, so any house can use them. A muted brown-grey background with no setting.
+
+Mix them: ages from about twenty-five to sixty; three of the ten women; two in plate, four in mail, two in leather and padded coats, two in hoods or mail coifs; one or two with grey hair, one with an eyepatch or old scar. Every one a working soldier who looks capable, not a hero or a lord.
+
+*Design context, not for the image prompt:* only the Norrhold and bandit portraits show up on their own (the game already looks for `portraits/<house id>.png`). The rest needs a small hookup once the files land: house heraldry and company banners onto flags and labels, the moments into the result box (`showResult` in `src/campaign.js`, and the shattered victory screen that opens Part 2 can break the `crowned` painting instead of a screenshot), the title painting into a title screen the game doesn't have yet, cursors through CSS `cursor`, and captain faces assigned by captain id in `src/world/captains.js`.
