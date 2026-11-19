@@ -167,7 +167,10 @@ export class TownHud {
     for (const el of this.itemEls) {
       const tpl = el.dataset.build.startsWith('tpl:');
       el.hidden = el.dataset.group !== this.tab || (tpl && !lord);
-      el.classList.toggle('poor', !t.canAfford(tpl ? templateCost(el.dataset.build.slice(4)) : BUILDINGS[el.dataset.build].cost));
+      const T = tpl && TEMPLATES[el.dataset.build.slice(4)], small = T?.at && t.population < T.at;
+      el.classList.toggle('poor', small || !t.canAfford(tpl ? templateCost(el.dataset.build.slice(4)) : BUILDINGS[el.dataset.build].cost));
+      const tip = T && `${T.focus}: ${T.desc}${T.at ? `\nFor a village of ${T.at} people or more${small ? ` (you have ${t.population})` : ''}.` : ''}`;
+      if (T && el.title !== tip) el.title = tip;
       el.classList.toggle('on', placing === el.dataset.build);
     }
     this.updateInfo(selected, regs);

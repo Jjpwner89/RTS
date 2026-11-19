@@ -129,7 +129,9 @@ export const TAXES = [
 export const HIRES = ['sellsword', 'hiredxbow', 'household'].map(k => ({ key: k, name: TYPES[k].name, count: TYPES[k].count, gold: TYPES[k].gold * TYPES[k].count }));
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
 // Town templates, from the rank of Lord: a block of buildings laid out at once round the
-// spot you pick, the first in the middle. Each has a focus; sizes by population come later.
+// spot you pick, the first in the middle. Each has a focus, and a larger size once the
+// village has the people for it (at). "Work the land" is different: its gatherers go to the
+// woods, rock, ore and open ground nearest the spot, wherever those are.
 export const TEMPLATES = {
   hamlet: { name: 'Houses round a well', icon: 'well', focus: 'Homes', list: ['well', 'house', 'house', 'house', 'house', 'house'],
     desc: 'Five houses round a well: room for thirty more people, and a little cheer.' },
@@ -139,6 +141,16 @@ export const TEMPLATES = {
     desc: 'A storehouse with a carpenter, a smelter and a tanner beside it, and homes for their workers.' },
   barracks: { name: 'Barracks yard', icon: 'barracks', focus: 'Military', list: ['barracks', 'weaponsmith', 'carpenter', 'storehouse', 'house', 'house'],
     desc: 'A barracks with the smith and carpenter that arm it, a storehouse, and homes.' },
+  land: { name: 'Work the land', icon: 'farm', focus: 'Gathering', gather: true, list: ['woodcutter', 'woodcutter', 'quarry', 'mine', 'farm', 'farm'],
+    desc: 'Two woodcutters, a quarry, a mine and two farms, each set by the nearest woods, outcrop, ore or open ground to where you click. Any with nothing to work is left out.' },
+  hamlet2: { name: 'Houses round a green', icon: 'well', focus: 'Homes', at: 50, list: ['well', 'house', 'house', 'house', 'house', 'house', 'well', 'house', 'house', 'house', 'house'],
+    desc: 'Eight houses and two wells round a green: room for fifty more people.' },
+  market2: { name: 'Market town', icon: 'market', focus: 'Trade', at: 60, list: ['market', 'well', 'storehouse', 'mill', 'bakery', 'storehouse', 'house', 'house', 'house', 'house', 'house', 'house'],
+    desc: 'A market with its mill and bakery, two storehouses and a ring of houses: gold, bread and cheer.' },
+  workshops2: { name: 'Craft quarter', icon: 'carpenter', focus: 'Production', at: 60, list: ['storehouse', 'carpenter', 'smelter', 'tanner', 'ropemaker', 'bowyer', 'storehouse', 'house', 'house', 'house', 'house'],
+    desc: 'The long chains in one quarter: carpenter, smelter, tanner, ropemaker and bowyer, with stores and homes.' },
+  barracks2: { name: 'Garrison quarter', icon: 'barracks', focus: 'Military', at: 70, list: ['barracks', 'weaponsmith', 'armourer', 'bowyer', 'carpenter', 'storehouse', 'watchtower', 'house', 'house', 'house', 'house'],
+    desc: 'A barracks with every smith that arms it, a watchtower over the yard, a storehouse and homes.' },
 };
 export const templateCost = t => {
   const c = {};
@@ -512,9 +524,15 @@ export class Town {
   placeTemplate(name, x, z) {
     const T = TEMPLATES[name];
     if (!T) return { ok: false, reason: 'No such template' };
+    if (T.at && this.population < T.at) return { ok: false, reason: `Needs ${T.at} people` };
     const cost = templateCost(name);
     if (!this.canAfford(cost)) return { ok: false, reason: `Needs ${listCost(cost)}` };
     const placed = [];
+    if (T.gather) {
+      for (const kind of T.list) { const res = this.placeGatherer(kind, x, z); if (res) placed.push(res); }
+      if (!placed.length) return { ok: false, reason: 'Nothing to work near here' };
+      return { ok: true, placed: placed.length, of: T.list.length };
+    }
     for (const kind of T.list) {
       let done = false;
       for (let r = 0; r <= 48 && !done; r += 3) {
@@ -528,6 +546,31 @@ export class Town {
     }
     if (!placed.length) return { ok: false, reason: 'No room here' };
     return { ok: true, placed: placed.length, of: T.list.length };
+  }
+
+  // One gatherer, set beside the resource nearest (x, z) that no other of its kind works
+  // yet; a farm on the open ground nearest the spot.
+  placeGatherer(kind, x, z) {
+    const B = BUILDINGS[kind], g = B.gather, at = { x, z };
+    const tries = [];
+    if (g.node === 'field') tries.push(at);
+    else {
+      const worked = this.buildings.filter(b => b.kind === kind);
+      const nodes = this.nodes[g.node].filter(n => (n.standing ?? true) && !worked.some(b => dist(b, n) < g.range * 0.5))
+        .sort((p, q) => dist(p, at) - dist(q, at)).slice(0, 24);
+      tries.push(...nodes);
+    }
+    for (const c of tries) {
+      for (let r = g.node === 'field' ? 12 : B.radius + 7; r <= (g.node === 'field' ? 70 : g.range * 0.7); r += 3) {
+        const steps = Math.max(8, Math.round(r * 0.8));
+        for (let i = 0; i < steps; i++) {
+          const a = (i / steps) * Math.PI * 2 + r * 0.53;
+          const res = this.place(kind, c.x + Math.sin(a) * r, c.z + Math.cos(a) * r, { free: true });
+          if (res.ok) return res.building;
+        }
+      }
+    }
+    return null;
   }
 
   demolish(b) {

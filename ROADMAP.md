@@ -73,7 +73,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
   - **Production**: workshops and the long chains.
   - **Trade**: markets, roads, storehouses, gold.
 - It will take time to develop; start with one focus and one size and grow from there.
-- **Built (2026-11-19):** four templates in the build bar's Towns tab from Lord (hamlet, market square, workshops, barracks quarter), each placed in rings round where you click and paid for whole. Not yet: sizes by population, and resource buildings placed near their resources.
+- **Built (2026-11-19):** four templates in the build bar's Towns tab from Lord (hamlet, market square, workshops, barracks quarter), each placed in rings round where you click and paid for whole. Also built: a larger size of each (houses round a green at 50 people, market town and craft quarter at 60, garrison quarter at 70), and **Work the land**, which sets two woodcutters, a quarry, a mine and two farms by the woods, outcrop, ore and open ground nearest where you click, each by a resource no other of its kind works yet.
 
 ### Knights' hall (creator, 2026-11-19)
 
