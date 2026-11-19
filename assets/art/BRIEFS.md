@@ -347,7 +347,7 @@ Mix them: ages from about twenty-five to sixty; three of the ten women; two in p
 
 **Status: 7.1 and 7.2 are requested now (2026-11-19), ahead of anything left in sections 1–6.** The creator looked at Codex's prototype soldiers (`assets/codex-prototypes/`, the asset workshop) and decided **not** to use them: the game keeps its Quaternius soldiers. So no more bodies or soldier models. What they want instead is animation for the soldiers the game already has: make every clip on the game's current Quaternius bodies and rig, and **don't rig, animate or build on the prototype bodies**.
 
-**Do one test clip first** (7.1's `Spear_Thrust`), commit it, and carry on with the rest. The Art workstream checks the test in the game and will write into this section if anything about the rig or format needs to change. The rig's source is already in `assets/art/3d/wip/Male_Adventurer.source.glb`.
+**Do one test clip first** (7.1's `Spear_Thrust`), commit it, and carry on with the rest. The Art workstream checks the test in the game and will write into this section if anything about the rig or format needs to change. The rig's source is already in `assets/art/3d/wip/Male_Adventurer.source.glb` (the women, `Female/Medieval.glb`, share the same rig), and the horse for 7.1's riding clips and 7.2 is `assets/art/3d/wip/Horse.source.fbx` (CC0, Quaternius 2018 Farm Animals).
 
 ### Format for everything in this section
 
