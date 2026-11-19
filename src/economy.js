@@ -84,8 +84,8 @@ export const BUILDINGS = {
       { in: { planks: 2, iron: 1 }, out: { lances: 1 }, time: 10, off: true }],
     desc: 'Fits iron heads to spear shafts, forges swords, and makes crossbows, bolts and lances.' },
   armourer: { name: 'Armourer', icon: 'armourer', group: 'Craft', cost: { planks: 15, stone: 20 }, radius: 4, build: 18, jobs: 1, hp: 160,
-    recipes: [{ in: { iron: 2, leather: 1 }, out: { mail: 1 }, time: 12 }, { in: { mail: 1, iron: 2, leather: 1 }, out: { armour: 1 }, time: 18, off: true }],
-    desc: 'Rivets mail shirts from iron and leather, and beats plate for knights.' },
+    recipes: [{ in: { iron: 2, leather: 1 }, out: { mail: 1 }, time: 12 }, { in: { mail: 1, iron: 2, leather: 1 }, out: { armour: 1 }, time: 18 }],
+    desc: 'Rivets mail shirts from iron and leather, and beats plate from mail, iron and leather.' },
   tanner: { name: 'Tanner', icon: 'tanner', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { hides: 2 }, out: { leather: 1 }, time: 8, keep: 20 }], desc: "Cures the hunters' hides into leather." },
   mill: { name: 'Mill', icon: 'mill', group: 'Craft', cost: { wood: 20, stone: 5 }, radius: 4.5, build: 14, jobs: 1, hp: 140,
@@ -160,8 +160,51 @@ export const templateCost = t => {
 
 // What each villager needs to become a soldier of that type (battle.js sets the kits).
 // Engines are raised at the siege workshop: their cost once, and a full crew.
+// Armour is a tier of its own (creator, 2026-11-19): a unit's type sets its weapon, and
+// each regiment wears one level of armour, the same for every man, and carries shields
+// if its type can. Equipment sets protection; training (the hall, veterans) sets skill and
+// nerve, so a plate-armoured levy is hard to kill but still breaks like a levy.
+// Regiments and unit entries carry armour ('none' | 'leather' | 'mail' | 'plate') and
+// shield (true | false); missing means the type's old kit (baseArmour, canShield).
+export const ARMOURS = ['none', 'leather', 'mail', 'plate'];
+export const ARMOUR_GOOD = { leather: 'leather', mail: 'mail', plate: 'armour' };
+export const ARMOUR_NAME = { none: 'No armour', leather: 'Leather', mail: 'Mail', plate: 'Plate' };
+// Weight in fights nobody watches, against the armour the type's strength was set for.
+const ARMOUR_WEIGHT = { none: 1, leather: 1.1, mail: 1.22, plate: 1.38 };
+const BODY = ['shields', 'leather', 'mail', 'armour'];
+const fullKit = key => TYPES[key]?.kit || {};
+export const weaponKit = key => Object.fromEntries(Object.entries(fullKit(key)).filter(([g]) => !BODY.includes(g)));
+export const canShield = key => !!fullKit(key).shields;
+export const baseArmour = key => (fullKit(key).armour ? 'plate' : fullKit(key).mail ? 'mail' : 'none');
+export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key), shield: u.shield ?? canShield(u.key ?? u.T?.key) });
+export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
+// A barracks' rule for its racks. Raising picks the armour for the whole regiment from it.
+export const POLICIES = {
+  best: { name: 'Best available', about: 'Each levy wears the best armour the racks hold enough of for every man, with shields if there are enough.' },
+  elites: { name: 'Keep the best for elites', about: 'Levies get leather at most; mail and plate are kept for the knights\' hall.' },
+  none: { name: 'None', about: 'Weapons only: no armour and no shields. Cheap and fast.' },
+};
+// What n men of this type get from these racks (have: good -> count) under this policy.
+// One level for all of them: the best the racks hold n of. Elites need mail at least,
+// and get plate if there is enough; null if there isn't mail for them.
+export function outfit(key, n, have, policy = 'best', elite = false) {
+  const levels = elite ? ['plate', 'mail'] : policy === 'none' ? [] : policy === 'elites' ? ['leather'] : ['plate', 'mail', 'leather'];
+  const armour = levels.find(l => (have(ARMOUR_GOOD[l]) || 0) >= n) || (elite ? null : 'none');
+  if (!armour) return null;
+  const shield = canShield(key) && (elite || policy !== 'none') && (have('shields') || 0) >= n;
+  return { armour, shield };
+}
+// The goods n men take: their weapons, and their armour and shields.
+export function outfitKit(key, n, fit) {
+  const kit = {};
+  for (const [g, k] of Object.entries(weaponKit(key))) kit[g] = k * n;
+  if (fit?.shield) kit.shields = (kit.shields || 0) + n;
+  if (fit && fit.armour !== 'none') kit[ARMOUR_GOOD[fit.armour]] = (kit[ARMOUR_GOOD[fit.armour]] || 0) + n;
+  return kit;
+}
+// Kit a man needs at the least: his weapons (KITS[key].kit), and what he wears by default.
 export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 'maa', 'lightcav', 'cav', 'knight']
-  .map(k => [k, { name: TYPES[k].name, kit: TYPES[k].kit }]));
+  .map(k => [k, { name: TYPES[k].name, kit: weaponKit(k) }]));
 // Elite men come only from a knights' hall, trained from veterans: a few at a time, for
 // their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most.
 export const ELITE = {
@@ -619,7 +662,8 @@ export class Town {
       .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);
     const reason = byKit < LEVY_MIN ? `Needs ${short.join(' and ')}`
       : free < LEVY_MIN ? `Needs ${LEVY_MIN} villagers` : null;
-    return { n, ok: !reason, reason };
+    const fit = outfit(key, Math.max(1, n), have, barracks.policy || 'best');
+    return { n, ok: !reason, reason, fit };
   }
 
   raise(key, barracks) {
@@ -628,13 +672,16 @@ export class Town {
     // Idle villagers answer first, then gatherers, then craftsmen; the nearest first within each.
     const rank = v => (v.state === 'idle' ? 0 : v.job && v.job.B.gather ? 1 : 2) * 1000 + dist(v, barracks);
     const men = this.villagers.filter(v => v.state !== 'soldier').sort((a, b) => rank(a) - rank(b)).slice(0, check.n);
-    for (const [g, n] of Object.entries(KITS[key].kit)) this.put(barracks, g, -n * men.length);
+    // One level of armour for the whole regiment, by the barracks' rule for its racks.
+    const fit = outfit(key, men.length, g => Math.floor(barracks.store[g] || 0), barracks.policy || 'best');
+    for (const [g, n] of Object.entries(outfitKit(key, men.length, fit))) this.put(barracks, g, -n);
     const out = Math.atan2(barracks.x, barracks.z);
     const fx = barracks.x + Math.sin(out) * 16, fz = barracks.z + Math.cos(out) * 16;
     for (const v of men) { this.release(v); v.hidden = false; }
     // Veterans come home: men who fought before bring their experience back to the levy.
     const xp = Math.round(men.reduce((n, v) => n + (v.xp || 0), 0) / men.length * 10) / 10;
-    const r = this.battle.addRegiment(0, key, fx, fz, out, { count: men.length, from: men, name: `Levy ${KITS[key].name.toLowerCase()}`, xp });
+    const r = this.battle.addRegiment(0, key, fx, fz, out, { count: men.length, from: men, name: `Levy ${KITS[key].name.toLowerCase()}`, xp, ...fit });
+    Object.assign(r, fit);
     r.levy = key;
     r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
     audio.play('drums', barracks, this.battle); // audio: a levy raised
@@ -665,11 +712,38 @@ export class Town {
       if (!s.alive || s.gone || !s.villager) continue;
       const v = s.villager;
       Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null, xp: Math.max(v.xp || 0, r.xp || 0) });
-      if (KITS[r.levy]) for (const [g, n] of Object.entries(KITS[r.levy].kit)) this.put(rack, g, n);
+      if (KITS[r.levy]) for (const [g, n] of Object.entries(outfitKit(r.levy, 1, gearOf(r)))) this.put(rack, g, n);
     }
     this.battle.disband(r);
     this.event(`${r.name} went home to work.`);
     return true;
+  }
+
+  // A regiment swaps up its armour and shields at the nearest barracks without standing
+  // down: same men, name and experience, better kit. Its old kit goes back on the racks.
+  refitCheck(r) {
+    if (!r || r.side !== 0 || r.gone || r.routing || !(r.levy || r.elite) || r.T.engine) return { ok: false, reason: 'Only your own levies and elites refit' };
+    const rack = this.buildings.filter(b => b.kind === 'barracks' && b.state === 'active').sort((a, b) => dist(a, { x: r.cx, z: r.cz }) - dist(b, { x: r.cx, z: r.cz }))[0];
+    if (!rack) return { ok: false, reason: 'Needs a barracks' };
+    const was = gearOf(r), n = r.alive;
+    // What it wears now counts as on the racks: a refit never leaves men worse off.
+    const have = g => Math.floor(rack.store[g] || 0) + (ARMOUR_GOOD[was.armour] === g || (g === 'shields' && was.shield) ? n : 0);
+    const fit = outfit(r.T.key, n, have, 'best', !!r.elite);
+    if (!fit) return { ok: false, reason: 'Not enough mail or plate for them', rack };
+    const better = ARMOURS.indexOf(fit.armour) > ARMOURS.indexOf(was.armour) || (fit.shield && !was.shield);
+    if (!better || ARMOURS.indexOf(fit.armour) < ARMOURS.indexOf(was.armour)) return { ok: false, reason: `${rack.B.name}: nothing better for ${n} men`, rack, fit: was };
+    return { ok: true, rack, fit, was };
+  }
+
+  refit(r) {
+    const c = this.refitCheck(r);
+    if (!c.ok) return c;
+    const n = r.alive, { rack, fit, was } = c;
+    for (const [g, k] of Object.entries(outfitKit(r.T.key, n, { armour: was.armour, shield: was.shield }))) if (!(g in weaponKit(r.T.key))) this.put(rack, g, k);
+    for (const [g, k] of Object.entries(outfitKit(r.T.key, n, fit))) if (!(g in weaponKit(r.T.key))) this.put(rack, g, -k);
+    Object.assign(r, fit);
+    this.event(`${r.name} are refitted: ${ARMOUR_NAME[fit.armour].toLowerCase()}${fit.shield ? ' and shields' : ''}.`);
+    return { ok: true };
   }
 
   // When a fight in the village is over, the regiments that fought and lived learn from it
@@ -702,23 +776,25 @@ export class Town {
     const vets = this.veterans().length;
     if (!vets) return { ok: false, reason: 'Needs veterans: villagers who fought as levies and came home' };
     const kit = KITS[key].kit;
-    const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(this.free(g) / n)));
+    // Elites wear mail at the least, plate if there is enough for every man.
+    const byArmour = Math.max(Math.floor(this.free('mail')), Math.floor(this.free('armour')));
+    const byKit = Math.min(byArmour, ...Object.entries(kit).map(([g, n]) => Math.floor(this.free(g) / n)));
     const byGold = Math.floor(this.purse.gold / E.fee);
     const n = Math.min(HALL.batch, room, vets, byKit, byGold);
     const short = Object.entries(kit).filter(([g, k]) => this.free(g) < k).map(([g]) => GOODS[g].name.toLowerCase());
+    if (byArmour < 1) short.push('mail or plate');
     if (n < 1) return { ok: false, reason: byKit < 1 ? `Short of ${short.join(', ')}` : `Needs ${E.fee} gold each` };
-    return { ok: true, n };
+    return { ok: true, n, fit: outfit(key, n, g => Math.floor(this.free(g)), 'best', true) };
   }
 
   // Kit and fees are paid now; the veterans drill for minutes before they march out.
   train(key, hall) {
     const c = this.trainCheck(key, hall);
     if (!c.ok) return c;
-    const E = ELITE[key], kit = {};
-    for (const [g, k] of Object.entries(KITS[key].kit)) kit[g] = k * c.n;
-    this.spend(kit);
+    const E = ELITE[key];
+    this.spend(outfitKit(key, c.n, c.fit));
     this.purse.gold -= E.fee * c.n;
-    hall.training = { key, n: c.n, left: E.drill * c.n, total: E.drill * c.n };
+    hall.training = { key, n: c.n, left: E.drill * c.n, total: E.drill * c.n, ...c.fit };
     this.event(`${c.n} veterans have begun their training as ${KITS[key].name.toLowerCase()}.`);
     return { ok: true };
   }
@@ -734,14 +810,15 @@ export class Town {
       hall.status = '';
       const men = this.veterans().sort((a, b) => (b.xp || 0) - (a.xp || 0)).slice(0, T.n);
       // Veterans who died meanwhile: their kit goes back to the stores.
-      if (men.length < T.n) for (const [g, k] of Object.entries(KITS[T.key].kit)) this.put(this.keep, g, k * (T.n - men.length));
+      const fit = { armour: T.armour ?? baseArmour(T.key), shield: T.shield ?? canShield(T.key) };
+      if (men.length < T.n) for (const [g, k] of Object.entries(outfitKit(T.key, T.n - men.length, fit))) this.put(this.keep, g, k);
       if (!men.length) { this.event('The veterans in training are gone; their kit is back in the stores.'); continue; }
       for (const v of men) { this.release(v); v.hidden = false; }
       const xp = Math.max(...men.map(v => v.xp || 0)) + 2;
       const out = Math.atan2(hall.x, hall.z);
       const r = this.battle.addRegiment(0, T.key, hall.x + Math.sin(out) * 18, hall.z + Math.cos(out) * 18, out,
-        { count: men.length, from: men, name: KITS[T.key].name, xp });
-      Object.assign(r, { levy: T.key, elite: true, hall: hall.id });
+        { count: men.length, from: men, name: KITS[T.key].name, xp, ...fit });
+      Object.assign(r, { levy: T.key, elite: true, hall: hall.id }, fit);
       r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
       audio.play('drums', hall, this.battle); // audio
       this.event(`${men.length} ${KITS[T.key].name.toLowerCase()} have finished their training.`);
@@ -1240,7 +1317,7 @@ export class Town {
     const face = Math.atan2(-entry.x, -entry.z);
     const regs = specs.map((sp, i) => {
       const off = (i - (specs.length - 1) / 2) * 30;
-      return b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name });
+      return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...gearOf(sp) }), gearOf(sp));
     });
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
@@ -1281,7 +1358,7 @@ export class Town {
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
     if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
-    const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length })).filter(sp => sp.count > 0);
+    const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...gearOf(r) })).filter(sp => sp.count > 0);
     if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
     g.onLeave?.(survivors);
   }
@@ -1379,7 +1456,7 @@ export class Town {
       const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));
       // Inside their walls if they have them, else in a ring out in front of the keep.
       const d = b.walls.any ? (ranged(sp.key) ? 13 : 17) : ranged(sp.key) ? 16 : 32;
-      const r = b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name });
+      const r = Object.assign(b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name, ...gearOf(sp) }), gearOf(sp));
       r.post = { x: Math.sin(a) * d, z: Math.cos(a) * d, angle: a };
       return r;
     });
@@ -1461,7 +1538,9 @@ export class Town {
     for (const sp of specs) {
       const from = [];
       for (let i = 0; i < sp.count; i++) from.push({ x: entry.x + (this.rand() - 0.5) * 14, z: entry.z + (this.rand() - 0.5) * 14 });
-      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0 });
+      const fit = gearOf(sp);
+      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0, ...fit });
+      Object.assign(r, fit);
       r.levy = sp.levy || null;
       r.retinue = !!sp.retinue;
       r.elite = !!sp.elite;
@@ -1485,7 +1564,7 @@ export class Town {
       const gone = new Set(men.map(s => s.villager).filter(Boolean));
       this.villagers = this.villagers.filter(v => !gone.has(v));
       this.battle.disband(r);
-      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite });
+      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...gearOf(r) });
     }
     return specs;
   }

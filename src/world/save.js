@@ -107,12 +107,12 @@ function packTown(t) {
     kind: t.kind,
     keep: { store: t.keep.store, hp: t.keep.hp },
     buildings: t.buildings.map(b => ({ kind: b.kind, x: b.x, z: b.z, state: b.state, progress: b.progress, level: b.level || 1, style: b.style,
-      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null })),
+      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null })),
     people: t.villagers.filter(v => v.state !== 'soldier').length,
     vets: t.villagers.filter(v => v.state !== 'soldier' && v.xp).map(v => v.xp),
     regiments: t.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing).map(r => ({
       key: r.T.key, count: r.soldiers.filter(s => s.alive && !s.gone).length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, x: r.cx, z: r.cz, angle: r.angle,
-      xp: r.xp || 0, elite: !!r.elite, hall: r.hall || null,
+      xp: r.xp || 0, elite: !!r.elite, hall: r.hall || null, armour: r.armour ?? null, shield: r.shield ?? null,
     })).filter(r => r.count > 0),
     felled: t.trees.spots.filter(s => !s.standing).map(s => s.i),
     walls: { nodes, pieces, centre: W.centre[0] },
@@ -131,7 +131,7 @@ function unpackTown(w, p, s) {
     const r = t.place(b.kind, b.x, b.z, { ready: true });
     const nb = r.building;
     if (!nb) continue;
-    Object.assign(nb, { state: b.state, progress: b.progress, level: b.level, style: b.style, off: new Set(b.off), paused: b.paused, store: { ...b.store }, hp: b.hp, status: b.status || '', training: b.training || null });
+    Object.assign(nb, { state: b.state, progress: b.progress, level: b.level, style: b.style, off: new Set(b.off), paused: b.paused, store: { ...b.store }, hp: b.hp, status: b.status || '', training: b.training || null, policy: b.policy || undefined });
   }
   for (let i = 0; i < s.people; i++) {
     const a = t.rand() * Math.PI * 2;
@@ -140,7 +140,8 @@ function unpackTown(w, p, s) {
   (s.vets || []).forEach((xp, i) => { if (t.villagers[i]) t.villagers[i].xp = xp; });
   // Regiments stand where they stood; a levy's men are villagers again if it disbands.
   for (const r of s.regiments) {
-    const reg = t.battle.addRegiment(0, r.key, r.x, r.z, r.angle, { count: r.count, name: r.name, xp: r.xp || 0 });
+    const gear = r.armour ? { armour: r.armour, shield: !!r.shield } : {};
+    const reg = Object.assign(t.battle.addRegiment(0, r.key, r.x, r.z, r.angle, { count: r.count, name: r.name, xp: r.xp || 0, ...gear }), gear);
     reg.retinue = r.retinue;
     reg.elite = !!r.elite;
     reg.hall = r.hall || null;

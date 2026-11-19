@@ -4,7 +4,7 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, RESERVE } from '../economy.js';
+import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit } from '../economy.js';
 import { TYPES } from '../battle.js';
 
 const EFF = 0.4;            // share of a hard-driven village's output a steward gets
@@ -49,7 +49,7 @@ export const FOCUS_NAMES = { farming: 'farms and families', military: 'arms and 
 
 // Kit for the soldiers a place can raise, best first: the goods each man needs.
 const RAISE = ['sword', 'spear', 'archer', 'militia'];
-const kitOf = k => TYPES[k].kit;
+const kitOf = k => (TYPES[k].kit ? weaponKit(k) : {});
 
 // ---- making a place ----
 
@@ -205,18 +205,22 @@ export function kits(e) {
 
 // Arms up to n men from the stores and the people, best kit first. A place keeps at
 // least `keep` people at work. Returns [{ key, count }].
-export function arm(e, n, keep = 12) {
+// Men raised from a tracked village take weapons, and armour and shields by their lord's
+// rule for the racks (policy: 'best', 'elites' or 'none'), one level to each batch.
+export function arm(e, n, keep = 12, policy = 'best') {
   const out = [];
   for (const k of RAISE) {
     if (n <= 0) break;
     const kit = kitOf(k);
     const m = Math.floor(Math.min(n, e.pop - keep, ...Object.entries(kit).map(([g, q]) => (e.stock[g] || 0) / q)));
     if (m <= 0) continue;
-    for (const [g, q] of Object.entries(kit)) e.stock[g] -= q * m;
+    // A level is worn once there is enough for ten men, so small batches match their regiments.
+    const fit = outfit(k, Math.max(m, 10), g => Math.floor(e.stock[g] || 0), policy);
+    for (const [g, q] of Object.entries(outfitKit(k, m, fit))) e.stock[g] = (e.stock[g] || 0) - q;
     e.pop -= m;
     e.raised = (e.raised || 0) + m;
     n -= m;
-    out.push({ key: k, count: m });
+    out.push({ key: k, count: m, ...fit });
   }
   return out;
 }

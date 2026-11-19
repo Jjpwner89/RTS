@@ -1,7 +1,9 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost } from './economy.js';
+import { ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, gearOf } from './economy.js';
+// A regiment's armour in a few words: "Mail, shields".
+const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
 
 const gi = g => ico(GOODS[g].icon, GOODS[g].color);
@@ -194,7 +196,9 @@ export class TownHud {
       const [ok, title] = this.allowed(el.dataset.act);
       el.disabled = !ok;
       el.title = title || '';
-      if (el.dataset.act.startsWith('raise:')) el.querySelector('small').textContent = title || `${this.town.levyCheck(el.dataset.act.slice(6), selected).n} men`;
+      if (el.dataset.act.startsWith('raise:')) { const c = this.town.levyCheck(el.dataset.act.slice(6), selected); el.querySelector('small').textContent = title || `${c.n} men · ${gearText(c.fit)}`; }
+      if (el.dataset.act.startsWith('policy:')) { el.disabled = false; el.classList.toggle('on', (selected.policy || 'best') === el.dataset.act.slice(7)); }
+      if (el.dataset.act === 'refit') { const c = this.town.refitCheck(reg); el.querySelector('small').textContent = c.ok ? `at the ${c.rack.B.name.toLowerCase()}: ${gearText(c.fit)}` : c.reason; }
       if (el.dataset.act === 'upgrade') { const c = this.town.upgradeCheck(selected); el.hidden = !!c.done; el.querySelector('small').textContent = c.ok ? 'ready' : c.reason; }
       if (el.dataset.act.startsWith('engine:') || el.dataset.act.startsWith('hire:')) el.querySelector('small').textContent = title || 'ready';
       if (el.dataset.act.startsWith('train:')) { const c = this.town.trainCheck(el.dataset.act.slice(6), selected); el.querySelector('small').textContent = c.ok ? `${c.n} men` : c.reason; }
@@ -255,9 +259,10 @@ export class TownHud {
     }
     if (b.kind === 'barracks' && b.state === 'active') {
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
+      rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
       for (const [k, K] of Object.entries(KITS)) {
         if (ELITE[k]) continue;
-        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks</p>`);
+        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks, and wears what the racks allow</p>`);
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
@@ -273,7 +278,8 @@ export class TownHud {
   }
 
   regHtml(r) {
-    const rows = [`<h3>${r.name}</h3>`, `<p data-f="men"></p>`, `<p class="status" data-f="morale"></p>`];
+    const rows = [`<h3>${r.name}</h3>`, `<p data-f="men"></p>`, `<p data-f="gear"></p>`, `<p class="status" data-f="morale"></p>`];
+    if ((r.levy || r.elite) && !r.T.engine) rows.push(`<button data-act="refit" class="wide"><span>Refit</span><small></small></button>`);
     const co = this.hooks.companyOf?.(r);
     if (co) rows.push(`<p class="note">A mercenary company under ${co.captain}. Wages: ${co.wage} gold a minute, from your treasury.${co.unpaid ? ' <b class="bad">They are owed pay.</b>' : ''}</p>`,
       `<button data-act="dismiss" class="wide"><span>Dismiss them</span><small>they leave your service; no refund</small></button>`);
@@ -301,6 +307,7 @@ export class TownHud {
     }
     if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
     if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : ''}`;
+    if (f === 'gear') return r.T.engine ? '' : gearText(gearOf(r));
     if (f === 'morale') return this.hooks.moraleLabel(r);
     return '';
   }
@@ -309,6 +316,7 @@ export class TownHud {
     const t = this.town;
     if (t.readOnly) return [false, `${t.readOnly.name}'s to decide`];
     if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6), this.selected); return [c.ok, c.reason]; }
+    if (act === 'refit') { const c = t.refitCheck(this.reg); return [c.ok, c.reason]; }
     if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
     if (act === 'upgrade') { const c = t.upgradeCheck(this.selected); return [c.ok, c.reason]; }
     if (act.startsWith('engine:')) { const c = t.engineCheck(act.slice(7), this.selected); return [c.ok, c.reason]; }
@@ -330,6 +338,8 @@ export class TownHud {
     if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
     if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
     if (act === 'disband' && t.disband(this.reg)) this.hooks.deselect();
+    if (act.startsWith('policy:')) this.selected.policy = act.slice(7);
+    if (act === 'refit') { const r = t.refit(this.reg); if (!r.ok) this.flash(r.reason); }
     if (act === 'upgrade') { const r = t.upgrade(this.selected); if (!r.ok) this.flash(r.reason); }
     if (act === 'governor') t.governor = t.governor === false;
     if (act.startsWith('engine:') || act.startsWith('hire:')) {
