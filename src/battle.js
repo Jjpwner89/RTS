@@ -1248,10 +1248,32 @@ export class Battle {
   moveToward(s, tx, tz, speed, dt) {
     const dx = tx - s.x, dz = tz - s.z, d = Math.hypot(dx, dz);
     if (d < 0.01) return;
+    if (s.level === 0 && !s.climb) speed *= this.groundPace(s, dx / d, dz / d);
     const stepLen = Math.min(d, speed * dt);
     s.x += dx / d * stepLen;
     s.z += dz / d * stepLen;
     if (d > 0.3) s.yaw = turnToward(s.yaw, Math.atan2(dx, dz), dt * 6);
+  }
+
+  // How fast the ground lets a man walk in direction (ux, uz): slower uphill, a little
+  // quicker down. Horses feel the slope more.
+  groundPace(s, ux, uz) {
+    const grade = (this.heightAt(s.x + ux * 1.5, s.z + uz * 1.5) - this.heightAt(s.x, s.z)) / 1.5;
+    const k = s.reg.T.mounted ? 1.6 : 1.1;
+    return Math.max(0.55, Math.min(1.15, 1 - grade * k));
+  }
+
+  // How steeply a stands above b, from -1 to 1: a grade of 1 in 5 counts fully. For men
+  // at close quarters, where a metre or two apart the height itself hardly differs.
+  downhill(a, b) {
+    const d = Math.max(1, Math.hypot(a.x - b.x, a.z - b.z));
+    return Math.max(-1, Math.min(1, (this.heightAt(a.x, a.z) - this.heightAt(b.x, b.z)) / d / 0.2));
+  }
+
+  // Height advantage of a over b, from -1 (well below) to 1 (well above): 6 m counts as fully.
+  above(a, b) {
+    const dh = this.heightAt(a.x, a.z) - this.heightAt(b.x, b.z);
+    return Math.max(-1, Math.min(1, dh / 6));
   }
 
   // Soldiers keep a little room; friend and foe alike, so battle lines press rather than merge.
@@ -1317,6 +1339,9 @@ export class Battle {
     // From the walkway, men strike down at climbers and those at the foot of the wall.
     if (s.level === 1 && (t.level !== 1 || t.climb > 0)) chance += 0.25;
     if (t.climb > 0) chance += 0.15;
+    // Fighting up a slope is hard work; down it, men put their weight behind each blow.
+    const slope = s.level === 0 && t.level === 0 ? this.downhill(s, t) : 0;
+    chance += slope * 0.08;
     let dmg = A.dmg;
     const braced = (D.braces && (flank === 0 || tr.formation === 'square')) && !tr.routing;
     if (A.charge && !s.charged && s.v > A.speed * 0.7) {
@@ -1325,7 +1350,7 @@ export class Battle {
         chance -= 0.1;
         this.hurt(s, 4);                       // riding onto braced spears
       } else {
-        const mul = (A.chargeMul || 2) * (FA.charge || 1);
+        const mul = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3);
         chance += 0.35;
         dmg *= mul;
         tr.morale -= 0.8 * (FA.charge || 1);
@@ -1482,19 +1507,29 @@ export class Battle {
   updateArchers(r, dt) {
     r.firingAt = null;
     if (r.gone || r.routing || (r.engaged > 0 && !r.posts)) return;
-    const T = r.T, range = this.rangeOf(r);
+    const T = r.T, base = this.rangeOf(r);
     let tgt = null;
     const dist = o => Math.hypot(o.cx - r.cx, o.cz - r.cz);
+    // Shooting down from a hill carries further; shooting up falls short.
+    const reach = o => {
+      if (r.posts) return base;
+      const up = this.above({ x: r.cx, z: r.cz }, { x: o.cx, z: o.cz });
+      return base * (1 + up * (up > 0 ? 0.3 : 0.15));
+    };
+    let range = base;
     if (r.targetReg && !r.targetReg.gone) {
+      range = reach(r.targetReg);
       if (dist(r.targetReg) <= range) tgt = r.targetReg;
     } else if (!r.dest && r.fireAtWill) {
       // Loose at will: the nearest enemy in range, sparing anyone already in melee with friends.
       // From a wall, engines and ladder men come first.
-      let bd = range;
+      let bd = Infinity;
       for (const o of this.regs) {
         if (o.side === r.side || o.gone || (o.engaged > 0 && !o.posts)) continue;
-        const d = dist(o) * (r.posts && o.engine ? 0.6 : 1);
-        if (d < bd) { bd = d; tgt = o; }
+        const d = dist(o), R = reach(o);
+        if (d > R) continue;
+        const score = d / R * (r.posts && o.engine ? 0.6 : 1);
+        if (score < bd) { bd = score; tgt = o; range = R; }
       }
     }
     if (!tgt) return;

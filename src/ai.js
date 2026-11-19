@@ -32,7 +32,7 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
   // Until the lines are close, march forward together and keep formation.
   const gap = Math.min(...mine.map(r => dist(r, nearest(r, standing))));
   if (gap > 75) {
-    if (hold) return;
+    if (hold) { takeHill(battle, side, mine, standing); return; }
     const f = centroid(standing);
     for (const r of mine) {
       if (r.dest || r.targetReg || r.posts || r.targetWall) continue;
@@ -42,6 +42,26 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
     return;
   }
   for (const r of mine) pickFight(battle, r, foes, standing);
+}
+
+// An army told to hold first moves up onto the best rise near it, facing the enemy,
+// if one is worth having: it fights downhill and its bows reach further.
+function takeHill(battle, side, mine, standing) {
+  const st = (battle.fieldAI ||= [{}, {}])[side];
+  if (st.hill) return;
+  const c = centroid(mine), f = centroid(standing), H = battle.heightAt;
+  const toward = Math.atan2(f.cx - c.cx, f.cz - c.cz);
+  let best = { x: c.cx, z: c.cz, y: H(c.cx, c.cz) };
+  for (let d = 10; d <= 60; d += 10) for (let a = -1.2; a <= 1.2; a += 0.3) {
+    const x = c.cx + Math.sin(toward + a) * d, z = c.cz + Math.cos(toward + a) * d, y = H(x, z);
+    if (y > best.y + d * 0.02) best = { x, z, y };      // a little farther only if it is higher still
+  }
+  st.hill = best;
+  if (best.y - H(c.cx, c.cz) < 2) return;
+  for (const r of mine) {
+    if (r.dest || r.targetReg || r.posts || r.targetWall) continue;
+    r.dest = { x: r.x + best.x - c.cx, z: r.z + best.z - c.cz, angle: toward };
+  }
 }
 
 function pickFight(battle, r, foes, standing) {
