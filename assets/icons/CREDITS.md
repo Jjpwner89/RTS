@@ -69,3 +69,4 @@ The background square was removed so each icon is a plain silhouette.
 | stable.svg | stable | Delapouite |
 | siegeworks.svg | trebuchet | Delapouite |
 | well.svg | well | Delapouite |
+| watchtower.svg | watchtower | Delapouite |

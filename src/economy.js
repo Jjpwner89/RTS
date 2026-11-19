@@ -107,7 +107,7 @@ export const BUILDINGS = {
   well: { name: 'Well', icon: 'well', group: 'Village', cost: { stone: 10 }, radius: 2.5, build: 8, hp: 150, mood: 3, desc: 'Clean water close by. Lifts the mood a little.' },
   monastery: { name: 'Chapel', icon: 'monastery', group: 'Village', cost: { stone: 30, planks: 10 }, radius: 6, build: 24, hp: 250, mood: 10,
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
-  watchtower: { name: 'Watchtower', icon: 'keep', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
+  watchtower: { name: 'Watchtower', icon: 'watchtower', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
     desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
 };
 // Building upgrades: gold and goods, once the village is big enough. Each level works
