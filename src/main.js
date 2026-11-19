@@ -106,7 +106,7 @@ function frame(now) {
   view.update(controls.selection);
   siegeView.update(dt);
   hud.update(controls.selection, paused, speed);
-  audio.frame(camera, controls.cam, { battle, field: true, paused }); // audio
+  audio.frame(camera, controls.cam, { battle, field: true, siege: mode !== 'field', paused }); // audio
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }

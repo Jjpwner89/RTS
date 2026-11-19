@@ -278,13 +278,15 @@ export function frame(camera, cam, scene = {}) {
   }
   const attackers = town?.attackers?.length > 0;
   const assault = scene.siege || town?.attackers?.some(g => g.mode === 'assault' || g.mode === 'siege');
-  calmFor = fighting ? 0 : calmFor + dt;
+  // Arrows in the air and stones landing count as fighting for the music, if not the din.
+  const active = fighting || battle?.arrows?.length > 0 || !!battle?.impacts?.some(i => battle.time - i.time < 10);
+  calmFor = active ? 0 : calmFor + dt;
 
   if (battle && battle.winner !== null && !announced.has(battle) && (scene.field || town)) {
     announced.add(battle);
     setMood(battle.winner === 0 ? 'victory' : 'defeat');
-  } else if (fighting) fightMood = assault ? 'siege' : 'battle';
-  if (fighting || calmFor < 8) { if (fightMood) setMood(fightMood); }
+  } else if (active) fightMood = assault ? 'siege' : 'battle';
+  if (fightMood && (active || calmFor < 8)) setMood(fightMood);    // the fight music lingers a little
   else { fightMood = null; setMood(town ? (attackers ? 'tense' : 'build') : 'tense'); }
 
   const q = paused ? 0 : 1;
