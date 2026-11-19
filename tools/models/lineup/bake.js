@@ -291,6 +291,79 @@ const cape = fig => {
   m.rotation.x = 0.18;
   fig.group.add(m);
 };
+// ---- headwear and coats made here, sized to the measured head ----
+const plain = c => new THREE.MeshLambertMaterial({ color: c });
+const GOLD = '#d8b04a', STEEL = '#b9c0c8';
+const headAt = fig => ({ c: fig.head.getCenter(new THREE.Vector3()), s: fig.head.getSize(new THREE.Vector3()), top: fig.head.max.y });
+const put = (fig, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fig.group.add(m); return m; };
+// A gold circlet with five points, just above the brow.
+const coronet = fig => {
+  const { c, s, top } = headAt(fig), r = Math.max(s.x, s.z * 0.9) * 0.52, y = top - s.y * 0.2;
+  put(fig, new THREE.CylinderGeometry(r, r * 0.96, 0.07, 14, 1, true), plain(GOLD), c.x, y, c.z).material.side = THREE.DoubleSide;
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * Math.PI * 2;
+    put(fig, new THREE.ConeGeometry(0.028, 0.1, 4), plain(GOLD), c.x + Math.sin(a) * r, y + 0.08, c.z + Math.cos(a) * r);
+  }
+};
+// A broad-brimmed iron hat.
+const kettleHat = (fig, colour = '#8c939b') => {
+  const { c, s, top } = headAt(fig), r = s.x * 0.6;
+  const dome = new THREE.SphereGeometry(r, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  put(fig, dome, plain(colour), c.x, top - r * 0.75, c.z);
+  put(fig, new THREE.CylinderGeometry(r * 1.6, r * 1.75, 0.03, 14), plain(colour), c.x, top - r * 0.75, c.z);
+};
+// A flat-topped great helm over the whole head, with a dark eye slit and a cross of breaths.
+const greatHelm = (fig, colour = STEEL) => {
+  const { c, s, top } = headAt(fig), r = Math.max(s.x, s.z) * 0.6, h = s.y * 0.95;
+  put(fig, new THREE.CylinderGeometry(r, r * 1.04, h, 12), plain(colour), c.x, top - h / 2 + 0.03, c.z);
+  put(fig, new THREE.CylinderGeometry(r * 0.9, r, 0.04, 12), plain(colour), c.x, top + 0.04, c.z);
+  put(fig, new THREE.BoxGeometry(r * 1.5, 0.025, 0.04), plain('#1c1c1c'), c.x, top - h * 0.3, c.z + r * 0.98);
+  put(fig, new THREE.BoxGeometry(0.03, h * 0.4, 0.03), plain('#5a6068'), c.x, top - h * 0.62, c.z + r * 1.0);
+};
+// A quilted coat over chest, belly and upper arms.
+const GAMBESON = { bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR', 'Hips'], push: 0.035, color: '#b9a98a' };
+// A long cloak from the shoulders: hangs to the calves standing, falls over the horse's back when riding.
+const longCloak = (fig, riding) => {
+  const sh = fig.bones.shL.clone().add(fig.bones.shR).multiplyScalar(0.5), w = fig.bones.shL.distanceTo(fig.bones.shR) + 0.2;
+  const len = riding ? 1.3 : sh.y - 0.35;
+  const geo = new THREE.CylinderGeometry(w * 0.45, w * 0.7, len, 10, 1, true, Math.PI / 2, Math.PI);
+  geo.translate(0, -len / 2, 0);
+  const m = put(fig, geo, teamMat(0.5), sh.x, sh.y + 0.04, sh.z - 0.04);
+  m.material.side = THREE.DoubleSide;
+  if (riding) { m.rotation.x = 0.5; m.position.z -= 0.1; }
+};
+// A house banner on a tall pole: the flag in the team colour with a pale stripe, a gold finial.
+function banner(fig, { h = 3.6, at = fig.bones.R } = {}) {
+  const g = new THREE.Group(), add = (geo, mat, y, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(0, y, z); g.add(m); };
+  add(new THREE.CylinderGeometry(0.03, 0.035, h, 6), plain('#5a4030'), h / 2 - 0.9);
+  add(new THREE.BoxGeometry(0.04, 1.2, 0.9), teamMat(1), h - 1.5, -0.47);
+  add(new THREE.BoxGeometry(0.045, 0.18, 0.9), teamMat(0.55), h - 1.5, -0.47);
+  add(new THREE.ConeGeometry(0.06, 0.18, 6), plain(GOLD), h - 0.82);
+  g.position.copy(at); fig.group.add(g);
+}
+
+async function lordParty(body, tint) {
+  const f = await people(body, { seated: true, armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
+  coronet(f);
+  longCloak(f, true);
+  await R.hang(f, R.KIT.sword[0]);
+  const lord = await mount(f, { caparison: true });
+  const b = await people('Male_Adventurer', { seated: true, armour: [GAMBESON, SURCOAT] });
+  kettleHat(b);
+  banner(b);
+  const bearer = await mount(b);
+  bearer.position.set(1.6, 0, -0.9);
+  const g = new THREE.Group(); g.add(lord, bearer);
+  return g;
+}
+// Trial pieces for the line, shown beside today's soldiers before anything changes.
+const TRIAL = {
+  'trial.levy': async () => { const f = await people('Male_Farmer', { tint: FARMER, armour: [GAMBESON] }); kettleHat(f); await R.hang(f, R.KIT.spear[0]); return f; },
+  'trial.helm': async () => { const f = await people('Male_Adventurer', { armour: plate('#b3bac2') }); greatHelm(f); await R.fitPads(f); for (const g of R.KIT.sword) await R.hang(f, g); return f; },
+  'trial.kettle': async () => { const f = await people('Male_Adventurer', { armour: R.ARMOUR.spear }); kettleHat(f); await R.fitPads(f); for (const g of R.KIT.spear) await R.hang(f, g); return f; },
+};
+export { TRIAL };
+
 const Q = R.FAMILIES.find(f => f.id === 'qmod');
 const MORE_UNITS = {
   // the existing heavy cavalry, now with a team saddle cloth
@@ -332,6 +405,10 @@ const MORE_UNITS = {
     await R.hang(f, R.KIT.sword[0]);
     return mount(f, { caparison: true });
   },
+  // A great lord in the field: bare-headed under a gold coronet, a long house cloak over bright plate, a full
+  // caparison, and a bannerman riding at his shoulder with the house banner.
+  lord: async () => lordParty('Male_King', {}),
+  lady: async () => lordParty('Female_Medieval', { Black: 'team', Brown: 'team3' }),
   // a camp tent: canvas walls in the team colour under a pale roof
   tent: async () => {
     const g = new THREE.Group();
@@ -345,6 +422,8 @@ const MORE_UNITS = {
   },
 };
 for (const k of ['knight', 'captain', 'lightcav', 'cav']) MORE_UNITS[k].heavy = true;
+// one lord on a field: a richer light version, two riders and two horses
+for (const k of ['lord', 'lady']) MORE_UNITS[k].budget = 6000;
 
 // ---- buildings with levels, and the new ones ----
 const MORE_BUILDINGS = {
@@ -600,7 +679,7 @@ export async function bakeAll(only) {
     const { gear, cloth, counts } = split(fig.isObject3D ? fig : fig.group);
     if (!gear || !cloth) throw new Error(`${key}: ${counts} gear/cloth pieces`);
     const full = { gear: compact(gear), cloth: compact(cloth) };
-    const total = tri(full.gear) + tri(full.cloth), budget = make.heavy ? LIGHT * 1.6 : LIGHT;
+    const total = tri(full.gear) + tri(full.cloth), budget = make.budget || (make.heavy ? LIGHT * 1.6 : LIGHT);
     const light = { gear: compact(gear, budget * tri(full.gear) / total), cloth: compact(cloth, budget * tri(full.cloth) / total) };
     for (const part of ['gear', 'cloth']) { add(`unit.${key}.${part}`, full[part]); add(`unit.${key}.${part}.light`, light[part]); }
     report[key] = `${total} → ${tri(light.gear) + tri(light.cloth)}`;
