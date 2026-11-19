@@ -19,19 +19,54 @@ const nearSegment = (x, z, a, b) => {
 };
 
 // An army on the map: a small block of soldiers under a banner. Gear keeps its colours; cloth takes the side's.
-function armyModel() {
+// A starving army is ragged: men missing from the ranks, the rest straggling, the banner dipped.
+function armyModel(ragged = false) {
   const u = unitModel('spear');
   if (!u) return null;
   const gear = [], cloth = [];
+  let seed = 5;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let r = 0; r < 3; r++) for (let f = 0; f < 4; f++) {
-    const x = (f - 1.5) * 1.5, z = -r * 1.6;
-    gear.push(u.gearLight.clone().translate(x, 0, z));
-    cloth.push(u.clothLight.clone().translate(x, 0, z));
+    if (ragged && (r * 4 + f) % 3 === 1) continue;
+    const x = (f - 1.5) * 1.5 + (ragged ? (rand() - 0.5) * 1.2 : 0), z = -r * 1.6 - (ragged ? rand() * 1.8 : 0);
+    const turn = ragged ? (rand() - 0.5) * 0.9 : 0;
+    gear.push(u.gearLight.clone().rotateY(turn).translate(x, 0, z));
+    cloth.push(u.clothLight.clone().rotateY(turn).translate(x, 0, z));
   }
   const pole = part(box(0.12, 5, 0.12), WOOD, { x: -3.2, y: 2.5, z: 1 });
   const banner = part(box(0.06, 1.4, 1.6), '#ffffff', { x: -3.2, y: 4.2, z: 0.2 });
+  // dipped about the foot of the pole
+  if (ragged) for (const g of [pole, banner]) g.translate(3.2, 0, -1).rotateZ(0.4).translate(-3.2, 0, 1);
   const plain = g => { const o = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); return o; };
   return { gear: mergeGeometries([...gear, pole].map(plain)), cloth: mergeGeometries([...cloth, banner].map(plain)) };
+}
+
+// A supply wagon: the cart under a canvas tilt in its side's colour, with a carter walking ahead.
+function wagonModel() {
+  const cart = buildingModel('wagon'), u = unitModel('villager');
+  if (!cart) return null;
+  const plain = g => { const o = g.index ? g.toNonIndexed() : g.clone(); for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); if (!o.attributes.normal) o.computeVertexNormals(); return o; };
+  // the pack's cart carries a market awning on posts: keep the bed and wheels, and cover it with a canvas tilt
+  const full = plain(cart);
+  full.computeBoundingBox();
+  const b = full.boundingBox, bed = b.min.y + (b.max.y - b.min.y) * 0.52;
+  const P = full.attributes.position, keep = [];
+  for (let i = 0; i < P.count; i += 3) if (Math.max(P.getY(i), P.getY(i + 1), P.getY(i + 2)) < bed) keep.push(i, i + 1, i + 2);
+  const bedGeo = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const A = full.attributes[name], out = new Float32Array(keep.length * 3);
+    keep.forEach((v, k) => { out[k * 3] = A.getX(v); out[k * 3 + 1] = A.getY(v); out[k * 3 + 2] = A.getZ(v); });
+    bedGeo.setAttribute(name, new THREE.BufferAttribute(out, 3));
+  }
+  const w = b.max.x - b.min.x, len = b.max.z - b.min.z, r = Math.min(w, len) * 0.48;
+  const tilt = new THREE.CylinderGeometry(r, r, Math.max(w, len) * 0.6, 10, 1, true, 0, Math.PI);
+  tilt.rotateZ(Math.PI / 2);   // lying along x, the open half underneath
+  if (len >= w) tilt.rotateY(Math.PI / 2);
+  tilt.translate((b.min.x + b.max.x) / 2, bed - 0.1, (b.min.z + b.max.z) / 2 - (len >= w ? len * 0.12 : 0));
+  const white = c => { const n = c.attributes.position.count; c.setAttribute('color', new THREE.Float32BufferAttribute(new Array(n * 3).fill(1), 3)); return c; };
+  const gear = [bedGeo], cloth = [white(plain(tilt))];
+  if (u) { gear.push(plain(u.gearLight.clone().translate(1.2, 0, b.max.z + 1.2))); cloth.push(plain(u.clothLight.clone().translate(1.2, 0, b.max.z + 1.2))); }
+  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
 }
 
 // A column of marching men, coloured per side by tinting the white cloth (used when the baked models are missing).
@@ -85,6 +120,8 @@ export class WorldView {
 
     this.columnGeo = columnModel();
     this.armyGeo = armyModel();
+    this.raggedGeo = armyModel(true);
+    this.wagonGeo = wagonModel();
     this.armies = new Map();
     this.ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(
       Array.from({ length: 48 }, (_, i) => new THREE.Vector3(Math.sin(i / 48 * Math.PI * 2), 0, Math.cos(i / 48 * Math.PI * 2)))),
@@ -173,9 +210,14 @@ export class WorldView {
       if (!o) {
         const colour = new THREE.Color(FACTIONS[a.side].color);
         const mesh = new THREE.Group();
-        if (this.armyGeo) {
+        if (a.wagon && this.wagonGeo) {
+          const cloth = this.mat.clone(); cloth.color.copy(colour).lerp(new THREE.Color('#e8dcc0'), 0.55);
+          mesh.add(new THREE.Mesh(this.wagonGeo.gear, this.mat), new THREE.Mesh(this.wagonGeo.cloth, cloth));
+          mesh.scale.setScalar(2.6);
+        } else if (this.armyGeo) {
           const cloth = this.mat.clone(); cloth.color.copy(colour);
           mesh.add(new THREE.Mesh(this.armyGeo.gear, this.mat), new THREE.Mesh(this.armyGeo.cloth, cloth));
+          mesh.userData.ranks = mesh.children.slice(0, 2);
           mesh.scale.setScalar(2.6);
           // a siege train follows an army laying siege
           const engine = buildingModel('siege.trebuchet');
@@ -192,6 +234,13 @@ export class WorldView {
         o.label.style.borderColor = FACTIONS[a.side].color;
       }
       if (o.mesh.userData.engine) o.mesh.userData.engine.visible = a.mode === 'siege';
+      // a starving army straggles
+      const ranks = o.mesh.userData.ranks, ragged = !a.wagon && a.food <= 0 && !!this.raggedGeo;
+      if (ranks && o.ragged !== ragged) {
+        o.ragged = ragged;
+        const g = ragged ? this.raggedGeo : this.armyGeo;
+        ranks[0].geometry = g.gear; ranks[1].geometry = g.cloth;
+      }
       // Armies out of sight are hidden.
       o.mesh.visible = a.visible;
       if (!a.visible) { o.label.style.display = 'none'; continue; }
