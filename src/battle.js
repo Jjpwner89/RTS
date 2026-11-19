@@ -138,6 +138,17 @@ function cachedHeight(heightAt) {
 
 export const captainLevel = xp => 1 + Math.floor(Math.sqrt(Math.max(0, xp) / 40));
 
+// Captains' traits, earned in battle (captainReport) and felt in the next ones, by the
+// regiment the captain rides with. 'hated:<house>' is a grudge an enemy house holds.
+export const CAPTAIN_TRAITS = {
+  steady: { name: 'steady under arrows', does: 'his men shrug off arrows' },
+  stubborn: { name: 'stubborn', does: 'his men hold longer' },
+  skittish: { name: 'quick to fall back', does: 'his men break sooner' },
+  reckless: { name: 'reckless in the charge', does: 'his charges hit harder' },
+  killer: { name: 'a hard killer', does: 'his men fight a little better' },
+};
+export const traitName = k => k.startsWith('hated:') ? `hated by ${k.slice(6)}` : CAPTAIN_TRAITS[k]?.name || k;
+
 // Veterans: a regiment's experience (kept on its unit spec as `xp`, carried home with the
 // men) gives a rank. A battle fought and survived is worth 0.5, a win 0.5 more, killing
 // well up to 1: one good battle blooded, about three seasoned, six or so a veteran.
@@ -686,6 +697,7 @@ export class Battle {
       if (!t) continue;
       this.orderAttack([r], t);
       r.chargeUntil = this.time + 10;
+      r.charges = (r.charges || 0) + 1;
       for (const s of r.soldiers) s.charged = false;
     }
   }
@@ -1201,20 +1213,46 @@ export class Battle {
     });
   }
 
-  // What a battle did for a side's captain: xp from the enemies killed, more for a win.
-  // Call once when the battle ends; it updates the captain object in place.
-  captainReport(side) {
+  // A trait of the captain riding with this regiment (CAPTAIN_TRAITS).
+  hasTrait(r, key) {
+    const c = this.captains[r.side];
+    return !!c && !c.died && c.reg === r && !!c.captain.traits?.includes(key);
+  }
+
+  // What a battle did for a side's captain: xp from the enemies killed, more for a win;
+  // perhaps a new trait from how his own regiment fared (one a battle at most); and a line
+  // in his memory ({ at, text }, as vassals keep theirs). Call once when the battle ends;
+  // it updates the captain object in place. where: the battle's name for the memory
+  // ("Hollin Ford"); foe: the enemy house's name, for a grudge; at: the campaign clock.
+  captainReport(side, { where = null, foe = null, at = 0 } = {}) {
     const c = this.captains[side];
     if (!c) return null;
-    const won = this.winner === side;
+    const C = c.captain, r = c.reg, won = this.winner === side;
     const gained = c.died ? 0 : Math.round(this.losses[1 - side] * 0.5 + (won ? 40 : 10));
-    const before = c.captain.level;
+    const before = C.level;
+    let trait = null;
     if (!c.died) {
-      c.captain.xp += gained;
-      c.captain.level = captainLevel(c.captain.xp);
-      c.captain.battles = (c.captain.battles || 0) + 1;
+      C.xp += gained;
+      C.level = captainLevel(C.xp);
+      C.battles = (C.battles || 0) + 1;
+      C.traits ||= [];
+      const enemyChief = this.captains[1 - side]?.died || this.lords[1 - side]?.died;
+      const earned = [
+        [foe ? `hated:${foe}` : null, won && foe && enemyChief],
+        ['steady', (r.arrowHits || 0) >= 25 && !r.routedOnce],
+        ['stubborn', !r.routedOnce && r.alive < r.initial * 0.5 && r.fought],
+        ['reckless', (r.charges || 0) >= 2 || (r.braced || 0) >= 3],
+        ['killer', r.kills >= r.initial * 0.8],
+        ['skittish', r.routedOnce && !won],
+      ].find(([k, yes]) => k && yes && !C.traits.includes(k) && !(k === 'skittish' && C.traits.includes('stubborn')) && !(k === 'stubborn' && C.traits.includes('skittish')));
+      if (earned) { trait = earned[0]; C.traits.push(trait); }
     }
-    return { captain: c.captain, gained, died: c.died, levelled: c.captain.level > before };
+    const place = where ? ` at ${where}` : '';
+    const text = c.died ? `Fell${place}.`
+      : `${won ? 'Won' : this.surrendered === side ? 'Yielded' : 'Lost'}${place}${trait ? `; ${traitName(trait)}` : ''}.`;
+    (C.memory ||= []).push({ at, text });
+    if (C.memory.length > 20) C.memory.shift();
+    return { captain: C, gained, died: c.died, levelled: C.level > before, trait, traitName: trait && traitName(trait) };
   }
 
   // ---- simulation ----
@@ -1994,7 +2032,7 @@ export class Battle {
     // Tired arms strike slower and guard worse.
     chance += (tr.fatigue || 0) * 0.03 - (ar.fatigue || 0) * 0.06;
     // Old soldiers fight better, and better still with their lord in the field.
-    chance += (ar.vet - tr.vet) * 0.025 + this.lordBonus(ar) * 0.01;
+    chance += (ar.vet - tr.vet) * 0.025 + this.lordBonus(ar) * 0.01 + (this.hasTrait(ar, 'killer') ? 0.02 : 0);
     // Out of hiding: the first blows of an ambush shake the men they fall on.
     if (!ar.ambushed && this.time - (ar.hiddenAt ?? -99) < 6 && ar.side !== tr.side) {
       ar.ambushed = true;
@@ -2021,8 +2059,9 @@ export class Battle {
       if (braced) {
         chance -= 0.1;
         this.hurt(s, 4);                       // riding onto braced spears
+        ar.braced = (ar.braced || 0) + 1;
       } else {
-        const full = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3) * (1 - (ar.fatigue || 0) * 0.4);
+        const full = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3) * (1 - (ar.fatigue || 0) * 0.4) * (this.hasTrait(ar, 'reckless') ? 1.15 : 1);
         const mul = 1 + (full - 1) * (1 - wood * 0.8);
         chance += 0.35 * (1 - wood * 0.7);
         dmg *= mul;
@@ -2083,7 +2122,8 @@ export class Battle {
   updateMorale(r, dt) {
     if (r.gone || r.routing) return;
     const T = r.T;
-    const top = T.morale * (1 + r.vet * 0.06) * (1 - this.hunger[r.side] * 0.3) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4;
+    const top = T.morale * (1 + r.vet * 0.06) * (1 - this.hunger[r.side] * 0.3) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4
+      + (this.hasTrait(r, 'stubborn') ? 8 : 0) - (this.hasTrait(r, 'skittish') ? 8 : 0);
     if (r.regrouping) {
       r.morale += 3 * dt;
       if (r.morale >= T.morale * 0.6) {
@@ -2102,6 +2142,7 @@ export class Battle {
   }
 
   startRout(r) {
+    r.routedOnce = true;
     r.routing = true;
     r.routedAt = this.time;
     r.dest = null;
@@ -2272,7 +2313,8 @@ export class Battle {
       // Miners at work are under the cover of their sap.
       if (hit.reg.mine && !hit.reg.dest) chance *= 0.3;
       if (this.rand() < chance) {
-        hit.reg.morale -= 0.25;
+        hit.reg.morale -= this.hasTrait(hit.reg, 'steady') ? 0.12 : 0.25;
+        hit.reg.arrowHits = (hit.reg.arrowHits || 0) + 1;
         audio.play('arrowhit', hit, this); // audio
         hit.reg.lastHit = this.time;
         hit.reg.shotBy = a.from;

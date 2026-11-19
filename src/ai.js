@@ -114,6 +114,37 @@ function pickFight(battle, r, foes, standing) {
   if (pick && pick !== current) battle.orderAttack([r], pick);
 }
 
+// ---- fights nobody is watching ----
+
+// A fight left to each side's captain (or its garrison), run in slices so the game never
+// stalls: call run(ms) once a frame with a time budget; it returns true once the battle is
+// decided or `limit` seconds have passed. It is the same battle, so the player can take
+// command at any moment and carry on from where it stands. hold[side]: that side waits
+// for the enemy to come (a garrison in the open). Deployment is skipped, challenges are
+// taken up and terms accepted, as captains would.
+export function unwatched(battle, { hold = [false, false], limit = 600, dt = 0.05 } = {}) {
+  if (battle.deploying) battle.beginBattle();
+  battle.checkWinner = true;
+  const end = battle.time + limit;
+  let clock = 0;
+  return {
+    run(ms = 6) {
+      const t0 = performance.now();
+      while (performance.now() - t0 < ms) {
+        if (battle.winner !== null || battle.time >= end) return true;
+        battle.step(dt);
+        clock -= dt;
+        if (clock > 0) continue;
+        clock = 1;
+        if (battle.duelOffer) battle.acceptDuel();
+        if (battle.terms) battle.acceptTerms();
+        for (const side of [0, 1]) thinkAI(battle, side, { start: 0, hold: hold[side] });
+      }
+      return battle.winner !== null || battle.time >= end;
+    },
+  };
+}
+
 // ---- sieges ----
 
 // The inside of a side's walls, roughly: nearer its home than its nearest wall piece.
