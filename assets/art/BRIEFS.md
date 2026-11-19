@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added; section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added; section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist for if Codex can make models, added). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -18,7 +18,8 @@ Paths here are relative to the repository root (`RTS/`). The game itself is desc
   | Map style | `assets/art/map/…` | see section 3 |
   | UI kit | `assets/art/ui/…` | see section 4 |
   | Event pictures | `assets/art/events/<id>.png` | 640×360 (16:9), opaque |
-  | Moments, title, cursors, captains | `assets/art/moments/…`, `assets/art/title.png`, `assets/art/ui/cursors/…`, `assets/art/captains/…` | see section 6 |
+  | Moments, title, cursors, captains | `assets/art/moments/…`, `assets/art/title.png`, `assets/art/title-tall.png`, `assets/art/ui/cursors/…`, `assets/art/captains/…` | see section 6 |
+  | 3D (only if Codex can make it) | `assets/art/3d/…` | see section 7 |
 
   `<id>` is `varn`, `carrow`, `stonemere`, `wyndham`, `penhallow`, `dunmore`, or `player` (with `player-f` for the second player portrait), plus `norrhold` and `bandits` from section 6.
 - Make two or three takes of each image and pick the best. Keep the others in `wip/` for the creator to look at.
@@ -316,6 +317,8 @@ Seven paintings for the campaign's turning points, shown above the text in the r
 
 `assets/art/title.png`, **1920×1080, opaque**, for the title screen and loading screens. A wide view over the realm in late golden afternoon: rolling green countryside with strip fields, a river with a stone bridge and a walled town (Kingsbridge) on its far bank, timber villages and a castle on a hill. In the middle distance, a column of soldiers under a blue banner marches along the road. Far to the north, faint on the horizon, a long old wall across the hills under a darkening sky, a hint of what is coming. **Keep the left third quiet** (sky and soft hills), because the game's name and menu sit there. No text, no logo.
 
+Also make `assets/art/title-tall.png`, **1080×1920, opaque**, for phones held upright (the creator's family plays on phones). The same scene and light, recomposed rather than cropped: the castle, river and marching column in the lower half, the far wall and darkening sky above them, and **the top third quiet**, because the name and menu sit there on a phone.
+
 ### 6.6 Mouse cursors
 
 Six cursors in the style of the section 4 icons (ink outline, flat hand-colouring), but each with a **thin light parchment outline** so it reads over grass, snow and dark woods. Paint each at 64×64 and also save a sharp 32×32 version (the game uses 32 px). Transparent background, saved as `assets/art/ui/cursors/<name>.png` and `<name>-32.png`. Note the **hotspot** (the exact pixel that clicks) for each in the manifest.
@@ -336,3 +339,60 @@ The named captains who lead every army (and the wandering knights from 5.3) have
 Mix them: ages from about twenty-five to sixty; three of the ten women; two in plate, four in mail, two in leather and padded coats, two in hoods or mail coifs; one or two with grey hair, one with an eyepatch or old scar. Every one a working soldier who looks capable, not a hero or a lord.
 
 *Design context, not for the image prompt:* only the Norrhold and bandit portraits show up on their own (the game already looks for `portraits/<house id>.png`). The rest needs a small hookup once the files land: house heraldry and company banners onto flags and labels, the moments into the result box (`showResult` in `src/campaign.js`, and the shattered victory screen that opens Part 2 can break the `crowned` painting instead of a screenshot), the title painting into a title screen the game doesn't have yet, cursors through CSS `cursor`, and captain faces assigned by captain id in `src/world/captains.js`.
+
+
+---
+
+## 7. A 3D wishlist (only if Codex can make 3D)
+
+Skip this section unless Codex can export clean glTF. Everything in it is a nice-to-have: the game already has finished models for every unit and building. **Do one test piece first** (7.1's `Spear_Thrust`) and stop there, so the Art workstream can check it in the game before Codex spends time on the rest.
+
+### Format for everything in this section
+
+- glTF 2.0 binary (`.glb`), Y up, metres, facing +z, origin on the ground at the model's centre. No textures: flat colours on a few named materials, flat-shaded, matching the Quaternius look.
+- Cloth that should take the house colour goes on materials named `cloth` in mid greys; the game tints those. Everything else (wood, steel, leather, skin) keeps its own colour.
+- Work in `assets/art/3d/wip/` and put finished files in `assets/art/3d/`. Nothing in the game loads that folder directly: the Art workstream bakes picks into `assets/models.glb`, so don't touch that file.
+
+### 7.1 Medieval animation clips (most wanted)
+
+Our soldiers are the Quaternius modular men and women (CC0 Ultimate Modular Characters; `tools/models/fetch.py` has the exact files, for example `Male/Adventurer.glb`). They share one rig under `CharacterArmature`: Root, Hips, Abdomen, Torso, Chest, Neck, Head, Shoulder/UpperArm/LowerArm/Wrist and fingers `.L` and `.R`, UpperLeg/LowerLeg/Foot `.L` and `.R`, and the leg targets `PT.L` and `PT.R`. Make the clips **on that rig, with those exact bone names**, so they drop straight onto every soldier. Deliver them as one `.glb` holding the armature and the clips (the mesh is optional), saved as `assets/art/3d/clips-foot.glb` and `clips-riders.glb`.
+
+The rig already has Idle, Idle_Sword, Walk, Run, Run_Back/Left/Right, Sword_Slash, Punch, Kick, Roll, HitRecieve, Death, Interact and Wave, and some gun clips. **Don't remake those.** What's missing is everything medieval:
+
+| Clip | Loop? | What it shows |
+|---|---|---|
+| `Spear_Thrust` | no, about 0.8 s | Two hands on a long spear, step in and thrust at chest height, back to guard. |
+| `Spear_Brace` | hold | Drop to one knee, butt of the spear grounded behind the back foot, point angled up at a horse's chest. |
+| `March_Upright` | yes | A steady walk with the weapon held upright in the right hand (spear, bill or sword at the shoulder). |
+| `Bow_Loose` | no, about 1.6 s | Nock, draw to the cheek, loose, follow through, reach for the next arrow. Bow in the left hand. |
+| `Crossbow_Span` | no, about 3 s | Crossbow nose down, foot in the stirrup, pull the string back with both hands, lay a bolt, raise and shoot. |
+| `Shield_Block` | no, about 0.6 s | Shield arm (left) comes up and braces, the body leans into it. |
+| `Shield_Wall` | yes | Crouched a little behind a raised shield, weapon held ready over its rim, small shifts of weight. |
+| `Javelin_Throw` | no, about 1 s | Run-up step and an overarm throw. |
+| `Rout` | yes | Running away in panic: looking back over the shoulder, arms loose, the weapon dropped. |
+| `Cheer` | no, about 1.5 s | Weapon raised high, a shout. |
+| `Chop`, `Hoe`, `Mine`, `Carry` | yes | Villagers at work: an axe at a log, a hoe in a field, a pick at rock, a sack on the shoulder. |
+| `Ride_Idle`, `Ride_Trot`, `Ride_Gallop` | yes | Seated on the Quaternius horse (from the same CC0 2018 Farm Animals pack), legs astride, the body following the horse's gait. |
+| `Ride_Couch`, `Ride_Slash` | no | Lance couched under the right arm for the charge; a downward sword cut from the saddle. |
+
+Rules for the clips: 30 frames per second; loops start and end on the same pose; **in place**, with no root motion (the game moves the men); hands where a weapon held in `Wrist.R` (and the bow or shield in `Wrist.L`) would sit naturally.
+
+**Must keep:** the exact bone names; in place; grounded and weighty, not the springy game-y look.
+
+### 7.2 The horse
+
+The Quaternius horse has Idle, Walk, WalkSlow, Run, Jump and Death. Wanted on its rig, in the same rules: `Gallop` (a full charge, faster and lower than Run), `Rear`, and `Trot`. Save as `assets/art/3d/clips-horse.glb`.
+
+### 7.3 Models (lower priority)
+
+Only after 7.1 and 7.2. Keep each under the triangle budget given, in the Quaternius style: chunky, simple, flat colours.
+
+| File | Budget | What it is |
+|---|---|---|
+| `siege-ram.glb`, `siege-mangonel.glb`, `siege-trebuchet.glb`, `siege-tower.glb` | 3,000 each | Siege engines to replace the borrowed Kenney ones, which look like toys. Weathered timber, rope, iron fittings, hide roofs. The throwing arms (and the tower's drawbridge) as **separate nodes named `arm`** and `door`, pivot at the axle or hinge. |
+| `pavise.glb` | 300 | A tall crossbowman's standing shield with a prop at the back. The front face a plain `cloth` panel for the house colour. |
+| `shields.glb` | 300 each | A heater shield and a kite shield with a flat face in `cloth`, a round northern shield with a boss, as separate nodes. |
+| `norrhold-gear.glb` | 400 each | For Norrhold's army (6.1): a spangenhelm with a nose guard, a fur mantle that fits over the modular men's shoulders, a bearded axe, as separate nodes. |
+| `banner-pole.glb` | 200 | A tall pole with a crossbar and a plain `cloth` banner hanging from it (the game swaps in the arms). |
+
+*Design context, not for the image prompt:* the soldiers are baked from posed, still models, so on the battlefield they only bob. The Art workstream can already give them walking legs from the rig's own Walk and Run, without Codex. These clips are what would make a spear wall brace, archers draw and a broken regiment run. The siege engines would match the rest of the models better than the Kenney ones.
