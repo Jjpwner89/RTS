@@ -183,8 +183,8 @@ function townBundle(p, look = null) {
   b.controls = new Controls(stage.camera, canvas, town.battle, view, heightAt, b.hooks);
   b.controls.enabled = false;
   Object.assign(b.controls.cam, { x: 0, z: 40, dist: 120 });
-  // Storming: start behind your own men, looking in at the keep.
-  if (town.hostile) { const a = town.hostile.entry; Object.assign(b.controls.cam, { x: Math.sin(a) * 75, z: Math.cos(a) * 75, dist: 135, yaw: a }); }
+  // Storming: start over your own men on the ground they form up on, looking in at the keep.
+  if (town.hostile) { const a = town.hostile.entry; Object.assign(b.controls.cam, { x: Math.sin(a) * 115, z: Math.cos(a) * 115, dist: 170, yaw: a }); }
   b.hooks.cancelOtherPlacing = () => { st.placing = null; };
   attachSiege(b, { scene, town, heightAt, flash: t => townHud.flash(t) });      // walls and engines (sets b.siege)
   if (!look) bundles.set(p, b);

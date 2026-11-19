@@ -63,9 +63,11 @@ export class Hud {
     if (!el) { el = document.createElement('div'); el.id = 'deploy'; document.body.append(el); }
     el.innerHTML = `<b>Deploy your army</b>
       <span>Select regiments and right-click to place them anywhere on the lit ground. Set formations, hold or targets now.</span>
+      <span class="left"></span>
       <button class="go" title="Start the fight (Enter)">Begin battle</button>`;
     el.querySelector('.go').onclick = () => { this.battle.beginBattle(); if (this.paused) this.hooks.togglePause(); };
     this.deployEl = el;
+    this.deployLeft = el.querySelector('.left');
   }
 
   // The command bar over the cards: formations, charge, hold and fire at will for the selection.
@@ -99,6 +101,9 @@ export class Hud {
     this.selection = selection;
     const sel = [...selection].filter(r => !r.gone);
     this.ordersEl.classList.toggle('open', sel.length > 0);
+    // The orders bar rides just above the cards, however many rows they take.
+    const h = this.cardsEl.offsetHeight;
+    if (h && h !== this.cardsH) { this.cardsH = h; this.ordersEl.style.bottom = `${h + 24}px`; }
     if (!sel.length) return;
     for (const btn of this.ordersEl.querySelectorAll('[data-f]')) {
       const f = btn.dataset.f;
@@ -180,6 +185,10 @@ export class Hud {
     }
     this.updateOrders(selection);
     this.deployEl.classList.toggle('open', b.deploying?.side === 0);
+    // A storm's men wait only so long before they go in.
+    const D = b.deploying, left = D?.limit ? Math.max(0, Math.ceil(D.limit - D.waited)) : 0;
+    const leftText = left ? `They go in by themselves in ${left} s.` : '';
+    if (this.deployLeft.textContent !== leftText) this.deployLeft.textContent = leftText;
     const O = b.duelOffer?.side === 1 && b.winner === null ? b.duelOffer : null;
     this.duelEl.classList.toggle('open', !!O && !T0(b));
     if (O) this.duelEl.querySelector('b').textContent = `${O.champion.name} challenges you to single combat${O.decides ? ' to settle the battle' : ''}.`;

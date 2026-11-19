@@ -272,10 +272,20 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   }
 
   // No way in yet: foot climb any ladders that are up; the rest wait at the stand-off.
+  // While ladders are carried up, two regiments follow close behind to hold them and climb.
   const ladderPieces = [...new Set(ladders.map(l => l.piece))];
-  let sent = 0;
+  const carried = engines.filter(r => r.engine.kind === 'ladder' && r.targetWall && !r.engine.ladders.length && r.wallPoint);
+  let sent = 0, follow = ladderPieces.length ? 0 : 2;
   for (const r of foot) {
     if (r.posts || r.mine) continue;
+    if (follow > 0 && carried.length && carried.some(c => dist(c, { cx: c.wallPoint.x, cz: c.wallPoint.z }) < 45) && !r.targetWall && !r.targetReg) {
+      const c = carried[follow % carried.length], w = c.wallPoint, home = battle.fortHome(enemy);
+      const out = Math.atan2(w.x - home.x, w.z - home.z);
+      const spot = { x: w.x + Math.sin(out) * 16, z: w.z + Math.cos(out) * 16 };
+      if (Math.hypot(r.cx - spot.x, r.cz - spot.z) > 6 && (!r.dest || Math.hypot(r.dest.x - spot.x, r.dest.z - spot.z) > 6)) battle.orderMove([r], spot.x, spot.z, out + Math.PI);
+      follow--;
+      continue;
+    }
     if (ladderPieces.length && (r.T.key === 'maa' || r.T.key === 'sword' || r.T.key === 'sellsword' || r.T.key === 'household' || r.armour === 'mail' || r.armour === 'plate' || sent < 2)) {
       const l = ladders[sent % ladders.length];
       battle.orderAttackWall([r], l.piece, l.x, l.z);
@@ -294,7 +304,8 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
     || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length && r.alive >= r.engine.per));
   const throwing = engines.some(r => r.engine.range);
   const weak = gate && gate.hp < gate.maxHp * 0.35;
-  if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20)))) {
+  // Never by hand at a stone gate that still stands: swords barely mark it, and the men die under it.
+  if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20) && gate.material !== 'stone'))) {
     for (const r of foot) if (!r.posts && !r.mine && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
   }
   // Horse guards the engines against sallies, else waits.

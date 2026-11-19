@@ -572,24 +572,52 @@ export class Battle {
   // A short deployment before a battle: time stands still while `side` places its
   // regiments anywhere on its own ground (around where they stand, short of the enemy),
   // sets formations and picks targets. beginBattle() starts the fight.
-  startDeployment(side = 0) {
+  // A storm passes its own ground instead: from `at` (the place stormed) out along the
+  // road it came by (`toward`, an angle), `near` to `far` metres out and `width` either
+  // side, and a `limit` of seconds after which the assault goes in anyway.
+  startDeployment(side = 0, { at = null, toward = 0, near = 0, far = 0, width = 80, limit = 0 } = {}) {
     const mine = this.regs.filter(r => r.side === side && !r.gone), theirs = this.regs.filter(r => r.side !== side && !r.gone);
     if (!mine.length || !theirs.length) return;
+    if (at) {
+      this.deploying = { side, frame: { x: at.x, z: at.z, a: toward }, x0: -width, x1: width, z0: near, z1: far, limit, waited: 0 };
+      // Stand them side by side in the middle of it, facing in.
+      const mid = this.zoneToWorld(0, (near + far) / 2);
+      this.orderMove(mine, mid.x, mid.z, toward + Math.PI);
+      this.updateSight();
+      return;
+    }
     const dir = Math.sign(theirs.reduce((n, r) => n + r.z, 0) / theirs.length - mine.reduce((n, r) => n + r.z, 0) / mine.length) || -1;
     const zs = mine.map(r => r.z), xs = mine.map(r => Math.abs(r.x));
     const front = dir < 0 ? Math.min(...zs) : Math.max(...zs), back = dir < 0 ? Math.max(...zs) : Math.min(...zs);
     const foe = dir < 0 ? Math.max(...theirs.map(r => r.z)) : Math.min(...theirs.map(r => r.z));
     // Forward up to 25 m, but never past a point well short of the enemy's front.
-    const near = dir < 0 ? Math.max(front - 25, foe + 70) : Math.min(front + 25, foe - 70);
-    const far = Math.max(-HALF + 10, Math.min(HALF - 10, back - dir * 45));
+    const fore = dir < 0 ? Math.max(front - 25, foe + 70) : Math.min(front + 25, foe - 70);
+    const rear = Math.max(-HALF + 10, Math.min(HALF - 10, back - dir * 45));
     const w = Math.min(HALF - 10, Math.max(120, Math.max(...xs) + 60));
-    this.deploying = { side, x0: -w, x1: w, z0: Math.min(near, far), z1: Math.max(near, far) };
+    this.deploying = { side, x0: -w, x1: w, z0: Math.min(fore, rear), z1: Math.max(fore, rear) };
     this.updateSight();
+  }
+
+  // The deployment ground's own frame: x across, z out from the place stormed (or the
+  // map's own axes for a field battle).
+  zoneLocal(x, z) {
+    const F = this.deploying?.frame;
+    if (!F) return { x, z };
+    const dx = x - F.x, dz = z - F.z, c = Math.cos(F.a), s = Math.sin(F.a);
+    return { x: dx * c - dz * s, z: dx * s + dz * c };
+  }
+  zoneToWorld(lx, lz) {
+    const F = this.deploying?.frame;
+    if (!F) return { x: lx, z: lz };
+    const c = Math.cos(F.a), s = Math.sin(F.a);
+    return { x: F.x + lx * c + lz * s, z: F.z - lx * s + lz * c };
   }
 
   inZone(x, z) {
     const D = this.deploying;
-    return D && x >= D.x0 && x <= D.x1 && z >= D.z0 && z <= D.z1;
+    if (!D) return false;
+    const p = this.zoneLocal(x, z);
+    return p.x >= D.x0 && p.x <= D.x1 && p.z >= D.z0 && p.z <= D.z1;
   }
 
   beginBattle() {
@@ -607,12 +635,14 @@ export class Battle {
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const s of r.soldiers) {
       if (!live(s) || s.captain) continue;
-      const p = this.slotPos(r, s.slot);
+      const q = this.slotPos(r, s.slot), p = this.zoneLocal(q.x, q.z);
       x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z);
     }
     const shift = (lo, hi, a, b) => hi - lo > b - a ? (a + b - lo - hi) / 2 : Math.max(0, a - lo) - Math.max(0, hi - b);
-    r.x += shift(x0, x1, D.x0, D.x1); r.z += shift(z0, z1, D.z0, D.z1);
-    let sx = 0, sz = 0, n = 0;
+    const sx = shift(x0, x1, D.x0, D.x1), sz = shift(z0, z1, D.z0, D.z1);
+    const o = this.zoneToWorld(0, 0), m = this.zoneToWorld(sx, sz);
+    r.x += m.x - o.x; r.z += m.z - o.z;
+    let cx = 0, cz = 0, n = 0;
     const put = (s, p) => {
       s.x = s.lx = p.x; s.z = s.lz = p.z; s.v = s.vx = s.vz = 0;
       s.y = this.river ? this.groundY(s.x, s.z) : this.heightAt(s.x, s.z);
@@ -621,9 +651,9 @@ export class Battle {
       if (!live(s) || s.captain) continue;
       const p = this.slotPos(r, s.slot);
       put(s, p); s.yaw = p.face;
-      sx += s.x; sz += s.z; n++;
+      cx += s.x; cz += s.z; n++;
     }
-    if (n) { r.cx = sx / n; r.cz = sz / n; }
+    if (n) { r.cx = cx / n; r.cz = cz / n; }
     const cap = r.soldiers.find(s => s.captain && live(s));
     if (cap) { put(cap, this.goalOf(cap)); cap.yaw = r.angle; }
   }
@@ -839,6 +869,8 @@ export class Battle {
         const ladder = this.walls.ladders.find(l => l.side === r.side && this.network(l.piece).has(struct)
           && Math.hypot(l.x - x, l.z - z) < 60);
         if (ladder) { this.orderMan([r], ladder.piece, ladder.x, ladder.z); continue; }
+        // Swords barely mark stone: say so once, the first time men are sent at it bare-handed.
+        if (r.side === 0 && struct.M.melee < 0.1 && !this.saidStone) { this.saidStone = true; this.event(0, 'Swords do little against stone. Raise ladders, bring a ram, or break it with stones first.'); }
       }
       this.clearPosts(r);
       r.dest = null; r.targetReg = null;
@@ -1302,8 +1334,12 @@ export class Battle {
   // ---- simulation ----
 
   step(dt) {
-    // Time stands still while an army deploys.
-    if (this.deploying) return;
+    // Time stands still while an army deploys (a storm's men only so long, then they go in).
+    if (this.deploying) {
+      const D = this.deploying;
+      if (D.limit && (D.waited += dt) >= D.limit) this.beginBattle();
+      return;
+    }
     if (!this.weatherSaid) { this.weatherSaid = true; this.event(0, WEATHER[this.weather].say); }
     if (this.winner !== null) dt *= 0.3;
     this.time += dt;
@@ -1652,15 +1688,17 @@ export class Battle {
     if (this.termsAllowed) this.checkTerms();
     for (const l of [...W.ladders]) {
       if (l.piece.state !== 'up') { W.pushDown(l); continue; }
-      let def = 0, att = 0, climbing = 0;
+      let def = 0, att = 0, climbing = 0, below = 0;
       this.forNear(l.x, l.z, 4, o => {
         if (Math.hypot(o.x - l.x, o.z - l.z) > 3.5) return;
         if (o.level === 1 && o.reg.side !== l.side) def++;
         if (o.level === 1 && o.reg.side === l.side) att++;
       });
+      this.forNear(l.foot.x, l.foot.z, 5, o => { if (o.level === 0 && !o.climb && o.reg.side === l.side && !o.reg.routing) below++; });
       for (const o of this.soldiers) if (o.climbVia === l && o.climb > 0) climbing++;
-      // Defenders shove an unheld ladder away from the wall.
-      if (def > 0 && att === 0 && this.time - l.raisedAt > 3 && this.rand() < Math.min(0.5, 0.1 * def) * (climbing ? 0.5 : 1)) {
+      // Defenders shove an unheld ladder away from the wall; men at its foot, waiting to
+      // climb, hold it against the wall and make that much harder.
+      if (def > 0 && att === 0 && this.time - l.raisedAt > 5 && this.rand() < Math.min(0.5, 0.1 * def) * (climbing ? 0.5 : 1) * (below ? 0.25 : 1)) {
         W.pushDown(l);
         this.event(l.piece.side, `${l.piece.side === 0 ? 'Our men' : 'The defenders'} pushed a ladder off the wall!`);
         for (const o of this.soldiers) if (o.climbVia === l && o.climb > 0) this.fallFrom(o, 7);
@@ -2098,7 +2136,8 @@ export class Battle {
     if (hasShield(tr) && flank === 0) chance -= A.shieldbreak ? -0.05 : 0.05;   // long axes hook shields aside
     if (A.dog) { tr.morale -= 0.4; if (tr.routing) chance += 0.15; }
     // From the walkway, men strike down at climbers and those at the foot of the wall.
-    if (s.level === 1 && (t.level !== 1 || t.climb > 0)) chance += 0.25;
+    // Most of all at a man on a ladder; the men at the foot can at least raise a shield.
+    if (s.level === 1 && (t.level !== 1 || t.climb > 0)) chance += t.climb > 0 ? 0.25 : 0.1;
     if (t.climb > 0) chance += 0.15;
     // Fighting up a slope is hard work; down it, men put their weight behind each blow.
     const slope = s.level === 0 && t.level === 0 ? this.downhill(s, t) : 0;
@@ -2363,6 +2402,8 @@ export class Battle {
       // Merlons cover men on a wall; a ram's roof covers its crew.
       if (hit.level === 1 && hit.perch) chance *= hit.perch.material === 'stone' ? 0.45 : 0.7;
       if (hit.reg.engine?.roof && !hit.reg.routing) chance *= hit.reg.engine.roof;
+      // Ladders carried overhead are a roof of sorts for the men under them.
+      if (hit.reg.engine?.kind === 'ladder' && hit.reg.targetWall && !hit.reg.routing) chance *= 0.25;
       if (this.weather === 'rain') chance *= pierce ? 0.9 : 0.75;
       if (this.weather === 'night') chance *= 0.8;
       // Miners at work are under the cover of their sap.

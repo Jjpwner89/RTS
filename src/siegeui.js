@@ -4,6 +4,7 @@
 // attachSiege() wires all of this into a village screen's hooks; call update() each frame.
 import { WALL_COSTS, MATERIALS } from './walls.js';
 import { SiegeView } from './siegeview.js';
+import { drawDeployZone } from './fieldview.js';
 import { GOODS } from './economy.js';
 
 const costText = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g]?.name.toLowerCase() || g}`).join(', ');
@@ -147,6 +148,13 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
   ui.update = dt => {
     if (el.owner !== ui) bindPanel();
     view.update(dt);
+    // The lit ground an army storming this place may form up on before it goes in.
+    if (battle.deploying?.side === 0 && !ui.zone) ui.zone = drawDeployZone(scene, battle, battle.deploying);
+    if (ui.zone && !battle.deploying) {
+      scene.remove(ui.zone);
+      ui.zone.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
+      ui.zone = null;
+    }
     // While storming someone else's place there is nothing of ours to build.
     el.hidden = !!town.hostile;
     document.body.classList.toggle('has-defences', !town.hostile);   // the cards make room for it

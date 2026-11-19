@@ -831,7 +831,10 @@ export class World {
   defenceBonus(p) { return 1.2 * KINDS[p.kind].defence * (p.kind === 'crown' && workDone(this, 'walls') ? 1.5 : 1); }
 
   autoResolve(enc) {
-    const r = this.resolve(enc.army.units, enc.defenders, enc.kind === 'assault' ? this.defenceBonus(enc.poi) : 1);
+    // Walls stormed with no ladders, ram or engines cost as dearly here as by hand (battle.js).
+    const p = enc.poi, walled = p && (p.mem ? p.mem.pieces.length > 0 : p.eco?.walls ? p.eco.walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
+    const bare = enc.kind === 'assault' && walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
+    const r = this.resolve(enc.army.units, enc.defenders, enc.kind === 'assault' ? this.defenceBonus(enc.poi) * (bare ? 1.4 : 1) : 1);
     this.settle(enc, r.attackerWins, r.A, r.D);
     return r.attackerWins;
   }
@@ -980,6 +983,9 @@ export class World {
     town.flagColor = H.color;
     town.holdKeep(defenders, came, { house: owner ?? 1 });
     this.seatCaptain(town.battle, 0, captainOf(this, a), town.addTroops(a.units, came, { stand: 100 }));
+    // The army forms up out of bowshot on the road it came by, then goes in (battle.js).
+    const R = walled ? (p.kind === 'crown' ? 30 : 24) : 16;
+    town.battle.startDeployment(0, { at: { x: 0, z: 0 }, toward: came, near: R + 70, far: R + 140, width: 80, limit: 90 });
     // A beaten garrison may ask for terms (battle.js); a hungry place asks sooner. Yielding,
     // its men march out under arms to their lord, and the place is yours whole: no more
     // burning, and more of its people stay.

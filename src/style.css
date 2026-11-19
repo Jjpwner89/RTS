@@ -37,9 +37,9 @@ body.paused #paused-tag { display: block; }
 #help b { color: var(--ink); }
 #help .tip { color: var(--gold); opacity: 0.85; }
 
-#cards { position: fixed; left: 16px; right: 16px; bottom: 12px; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-#cards > :first-child { margin-left: auto; }
-#cards > :last-child { margin-right: auto; }
+/* Cards wrap into rows that stack upward from the bottom, so every one stays in sight;
+   a very large army scrolls up and down within its share of the screen. */
+#cards { position: fixed; left: 16px; right: 16px; bottom: 12px; display: flex; flex-wrap: wrap-reverse; justify-content: center; gap: 6px; max-height: 42vh; overflow-x: hidden; overflow-y: auto; padding-bottom: 2px; }
 /* Name across the top so "1st Heavy cavalry" fits, the icon beside the two bars, the state line under both. */
 .card { flex: 0 0 auto; width: 112px; display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto auto auto; align-content: start; gap: 2px 6px; padding: 5px; text-align: left; background: var(--panel); }
 .card canvas { grid-row: 2 / 4; grid-column: 1; width: 30px; height: 30px; border-radius: 4px; }
@@ -238,6 +238,8 @@ body.campaign.mode-town #cards { left: 372px; }
 #deploy.open { display: flex; }
 #deploy b { color: var(--gold); white-space: nowrap; }
 #deploy span { color: var(--dim); font-size: 13px; }
+#deploy .left { color: var(--gold); white-space: nowrap; }
+#deploy .left:empty { display: none; }
 #deploy .go { background: rgba(255, 217, 112, 0.22); border-color: var(--gold); white-space: nowrap; font-weight: 600; }
 body.deploying #paused-tag { display: none; }
 #terms, #duel { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--gold); border-radius: 10px; padding: 6px 8px 6px 14px; z-index: 3; max-width: calc(100vw - 32px); }
