@@ -102,6 +102,21 @@ function cairnModel() {
   return mergeGeometries(stones.map(plain));
 }
 
+// A trade caravan's merchant cart or a supply run's loaded cart, with a carter walking ahead in the side's
+// colour, and on a run carrying families, two of them walking behind.
+function cartModel(kind, families) {
+  const cart = buildingModel(kind), u = unitModel('villager');
+  if (!cart) return null;
+  const plain = g => { const o = g.index ? g.toNonIndexed() : g.clone(); for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); if (!o.attributes.normal) o.computeVertexNormals(); return o; };
+  const gear = [plain(cart)], cloth = [];
+  cart.computeBoundingBox();
+  const b = cart.boundingBox, walkers = [[1.2, b.max.z + 1.2]];
+  if (families) walkers.push([-0.6, b.min.z - 1.3], [0.7, b.min.z - 2.4]);
+  if (u) for (const [x, z] of walkers) { gear.push(plain(u.gearLight).translate(x, 0, z)); cloth.push(plain(u.clothLight).translate(x, 0, z)); }
+  if (!cloth.length) cloth.push(new THREE.BufferGeometry());
+  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
+}
+
 // A supply wagon: the cart under a canvas tilt in its side's colour, with a carter walking ahead.
 function wagonModel() {
   const cart = buildingModel('wagon'), u = unitModel('villager');
@@ -182,6 +197,7 @@ export class WorldView {
     this.columnGeo = columnModel();
     this.armyGeo = new Map();   // each army's figure, by its troops and whether it is ragged
     this.wagonGeo = wagonModel();
+    this.cartGeo = { trade: cartModel('wagon.trade'), run: cartModel('wagon.run'), runFamilies: cartModel('wagon.run', true) };
     this.cairnGeo = cairnModel();
     this.cairns = new Map();   // world.cairns entry → { mesh, label }
     this.armies = new Map();
@@ -274,7 +290,12 @@ export class WorldView {
       if (!o) {
         const colour = new THREE.Color(FACTIONS[a.side].color);
         const mesh = new THREE.Group();
-        if (a.wagon && this.wagonGeo) {
+        const cart = a.wagon?.trade ? this.cartGeo.trade : a.wagon?.run ? (a.wagon.people ? this.cartGeo.runFamilies : this.cartGeo.run) : null;
+        if (a.wagon && cart) {
+          const cloth = this.mat.clone(); cloth.color.copy(colour);
+          mesh.add(new THREE.Mesh(cart.gear, this.mat), new THREE.Mesh(cart.cloth, cloth));
+          mesh.scale.setScalar(2.6);
+        } else if (a.wagon && this.wagonGeo) {
           const cloth = this.mat.clone(); cloth.color.copy(colour).lerp(new THREE.Color('#e8dcc0'), 0.55);
           mesh.add(new THREE.Mesh(this.wagonGeo.gear, this.mat), new THREE.Mesh(this.wagonGeo.cloth, cloth));
           mesh.scale.setScalar(2.6);
@@ -343,7 +364,7 @@ export class WorldView {
       const s = toScreen(x, this.heightAt(x, z) + 16, z);
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
-      const html = a.wagon ? `${ico('food')} ${a.wagon.food}`
+      const html = a.wagon ? (a.wagon.trade ? `${ico('gold')} ${a.wagon.gold}` : a.wagon.run ? `${ico('wood')} ${Object.values(a.wagon.goods).reduce((n, k) => n + k, 0)}${a.wagon.people ? ` ${ico('people')} ${a.wagon.people}` : ''}` : `${ico('food')} ${a.wagon.food}`)
         : know < 2 ? `${ico('battle')} ?`
         : `${a.lord != null ? `${ico('crown')} ` : ''}${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${know < 3 ? `~${rough(men)}` : men}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; o.label.style.borderColor = know > 1 ? FACTIONS[a.side].color : '#8a8070'; }

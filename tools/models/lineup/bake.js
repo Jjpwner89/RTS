@@ -79,7 +79,7 @@ const UNITS = {
 };
 const LIGHT = 1500;
 
-// [model makers placed at x, z], and the width in metres across the widest side
+// [model makers placed at x, z (turned by ry, raised by y, scaled by k)], and the width in metres across the widest side
 const rts = n => () => R.rtsModel(n), mvp = n => () => R.mvpModel(n);
 const BUILDINGS = {
   'house.0': [[[rts('Houses_FirstAge_1_Level3')]], 6.5],
@@ -108,7 +108,7 @@ async function buildingGeo(recipe) {
 }
 async function flatBuilding([parts, width, scaleOf]) {
   const g = new THREE.Group();
-  for (const [make, x = 0, z = 0, ry = 0] of parts) { const o = await make(); o.position.set(x, 0, z); o.rotation.y = ry; g.add(o); }
+  for (const [make, x = 0, z = 0, ry = 0, y = 0, k = 1] of parts) { const o = await make(); o.position.set(x, y, z); o.rotation.y = ry; o.scale.multiplyScalar(k); g.add(o); }
   let size = width;
   if (scaleOf) {
     // scale by the reference model, then keep that size while centring
@@ -532,6 +532,29 @@ for (const k of ['lord', 'lady']) MORE_UNITS[k].budget = 6000;
 Object.assign(MORE_UNITS, NORRHOLD);
 
 // ---- buildings with levels, and the new ones ----
+// the pack cart's bed is 0.86 m up; `cutAbove` drops every triangle reaching above y (its awning and posts)
+const BED = 0.86;
+function cutAbove(o, maxY) {
+  o.updateMatrixWorld(true);
+  const v = new THREE.Vector3();
+  o.traverse(m => {
+    if (!m.isMesh) return;
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(), P = g.attributes.position, keep = [];
+    for (let i = 0; i < P.count; i += 3) {
+      let top = -Infinity;
+      for (let k = 0; k < 3; k++) top = Math.max(top, v.fromBufferAttribute(P, i + k).applyMatrix4(m.matrixWorld).y);
+      if (top < maxY) keep.push(i, i + 1, i + 2);
+    }
+    const out = new THREE.BufferGeometry();
+    for (const [name, A] of Object.entries(g.attributes)) {
+      const a = new Float32Array(keep.length * A.itemSize);
+      keep.forEach((s, k) => { for (let j = 0; j < A.itemSize; j++) a[k * A.itemSize + j] = A.array[s * A.itemSize + j]; });
+      out.setAttribute(name, new THREE.BufferAttribute(a, A.itemSize));
+    }
+    m.geometry = out;
+  });
+  return o;
+}
 const MORE_BUILDINGS = {
   // forts and army camps: the smallest palisaded Wonder fort
   fort: [[[rts('Wonder_FirstAge_Level1')]], 18],
@@ -557,8 +580,17 @@ const MORE_BUILDINGS = {
   siegeworks: [[[rts('Storage_FirstAge_Level3')], [rts('Logs'), 5, 3], [mvp('Cart'), -5, 3.5, 0.6]], 13],
   watchtower: [[[rts('WatchTower_FirstAge_Level1')]], 4.5, 'WatchTower_FirstAge_Level2'],
   monastery: [[[rts('Temple_FirstAge_Level2')]], 18],
+  // the realm's one cathedral: the pack's great stone temple, spires and all
+  cathedral: [[[rts('Temple_SecondAge_Level3')]], 19],
   dock: [[[rts('Port_FirstAge_Level1')]], 12],
   wagon: [[[mvp('Cart')]], 3.6],
+  // the world map's carts: a merchant's, its awning over bales, a barrel and a crate; and a supply run's, the
+  // awning taken off and the bed piled with timber, a crate and stone (both the cart's 2.4 m length scaled like `wagon`)
+  'wagon.trade': [[[mvp('Cart')], [mvp('Bags'), 0, 0.35, 0.3, BED], [mvp('Bags'), 0.05, 0.3, -0.4, BED + 0.2, 0.85],
+    [mvp('Bags'), 0.25, 0.6, 1.2, BED, 0.8], [mvp('Barrel'), -0.3, -0.35, 0, BED], [mvp('Crate'), 0.28, -0.35, 0.3, BED]], 3.6],
+  'wagon.run': [[[async () => cutAbove(await R.mvpModel('Cart'), 1)], [rts('Logs'), 0, 0.1, Math.PI / 2, BED, 0.14],
+    [rts('Crate_Stack1'), 0.22, -0.6, 0.2, BED, 0.55], [mvp('Bags'), -0.15, -0.55, 0, BED + 0.2, 0.8],
+    [rts('Resource_Rock_2'), -0.2, 0.75, 0, BED - 0.05, 0.1]], 3.6],
   well: [[[mvp('Well')]], 3.2],
   // a village's chapel: the timber stave temple, not the abbey's great one
   chapel: [[[rts('Temple_FirstAge_Level1')]], 11],
