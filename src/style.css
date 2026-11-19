@@ -293,3 +293,6 @@ body.campaign:not(.mode-world) #goals { display: none; }
 
 /* Regiment orders belong to a village or a field, never the map. */
 body.campaign.mode-world #orders { display: none !important; }
+
+/* Looking round a vassal's village: nothing to build or order. */
+body.readonly :is(#build, #defences, #march, #orders) { display: none !important; }

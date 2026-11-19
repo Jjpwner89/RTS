@@ -1123,6 +1123,26 @@ export class World {
     return true;
   }
 
+  // A look round a vassal's village, read-only: laid out from his tally on your
+  // remembered streets, and that layout kept as the place's own (the layout rule), so
+  // what you saw is what you get back if you ever take it back. The village itself goes on
+  // being run as numbers; the town returned here is a picture of it, thrown away after.
+  viewTown(p) {
+    const v = vassalOf(this, p), e = p.eco;
+    if (!v || !e || p.town) return null;
+    const keep = { town: p.town, heightAt: p.heightAt, trees: p.trees, garrison: p.garrison, aiClock: p.aiClock, pruneClock: p.pruneClock, onRoad: p.onRoad };
+    const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(e.pop))), retinue: false, stock: stores(e) });
+    const look = { town, heightAt: p.heightAt, trees: p.trees, onRoad: p.onRoad };
+    Object.assign(p, keep);
+    if (p.mem) rebuild(town, p.mem, 0, true);
+    layOut(town, p, e.level, town.rand);
+    p.mem = remember(town, 0, this.time);
+    if (keep.garrison.length) town.addTroops(keep.garrison.map(u => ({ ...u })), this.angle(p, p.links[0]));
+    Object.assign(town, { readOnly: v, purse: { gold: Math.round(v.gold) }, flagColor: v.color, event: () => {},
+      onFall: () => {}, onRebel: () => {}, onMilestone: () => {}, hallRule: () => 'Not your village' });
+    return look;
+  }
+
   // What you can do for or to a vassal, from the place panel.
   vassalAct(v, act) {
     if (!v || v.gone) return { ok: false };

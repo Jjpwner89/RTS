@@ -58,7 +58,8 @@ A vassal runs a town for you: builds it up, raises troops and pays gold. But he 
   - **Rewards and punishments**: grant land, give a seat on your council, revoke a holding (others take note), imprison or pardon.
 - **On screen, after Crusader Kings 2**: a plain vassal list with each lord's shield, the town he holds, his troops and gold paid, and **one opinion number** coloured green to red. Hovering it shows the reasons. A small icon marks anyone in a faction. That's all the screen needs.
 - **Built (2026-11-19):** grant a village (from Lord), the realm's vassal list and one opinion number with reasons on hover, a temper and one want each, dues and levies up or down, gifts, three council seats, taking a village back (the others take note), a lord too aggrieved stops paying and sending men, and each lord's short memory of what happened to him. His village runs on the tracked economy and keeps your layout.
-- **Not built yet:** feuds between vassals, factions and their demands, imprison or pardon, marriages and titles as ambitions, and going into a vassal's town (it opens only when you take it back).
+- **Look round a vassal's village** (creator, 2026-11-19: read-only): double-click it or press *Look round* in its panel. You see it as he has grown it, people at work, but can't build, order or tax; the layout you saw is kept as the place's own.
+- **Not built yet:** feuds between vassals, factions and their demands, imprison or pardon, marriages and titles as ambitions.
 
 ### Town templates
 

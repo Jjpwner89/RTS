@@ -119,25 +119,27 @@ const worldControls = new WorldControls(stage.camera, canvas, worldView, {
 
 // ---- your villages ----
 
-function townBundle(p) {
-  const old = bundles.get(p);
+// look: a vassal's village to look round (world.viewTown), not kept between visits.
+function townBundle(p, look = null) {
+  const old = !look && bundles.get(p);
   if (old && old.town === p.town) return old;
   if (old) dropBundle(p);
-  const town = p.town, heightAt = p.heightAt;
+  const town = look ? look.town : p.town, heightAt = look ? look.heightAt : p.heightAt, onRoad = look ? look.onRoad : p.onRoad;
   const scene = stage.newScene();
-  drawGround(scene, heightAt, p.seed, { tint: (x, z) => (p.onRoad(x, z) ? 1 : 0) });
-  drawTrees(scene, heightAt, p.trees);
+  drawGround(scene, heightAt, p.seed, { tint: (x, z) => (onRoad(x, z) ? 1 : 0) });
+  drawTrees(scene, heightAt, look ? look.trees : p.trees);
   const view = new BattleView(scene, town.battle, heightAt, { capacity: 400, keeps: false });
   const townView = new TownView(scene, town, heightAt, rng(p.seed + 11));
   const st = { placing: null, hoverAt: null, selected: null };
-  const b = { kind: 'town', poi: p, town, scene, view, townView, st, heightAt };
+  const b = { kind: 'town', poi: p, town, scene, view, townView, st, heightAt, look: !!look,
+    title: look ? `${p.name} · ${town.readOnly.name}'s village` : null };
   b.hooks = {
     togglePause: () => { paused = !paused; },
     setSpeed: s => { speed = s; paused = false; },
     selectionChanged: sel => { if (sel && sel.size) st.selected = null; },
     selectCard: (r, add) => b.controls.setSelection([r], add),
     focus: r => b.controls.focus([r]),
-    startPlacing: kind => { st.placing = kind; st.selected = null; b.controls.setSelection([]); },
+    startPlacing: kind => { if (look) return; st.placing = kind; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
     templates: () => world.rank !== 'Reeve',
     companies: () => (world.companies || []).map(c => {
@@ -174,7 +176,7 @@ function townBundle(p) {
   if (town.hostile) { const a = town.hostile.entry; Object.assign(b.controls.cam, { x: Math.sin(a) * 75, z: Math.cos(a) * 75, dist: 135, yaw: a }); }
   b.hooks.cancelOtherPlacing = () => { st.placing = null; };
   attachSiege(b, { scene, town, heightAt, flash: t => townHud.flash(t) });      // walls and engines (sets b.siege)
-  bundles.set(p, b);
+  if (!look) bundles.set(p, b);
   return b;
 }
 
@@ -187,8 +189,17 @@ function dropBundle(p) {
 }
 
 function enterTown(p) {
+  if (!p.town && p.vassal && p.owner === 0) return visitVassal(p);
   if (!p.town) { selected = p; return; }
   setMode('town', townBundle(p));
+}
+
+// A vassal's village, to look round but not to run.
+function visitVassal(p) {
+  const look = world.viewTown(p);
+  if (!look) { selected = p; return; }
+  setMode('town', townBundle(p, look));
+  townHud.flash(`${look.town.readOnly.name} holds ${p.name}: you may look round, but it is his to run.`);
 }
 
 function showWorld() { setMode('world', null); }
@@ -215,11 +226,12 @@ function goals() {
 
 function setMode(m, b) {
   if (current?.controls) current.controls.enabled = false;
+  if (current?.look && current !== b) stage.dispose(current.scene);
   mode = m;
   current = b;
   worldControls.enabled = m === 'world';
   worldView.hideLabels(m !== 'world');
-  document.body.className = `campaign mode-${m}`;
+  document.body.className = `campaign mode-${m}${b?.look ? ' readonly' : ''}`;
   $('cards').innerHTML = '';
   hud = townHud = null;
   if (m === 'world') stage.use(worldView.scene);
@@ -580,6 +592,7 @@ function worldPanel() {
           <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please him">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger him">+</button></div>
           <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please him">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger him">+</button></div>
           <div class="row"><button data-act="v:gift">${ico('gold', '#e8c45a')} Gift (${GIFT} gold)</button><button data-act="v:council" data-f="council"></button></div>
+          <button data-act="visit" class="wide" title="See his village as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button>
           <button data-act="revoke" class="wide warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button>`
         : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
@@ -730,6 +743,7 @@ $('wpanel').onclick = e => {
     if (r.text) flash(r.text, r.ok);
   }
   if (act === 'revoke' && it && world.revoke(it)) panelKey = null;
+  if (act === 'visit' && it?.vassal) return visitVassal(it);
   if (act === 'muster') {
     const regs = it.town.garrison().filter(r => !r.routing && !r.regrouping);
     const a = regs.length ? world.muster(it, regs) : null;
@@ -749,6 +763,7 @@ $('help-toggle').onclick = () => $('help').classList.toggle('open');
 $('help-close').onclick = () => { $('help').classList.remove('open'); paused = false; };
 $('to-world').onclick = () => showWorld();
 $('march').onclick = () => {
+  if (current?.look) return;
   const regs = [...current.controls.selection];
   const a = world.muster(current.poi, regs);
   if (!a) return;
@@ -811,7 +826,7 @@ function worldLog() {
 }
 
 function topBar() {
-  $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.poi.name : $('field-title').textContent;
+  $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
   if (mode === 'world') {
     $('clock').textContent = clock(world.time);
     $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';
@@ -847,6 +862,8 @@ function frame(now) {
         if (b.endAt && b.battle.time > b.endAt) { endField(b.battle.winner === 0); break; }
       } else {
         world.update(h);
+        // A vassal's village you are looking round lives on its own, a picture thrown away after.
+        if (mode === 'town' && current.look) { current.town.battle.step(h); current.town.update(h); }
         stepAway(h);
         autosave();
       }

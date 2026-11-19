@@ -72,7 +72,7 @@ export class TownHud {
         if (tax) town.taxes = Math.max(0, Math.min(TAXES.length - 1, town.taxes + +tax.dataset.tax));
       };
     }
-    this.buildEl.hidden = !!town.hostile;
+    this.buildEl.hidden = !!town.hostile || !!town.readOnly;
     // onclick rather than addEventListener: a new village's panels replace the old handlers.
     this.infoEl.onclick = e => {
       const btn = e.target.closest('[data-act]');
@@ -304,6 +304,7 @@ export class TownHud {
 
   allowed(act) {
     const t = this.town;
+    if (t.readOnly) return [false, `${t.readOnly.name}'s to decide`];
     if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6), this.selected); return [c.ok, c.reason]; }
     if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
     if (act === 'upgrade') { const c = t.upgradeCheck(this.selected); return [c.ok, c.reason]; }
@@ -316,6 +317,7 @@ export class TownHud {
 
   act(act) {
     const t = this.town;
+    if (t.readOnly) return;
     if (act === 'burn') {
       const r = t.burn(this.selected);
       this.flash(r ? `${r.name} go to burn the ${this.selected.B.name.toLowerCase()}.` : 'No regiment is free to send.');
