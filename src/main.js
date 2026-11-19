@@ -125,6 +125,8 @@ function frame(now) {
 }
 // One step settles every regiment's centre before the first frame is drawn.
 battle.step(0.001);
+// Place your army before the fight (time stands still until Begin battle); ?deploy=0 skips it.
+if (mode !== 'defend' && params.get('deploy') !== '0') { battle.startDeployment(0); paused = false; document.getElementById('help').classList.remove('open'); }
 requestAnimationFrame(frame);
 
 window.game = { battle, view, siegeView, fieldView, controls, seed, scale, mode, thinkAI };

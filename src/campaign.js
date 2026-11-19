@@ -271,6 +271,7 @@ function startField(enc) {
   b.controls = new Controls(stage.camera, canvas, battle, view, heightAt, b.hooks);
   Object.assign(b.controls.cam, { x: 0, z: 135, dist: 105, yaw: 0 });
   battle.step(0.001);
+  battle.startDeployment(0);        // place the army before the fight (battle.js)
   $('field-title').textContent = assault ? `Battle for ${enc.poi.name}` : 'Battle on the road';
   setMode('field', b);
 }

@@ -1,5 +1,6 @@
 // Draws what battlefield.js puts on a field: the river's water and its bridges, which
-// smoke and flame while they burn and leave charred posts behind.
+// smoke and flame while they burn and leave charred posts behind; and, while an army
+// deploys, the ground it may deploy on.
 import * as THREE from 'three';
 
 export class FieldView {
@@ -9,10 +10,35 @@ export class FieldView {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.bridges = [];
+    this.zone = null;
     const R = battle.river;
     if (!R) return;
     this.drawWater(R);
     for (const b of R.bridges) this.bridges.push(this.drawBridge(R, b));
+  }
+
+  // A faint gold sheet laid over the deployment ground, with a brighter edge.
+  drawZone(D) {
+    const H = (x, z) => this.battle.heightAt(x, z) + 0.35;
+    const g = new THREE.Group();
+    const nx = Math.max(2, Math.ceil((D.x1 - D.x0) / 6)), nz = Math.max(2, Math.ceil((D.z1 - D.z0) / 6));
+    const geo = new THREE.PlaneGeometry(1, 1, nx, nz);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = D.x0 + (pos.getX(i) + 0.5) * (D.x1 - D.x0), z = D.z0 + (pos.getY(i) + 0.5) * (D.z1 - D.z0);
+      pos.setXYZ(i, x, H(x, z), z);
+    }
+    geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })));
+    const edge = [];
+    const run = (xa, za, xb, zb) => {
+      const n = Math.ceil(Math.hypot(xb - xa, zb - za) / 3);
+      for (let i = 0; i < n; i++) { const x = xa + (xb - xa) * i / n, z = za + (zb - za) * i / n; edge.push(new THREE.Vector3(x, H(x, z) + 0.1, z)); }
+    };
+    run(D.x0, D.z0, D.x1, D.z0); run(D.x1, D.z0, D.x1, D.z1); run(D.x1, D.z1, D.x0, D.z1); run(D.x0, D.z1, D.x0, D.z0);
+    g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.8 })));
+    this.group.add(g);
+    return g;
   }
 
   // One ribbon of water along the river, at the level the channel was cut to.
@@ -94,6 +120,13 @@ export class FieldView {
   }
 
   update(dt) {
+    const D = this.battle.deploying;
+    if (D && D.side === this.battle.viewer && !this.zone) this.zone = this.drawZone(D);
+    if (this.zone && !D) {
+      this.group.remove(this.zone);
+      this.zone.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
+      this.zone = null;
+    }
     for (const v of this.bridges) {
       const { b } = v;
       v.fire.visible = b.state === 'up' && b.burning > 0;

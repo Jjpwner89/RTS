@@ -82,6 +82,7 @@ export class Controls {
     const key = e.key.toLowerCase();
     if (down) this.keys.add(key); else this.keys.delete(key);
     if (!down) return;
+    if (key === 'enter' && this.battle.deploying) { document.querySelector('#deploy .go')?.click(); return; }
     if (key === ' ') { e.preventDefault(); this.hooks.togglePause(); }
     if (key === 'h') this.battle.orderHalt([...this.selection]);
     if (key === 'f') this.focus(this.selection);

@@ -460,6 +460,67 @@ export class Battle {
     r.targetWall = null;
   }
 
+  // ---- deployment ----
+
+  // A short deployment before a battle: time stands still while `side` places its
+  // regiments anywhere on its own ground (around where they stand, short of the enemy),
+  // sets formations and picks targets. beginBattle() starts the fight.
+  startDeployment(side = 0) {
+    const mine = this.regs.filter(r => r.side === side && !r.gone), theirs = this.regs.filter(r => r.side !== side && !r.gone);
+    if (!mine.length || !theirs.length) return;
+    const dir = Math.sign(theirs.reduce((n, r) => n + r.z, 0) / theirs.length - mine.reduce((n, r) => n + r.z, 0) / mine.length) || -1;
+    const zs = mine.map(r => r.z), xs = mine.map(r => Math.abs(r.x));
+    const front = dir < 0 ? Math.min(...zs) : Math.max(...zs), back = dir < 0 ? Math.max(...zs) : Math.min(...zs);
+    const foe = dir < 0 ? Math.max(...theirs.map(r => r.z)) : Math.min(...theirs.map(r => r.z));
+    // Forward up to 25 m, but never past a point well short of the enemy's front.
+    const near = dir < 0 ? Math.max(front - 25, foe + 70) : Math.min(front + 25, foe - 70);
+    const far = Math.max(-HALF + 10, Math.min(HALF - 10, back - dir * 45));
+    const w = Math.min(HALF - 10, Math.max(120, Math.max(...xs) + 60));
+    this.deploying = { side, x0: -w, x1: w, z0: Math.min(near, far), z1: Math.max(near, far) };
+    this.updateSight();
+  }
+
+  inZone(x, z) {
+    const D = this.deploying;
+    return D && x >= D.x0 && x <= D.x1 && z >= D.z0 && z <= D.z1;
+  }
+
+  beginBattle() {
+    if (!this.deploying) return;
+    const side = this.deploying.side;
+    this.deploying = null;
+    this.event(side, 'The battle begins!');
+  }
+
+  // A regiment set down at once at its destination, formed up, the whole block inside the zone.
+  placeNow(r) {
+    const D = this.deploying, d = r.dest;
+    r.x = d.x; r.z = d.z; r.angle = d.angle;
+    r.dest = null; r.via = null; r.column = false;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const s of r.soldiers) {
+      if (!live(s) || s.captain) continue;
+      const p = this.slotPos(r, s.slot);
+      x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z);
+    }
+    const shift = (lo, hi, a, b) => hi - lo > b - a ? (a + b - lo - hi) / 2 : Math.max(0, a - lo) - Math.max(0, hi - b);
+    r.x += shift(x0, x1, D.x0, D.x1); r.z += shift(z0, z1, D.z0, D.z1);
+    let sx = 0, sz = 0, n = 0;
+    const put = (s, p) => {
+      s.x = s.lx = p.x; s.z = s.lz = p.z; s.v = s.vx = s.vz = 0;
+      s.y = this.river ? this.groundY(s.x, s.z) : this.heightAt(s.x, s.z);
+    };
+    for (const s of r.soldiers) {
+      if (!live(s) || s.captain) continue;
+      const p = this.slotPos(r, s.slot);
+      put(s, p); s.yaw = p.face;
+      sx += s.x; sz += s.z; n++;
+    }
+    if (n) { r.cx = sx / n; r.cz = sz / n; }
+    const cap = r.soldiers.find(s => s.captain && live(s));
+    if (cap) { put(cap, this.goalOf(cap)); cap.yaw = r.angle; }
+  }
+
   // Place the regiments side by side along a front line centred on (x, z), facing `angle`.
   orderMove(regs, x, z, angle, width = null) {
     regs = regs.filter(r => this.usable(r));
@@ -486,7 +547,9 @@ export class Battle {
       r.targetReg = null;
       r.viaCd = 0;
       this.reform(r);
+      if (this.deploying?.side === r.side) this.placeNow(r);
     });
+    if (this.deploying) this.updateSight();
   }
 
   // Slots are assigned against the destination so each soldier walks to the nearest place.
@@ -780,6 +843,8 @@ export class Battle {
   // ---- simulation ----
 
   step(dt) {
+    // Time stands still while an army deploys.
+    if (this.deploying) return;
     if (this.winner !== null) dt *= 0.3;
     this.time += dt;
     if (this.walls.sites) this.walls.build(dt, this.masons);

@@ -21,6 +21,18 @@ export class Hud {
     document.getElementById('help-toggle').onclick = () => document.getElementById('help').classList.toggle('open');
     document.getElementById('again').onclick = () => location.reload();
     this.buildOrders();
+    this.buildDeploy();
+  }
+
+  // While the army deploys: what to do, and the button that starts the battle.
+  buildDeploy() {
+    let el = document.getElementById('deploy');
+    if (!el) { el = document.createElement('div'); el.id = 'deploy'; document.body.append(el); }
+    el.innerHTML = `<b>Deploy your army</b>
+      <span>Select regiments and right-click to place them anywhere on the lit ground. Set formations, hold or targets now.</span>
+      <button class="go" title="Start the fight (Enter)">Begin battle</button>`;
+    el.querySelector('.go').onclick = () => { this.battle.beginBattle(); if (this.paused) this.hooks.togglePause(); };
+    this.deployEl = el;
   }
 
   // The command bar over the cards: formations, charge, hold and fire at will for the selection.
@@ -121,6 +133,7 @@ export class Hud {
       c.el.classList.toggle('gone', r.gone);
     }
     this.updateOrders(selection);
+    this.deployEl.classList.toggle('open', b.deploying?.side === 0);
     const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     document.getElementById('strength').innerHTML =
       `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`;
@@ -128,6 +141,8 @@ export class Hud {
     document.getElementById('clock').textContent = `${m}:${String(s).padStart(2, '0')}`;
     document.getElementById('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';
     document.body.classList.toggle('paused', paused);
+    this.paused = paused;
+    document.body.classList.toggle('deploying', !!b.deploying);
     for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === speed);
 
     while (this.seenEvents < b.events.length) {
