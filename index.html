@@ -19,11 +19,23 @@
 <main>
   <h1>RTS prototypes</h1>
   <p>A medieval strategy game in progress: build and fight on one map, rising from a keep to a realm.</p>
-  <a href="world.html"><b>Campaign</b>Rise from one village to the crown: five rival houses, thirty-odd places, sieges, diplomacy and Kingsbridge.</a>
+  <a href="world.html?continue" id="continue" hidden><b>Continue</b><span></span></a>
+  <a href="world.html"><b>New campaign</b>Rise from one village to the crown: five rival houses, thirty-odd places, sieges, diplomacy and Kingsbridge.</a>
   <a href="town.html"><b>Village</b>Build a village, arm levies from your own villagers, and hold off bandit raids.</a>
   <a href="battle.html"><b>Battle test</b>A field battle of about 1,200 soldiers: regiments, morale and routs.</a>
   <a href="fronts/"><b>Marchfront</b>The side project: armies, fronts and supply on one map.</a>
   <a href="credits.html"><b>Credits</b>The free music, sound and models this game is built with, and their licences.</a>
 </main>
+<script>
+  // The saved campaign, if there is one: when it was saved and how far in.
+  try {
+    const s = JSON.parse(localStorage.getItem('rts.campaign.save'));
+    if (s) {
+      const el = document.getElementById('continue'), t = Math.floor(s.world.time);
+      el.querySelector('span').textContent = `Your campaign at ${Math.floor(t / 3600) ? Math.floor(t / 3600) + 'h ' : ''}${Math.floor(t / 60) % 60}m in${s.world.part === 2 ? ', at war with the north' : ''}, saved ${new Date(s.savedAt).toLocaleString()}. Starting a new campaign replaces it at its first save.`;
+      el.hidden = false;
+    }
+  } catch (e) { /* no save */ }
+</script>
 </body>
 </html>

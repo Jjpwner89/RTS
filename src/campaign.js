@@ -15,6 +15,7 @@ import { SiegeView } from './siegeview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
+import { canSave, saveGame, readSave, loadGame } from './world/save.js';
 import { KINDS } from './world/realm.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
@@ -24,7 +25,9 @@ import * as THREE from 'three';
 import { audio } from './audio.js';
 
 const params = new URLSearchParams(location.search);
-const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
+// ?continue picks up the saved campaign; otherwise a new one, on ?seed= if given.
+const loaded = params.has('continue') ? readSave() : null;
+const seed = loaded ? loaded.seed : +params.get('seed') || Math.floor(Math.random() * 1e6);
 
 const canvas = document.getElementById('view');
 const stage = createStage(canvas);
@@ -38,7 +41,7 @@ let hud = null, townHud = null;
 const asks = [];                        // decisions waiting for the player, oldest first
 const bundles = new Map();              // place → its drawn village, made on first visit
 
-const world = new World(seed, {
+const hooks = {
   watching: () => (mode === 'town' ? current.poi : null),
   ask: enc => { asks.push({ kind: 'encounter', enc }); },
   townAttacked: p => { audio.play('horn'); if (!(mode === 'town' && current.poi === p)) asks.push({ kind: 'alarm', poi: p }); }, // audio: horn
@@ -70,7 +73,8 @@ const world = new World(seed, {
   },
   herald: msg => herald(msg),
   offer: o => asks.push({ kind: 'offer', ...o }),
-});
+};
+const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks);
 
 // A lord's words or big news, shown for a while at the top without stopping the game.
 const heraldQueue = [];
@@ -601,6 +605,7 @@ function frame(now) {
         if (b.endAt && b.battle.time > b.endAt) { endField(b.battle.winner === 0); break; }
       } else {
         world.update(h);
+        autosave();
       }
       left -= h;
       if (blocked() || asks.length) break;
@@ -636,8 +641,26 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// ---- saving ----
+// Every two minutes of play, between fights, the campaign saves itself; the Save button
+// saves at once. Continue on the menu (world.html?continue) picks it up.
+let savedAt = world.time;
+function autosave() {
+  if (world.time - savedAt < 120 || mode === 'field' || !canSave(world).ok) return;
+  savedAt = world.time;
+  if (saveGame(world).ok) flash('Saved.', true);
+}
+$('save').onclick = () => {
+  const c = canSave(world, { busy: mode === 'field' });
+  if (!c.ok) { flash(`Can't save now: ${c.reason.toLowerCase()}.`); return; }
+  const r = saveGame(world);
+  savedAt = world.time;
+  flash(r.ok ? 'Saved. Continue from the menu any time.' : r.reason, r.ok);
+};
+if (loaded) $('help').classList.remove('open');
+
 setMode('world', null);
-worldControls.lookAt(world.byId.ashford);
+worldControls.lookAt(world.home || world.byId.ashford);
 requestAnimationFrame(frame);
 
 window.game = { world, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, enterTown, showWorld, startField };
