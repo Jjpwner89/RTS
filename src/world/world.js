@@ -29,6 +29,9 @@ export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
 const SPEED = 6;        // world units a second along a road
 const MEET = 14;        // opposing armies this close fight
+// A rival place's smithy makes kit for one man every ninety seconds (yours, run hard, make
+// one every twelve), and families settle in its houses as they do in yours.
+const SMITHY = 1 / 90, ARRIVALS = 1 / 18;
 export const GRACE = 1200;     // rival houses leave your villages, and the free ones beside them, alone for twenty minutes
 const SIGHT = { place: 250, army: 190 };
 
@@ -256,10 +259,17 @@ export class World {
     for (const p of this.pois) {
       if (p.town || !p.eco) continue;
       const K = KINDS[p.kind], e = p.eco, h = p.owner === null ? null : FACTIONS[p.owner];
-      const builder = h?.trait === 'builder' ? 1.4 : 1;
+      const builder = h?.trait === 'builder' ? 1.2 : 1;
       const cap = this.popCap(p);
-      if (e.pop < cap) e.pop = Math.min(cap, e.pop + dt * 0.035 * (1 + e.level * 0.5) * K.pop * builder);
-      const arms = dt * e.pop * 0.0011 * K.arms * (h?.trait === 'raider' || h?.trait === 'hothead' ? 1.25 : 1);
+      // Families settle as they do in your villages: one every eighteen seconds while there is room.
+      if (e.pop < cap) e.pop = Math.min(cap, e.pop + dt * ARRIVALS * K.pop * builder);
+      // Arms come from a working smithy, once one is built, and never faster than one of
+      // yours: a lord's places are not run as hard as a village you drive yourself. The
+      // northern host is a war machine and keeps its own pace.
+      const fierce = h?.trait === 'raider' || h?.trait === 'hothead' ? 1.15 : 1;
+      e.ready ??= this.time + (p.seat !== undefined ? 240 : 480) + this.rand() * 120;
+      const arms = h?.invader ? dt * e.pop * 0.0011 * K.arms
+        : this.time < e.ready || e.pop < 15 ? 0 : dt * SMITHY * K.arms * (1 + 0.25 * (e.level - 1)) * fierce;
       if (h && !h.bandit) { h.gold += dt * e.pop * 0.004 * K.gold * (h.trait === 'merchant' ? 1.5 : 1); h.arms += arms; }
       else e.arms += arms;
       // Free villages and bandit camps arm their own; a house's places draw on its stores.
@@ -596,6 +606,8 @@ export class World {
   takePlace(p, owner) {
     const was = p.owner;
     p.owner = owner;
+    // a new lord sets up his own smithy before the place arms for him
+    if (p.eco) p.eco.ready = this.time + 300;
     if (was !== null && FACTIONS[was]?.seat === p) {
       // (you fall back to a village you run yourself, the biggest first)
       const size = q => q.town ? 1000 + q.town.population : q.eco?.pop ?? 0;

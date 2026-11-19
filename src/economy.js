@@ -48,7 +48,8 @@ export const GOOD_GROUPS = [
 // recipe once that much of its output is stored. Arms have no limit: switch a recipe
 // off to stop it.
 // Workshops stop asking for wood once the village is down to its last, so construction can go on.
-// Goods workshops leave alone for building: nobody turns the last planks into shields.
+// Goods left for building: workshops don't ask for the last 20 wood, and none turns the last
+// 25 planks into shields or arms.
 const RESERVE = { wood: 20, planks: 25 };
 export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
@@ -283,10 +284,13 @@ export class Town {
     return w;
   }
 
+  // Planks are left for building: no workshop turns the last 25 into shields or arms.
+  savingPlanks(r) { return 'planks' in r.in && !('planks' in r.out) && this.free('planks') < RESERVE.planks + r.in.planks; }
+
   // Recipes switched on that the village still wants and the workshop has room for.
   wantedRecipes(b) {
     return b.B.recipes.filter((r, i) => !b.off.has(i)
-      && Object.keys(r.in).every(g => !RESERVE[g] || this.free(g) >= RESERVE[g] + r.in[g])
+      && !this.savingPlanks(r)
       && Object.keys(r.out).every(k => this.stock[k] < (r.keep ?? Infinity) && (b.store[k] || 0) < holdOf(k))
       // a market sells only what is spare above its reserve
       && (r.above === undefined || Object.entries(r.in).every(([g, n]) => this.free(g) >= r.above + n)));
@@ -952,7 +956,8 @@ export class Town {
       const missing = Object.keys(wanted[0].in).filter(k => (b.store[k] || 0) < wanted[0].in[k]);
       b.status = `Waiting for ${missing.map(k => GOODS[k].name.toLowerCase()).join(' and ')}`;
     } else {
-      b.status = full ? 'Store full: needs haulers' : 'Village has enough';
+      b.status = full ? 'Store full: needs haulers'
+        : list.some((r, i) => !b.off.has(i) && this.savingPlanks(r)) ? 'Saving planks for building' : 'Village has enough';
     }
     this.selfHaul(v, dt);
   }
