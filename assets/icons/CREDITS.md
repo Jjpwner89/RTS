@@ -71,3 +71,7 @@ The background square was removed so each icon is a plain silhouette.
 | well.svg | well | Delapouite |
 | watchtower.svg | watchtower | Delapouite |
 | hall.svg | visored-helm | Lorc |
+
+## Drawn for this game
+
+The armour-level icons (armour-none, armour-leather, armour-mail, armour-plate) and no-shield were drawn for this game and are free to use like the rest of its own work.

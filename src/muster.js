@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStage } from './stage.js';
 import { drawGround, plantTrees, drawTrees } from './terrain.js';
-import { unitModel, buildingModel } from './models.js';
+import { unitModel, unitLook, buildingModel, ARMOUR_LEVELS, ARMOUR_DEFAULT, HAS_SHIELD } from './models.js';
+import { ico } from './icons.js';
 import { TYPES, lookChain } from './battle.js';
 import { WOOD } from './view.js';
 
@@ -158,6 +159,7 @@ function placeFlag(reg, t) {
 
 // ---- the plinth: one figure in full detail, slowly turning ----
 const shown = new THREE.Group();
+const kit = { armour: undefined, shield: true };   // the armour and shield shown on the plinth
 shown.position.set(PLINTH.x, 0.9, PLINTH.z);
 scene.add(shown);
 function showOnPlinth(T) {
@@ -168,7 +170,7 @@ function showOnPlinth(T) {
     const arm = buildingModel(`siege.${T.engine.kind}.arm`), at = { mangonel: { y: 0.75, z: 1.27 }, trebuchet: { y: 6.71, z: 0.88 } }[T.engine.kind];
     if (arm && at) { const m = new THREE.Mesh(arm, gearMat); m.position.set(0, at.y, at.z); shown.add(m); }
   } else {
-    const M = lookOf(T.key);
+    const M = ARMOUR_DEFAULT[T.key] ? unitLook(T.key, kit) : lookOf(T.key);
     shown.add(new THREE.Mesh(M.gear, gearMat), new THREE.Mesh(M.cloth, clothMat));
   }
   shown.traverse(m => { m.castShadow = true; });
@@ -205,7 +207,6 @@ const stat = (label, v) => v === undefined ? '' : `<span><small>${label}</small>
 function pick(T) {
   picked = T; followed = null; mode = 'plinth';
   for (const b of list.querySelectorAll('button')) b.classList.toggle('on', b.dataset.key === T.key);
-  showOnPlinth(T);
   const tall = T.engine?.kind === 'trebuchet' ? 9 : T.mounted || LORDS[T.key] ? 2.6 : T.engine ? 3.5 : 1.3;
   // on a narrow screen the card covers the lower half, so the figure is framed higher up
   const low = innerWidth < 700 ? tall * 0.55 : 0;
@@ -213,7 +214,20 @@ function pick(T) {
   controls.autoRotate = false;
   card.hidden = false;
   card.innerHTML = `<h3>${T.name}</h3><p>${T.role || ''}</p>` + (LORDS[T.key] ? '' : `<div class="stats">${stat('Men', T.count)}${stat('Health', T.hp)}${stat('Attack', T.atk)}${stat('Defence', T.def)}${stat('Speed', T.speed)}${stat('Range', T.range)}${stat('Morale', T.morale)}</div>`)
+    + (ARMOUR_DEFAULT[T.key] ? `<div class="kit">${ARMOUR_LEVELS.map(l => `<button data-armour="${l}" title="${l === 'none' ? 'No armour' : l[0].toUpperCase() + l.slice(1)}">${ico('armour-' + l)}</button>`).join('')}${HAS_SHIELD[T.key] ? `<button data-shield title="Shields">${ico('shields')}</button>` : ''}</div>` : '')
     + `<div class="acts"><button data-act="follow">Follow on the march</button><button data-act="field">The whole field</button></div>`;
+  // try the kind in each armour, with and without shields
+  kit.armour = ARMOUR_DEFAULT[T.key]; kit.shield = true;
+  const mark = () => {
+    for (const b of card.querySelectorAll('[data-armour]')) b.classList.toggle('on', b.dataset.armour === kit.armour);
+    const sb = card.querySelector('[data-shield]');
+    if (sb) { sb.classList.toggle('on', kit.shield); sb.innerHTML = ico(kit.shield ? 'shields' : 'no-shield'); }
+  };
+  for (const b of card.querySelectorAll('[data-armour]')) b.onclick = () => { kit.armour = b.dataset.armour; mark(); showOnPlinth(T); };
+  const sb = card.querySelector('[data-shield]');
+  if (sb) sb.onclick = () => { kit.shield = !kit.shield; mark(); showOnPlinth(T); };
+  mark();
+  showOnPlinth(T);
   card.querySelector('[data-act="follow"]').onclick = () => follow(regiments.find(r => r.T === T));
   card.querySelector('[data-act="field"]').onclick = overview;
 }

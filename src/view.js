@@ -3,8 +3,12 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
 import { HOMES } from './terrain.js';
-import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
+import { unitModel, unitLook, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { lookChain } from './battle.js';
+
+// Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
+// without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
+const lookKey = s => s.look || (s.reg.armour || s.reg.shield === false ? `${s.reg.T.key}|${s.reg.armour || ''}|${s.reg.shield !== false}` : s.reg.T.key);
 
 // Units without their own model or icon borrow the nearest one (battle.js lookChain).
 const BUILT_IN = ['spear', 'sword', 'archer', 'cav', 'militia', 'bandit'];
@@ -289,9 +293,9 @@ export class BattleView {
       for (const m of Object.values(this.meshes)) { m.list.length = 0; m.darkened.clear(); for (const x of m.all) x.count = 0; }
     }
     for (let i = this.seenSoldiers; i < b.soldiers.length; i++) {
-      const s = b.soldiers[i], key = s.look || s.reg.T.key;
+      const s = b.soldiers[i], key = lookKey(s);
       let m = this.meshes[key];
-      if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => (o.look || o.reg.T.key) === key).length));
+      if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => lookKey(o) === key).length));
       if (m.list.length >= m.gear.instanceMatrix.count) continue;   // out of room: not drawn
       s.instance = m.list.length;
       m.list.push(s);
@@ -311,9 +315,9 @@ export class BattleView {
   sideColor(side) { return this.battle.sideColors?.[side] || SIDE_COLORS[side]; }
 
   // Baked soldiers get a full and a light pair; each frame, the ones near the camera go in the full pair.
-  makeMeshes(key, capacity) {
-    const chain = lookChain(key);
-    const baked = chain.map(k => unitModel(k)).find(Boolean);
+  makeMeshes(look, capacity) {
+    const [key, armour, shield] = look.split('|'), chain = lookChain(key);
+    const baked = chain.map((k, i) => i === 0 && look.includes('|') ? unitLook(k, { armour: armour || undefined, shield: shield !== 'false' }) : unitModel(k)).find(Boolean);
     const builtIn = chain.find(k => BUILT_IN.includes(k)) || key;
     const model = baked || (builtIn === 'cav' ? cavalry() : infantry(builtIn));
     const inst = geo => {

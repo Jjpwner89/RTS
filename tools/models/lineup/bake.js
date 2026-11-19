@@ -5,12 +5,15 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 const R = window.__roster, { THREE, C, MeshoptSimplifier, mergeGeometries, mergeVertices } = R;
 
-// Every part of a figure, split by whether its material is a team colour.
-function split(group) {
+// Which piece of a soldier a mesh belongs to: 'armour' (coats, helmets, pads), 'shield', or else the body
+// with its weapons ('base').
+const partOf = m => { for (let p = m; p; p = p.parent) if (p.userData.part) return p.userData.part; return 'base'; };
+// Every part of a figure (or only the meshes of one piece), split by whether its material is a team colour.
+function split(group, want) {
   group.updateMatrixWorld(true);
   const inv = group.matrixWorld.clone().invert(), out = { gear: [], cloth: [] };
   group.traverse(part => {
-    if (!part.isMesh) return;
+    if (!part.isMesh || (want && partOf(part) !== want)) return;
     const src = part.geometry, g = src.index ? src.toNonIndexed() : src.clone();
     g.applyMatrix4(inv.clone().multiply(part.matrixWorld));
     const mats = [].concat(part.material), n = g.attributes.position.count;
@@ -416,6 +419,56 @@ const TRIAL = {
 };
 export { TRIAL };
 
+// ---- armour levels ----
+// Spearmen, swordsmen, bowmen and horse can go to war in no armour, leather, mail or plate, and spearmen and
+// swordsmen with or without a shield. Each is baked as a body with its weapons (unit.<key>.base), a piece for
+// each armour level (unit.<key>.none|leather|mail|plate: the coat over the body with its surcoat, the helmet,
+// plate's shoulder pads) and a shield (unit.<key>.shield); the game puts them together (models.js unitLook).
+export const ARMOUR_LEVELS = ['none', 'leather', 'mail', 'plate'];
+const TORSO = ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], ARMS = ['UpperArmL', 'UpperArmR'];
+const coat = push => ({ bones: ['Abdomen', 'Torso', 'Hips'], push, color: 'team' });
+const SHELLS = {
+  none: () => [coat(0.03)],
+  leather: () => [{ bones: [...TORSO, ...ARMS], push: 0.022, color: '#6b4a2e' }, coat(0.045)],
+  mail: () => [{ bones: [...TORSO, ...ARMS, 'Hips'], push: 0.026, color: '#6e747b', metal: true }, coat(0.05)],
+  // bright steel down to the wrists, so plate reads apart from mail at a distance
+  plate: L => [{ bones: [...TORSO, ...ARMS, 'LowerArmL', 'LowerArmR'], push: 0.028, color: L.steel, metal: true }, coat(0.05)],
+};
+// Heads by level: bare, a boiled-leather cap, an iron kettle hat (or the type's own mail helm), the type's plate helm.
+const HEADS = {
+  none: () => {},
+  leather: f => R.hang(f, { item: 'Helmet2', tint: { Grey: '#5e4128' }, at: 'head' }),
+  mail: (f, L) => L.mailHelm ? R.hang(f, { item: L.mailHelm, at: 'head' }) : kettleHat(f),
+  plate: async (f, L) => { await R.hang(f, { item: L.helm, at: 'head' }); if (L.pads) await R.fitPads(f); },
+};
+const hood = f => R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
+const LEVELLED = {
+  spear: { file: 'Male_Adventurer', steel: '#c0c6cd', helm: 'Helmet2', pads: true, kit: [R.KIT.spear[0]], shield: R.KIT.spear[1], default: 'plate' },
+  sword: { file: 'Female_Medieval', clip: 'Idle_Sword', tint: { Black: 'team' }, steel: '#b3bac2', helm: 'Helmet1', pads: true, kit: [R.KIT.sword[0]], shield: R.KIT.sword[1], default: 'plate' },
+  // bowmen keep their felt hood in a dark team shade at every level, so the side still shows
+  archer: { file: 'Male_Adventurer', steel: '#c0c6cd', hood: true, kit: R.KIT.archer, default: 'leather' },
+  crossbow: { file: 'Male_Adventurer', steel: '#c0c6cd', helm: 'Helmet2', mailHelm: 'Helmet2', kit: [], arm: crossbow, default: 'mail' },
+  cav: { file: 'Male_Adventurer', mounted: true, steel: '#c3c8ce', helm: 'Helmet1', mailHelm: 'Helmet3', pads: true, kit: R.KIT.cav, default: 'mail' },
+  lightcav: { file: 'Male_Adventurer', mounted: true, steel: '#c0c6cd', hood: true, kit: [R.KIT.cav[0]], default: 'leather' },
+};
+export { LEVELLED };
+// Hang whatever `fn` adds on the figure as one piece.
+async function tagged(fig, part, fn) {
+  const n = fig.group.children.length;
+  await fn();
+  for (const c of fig.group.children.slice(n)) c.userData.part = part;
+}
+async function soldier(key, level) {
+  const L = LEVELLED[key];
+  const f = await people(L.file, { seated: !!L.mounted, clip: L.clip || 'Idle', armour: SHELLS[level](L), ...(L.tint ? { tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...L.tint } } : {}) });
+  if (L.hood) await hood(f);
+  else await tagged(f, 'armour', () => HEADS[level](f, L));
+  for (const g of L.kit) await R.hang(f, g);
+  if (L.arm) await L.arm(f);
+  if (L.shield) await tagged(f, 'shield', () => R.hang(f, L.shield));
+  return L.mounted ? mount(f) : f;
+}
+
 const Q = R.FAMILIES.find(f => f.id === 'qmod');
 const MORE_UNITS = {
   // the existing heavy cavalry, now with a team saddle cloth
@@ -718,6 +771,7 @@ Object.assign(MORE_BUILDINGS, {
   'siege.stone': async () => solid(new THREE.IcosahedronGeometry(0.3, 0), '#8a857a'),
 });
 Object.assign(UNITS, MORE_UNITS);
+for (const k of Object.keys(LEVELLED)) delete UNITS[k];   // baked in pieces instead (armour levels)
 Object.assign(BUILDINGS, MORE_BUILDINGS);
 export const pivots = async () => { const e = await engines(); return { mangonel: e.mangonel.pivot, trebuchet: e.trebuchet.pivot }; };
 
@@ -736,6 +790,26 @@ export async function bakeAll(only) {
     const light = { gear: compact(gear, budget * tri(full.gear) / total), cloth: compact(cloth, budget * tri(full.cloth) / total) };
     for (const part of ['gear', 'cloth']) { add(`unit.${key}.${part}`, full[part]); add(`unit.${key}.${part}.light`, light[part]); }
     report[key] = `${total} → ${tri(light.gear) + tri(light.cloth)}`;
+  }
+  for (const [key, L] of Object.entries(LEVELLED)) {
+    if (only && !only.test('unit.' + key)) continue;
+    const pieces = {};
+    for (const level of ARMOUR_LEVELS) {
+      const fig = await soldier(key, level), g = fig.isObject3D ? fig : fig.group;
+      if (level === 'none') { pieces.base = split(g, 'base'); if (L.shield) pieces.shield = split(g, 'shield'); }
+      pieces[level] = split(g, 'armour');
+    }
+    const full = {};
+    for (const [p, { gear, cloth }] of Object.entries(pieces)) full[p] = { gear: gear && compact(gear), cloth: cloth && compact(cloth) };
+    const tris = p => (full[p].gear ? tri(full[p].gear) : 0) + (full[p].cloth ? tri(full[p].cloth) : 0);
+    // the light version keeps the whole default soldier within the usual budget
+    const k = (L.mounted ? LIGHT * 1.6 : LIGHT) / (tris('base') + tris(L.default) + (L.shield ? tris('shield') : 0));
+    for (const [p, { gear, cloth }] of Object.entries(pieces)) for (const [part, geo] of [['gear', gear], ['cloth', cloth]]) {
+      if (!geo) continue;
+      add(`unit.${key}.${p}.${part}`, full[p][part]);
+      add(`unit.${key}.${p}.${part}.light`, compact(geo, Math.max(4, tri(full[p][part]) * k)));
+    }
+    report[key] = Object.keys(pieces).map(p => `${p} ${tris(p)}`).join(', ');
   }
   for (const [name, recipe] of Object.entries(BUILDINGS)) {
     if (only && !only.test('building.' + name)) continue;
