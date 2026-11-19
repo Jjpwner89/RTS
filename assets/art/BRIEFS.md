@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 2 (icons now match the game's icon file names). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -30,7 +30,7 @@ The game is a grounded medieval strategy game: no magic, no fantasy races, rough
 - One consistent painting hand across a section. Every portrait must look like part of the same gallery.
 - Matte materials: steel and gold catch the light, but nothing should look glossy or plastic.
 - No text, letters or numbers anywhere in an image unless a brief asks for them.
-- The creator dislikes wooden frames on UI buttons. Use parchment, cloth and thin metal rims instead (see section 4).
+- The creator dislikes wooden frames on UI buttons. Use parchment, leather, cloth and thin metal rims instead (see section 4).
 
 ---
 
@@ -144,36 +144,69 @@ The world map is a 3D landscape seen from above, with real hills, woods and road
 
 ## 4. A parchment UI kit and icons
 
-The game's panels and buttons are currently plain dark boxes with emoji for icons. This kit replaces them. All files are PNG with transparent backgrounds, in `assets/art/ui/`.
+The creator chose the interface look on 2026-11-19: **parchment and ink**. The game already wears it, drawn with code (a noise grain and gradients in `src/skin.css`). This kit replaces those stand-ins with painted art. Screenshots of the game as it looks now are in `assets/art/refs/ui/` (`now-world.jpg`, `now-village.jpg`, `now-battle.jpg`); attach them as references, and match their colours, so the painted kit feels like a richer version of what is already there rather than a new look.
 
-**Look:** warm parchment and dyed cloth with thin dark iron or bronze rims; ink-drawn and hand-coloured. **No wooden frames or planks** (the creator's explicit dislike). Buttons are parchment or cloth ribbons. All edges must survive **9-slice scaling**: keep the corners and rims inside a fixed 24 px border, with plain, stretchable centres.
+**Look:** aged parchment, dark tooled leather and dyed cloth, with thin bronze rims edged by a fine dark line. Ink-drawn and hand-coloured. Matte, warm, slightly worn, never glossy. **No wood, planks or wooden frames** (the creator's explicit dislike). No text, letters or numbers on any piece.
 
-### 4.1 Frames and buttons
+**Palette** (take these from the screenshots too):
+
+| Material | Colours |
+|---|---|
+| Parchment | light #f3e8c9 in the middle, through #e6d4a6, to #d2b77e at the edges |
+| Bronze rim | #b89559, with a fine dark outer line #4a3018 |
+| Ink | #2b1d0e for text, #8d3b16 rust red for headings |
+| Leather (top bar) | #4b3220 to #2f1e12, with a thin gilt line rgba(214, 170, 96) just inside the edge |
+| House-blue cloth (anything selected) | #3a64b0 to #24447f |
+
+All files are PNG with transparent backgrounds, in `assets/art/ui/`. **Paint everything at the size given, which is two to three times the size it shows in the game**, so it stays crisp on sharp screens.
+
+### 4.1 Surfaces (do these first)
+
+Many panels are odd shapes and sizes, so the game fills most of them with a tiling texture and draws the rim separately. These two textures alone would change every screen.
 
 | File | Size | Notes |
 |---|---|---|
-| `panel.png` | 256×256 | Parchment panel, 24 px rim; the centre is plain parchment that stretches cleanly. |
-| `panel-dark.png` | 256×256 | The same panel in dark dyed leather, for the HUD bar over the 3D view. |
-| `button.png` | 256×72 | Parchment ribbon button, 24 px rims at the left and right ends. |
-| `button-hover.png` | 256×72 | Warmer and brighter. |
-| `button-pressed.png` | 256×72 | Slightly darker, looks pushed in. |
-| `button-disabled.png` | 256×72 | Faded and greyed. |
-| `tab.png`, `tab-active.png` | 192×64 | Cloth tabs for the build menu groups. |
-| `tooltip.png` | 128×128 | Small parchment scrap, 16 px rim. |
-| `divider.png` | 512×24 | Inked flourish line. |
+| `parchment-tile.png` | 512×512 | **Seamlessly tileable**, opaque. Plain parchment: fibres, faint mottling and a few soft stains, even in tone so it can repeat across a large panel without visible seams or a pattern. No edges, no darkening at the sides. |
+| `leather-tile.png` | 512×512 | **Seamlessly tileable**, opaque. Dark brown leather with fine grain and faint tooling marks, even in tone. |
+| `cloth-tile.png` | 256×256 | **Seamlessly tileable**, opaque. House-blue wool with a visible weave, for selected buttons and items. |
+
+### 4.2 Frames and buttons (9-slice)
+
+Each of these is cut into nine pieces by the game: the four corners stay fixed, the edges stretch along their length and the centre stretches both ways. So **keep every corner and rim inside the border width given, and make the edges and centre plain enough to stretch** (no motifs along the edges, no detail in the centre).
+
+| File | Size | Border | Notes |
+|---|---|---|---|
+| `panel.png` | 256×256 | 24 px | Parchment panel with the thin bronze rim and dark outer line; the edges darken slightly and look a little worn. Corners may carry a small bronze corner-piece. Centre plain parchment. |
+| `bar.png` | 512×80 | 32 px left and right, 16 px top and bottom | The top bar: a strip of dark leather with the gilt line inside the edge and small bronze end-caps. Stretches sideways only. |
+| `button.png` | 192×64 | 20 px | Parchment ribbon button: slightly raised, light top edge, thin bronze-brown border. Plain centre. |
+| `button-hover.png` | 192×64 | 20 px | The same, a little warmer and brighter. |
+| `button-pressed.png` | 192×64 | 20 px | The same, a little darker and looking pushed in. |
+| `button-on.png` | 192×64 | 20 px | The same shape in house-blue cloth with a darker blue border, for whatever is selected (a speed, a building, a formation). |
+| `button-disabled.png` | 192×64 | 20 px | Faded, greyer parchment. |
+| `label.png` | 192×64 | 16 px | A small parchment plate for place names on the world map and the regiment cards in battle. Lighter rim than the panel, so many of them on screen don't feel heavy. |
+| `tooltip.png` | 128×128 | 16 px | A small parchment scrap with a soft torn edge. |
+
+### 4.3 Small pieces
+
+| File | Size | Notes |
+|---|---|---|
+| `divider.png` | 512×24 | A thin inked flourish line, rust-red and dark ink, that sits under panel headings. Plain enough in the middle to stretch. |
+| `corner.png` | 64×64 | One bronze corner ornament (top left; the game mirrors it), for the large panels such as the village and keep pages. |
+| `key.png` | 48×48 | A tiny parchment key-cap with a bronze rim, behind the shortcut letters on build buttons. 12 px border. |
 | `portrait-frame.png` | 320×400 | Frame for a 4:5 lord portrait: thin bronze rim with a small shield-shaped slot at the bottom centre for heraldry. Transparent window. |
-| `banner-frame.png` | 256×64 | Name plate under a portrait. |
+| `banner-frame.png` | 256×64 | A parchment name plate under a portrait. |
 
-### 4.2 Icons
+### 4.4 Icons
 
-Each icon is **128×128** on a transparent background, saved as `assets/art/ui/icons/<name>.png`.
+Each icon is **128×128** on a transparent background, saved as `assets/art/ui/icons/<name>.png`. They sit on parchment, so: an **ink outline with flat hand-colouring** in the palette above, with no halo needed. Each must be recognisable at **20 px**: one object, centred, nothing else. One consistent hand across the whole set.
 
-The game already has a stand-in set of plain silhouettes (game-icons.net) in `assets/icons/<name>.svg`. Where a painted icon replaces one of them, **use the same file name**, so the game can swap it in: arrows, barracks, battle, bows, bowyer, camp, carpenter, castle, crown, farm, feathers, flax, flaxfield, food, ford, gold, house, hunter, iron, keep, map, market, mine, monastery, ore, people, planks, quarry, raid, retreat, ropemaker, shields, siege, smelter, spears, stone, storehouse, string, swords, village, warning, weaponsmith, wood, woodcutter. Paint those first, then the extra ones listed below. Use one consistent style: an ink outline with flat hand-colouring and a soft parchment-coloured halo so it reads on both light and dark panels. Each must be recognisable at **24 px**: one object, centred, nothing else.
+The game already uses plain silhouettes for these names, in `assets/icons/<name>.svg`; use the **same file names** so the painted ones swap straight in. Paint them in this order:
 
-- **Goods:** wood (logs), stone (cut blocks), food (bread and ham), grain (sheaf), flour (sack), bread (loaf), flax (bundle), feathers, iron ore (rust-red rock), iron (bar), planks, string (coil), leather (hide), gold (coins), horses (horse head), shields (round wooden shield), bows, arrows (sheaf), spears, swords, crossbows, mail (mail shirt), plate armour (breastplate).
-- **Buildings:** house, storehouse, woodcutter, quarry, mine, hunter's lodge, farm, flax field, carpenter, ropemaker, smelter, bowyer, weaponsmith, barracks, market, tanner, armourer, stable, mill, bakery, siege workshop, watchtower, wall, gate, tower, keep.
-- **Units:** levy spearmen, swordsmen, archers, crossbowmen, light cavalry, heavy cavalry, men-at-arms, knights, captain (a plumed helm), ram, mangonel, trebuchet, ladder.
-- **Orders:** move, attack, hold, charge, fire at will, hold fire, formation line, formation column, formation wedge, rally, disband, raise levy.
-- **Realm:** population, mood (happy, content and angry faces), gold income, food supply, war (crossed swords), peace (olive branch), truce (white flag), alliance (clasped hands), marriage (two rings), tribute (coin chest), vassal (kneeling figure), crown, scout (eye), siege (catapult), fire.
+1. **Shown on every screen:** people, gold, food, wood, stone, crown, battle, warning, village, watchtower.
+2. **Goods:** planks, ore, iron, flax, string, feathers, hides, leather, bread, flour, horses, shields, bows, arrows, bolts, crossbows, spears, lances, swords, mail, armour.
+3. **Buildings:** house, storehouse, well, woodcutter, quarry, mine, hunter, farm, flaxfield, mill, bakery, carpenter, ropemaker, tanner, smelter, bowyer, weaponsmith, armourer, stable, barracks, market, monastery, hall, keep, castle, siegeworks.
+4. **World map:** map, camp, warcamp, ford, pass, raid, retreat, invader, siege.
 
-*Design context, not for the image prompt:* the HUD is HTML and CSS over the 3D view (`src/hud.js`, `src/townhud.js`, `src/style.css`). Icons replace the emoji keyed in `src/economy.js`. The Art workstream wires the kit in once it lands.
+Then, if there is time, these new ones: the orders (move, attack, hold, charge, fire at will, hold fire, line, column, wedge, schiltron, rally, disband), and the realm (mood happy, mood content, mood angry, war as crossed swords, peace as an olive branch, truce as a white flag, alliance as clasped hands, tribute as a coin chest, vassal as a kneeling figure, scout as an eye, fire).
+
+*Design context, not for the image prompt:* the HUD is HTML and CSS over the 3D view. `src/skin.css` holds the whole parchment look as CSS variables (`--grain`, `--surface`, `--bar-surface`, `--btn`, `--btn-on` and so on); the tiles go into those, and the frames go in as `border-image` with the borders above drawn at about half size. Icons are drawn by `ico()` in `src/icons.js` as one-colour CSS masks today; painted icons need it to use the PNG as a plain image when one exists. The regiment-card unit icons are drawn on a canvas in `src/view.js` (`drawIcon`) and are not part of this kit. The Art workstream wires the kit in once it lands.
