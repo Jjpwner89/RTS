@@ -1,0 +1,32 @@
+QUATERNIUS MEDIEVAL ANIMATION CLIPS — BRIEFS 7.1 / 7.2
+First delivery: Spear_Thrust, 2026-11-19.
+
+clips-foot.glb retains the exact Male_Adventurer.source.glb node names,
+hierarchy, rest transforms, skin joints, inverse bind matrices and source
+geometry. Only the animation set and flat material colours are replaced.
+No prototype body, replacement skeleton, or assets/models.glb edit.
+
+Spear_Thrust: 24 intervals / 25 samples at 30 Hz, 0.8 seconds, one shot.
+Start and end are the same guard. Root is constant. Body transfers weight
+over a stepping left foot; right foot stays planted.
+
+Equipment convention: parent spear to Wrist.R, position [0, .135, -.035]
+in wrist coordinates. Shaft follows wrist-local +X. Preview shaft is 2.6 m,
+with 0.9 m behind the grip. Wrist.L follows a grip 0.29 m farther along
+the shaft. Bone names in GLB retain dots; Three.js GLTFLoader sanitizes
+Wrist.R to WristR when it creates runtime objects and tracks.
+
+Review: serve the RTS directory and open assets/art/3d/wip/review.html.
+Includes original source body, a grip-reference spear, play/pause, timeline,
+orbit controls. Backpack is hidden for the review, retained in the source
+mesh for compatibility. Spear prop belongs to the review only.
+
+Rebuild with Node.js and Three.js 0.170.0:
+  THREE_MODULE=file:///path/to/three/build/three.module.js node wip/make-clips.mjs
+Validate:
+  THREE_MODULE=file:///path/to/three/build/three.module.js \
+  GLTF_VALIDATOR=file:///path/to/gltf-validator/index.js node wip/validate-clips.mjs
+
+Source character and horse: Quaternius CC0, as recorded in tools/models/README.md.
+Animation authoring and review files live in assets/art/3d/wip/.
+The Art workstream selects/bakes these into the game's models separately.

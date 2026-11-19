@@ -1,0 +1,35 @@
+{
+  "source": "Male_Adventurer.source.glb",
+  "fps": 30,
+  "clips": [
+    {
+      "name": "Spear_Thrust",
+      "duration": 0.8,
+      "loop": false,
+      "events": [
+        {
+          "time": 0.3333333333333333,
+          "event": "thrust"
+        },
+        {
+          "time": 0.8,
+          "event": "guard"
+        }
+      ],
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "offhandSeparation": 0.29
+      }
+    }
+  ]
+}

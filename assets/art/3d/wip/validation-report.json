@@ -1,0 +1,21 @@
+[
+  {
+    "file": "clips-foot.glb",
+    "bytes": 1242584,
+    "joints": 62,
+    "checks": "passed",
+    "khronos": {
+      "errors": 0,
+      "warnings": 5,
+      "warningNote": "Only source-inherited NODE_SKINNED_MESH_NON_ROOT; exact source hierarchy retained."
+    },
+    "clips": [
+      {
+        "name": "Spear_Thrust",
+        "duration": 0.800000011920929,
+        "loop": false,
+        "tracks": 186
+      }
+    ]
+  }
+]
