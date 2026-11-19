@@ -11,3 +11,13 @@ Rival houses tax their places at a third of your rate: 0.004 gold per person a s
 - **(c) Tie it to the Rivals option** on the title page: Gentle 0.004, Normal 0.008, Fierce 0.012.
 
 Realm's lean is (c).
+
+## Early balance against rivals (2026-11-19, from the full seed-7 playtest)
+
+In a 65-minute campaign, rivals started with 150–220 men against your 20, hired all six mercenary companies by minute 17, and held 28 of 34 places by minute 37. Their gold piled up unspent (6–16k by minute 65), and so did yours (6–10k), because taxes outrun anything gold buys. Either way can play well: a crowded, dangerous realm you claw your way into, or a gentler start where you grow alongside them.
+
+- **(a) Keep it** *(the default for now)*: the realm is already carved up when you arrive, and you rise by taking from the strong.
+- **(b) Slow the rivals' start**: fewer men at the start (about 80–120), companies not for hire to rivals before minute 20, and rivals' expansion paced so about half the realm is still free or bandit-held at minute 30.
+- **(c) Give gold more to buy**: leave the rivals as they are, but let gold buy what matters (men from free villages, faster building, bribing garrisons), so a full treasury is a weapon for you and for them.
+
+Realm's lean is (b) plus a little of (c); it goes well with the rival tax question above.
