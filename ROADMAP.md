@@ -86,12 +86,7 @@ Lords and captains remember what happened, which is where the stories come from.
 
 ## 5. Terrain matters in battle (Battles)
 
-- **High ground**: uphill fighting is harder, and archers shoot further from above.
-- **Woods**: hide regiments, break formations and slow cavalry; ambushes come from them.
-- **Rivers, fords and bridges**: slow crossings to fight over, and bridges you can burn.
-- **Fatigue and limited arrows**, so reserves and timing matter.
-- **A short deployment phase** before a battle to place regiments and plan.
-- Light **weather**: rain that hurts archers, fog that hides armies. Seasons stay parked.
+Done 2026-11-19: high ground, woods, rivers and bridges, fatigue and arrows, deployment, rain and fog. See "Terrain matters in battle" in DESIGN_NOTES. Seasons stay parked.
 
 ## 6. Coalitions and rebellions (Realm)
 

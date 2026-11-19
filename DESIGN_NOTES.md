@@ -185,6 +185,15 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - **AI**: attackers camp, bring up engines, ladder where the walls are thin and storm once there is a way in. Defenders man the walls facing them, answer ladders and sally against engines. Siege hosts that attack your village do the same.
 - `battle.html?mode=siege` storms a stone fort; `?mode=defend` holds one. At `?scale=4`, about 5,000 soldiers run at 5–7 ms a step.
 
+**Terrain matters in battle** (battles workstream), 2026-11-19, roadmap section 5:
+- **High ground**: fighting uphill is harder and a downhill charge hits harder; archers reach up to 30% further from above and 15% less from below. A holding AI army first takes the best rise near it.
+- **Woods**: copses stand in the open ground between the armies. A regiment mostly inside one, with no enemy within 30 m, is hidden from the other side until it fights or shoots; the first blows from hiding are an ambush (a morale shock and better hits). Trees slow foot, slow horse badly, break formations and blunt charges.
+- **Rivers**: about half of test fields and two in five campaign field battles have one. Deep water is very slow and a bad place to fight; fords are shallow; a wooden bridge crosses dry. Regiments march in column to the best crossing, three abreast on a bridge. Burn bridge (B, or the orders bar) sets one alight from your bank; it falls in about 40 s.
+- **Fatigue**: fighting, charging and running tire a regiment (about 30 s of hard fighting spends it); standing still it recovers. Tired men walk slower, hit and guard worse and charge weaker, so fresh reserves win. Cards show Tiring, Tired or Exhausted.
+- **Limited arrows**: about two minutes of shooting (24 arrows, 16 bolts a man). Empty bowmen refill at camp or, slowly, on their own walls; the AI sends its empty bowmen back. Cards count arrows.
+- **Deployment**: field battles and storming a fort open with time stopped and your ground lit gold; right-click sets regiments down at once anywhere on it, then Begin battle (Enter). `?deploy=0` skips it.
+- **Weather**: about 60% clear, 25% rain, 15% fog, the same for both sides. Rain: bows reach a fifth less and miss more, and heavy ground slows horse. Fog: no one sees past 70 m. `?weather=` picks one in the battle test.
+
 ## The full game (decided 2026-11-18)
 
 The creator answered the big design questions for building the full game in one long push. These answers lead; anything left open is Claude's call.
