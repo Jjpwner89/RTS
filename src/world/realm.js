@@ -56,16 +56,23 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
 export const REALM_RADIUS = 680;
 
-export function generateRealm(seed) {
+// Campaign sizes: how many places on the same map, how many rival houses, how many outlaw camps.
+export const SIZES = {
+  small: { name: 'Small', places: 24, gap: 205, rivals: 3, camps: 2, about: 'Three rival houses and about two dozen places' },
+  normal: { name: 'Normal', places: 34, gap: 175, rivals: 5, camps: 3, about: 'Five rival houses and thirty-odd places' },
+  large: { name: 'Large', places: 42, gap: 158, rivals: 6, camps: 4, about: 'All six rival houses and forty-odd places, closer together' },
+};
+
+export function generateRealm(seed, size = 'normal') {
   const rand = rng(seed + 91);
-  const R = REALM_RADIUS;
+  const R = REALM_RADIUS, S = SIZES[size] || SIZES.normal;
 
   // Places spread out with Poisson-disc sampling inside a circle.
   const pts = [];
-  for (let tries = 0; tries < 6000 && pts.length < 34; tries++) {
+  for (let tries = 0; tries < 6000 && pts.length < S.places; tries++) {
     const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * R;
     const p = { x: Math.sin(a) * r, z: Math.cos(a) * r };
-    if (pts.every(q => dist(p, q) > 175)) pts.push(p);
+    if (pts.every(q => dist(p, q) > S.gap)) pts.push(p);
   }
 
   // Roads: the relative neighbourhood graph (two places are joined if no third is closer to
@@ -107,7 +114,7 @@ export function generateRealm(seed) {
   used.add('Kingsbridge');
 
   // Six seats evenly round the edge; yours in the south.
-  const rivals = [HOUSES[0], ...shuffle(HOUSES.slice(1), rand).slice(0, 4)];
+  const rivals = [HOUSES[0], ...shuffle(HOUSES.slice(1), rand).slice(0, S.rivals - 1)];
   const houses = [PLAYER_HOUSE, ...rivals].map((h, i) => ({ ...h, index: i }));
   const outer = places.filter(p => Math.hypot(p.x, p.z) > R * 0.55);
   const turn = rand() * 0.3;
@@ -130,7 +137,7 @@ export function generateRealm(seed) {
   // Bandit camps in the wild places farthest from any seat.
   const wild = places.filter(p => p.owner === null && p !== crown)
     .sort((p, q) => Math.min(...houses.map(h => dist(q, h.seat))) - Math.min(...houses.map(h => dist(p, h.seat))));
-  for (const p of wild.slice(0, 3)) p.kind = 'camp';
+  for (const p of wild.slice(0, S.camps)) p.kind = 'camp';
 
   // The rest get a kind.
   const deck = ['village', 'village', 'village', 'village', 'castle', 'mine', 'mine', 'ford', 'monastery', 'market', 'market'];

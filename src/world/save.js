@@ -82,7 +82,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options'];
 
 function pack(w) {
   const enc = encoder(w);
@@ -181,7 +181,7 @@ function unpackTown(w, p, s) {
 export function loadGame(data, hooks) {
   // The map from its seed, quietly: no heralds while it is being put back.
   const quiet = { ...hooks, herald: () => {}, offer: () => {}, ask: () => {}, townAttacked: () => {} };
-  const w = new World(data.seed, quiet);
+  const w = new World(data.seed, quiet, data.world.options);
   if (data.world.part === 2) w.beginPart2();
   for (const p of w.pois) p.town = null;
   // Armies first as empty shells, so anything pointing at one finds it.

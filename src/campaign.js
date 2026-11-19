@@ -19,7 +19,7 @@ import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
-import { canSave, saveGame, readSave, loadGame } from './world/save.js';
+import { canSave, saveGame, readSave, loadGame, clearSave } from './world/save.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
@@ -82,6 +82,7 @@ const hooks = {
   },
   ended: winner => {
     audio.setMood(winner === 0 ? 'victory' : 'defeat'); // audio
+    if (winner !== 0 && world.options.ironman) clearSave();   // ironman: a lost campaign is gone
     if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload(), true);
     if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload(), true);
     // Crowned: the end of Part 1. The victory card breaks, and the wall with it.
@@ -93,7 +94,7 @@ const hooks = {
   offer: o => asks.push({ kind: 'offer', ...o }),
   choice: ev => asks.push({ kind: 'choice', ev }),
 };
-const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks);
+const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
 
 // A lord's words or big news, shown for a while at the top without stopping the game.
 const heraldQueue = [];
@@ -667,13 +668,13 @@ function worldPanel() {
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
-    else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('gold', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
+    else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('caravan', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
     else if (it.wagon?.run) el.innerHTML = `<h3>${ico('village')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Spare goods and a few families for another of your villages. A raider who meets it on the road seizes the lot; one of your armies can ride with it.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
     else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
       + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
-      + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the caravan until it arrives. A raider must beat it first.">${ico('gold', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
+      + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the cart until it arrives. A raider must beat it first.">${ico('caravan', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide">Join with ${o.name} (${headcount(o.units)})</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
@@ -1049,7 +1050,7 @@ function frame(now) {
 // saves at once. Continue on the menu (world.html?continue) picks it up.
 let savedAt = world.time;
 function autosave() {
-  if (world.time - savedAt < 120 || mode === 'field' || away || !canSave(world).ok) return;
+  if (world.time - savedAt < (world.options.ironman ? 45 : 120) || mode === 'field' || away || !canSave(world).ok) return;
   savedAt = world.time;
   if (saveGame(world).ok) flash('Saved.', true);
 }
@@ -1061,6 +1062,8 @@ $('save').onclick = () => {
   flash(r.ok ? 'Saved. Continue from the menu any time.' : r.reason, r.ok);
 };
 if (loaded) { $('help').classList.remove('open'); paused = false; }
+// Ironman: no Save button; the campaign saves itself often, and a defeat ends it for good.
+if (world.options.ironman) { $('save').hidden = true; saveGame(world); }
 
 setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);

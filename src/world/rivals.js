@@ -4,7 +4,7 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, GRACE, power, headcount, takeUnits, dist, recruit, roughly } from './world.js';
+import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit, roughly } from './world.js';
 import { protectedFrom, leagued, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
@@ -21,6 +21,11 @@ const BENT = {
 // The north: a fresh host comes through the gate every few minutes while they hold it,
 // each bigger than the last and sized against your own strength.
 const TIDE = { first: 100, every: 200 };
+// A house's temper, sharpened or softened by the campaign's rival aggression (not the north's).
+function bent(w, h) {
+  const B = BENT[h.trait] || BENT.schemer, f = h.invader ? 1 : fierceness(w).f;
+  return f === 1 ? B : { probe: B.probe / f, raidCd: B.raidCd / f, war: B.war * f, need: B.need / Math.sqrt(f) };
+}
 const THINK = 8;
 
 export function startHouseMinds(w) {
@@ -59,7 +64,7 @@ function nearestOwn(w, h, target) {
 function houseMind(w, h) {
   const mine = held(w, h);
   if (!mine.length) return;
-  const B = BENT[h.trait] || BENT.schemer, ai = h.ai, plan = ai.plan;
+  const B = bent(w, h), ai = h.ai, plan = ai.plan;
   ai.cool -= THINK;
   if (!h.seat || h.seat.owner !== h.index) h.seat = mine[0];
   const muster = plan?.staging?.owner === h.index ? plan.staging : h.seat;
@@ -122,7 +127,7 @@ function thinkWars(w, h, B) {
   }
   const strength = i => w.strength(i);
   const ours = strength(h.index);
-  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || (w.time > GRACE && !protectedFrom(w, 0, h.index)))
+  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || (w.time > grace(w) && !protectedFrom(w, 0, h.index)))
     && !(FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20))
     // A lord with a grudge against you fancies his chances more than he should.
     .map(i => ({ i, odds: ours / Math.max(1, strength(i)) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) }))
@@ -138,9 +143,9 @@ function choosePlan(w, h, B) {
   const options = [];
   for (const p of w.pois) {
     if (!w.canAttack(h.index, p)) continue;
-    if (p.owner === 0 && w.time < GRACE) continue;
+    if (p.owner === 0 && w.time < grace(w)) continue;
     // the free villages around your start are yours to win first
-    if (p.owner === null && w.time < GRACE && w.byId.ashford && dist(p, w.byId.ashford) < 260) continue;
+    if (p.owner === null && w.time < grace(w) && w.byId.ashford && dist(p, w.byId.ashford) < 260) continue;
     const from = nearestOwn(w, h, p);
     if (!from.place || from.length > 900) continue;
     const def = w.defence(p);

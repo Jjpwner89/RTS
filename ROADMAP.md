@@ -169,5 +169,5 @@ All approved. Owners in brackets.
 **Polish and longevity**
 - A builder for your house's arms and colours (Art).
 - Photo mode and a cinematic camera for great sieges (Art).
-- Campaign options: map size, rival aggression, ironman (Realm).
+- Campaign options: map size, rival aggression, ironman (Realm). **Built (2026-11-19):** chosen on the title page under New campaign and kept in the save (`world.options`). Realm: Small (3 rival houses, 24 places, 2 outlaw camps), Normal (5, 34, 3; the same maps as before for a seed) or Large (all 6, 42, 4), all on the same map with places closer together as it grows. Rivals: Gentle (raid and make war about a third slower, 30 minutes' grace), Normal, or Fierce (about 40% quicker, 12 minutes' grace); the north is the same in all. Ironman: no Save button, the campaign saves itself every 45 seconds of play between fights, and a defeat deletes the save. (Leaving in the middle of a fight still goes back to the last save before it.)
 - Music and fanfares for rank-ups and ceremonies (Audio).

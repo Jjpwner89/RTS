@@ -44,6 +44,10 @@ const LADIES = new Set(['Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan',
 const SIEGE_MEAL = 160;       // seconds a unit of food feeds one mouth in a besieged place
 const STARVE = 150;           // seconds of hunger before a besieged place yields
 export const GRACE = 1200;     // rival houses leave your villages, and the free ones beside them, alone for twenty minutes
+// Rival aggression (a campaign option): how much sooner they raid, probe and make war.
+export const AGGRESSION = { gentle: { name: 'Gentle', f: 0.65, grace: 1.5 }, normal: { name: 'Normal', f: 1, grace: 1 }, fierce: { name: 'Fierce', f: 1.4, grace: 0.6 } };
+export const fierceness = w => AGGRESSION[w.options?.aggression] || AGGRESSION.normal;
+export const grace = w => GRACE * fierceness(w).grace;
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
 // their halls.
@@ -156,9 +160,11 @@ function rebuild(town, mem, side, mended) {
 export class World {
   // hooks: watching() → the place on screen, ask(encounter), townAttacked(place, army),
   // fell(place), captured(place), ended(winner), herald({ house, title, text })
-  constructor(seed, hooks) {
+  constructor(seed, hooks, options = {}) {
     this.seed = seed;
     this.hooks = hooks;
+    // Chosen when the campaign begins (index.html), kept in the save.
+    this.options = { size: 'normal', aggression: 'normal', ironman: false, ...options };
     this.rand = rng(seed + 3);
     this.time = 0;
     this.events = [];
@@ -168,7 +174,7 @@ export class World {
     this.winner = null;
     this.half = REALM_RADIUS + 140;
 
-    const realm = generateRealm(seed);
+    const realm = generateRealm(seed, this.options.size);
     FACTIONS.length = 0;
     for (const h of realm.houses) FACTIONS.push({ ...h, gold: 100, arms: 0, alive: true });
     this.bandits = FACTIONS.length;

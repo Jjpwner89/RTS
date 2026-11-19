@@ -14,7 +14,7 @@ const ORDER = ['Reeve', 'Lord', 'Count', 'Duke', 'King'];
 const atLeast = (w, rank) => ORDER.indexOf(w.rank) >= ORDER.indexOf(rank);
 
 export const WORKS = {
-  walls: { name: 'Mend the city walls', gold: 400, secs: 240, rank: 'Lord', icon: 'castle',
+  walls: { name: 'Mend the city walls', gold: 400, secs: 240, rank: 'Lord', icon: 'wall',
     about: 'Masons close the old gaps. Kingsbridge holds half again as well against any attack, whoever holds it.',
     done: 'The walls of Kingsbridge stand whole again.' },
   market: { name: 'Reopen the great market', gold: 500, secs: 240, rank: 'Lord', after: 'walls', icon: 'market',
@@ -24,7 +24,7 @@ export const WORKS = {
     about: 'A royal court again. Your vassals are proud to serve, and one great house fewer need back your claim to be crowned by acclaim.',
     done: 'A palace stands in Kingsbridge, and a court gathers in it.' },
 };
-export const SEAL = { name: 'Rebuild the old wall', gold: 500, secs: 300, icon: 'castle',
+export const SEAL = { name: 'Rebuild the old wall', gold: 500, secs: 300, icon: 'wall',
   about: 'Close the breach with stone. The war camp behind it has no road south until the north breaks it again.' };
 
 export const MARKET_GOLD = 0.6;     // gold a second the reopened market pays whoever holds the city
