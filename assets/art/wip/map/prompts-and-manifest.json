@@ -1,0 +1,589 @@
+{
+  "section": "map",
+  "brief_revision": 3,
+  "mode": "built-in image_gen",
+  "status": "complete",
+  "assets": [
+    {
+      "id": "style-frame",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: painted medieval strategy world-map STYLE FRAME, one finished wide landscape illustration, 1920x1080 16:9 opaque PNG. High oblique overhead campaign-map view of countryside, like an illuminated hand-coloured map laid flat with miniature terrain rising from it. Rolling hills, clustered rounded tree-top woods, a soft blue winding river with a shallow stepping-stone ford, connected ochre roads and agricultural strips. Three or four small painted places clearly separated: thatched timber village, stone castle on a hill, a modest church-and-cloister monastery. Exactly two small armies as compact marching columns topped by simple red and blue banners, placed on roads. Soft sage greens, warm ochres, slate rocks, muted blues, gentle ink edges and warm cream parchment faintly showing at the outer edges. Warm readable stylised digital brush painting with simplified shapes, consistent with a low-poly medieval RTS and its painterly lord cards. Clear game-scale silhouettes, restrained details; quiet ground for future overlays. Grounded 13th-century northern France/England atmosphere, no magic. Entire canvas is map, no horizon, no sky, no table props. No labels, no text, letters, numbers, legend, compass text, watermark or decorative frame.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-fcfd22df-b8d5-433d-96b1-be74b7817af4.png",
+      "output": "assets/art/wip/map/style-frame-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1920,
+        1080
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "style-frame",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: painted medieval strategy world-map STYLE FRAME, one finished wide landscape illustration, 1920x1080 16:9 opaque PNG. High oblique overhead campaign-map view of countryside, like an illuminated hand-coloured map laid flat with miniature terrain rising from it. Rolling hills, clustered rounded tree-top woods, a soft blue winding river with a shallow stepping-stone ford, connected ochre roads and agricultural strips. Three or four small painted places clearly separated: thatched timber village, stone castle on a hill, a modest church-and-cloister monastery. Exactly two small armies as compact marching columns topped by simple red and blue banners, placed on roads. Soft sage greens, warm ochres, slate rocks, muted blues, gentle ink edges and warm cream parchment faintly showing at the outer edges. Warm readable stylised digital brush painting with simplified shapes, consistent with a low-poly medieval RTS and its painterly lord cards. Clear game-scale silhouettes, restrained details; quiet ground for future overlays. Grounded 13th-century northern France/England atmosphere, no magic. Entire canvas is map, no horizon, no sky, no table props. No labels, no text, letters, numbers, legend, compass text, watermark or decorative frame. Alternate composition: a broad S-shaped river through the middle, castle upper right, village lower left and monastery upper left, two armies separated by the ford.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b47a59f2-a761-426d-a29a-e491e966a68e.png",
+      "output": "assets/art/wip/map/style-frame-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/style-frame.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "review": "Clear ford, separated armies, village/castle/monastery landmarks, soft map palette and readable terrain; design reference for creator review."
+    },
+    {
+      "id": "ground-grass",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Meadow ground, soft sage and olive-green variation, tiny sparse grass strokes integrated into smooth painted colour, no flowers or individual tall tufts. Soft low-contrast patching.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-fa9aba31-6f9a-4139-8bca-63ae8a1eebdd.png",
+      "output": "assets/art/wip/map/ground-grass-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-grass",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Meadow ground, soft sage and olive-green variation, tiny sparse grass strokes integrated into smooth painted colour, no flowers or individual tall tufts. Soft low-contrast patching. Alternate take with quieter, more even texture and softer contrast, keep identical material and seamless repetition.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-2b56f357-0533-4f9d-ad07-8198b0acb1f5.png",
+      "output": "assets/art/wip/map/ground-grass-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/ground-grass.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Selected quieter low-contrast take matching map palette; repetition needs boundary verification."
+    },
+    {
+      "id": "ground-field",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Medieval ploughed and sown farmland ground, repeating narrow parallel strips of warm ochre soil and muted olive seedlings seen from straight above, uniform scale with no plot borders or fences. Rows extend fully through top and bottom and repeat cleanly left to right.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-87790671-b04a-4192-972e-c8156317ae90.png",
+      "output": "assets/art/wip/map/ground-field-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-field",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Medieval ploughed and sown farmland ground, repeating narrow parallel strips of warm ochre soil and muted olive seedlings seen from straight above, uniform scale with no plot borders or fences. Rows extend fully through top and bottom and repeat cleanly left to right. Alternate take with quieter, more even texture and softer contrast, keep identical material and seamless repetition.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-00fb38ec-a71c-4017-a0de-be0f6b6449f0.png",
+      "output": "assets/art/wip/map/ground-field-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/ground-field.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Selected quieter low-contrast take matching map palette; repetition needs boundary verification."
+    },
+    {
+      "id": "ground-forest-floor",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Dark under-tree forest ground, subdued moss greens and earthy brown leaf litter with small flat leaf and needle marks, low contrast and evenly distributed. No trees, trunks, branches, rocks, mushrooms or cast shadows.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-8cdb7488-9f80-4471-810a-5e2c59fcb06c.png",
+      "output": "assets/art/wip/map/ground-forest-floor-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-forest-floor",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Dark under-tree forest ground, subdued moss greens and earthy brown leaf litter with small flat leaf and needle marks, low contrast and evenly distributed. No trees, trunks, branches, rocks, mushrooms or cast shadows. Alternate take with quieter, more even texture and softer contrast, keep identical material and seamless repetition.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c4ff40d3-6361-40be-8c05-0563633fb138.png",
+      "output": "assets/art/wip/map/ground-forest-floor-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/ground-forest-floor.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Selected quieter low-contrast take matching map palette; repetition needs boundary verification."
+    },
+    {
+      "id": "ground-rock",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Muted warm-grey hill rock and scree surface, flat small angular stone planes and pebble fragments in sage-grey earth, low contrast; no large boulders, no raised objects, no cast shadows or black cracks.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-7864c6b0-78a0-425e-9b62-cff07441ef58.png",
+      "output": "assets/art/wip/map/ground-rock-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-rock",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Muted warm-grey hill rock and scree surface, flat small angular stone planes and pebble fragments in sage-grey earth, low contrast; no large boulders, no raised objects, no cast shadows or black cracks. Alternate take with quieter more even texture and softer contrast, identical material and seamless repetition.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c1239f24-64d0-4432-b918-c07cd1dcb25e.png",
+      "output": "assets/art/wip/map/ground-rock-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-rock",
+      "take": 3,
+      "prompt": "Use case: stylized-concept. ONE seamless square 1024x1024 opaque terrain albedo texture. Ground viewed EXACTLY straight down, as if scanning a flat surface: small flat irregular warm-grey shale chips and fine grey scree packed closely across the whole surface with a little muted sage-grey dust in cracks. Stylised hand-painted matte brush texture compatible with an illuminated medieval map. Uniform diffuse colour only. Absolutely no visible sides of stones, no boulders sticking up, no grass, no hills, no perspective, no cast shadows, no directional highlights, no horizon. Very low contrast small scale texture. All four borders match their opposite borders seamlessly. Fill the entire image edge to edge. No words or decoration.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b50c0946-d1d6-4211-8b4c-92b615034479.png",
+      "output": "assets/art/wip/map/ground-rock-take-3.png",
+      "status": "selected",
+      "final": "assets/art/map/ground-rock.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Corrected straight-down flat scree surface; no oblique boulders."
+    },
+    {
+      "id": "ground-dirt",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Warm pale ochre-brown road and bare earth surface, fine compacted dust, faint earth mottling and tiny grit, evenly distributed. No road shape, no ruts, no footprints, no grass or stones sticking up.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f02738ab-ebaa-48bb-a953-bf71546b4bc3.png",
+      "output": "assets/art/wip/map/ground-dirt-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-dirt",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Warm pale ochre-brown road and bare earth surface, fine compacted dust, faint earth mottling and tiny grit, evenly distributed. No road shape, no ruts, no footprints, no grass or stones sticking up. Alternate take with quieter more even texture and softer contrast, identical material and seamless repetition.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-7220661d-3fea-42b3-bb47-d63fb35a0a6c.png",
+      "output": "assets/art/wip/map/ground-dirt-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/ground-dirt.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Selected quieter even colour variation."
+    },
+    {
+      "id": "ground-water",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Soft muted blue-grey river or lake surface, subtle hand-painted short horizontal ripples in lighter and darker blue, flat diffuse albedo. No shore, land, boats, reflections of sky, foamy surf, sunlight highlight or directional light gradient. Ripples continue seamlessly at the borders.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a1a1bba1-bac7-4c8b-a128-1cf57e4504e2.png",
+      "output": "assets/art/wip/map/ground-water-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "ground-water",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: ONE seamless repeating terrain texture tile for a painted medieval RTS. Square 1024x1024 opaque PNG, perfectly straight-down orthographic surface filling every pixel edge-to-edge. Opposite edges MUST match seamlessly in colour and structure for repeat in both axes. Even diffuse albedo lighting, NO baked shadows, no directional light, no highlights, no vignette, no border, no perspective, no horizon, no objects. Tiny brushwork with broad simple painted shapes, gentle hand-coloured map finish. Input image 1 is STYLE AND PALETTE REFERENCE ONLY, do not reproduce its landscape composition, buildings, roads, soldiers, river or parchment edges. This asset is only the material surface described. Soft muted blue-grey river or lake surface, subtle hand-painted short horizontal ripples in lighter and darker blue, flat diffuse albedo. No shore, land, boats, reflections of sky, foamy surf, sunlight highlight or directional light gradient. Ripples continue seamlessly at the borders. Alternate take with quieter more even texture and softer contrast, identical material and seamless repetition.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c1fd7aff-a802-4458-9c3c-7520fb8e9833.png",
+      "output": "assets/art/wip/map/ground-water-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/ground-water.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Selected quieter even colour variation."
+    },
+    {
+      "id": "parchment-edge",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. One square 2048x2048 PNG overlay of an aged torn parchment BORDER for a medieval campaign map. The middle 80% by width and height is FULLY TRANSPARENT, genuinely empty alpha, not white, black, grey or checkerboard. Only the outer 10% band on all four sides is painted warm cream parchment, muted ochre worn edges, fine fibres and soft small age stains. Inner boundary irregular softly torn paper opening but approximately square. Outer boundary also slightly ragged. Front-on flat view, subtle hand-painted finish, no cast shadows into the opening, no curling rolls, no text, drawing, map, symbols or ornamental frame. Do not fill the central window with paper. ",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a881146c-882a-4238-aba4-c94bbd18a9fd.png",
+      "output": "assets/art/wip/map/parchment-edge-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        2048,
+        2048
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "parchment-edge",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. One square 2048x2048 PNG overlay of an aged torn parchment BORDER for a medieval campaign map. The middle 80% by width and height is FULLY TRANSPARENT, genuinely empty alpha, not white, black, grey or checkerboard. Only the outer 10% band on all four sides is painted warm cream parchment, muted ochre worn edges, fine fibres and soft small age stains. Inner boundary irregular softly torn paper opening but approximately square. Outer boundary also slightly ragged. Front-on flat view, subtle hand-painted finish, no cast shadows into the opening, no curling rolls, no text, drawing, map, symbols or ornamental frame. Do not fill the central window with paper. Alternate with simpler more restrained wear and a cleaner large transparent window.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-439632fc-ca85-4282-9295-6f850deb8e53.png",
+      "output": "assets/art/wip/map/parchment-edge-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/parchment-edge.png",
+      "size": [
+        2048,
+        2048
+      ],
+      "review": "Restrained narrow border and large clear central window."
+    },
+    {
+      "id": "fog",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. One seamless repeating square 1024x1024 greyscale PNG with real varying alpha, a fog-of-war mask for a hand-painted medieval campaign map. Soft low-contrast cloud and watery parchment wash, evenly distributed broad misty patches across the entire tile. White and grey pigment, partially transparent, some fully transparent gaps; no colour tint, no objects, no landscape, no black background. Opposite borders must connect seamlessly both ways. Flat diffuse unlit texture, no vignette or central emblem, no text. ",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-908b7adc-88bd-4a08-946e-832044141b0e.png",
+      "output": "assets/art/wip/map/fog-take-1.png",
+      "status": "selected",
+      "final": "assets/art/map/fog.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Smoother cloud wash without ring-like gaps of alternate."
+    },
+    {
+      "id": "fog",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. One seamless repeating square 1024x1024 greyscale PNG with real varying alpha, a fog-of-war mask for a hand-painted medieval campaign map. Soft low-contrast cloud and watery parchment wash, evenly distributed broad misty patches across the entire tile. White and grey pigment, partially transparent, some fully transparent gaps; no colour tint, no objects, no landscape, no black background. Opposite borders must connect seamlessly both ways. Flat diffuse unlit texture, no vignette or central emblem, no text. Alternate quieter wash with smoother more diffuse transitions and finer paper-grain brushwork.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-18223192-2718-4273-a667-1b3b6ba6eb60.png",
+      "output": "assets/art/wip/map/fog-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        1024,
+        1024
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "place-village",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a compact group of three timber-and-plaster cottages with warm thatched roofs, forming a small medieval village.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-54a6f479-3b43-45ed-a01d-b90958c4a8f5.png",
+      "output": "assets/art/wip/map/place-village-take-1.png",
+      "status": "selected",
+      "final": "assets/art/map/place-village.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-village",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a compact group of three timber-and-plaster cottages with warm thatched roofs, forming a small medieval village. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-e45042a7-45f5-4dd6-9c06-f315508c4c80.png",
+      "output": "assets/art/wip/map/place-village-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-castle",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a compact pale stone castle, one square keep and two modest round corner towers linked by curtain walls, a single gate.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-1e774e31-fbf7-4563-aaca-2bd751a61f1d.png",
+      "output": "assets/art/wip/map/place-castle-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-castle",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a compact pale stone castle, one square keep and two modest round corner towers linked by curtain walls, a single gate. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-2a8193eb-49d6-455a-bcda-c45193d1da48.png",
+      "output": "assets/art/wip/map/place-castle-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/place-castle.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-mine",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a dark mine entrance with sturdy timber supports cut into a small grey rocky hillside, a small ore pile beside the entrance.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-3f050d5f-96ae-4792-9f76-9c231394ec45.png",
+      "output": "assets/art/wip/map/place-mine-take-1.png",
+      "status": "selected",
+      "final": "assets/art/map/place-mine.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-mine",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a dark mine entrance with sturdy timber supports cut into a small grey rocky hillside, a small ore pile beside the entrance. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-9952c7ff-a50c-45d6-8f91-6c2906d559d7.png",
+      "output": "assets/art/wip/map/place-mine-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-ford",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a short shallow blue river crossing with four broad stepping stones and a single plain wooden marker post, two tiny bank edges.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-286b99e9-dcb5-4142-a002-912a38c2cbcb.png",
+      "output": "assets/art/wip/map/place-ford-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-ford",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a short shallow blue river crossing with four broad stepping stones and a single plain wooden marker post, two tiny bank edges. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-437f1dce-04f3-4896-a7dd-896d5a6714fa.png",
+      "output": "assets/art/wip/map/place-ford-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/place-ford.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-monastery",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a small pale-stone medieval church with a square bell tower and attached simple arcaded cloister, slate roofs.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-133d2445-1d4b-4a7f-98a5-ed22cf02f68d.png",
+      "output": "assets/art/wip/map/place-monastery-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-monastery",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a small pale-stone medieval church with a square bell tower and attached simple arcaded cloister, slate roofs. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-606649d6-5494-4a6f-9e33-ab1fd098018e.png",
+      "output": "assets/art/wip/map/place-monastery-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/place-monastery.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-market-town",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a small walled medieval town: three peaked roofs inside short stone walls, a gate and one simple stone market cross at its centre.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-8d752da4-5904-4f0c-ac29-547123dd66f0.png",
+      "output": "assets/art/wip/map/place-market-town-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-market-town",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a small walled medieval town: three peaked roofs inside short stone walls, a gate and one simple stone market cross at its centre. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f0bf5112-0704-42b3-93b7-7a5cc801bd33.png",
+      "output": "assets/art/wip/map/place-market-town-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/place-market-town.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-camp",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: an orderly medieval army camp: three cream canvas triangular tents behind a shallow ditch and a short arc of sharpened palisade stakes.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-47e7958f-e02e-4c33-acd0-f65bca8f4aba.png",
+      "output": "assets/art/wip/map/place-camp-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-camp",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: an orderly medieval army camp: three cream canvas triangular tents behind a shallow ditch and a short arc of sharpened palisade stakes. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-0f9d4eb6-f98b-49bd-9e99-41a598941b07.png",
+      "output": "assets/art/wip/map/place-camp-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/place-camp.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    },
+    {
+      "id": "place-bandits",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a rough outlaw camp: two shabby brown lean-to shelters around one small orange campfire, loosely arranged with one supply sack.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-ee1fc829-4dbd-4e57-943e-efba70a40719.png",
+      "output": "assets/art/wip/map/place-bandits-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained for comparison."
+    },
+    {
+      "id": "place-bandits",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. ONE standalone small painted medieval map PLACE MARKER icon, intended export 256x256 transparent PNG, readable at 32px. Square canvas, object centred and filling about 85%, visible from slightly above at a high oblique angle. Input image 1 is STYLE REFERENCE ONLY for the warm hand-painted gouache-like map finish, soft ochres, sage greens, slate and muted blue, gentle dark ink edges, simplified clear silhouettes. Depict ONLY the requested compact landmark with minimal tiny attached ground patch. Genuine transparent empty background everywhere around landmark. No circular badge, no frame, no large landscape, no sky, no external cast shadow, no text, letters, numbers, banners or extra decorative objects. Strong readable primary shape, restrained details. Landmark: a rough outlaw camp: two shabby brown lean-to shelters around one small orange campfire, loosely arranged with one supply sack. Alternate take with a slightly clearer broader silhouette and fewer fine details, keep same landmark.",
+      "references": [
+        "assets/art/map/style-frame.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-9d32fe3a-a4c4-4954-9b09-8b0fa2c95872.png",
+      "output": "assets/art/wip/map/place-bandits-take-2.png",
+      "status": "selected",
+      "final": "assets/art/map/place-bandits.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Selected for clear silhouette and faithful medieval subject."
+    }
+  ]
+}

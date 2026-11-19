@@ -1,0 +1,188 @@
+[
+  {
+    "file": "assets/art/map/fog.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 4,
+    "corner": [
+      184,
+      187,
+      182,
+      112
+    ],
+    "centre": [
+      206,
+      206,
+      206,
+      240
+    ],
+    "alpha_range": [
+      25,
+      252
+    ],
+    "transparent_fraction": 0.0,
+    "wrap_edge_mean_rgb_difference": [
+      2.94,
+      3.51
+    ]
+  },
+  {
+    "file": "assets/art/map/ground-dirt.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 3,
+    "corner": [
+      201,
+      151,
+      90
+    ],
+    "centre": [
+      204,
+      148,
+      80
+    ],
+    "wrap_edge_mean_rgb_difference": [
+      5.42,
+      5.7
+    ]
+  },
+  {
+    "file": "assets/art/map/ground-field.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 3,
+    "corner": [
+      165,
+      132,
+      75
+    ],
+    "centre": [
+      176,
+      135,
+      67
+    ],
+    "wrap_edge_mean_rgb_difference": [
+      7.18,
+      11.08
+    ]
+  },
+  {
+    "file": "assets/art/map/ground-forest-floor.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 3,
+    "corner": [
+      123,
+      112,
+      58
+    ],
+    "centre": [
+      93,
+      84,
+      44
+    ],
+    "wrap_edge_mean_rgb_difference": [
+      7.18,
+      7.35
+    ]
+  },
+  {
+    "file": "assets/art/map/ground-grass.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 3,
+    "corner": [
+      146,
+      146,
+      77
+    ],
+    "centre": [
+      161,
+      155,
+      70
+    ],
+    "wrap_edge_mean_rgb_difference": [
+      4.5,
+      4.15
+    ]
+  },
+  {
+    "file": "assets/art/map/ground-rock.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 3,
+    "corner": [
+      119,
+      112,
+      99
+    ],
+    "centre": [
+      138,
+      129,
+      115
+    ],
+    "wrap_edge_mean_rgb_difference": [
+      8.21,
+      7.53
+    ]
+  },
+  {
+    "file": "assets/art/map/ground-water.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "channels": 3,
+    "corner": [
+      116,
+      139,
+      152
+    ],
+    "centre": [
+      108,
+      134,
+      150
+    ],
+    "wrap_edge_mean_rgb_difference": [
+      3.49,
+      2.85
+    ]
+  },
+  {
+    "file": "assets/art/map/parchment-edge.png",
+    "size": [
+      2048,
+      2048
+    ],
+    "channels": 4,
+    "corner": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "centre": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "transparent_fraction": 0.7009
+  }
+]
