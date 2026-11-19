@@ -179,8 +179,9 @@ function goals() {
     const next = GOALS[world.goals];
     world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.${next ? ` Next: ${next.text[0].toLowerCase()}${next.text.slice(1)}` : ''}`);
   }
-  if (goalsShown === world.goals) return;
-  goalsShown = world.goals;
+  const key = world.goals + ':' + world.part;
+  if (goalsShown === key) return;
+  goalsShown = key;
   const el = $('goals');
   el.hidden = world.goals >= GOALS.length || world.part === 2;
   el.innerHTML = `<h4>Goals <small>${world.goals} of ${GOALS.length} · click for ${el.classList.contains('folded') ? 'all' : 'less'}</small></h4>` + GOALS.map((g, i) =>
