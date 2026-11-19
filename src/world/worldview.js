@@ -662,9 +662,10 @@ export class WorldView {
   // ---- fog of war: a pale wash over land you have not seen, thinner over land seen before ----
 
   makeFog() {
-    const N = 256, cv = document.createElement('canvas');
+    // as wide as the ground itself, so the parchment never ends in an edge with bare land past it
+    const N = 512, cv = document.createElement('canvas');
     cv.width = cv.height = N;
-    const size = this.half * 2.4, seg = Math.round(150 * Math.min(1.6, this.half / WORLD_HALF));
+    const size = this.half * 4.4, seg = Math.round(275 * Math.min(1.6, this.half / WORLD_HALF));
     const geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;

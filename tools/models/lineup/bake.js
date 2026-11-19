@@ -563,8 +563,10 @@ const MORE_BUILDINGS = {
   'keep.1': [[[rts('TowerHouse_FirstAge')]], 16],
   'keep.2': [[[rts('TowerHouse_SecondAge')]], 18],
   'keep.3': [[[rts('Barracks_SecondAge_Level3')]], 22],
-  'keep.4': [[[rts('Wonder_SecondAge_Level2')]], 26],
-  'keep.5': [[[rts('Wonder_SecondAge_Level3')]], 28],
+  // (no curtain walls on a village keep: walls are built separately, and a walled keep on the map read as a castle)
+  'keep.4': [[[rts('Wonder_SecondAge_Level1')], [rts('WatchTower_SecondAge_Level2'), -3.36, -2.66, 0, 0, 0.85]], 24],
+  'keep.5': [[[rts('Wonder_SecondAge_Level1')], [rts('WatchTower_SecondAge_Level2'), -3.36, -2.66, 0, 0, 0.85],
+    [rts('WatchTower_SecondAge_Level2'), 3.36, -2.66, 0, 0, 0.85]], 26],
   // the Wonder castles: wood fort, wood castle, stone castle, fortress
   'castle.1': [[[rts('Wonder_FirstAge_Level2')]], 30, 'Wonder_FirstAge_Level3'],
   'castle.2': [[[rts('Wonder_FirstAge_Level3')]], 30],
