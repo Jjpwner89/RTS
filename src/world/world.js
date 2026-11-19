@@ -40,6 +40,8 @@ const SMITHY = 1 / 90, ARRIVALS = 1 / 18;
 const LORD_HERE = 8;          // mood in the village where your lord is
 const KNIGHT_LEVEL = 3;       // a captain of this level may be knighted with a village
 const LADIES = new Set(['Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel']);
+const SIEGE_MEAL = 160;       // seconds a unit of food feeds one mouth in a besieged place
+const STARVE = 150;           // seconds of hunger before a besieged place yields
 export const GRACE = 1200;     // rival houses leave your villages, and the free ones beside them, alone for twenty minutes
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
@@ -656,6 +658,68 @@ export class World {
     this.hooks.ask(enc);
   }
 
+  // ---- sieges without storming ----
+  // Starve them out: the army sits down before the place and lets hunger do the work.
+  // The place eats through its stores (its people and garrison both), then goes hungry,
+  // its men slipping away, until it yields whole. A relief host can break it up.
+  blockade(enc) {
+    const a = enc.army, p = enc.poi;
+    this.encounter = null;
+    a.halted = false;
+    a.siege = { p: p.id, since: this.time };
+    p.siegeFood ??= this.storesFor(p);
+    this.log(`${a.name} sits down before ${p.name} to starve it out.`);
+    this.chron(`You laid siege to ${p.name}.`);
+  }
+  // Seconds a place can eat: its food and bread, for its people and its men.
+  storesFor(p) {
+    const e = p.eco, mouths = headcount(p.garrison) + (e?.pop ?? 20);
+    const food = e?.stock ? (e.stock.food || 0) + (e.stock.bread || 0) : (e?.pop ?? 20) * 2;
+    return Math.min(1200, Math.max(120, food / Math.max(1, mouths) * SIEGE_MEAL));
+  }
+  tickSieges(dt) {
+    for (const a of this.armies) {
+      if (!a.siege || a.gone) continue;
+      const p = this.byId[a.siege.p];
+      if (!p || p.owner === 0 || a.at !== p || a.path.length || a.retreating || p.town) { this.liftSiege(a, p); continue; }
+      p.siegeFood -= dt;
+      if (p.siegeFood > 0) continue;
+      if (p.eco) { p.eco.hungry = true; p.eco.pop = Math.max(8, p.eco.pop * (1 - 0.004 * dt)); }
+      // Hungry men slip over the wall at night.
+      for (const u of p.garrison) u.count = Math.floor(u.count * (1 - 0.006 * dt));
+      p.garrison = p.garrison.filter(u => u.count >= 3);
+      if (-p.siegeFood > STARVE || !p.garrison.length) {
+        this.log(`${p.name} is starved into surrender!`);
+        this.chron(`${p.name} was starved into surrender.`);
+        a.siege = null;
+        delete p.siegeFood;
+        if (p.eco) p.eco.hungry = false;
+        this.capture(p, a);
+      }
+    }
+  }
+  liftSiege(a, p) {
+    a.siege = null;
+    if (p) { delete p.siegeFood; if (p.eco) p.eco.hungry = false; if (p.owner !== 0) this.log(`The siege of ${p.name} is lifted.`, 1); }
+  }
+
+  // Burn the fields: the army fires the farms and granaries round a place and stays
+  // before it. The place loses most of its food and some of its people, and comes to a
+  // siege or a storm already hungry. Its lord won't forget it.
+  burnFields(enc) {
+    const a = enc.army, p = enc.poi, e = p.eco;
+    this.encounter = null;
+    a.halted = false;
+    if (e?.stock) { e.stock.food = Math.floor((e.stock.food || 0) * 0.3); e.stock.bread = Math.floor((e.stock.bread || 0) * 0.5); }
+    if (e?.buildings) burn(e, ['farm', 'farm', 'mill']);
+    if (e) e.pop = Math.max(8, e.pop * 0.9);
+    if (p.siegeFood) p.siegeFood *= 0.4;
+    for (const u of a.units) u.count = Math.max(1, Math.round(u.count * 0.97));
+    grudge(this, p.owner, 'burned', p.name);
+    this.log(`${a.name} burns the fields round ${p.name}.`);
+    this.chron(`You burned the fields round ${p.name}.`);
+  }
+
   // The player thinks better of an attack and falls back without a fight.
   pullBack(enc) {
     this.encounter = null;
@@ -1186,7 +1250,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); this.tickSieges(5); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);

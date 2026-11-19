@@ -75,6 +75,7 @@ export function alerts(w) {
   // Good to know: an army of yours standing idle away from home.
   for (const a of w.armies) {
     if (a.gone || a.side !== 0 || a.wagon || a.path.length || !a.at || a.at.owner === 0) continue;
+    if (a.siege) { const p = w.byId[a.siege.p]; add(1, `${a.name} besieges ${a.at.name}${p?.siegeFood <= 0 ? ': it is starving' : ''}`, a, 'siege'); continue; }
     add(1, `${a.name} waits for orders at ${a.at.name}`, a, 'map');
   }
 

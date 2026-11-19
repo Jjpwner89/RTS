@@ -194,7 +194,7 @@ export function loadGame(data, hooks) {
     for (const k of Object.keys(live)) if (!(k in h) && k !== 'taunts') delete live[k];
     Object.assign(live, dec(h));
   });
-  const DYNAMIC = ['seat', 'mem', 'known', 'falling', 'eco', 'intel', 'vassal', 'epithet', 'free'];
+  const DYNAMIC = ['seat', 'mem', 'known', 'falling', 'eco', 'intel', 'vassal', 'epithet', 'free', 'siegeFood'];
   data.pois.forEach((p, i) => {
     const live = w.pois[i];
     if (!live) return;

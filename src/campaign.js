@@ -509,7 +509,11 @@ function nextAsk() {
       const won = world.autoResolve(enc);
       flash(won ? `Victory at ${where}.` : `Defeat at ${where}.`, won);
     }]);
-    if (enc.kind === 'assault') buttons.push(['Pull back', () => world.pullBack(enc)]);
+    if (enc.kind === 'assault') {
+      buttons.push(['Starve them out', () => world.blockade(enc)]);
+      if (enc.poi.eco) buttons.push(['Burn the fields', () => world.burnFields(enc)]);
+      buttons.push(['Pull back', () => world.pullBack(enc)]);
+    }
   }
   const row = box.querySelector('.row');
   row.innerHTML = '';
@@ -730,7 +734,9 @@ function worldPanel() {
     set('units', know < 3 ? 'Too far off to make out which troops' : it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
     if (own || it.visible) { set('captain', captainLine(world, it)); const ce = el.querySelector('[data-f="captain"]'); if (ce) ce.title = captainMemory(world, it); }
     if (own) set('ride', it.lord === 0 ? `${ico('crown')} Ride home` : world.lordHurt > world.time ? `${ico('crown')} Your lord is mending` : `${ico('crown')} Ride with this army`);
-    set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
+    const sp = it.siege && world.byId[it.siege.p];
+    if (sp) set('status', sp.siegeFood > 0 ? `Besieging ${sp.name}: its stores last about ${clock(sp.siegeFood)}` : `Besieging ${sp.name}: the place is starving`);
+    else set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
   } else {
     const who = it.visible ? it.owner : it.known?.owner;
     const lord = vassalOf(world, it);
