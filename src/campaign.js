@@ -628,7 +628,8 @@ function worldPanel() {
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
         + (own && world.rank !== 'Reeve' && world.home !== it ? `<div class="grant"><p class="note">Give it to a vassal to run for you: a share of its gold and men, and one less village to watch. You can take it back.</p>`
           + `<button data-act="grant" class="wide" data-f="grant">${ico('crown')} Give it to a new vassal</button>`
-          + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('') + '</div>' : '')
+          + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('')
+          + world.knightable().map(c => `<button data-act="knight:${c.id}" class="wide" title="Captain ${c.name} becomes a loyal vassal and leaves his army">${ico('crown', '#e8c45a')} Knight Captain ${c.name} with it</button>`).join('') + '</div>' : '')
         : it.vassal ? `<div data-f="vassal"></div>
           <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please him">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger him">+</button></div>
           <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please him">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger him">+</button></div>
@@ -705,7 +706,7 @@ function worldPanel() {
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     if (it.town) {
       const can = world.canGrant(it);
-      for (const b of el.querySelectorAll('[data-act^="grant"]')) { b.disabled = !can.ok; b.title = can.ok ? '' : can.why; }
+      for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; if (!can.ok) b.title = can.why; }
       set('men', `${it.town.population} villagers · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers`);
       set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
     } else {
@@ -793,6 +794,11 @@ $('wpanel').onclick = e => {
     const to = act.includes(':') ? world.vassals.find(v => v.id === +act.split(':')[1]) : null;
     const v = world.grant(it, to);
     if (v) flash(`${it.name} is now held for you by ${v.name}.`, true);
+    panelKey = null;
+  }
+  if (act?.startsWith('knight:') && it) {
+    const v = world.knight(it, world.captains.find(c => c.id === +act.split(':')[1]));
+    if (v) flash(`${v.name} holds ${it.name} for you now.`, true);
     panelKey = null;
   }
   if (act?.startsWith('v:') && it) {

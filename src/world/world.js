@@ -37,6 +37,9 @@ const MEET = 14;        // opposing armies this close fight
 // A rival place's smithy makes kit for one man every ninety seconds (yours, run hard, make
 // one every twelve), and families settle in its houses as they do in yours.
 const SMITHY = 1 / 90, ARRIVALS = 1 / 18;
+const LORD_HERE = 8;          // mood in the village where your lord is
+const KNIGHT_LEVEL = 3;       // a captain of this level may be knighted with a village
+const LADIES = new Set(['Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel']);
 export const GRACE = 1200;     // rival houses leave your villages, and the free ones beside them, alone for twenty minutes
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
@@ -428,7 +431,8 @@ export class World {
       this.hooks.rankUp?.('hall');
     };
     // Hired companies stationed here weigh on the village's mood.
-    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village']];
+    // ... and your lord in person lifts it while he is there.
+    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village'], () => [this.lordAt() === p ? LORD_HERE : 0, 'the lord is here']];
     town.onRebel = n => {
       if (p.owner !== 0) return;
       this.log(`${n} villagers of ${p.name} have risen in revolt!`, 1);
@@ -1173,6 +1177,34 @@ export class World {
     if (p === this.home || FACTIONS[0].seat === p) return { ok: false, why: 'Your seat stays yours' };
     if (p.town.hostile || p.town.underAttack || p.town.revolt) return { ok: false, why: 'Not while it is fighting' };
     return { ok: true };
+  }
+
+  // Where your lord is: with the army he rides with, if it waits at one of your places;
+  // at your seat if he rides with none; nowhere while he is on the road.
+  lordAt() {
+    const a = this.armies.find(o => o.lord === 0 && !o.gone);
+    if (!a) return FACTIONS[0].seat || this.home;
+    return !a.path.length && a.at?.owner === 0 ? a.at : null;
+  }
+
+  // A captain of yours who has served well can be given a village and made a vassal.
+  knightable() { return (this.captains || []).filter(c => c.alive && c.side === 0 && c.level >= KNIGHT_LEVEL); }
+  knight(p, c) {
+    if (!c || !this.knightable().includes(c) || !this.canGrant(p).ok) return null;
+    const army = this.armies.find(a => a.captain === c.id);
+    if (army) army.captain = null;
+    c.alive = false;
+    c.knighted = true;
+    c.army = null;
+    const v = this.grant(p, null);
+    if (!v) return null;
+    v.name = `${LADIES.has(c.name.split(' ')[0]) ? 'Dame' : 'Sir'} ${c.name}`;
+    v.temper = 'loyal';
+    v.memory = [...c.memory.slice(-10), ...v.memory.map(m => ({ ...m, text: m.text }))];
+    mark(this, v, 15, 'Knighted by you', Infinity);
+    recall(this, v, 'Knighted by you after years in your service');
+    this.log(`Captain ${c.name} kneels and rises ${v.name}, lord of ${p.name} under you.`);
+    return v;
   }
 
   // Gives village p to vassal v, or to a new one.
