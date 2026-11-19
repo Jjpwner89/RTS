@@ -4,6 +4,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
 import { HOMES } from './terrain.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
+import { lookChain } from './battle.js';
+
+// Units without their own model or icon borrow the nearest one (battle.js lookChain).
+const BUILT_IN = ['spear', 'sword', 'archer', 'cav', 'militia', 'bandit'];
 
 export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
 
@@ -185,6 +189,7 @@ function buildKeeps(scene, heightAt) {
 // ---- regiment icons, shared by banners and HUD cards ----
 
 export function drawIcon(ctx, key, cx, cy, s) {
+  key = lookChain(key).find(k => BUILT_IN.includes(k)) || key;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(s / 32, s / 32);
@@ -269,9 +274,9 @@ export class BattleView {
       for (const m of Object.values(this.meshes)) { m.list.length = 0; m.darkened.clear(); for (const x of m.all) x.count = 0; }
     }
     for (let i = this.seenSoldiers; i < b.soldiers.length; i++) {
-      const s = b.soldiers[i], key = s.reg.T.key;
+      const s = b.soldiers[i], key = s.look || s.reg.T.key;
       let m = this.meshes[key];
-      if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => o.reg.T.key === key).length));
+      if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => (o.look || o.reg.T.key) === key).length));
       if (m.list.length >= m.gear.instanceMatrix.count) continue;   // out of room: not drawn
       s.instance = m.list.length;
       m.list.push(s);
@@ -289,8 +294,10 @@ export class BattleView {
 
   // Baked soldiers get a full and a light pair; each frame, the ones near the camera go in the full pair.
   makeMeshes(key, capacity) {
-    const baked = unitModel(key);
-    const model = baked || (key === 'cav' ? cavalry() : infantry(key));
+    const chain = lookChain(key);
+    const baked = chain.map(k => unitModel(k)).find(Boolean);
+    const builtIn = chain.find(k => BUILT_IN.includes(k)) || key;
+    const model = baked || (builtIn === 'cav' ? cavalry() : infantry(builtIn));
     const inst = geo => {
       const m = new THREE.InstancedMesh(geo, this.mat, capacity);
       m.setColorAt(0, this.tint.setScalar(1));

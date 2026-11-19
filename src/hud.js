@@ -1,5 +1,6 @@
 // Regiment cards along the bottom, time controls on top, and battle messages.
 import { drawIcon, SIDE_COLORS } from './view.js';
+import { FORMATIONS } from './battle.js';
 
 export class Hud {
   // endPanel: show the Victory / Defeat box when the battle is decided. fresh: only
@@ -19,6 +20,44 @@ export class Hud {
     for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => hooks.setSpeed(+b.dataset.speed);
     document.getElementById('help-toggle').onclick = () => document.getElementById('help').classList.toggle('open');
     document.getElementById('again').onclick = () => location.reload();
+    this.buildOrders();
+  }
+
+  // The command bar over the cards: formations, charge, hold and fire at will for the selection.
+  buildOrders() {
+    let el = document.getElementById('orders');
+    if (!el) { el = document.createElement('div'); el.id = 'orders'; document.body.append(el); }
+    const f = Object.entries(FORMATIONS).map(([k, F]) => `<button data-f="${k}" title="${F.desc || 'The standard line'} (${F.key.toUpperCase()})">${F.name}</button>`).join('');
+    el.innerHTML = `<span class="group">${f}</span><span class="group">
+      <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge</button>
+      <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold</button>
+      <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will</button></span>`;
+    el.onclick = e => {
+      const btn = e.target.closest('button');
+      if (!btn || !this.selection?.size) return;
+      const sel = [...this.selection], b = this.battle;
+      if (btn.dataset.f) b.setFormation(sel, btn.dataset.f);
+      if (btn.dataset.c === 'charge') b.orderCharge(sel);
+      if (btn.dataset.c === 'hold') b.setHold(sel, !sel.every(r => r.hold));
+      if (btn.dataset.c === 'fire') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+    };
+    this.ordersEl = el;
+  }
+
+  updateOrders(selection) {
+    this.selection = selection;
+    const sel = [...selection].filter(r => !r.gone);
+    this.ordersEl.classList.toggle('open', sel.length > 0);
+    if (!sel.length) return;
+    for (const btn of this.ordersEl.querySelectorAll('[data-f]')) {
+      const f = btn.dataset.f;
+      btn.classList.toggle('on', sel.every(r => r.formation === f));
+      btn.disabled = sel.every(r => r.T.engine || r.posts || (f === 'square' && r.T.mounted));
+    }
+    const on = (k, test) => { const btn = this.ordersEl.querySelector(`[data-c="${k}"]`); btn.classList.toggle('on', sel.every(test)); return btn; };
+    on('charge', r => this.battle.time < r.chargeUntil).disabled = sel.every(r => r.T.range || r.T.engine);
+    on('hold', r => r.hold);
+    on('fire', r => r.fireAtWill).disabled = !sel.some(r => r.T.range);
   }
 
   // Cards for regiments raised since the last frame; disbanded regiments lose theirs.
@@ -47,6 +86,7 @@ export class Hud {
       <span class="bar strength"><i></i></span>
       <span class="bar morale"><i></i></span>
       <span class="state"></span>`);
+    el.title = r.T.role || '';
     el.onclick = e => this.hooks.selectCard(r, e.shiftKey);
     el.ondblclick = () => this.hooks.focus(r);
     this.cardsEl.append(el);
@@ -60,12 +100,14 @@ export class Hud {
       const r = c.r;
       c.strength.style.width = (100 * Math.max(0, r.alive) / r.initial) + '%';
       c.morale.style.width = (100 * Math.max(0, r.morale) / r.T.morale) + '%';
-      c.state.textContent = `${Math.max(0, r.alive)} · ${b.moraleLabel(r)}`;
+      const doing = b.doingLabel(r), E = r.engine;
+      c.state.textContent = `${Math.max(0, r.alive)} · ${b.moraleLabel(r)}${doing ? ' · ' + doing : ''}${E?.maxHp && !r.gone ? ` · ${Math.max(0, Math.round(100 * E.hp / E.maxHp))}%` : ''}`;
       c.el.classList.toggle('selected', selection.has(r));
       c.el.classList.toggle('routing', r.routing);
       c.el.classList.toggle('regrouping', r.regrouping);
       c.el.classList.toggle('gone', r.gone);
     }
+    this.updateOrders(selection);
     const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     document.getElementById('strength').innerHTML =
       `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`;

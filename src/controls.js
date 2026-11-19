@@ -2,6 +2,7 @@
 // left click or drag to select, right click to move or attack, right drag to set a front line.
 import * as THREE from 'three';
 import { pickGround, HALF } from './terrain.js';
+import { FORMATIONS } from './battle.js';
 
 export class Controls {
   constructor(camera, dom, battle, view, heightAt, hooks) {
@@ -91,6 +92,21 @@ export class Controls {
       this.setSelection(this.battle.regs.filter(r => r.side === 0 && !r.gone));
     }
     if (['1', '2', '3'].includes(key)) this.hooks.setSpeed([1, 2, 4][+key - 1]);
+    if (!e.metaKey && !e.ctrlKey) this.command(key);
+  }
+
+  // Battle commands for the selected regiments: formations, charge, hold, fire at will.
+  command(key) {
+    const sel = [...this.selection], b = this.battle;
+    if (!sel.length) return false;
+    const f = Object.entries(FORMATIONS).find(([, F]) => F.key === key);
+    if (f) b.setFormation(sel, f[0]);
+    else if (key === 'c') b.orderCharge(sel);
+    else if (key === 'g') b.setHold(sel, !sel.every(r => r.hold));
+    else if (key === 'r') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+    else return false;
+    this.hooks.commandsChanged?.();
+    return true;
   }
 
   // ---- picking ----
@@ -105,6 +121,24 @@ export class Controls {
     const g = pickGround(this.rayAt(x, y), this.heightAt);
     if (g) g.y = this.heightAt(g.x, g.z);
     return g;
+  }
+
+  // The wall, tower or gate under the cursor, if the ray meets one before the ground.
+  structAt(x, y) {
+    const W = this.battle.walls;
+    if (!W.any) return null;
+    const ray = this.rayAt(x, y), p = ray.origin.clone(), dir = ray.direction;
+    for (let t = 0; t < 900; t += 0.6) {
+      p.copy(ray.origin).addScaledVector(dir, t);
+      const ground = this.heightAt(p.x, p.z);
+      if (p.y < ground) return null;
+      if (p.y > ground + 14) continue;
+      const s = W.towerAt(p.x, p.z, null, 0) || W.pieceAt(p.x, p.z, null, 0)?.piece;
+      if (!s) continue;
+      const top = s.kind === 'tower' ? s.base + s.M.towerTop + 1.5 : s.base + (s.state === 'broken' ? 1.5 : s.M.height);
+      if (p.y <= top) return { struct: s, x: p.x, z: p.z };
+    }
+    return null;
   }
 
   toScreen(v) {
@@ -147,6 +181,7 @@ export class Controls {
   // cancelPlacement(), hover(ground), pickBuilding(ground).
   onDown(e) {
     if (e.button === 2 && this.hooks.cancelPlacement?.()) { this.drag = null; return; }
+    if (e.button === 0 && this.hooks.dragPlacing?.()) { this.drag = { kind: 'place', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false }; return; }
     if (e.button === 0) this.drag = { kind: 'select', x: e.clientX, y: e.clientY, moved: false };
     if (e.button === 2) this.drag = { kind: 'order', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false };
     if (e.button === 1) { e.preventDefault(); this.drag = { kind: 'rotate', x: e.clientX, y: e.clientY, yaw: this.cam.yaw }; }
@@ -162,6 +197,7 @@ export class Controls {
       return;
     }
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) d.moved = true;
+    if (d.kind === 'place') this.hooks.dragMove?.(d.start, this.groundAt(e.clientX, e.clientY));
     if (d.kind === 'rotate') this.cam.yaw = d.yaw - (e.clientX - d.x) * 0.006;
     if (d.kind === 'select' && d.moved) {
       const b = this.boxEl.style;
@@ -191,6 +227,7 @@ export class Controls {
     const d = this.drag;
     this.drag = null;
     if (!d) return;
+    if (d.kind === 'place') { this.hooks.dragEnd?.(d.start, this.groundAt(e.clientX, e.clientY), e); return; }
     if (d.kind === 'select') {
       this.boxEl.style.display = 'none';
       if (d.moved) {
@@ -221,6 +258,13 @@ export class Controls {
       }
       const target = this.regAt(e.clientX, e.clientY);
       if (target && target.side === 1) { this.battle.orderAttack(sel, target); return; }
+      // Onto your own wall, or against the enemy's.
+      const hit = !d.moved && this.structAt(e.clientX, e.clientY);
+      if (hit) {
+        if (hit.struct.side === 0) this.battle.orderMan(sel, hit.struct, hit.x, hit.z);
+        else this.battle.orderAttackWall(sel, hit.struct, hit.x, hit.z);
+        return;
+      }
       if (!end) return;
       // A plain click keeps the current frontages and faces along the direction of travel.
       const cx = sel.reduce((n, r) => n + r.cx, 0) / sel.length, cz = sel.reduce((n, r) => n + r.cz, 0) / sel.length;
