@@ -212,7 +212,7 @@ export class TownView {
   // each; a level without one keeps the one below.
   geo(kind, style = 0, level = 1) {
     // (a village's chapel is the monastery kind, drawn as the smaller timber chapel)
-    const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind === 'monastery' ? 'chapel' : kind;
+    const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind === 'monastery' ? 'chapel' : kind === 'cathedral' && !buildingModel('cathedral') ? 'monastery' : kind;
     for (let l = level; l > 1; l--) if (buildingModel(`${base}.${l}`)) return this.cached(`${base}.${l}`, () => buildingModel(`${base}.${l}`));
     return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(base) || buildingModel(kind)) || (MODELS[kind] || MODELS.storehouse)());
   }

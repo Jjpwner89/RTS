@@ -4,6 +4,7 @@
 // goods, people, regiments and walls). A save is made only between fights, so no battle
 // is ever half-saved. One slot, kept in the browser.
 import { World, FACTIONS } from './world.js';
+import { restoreWorks } from './works.js';
 
 const KEY = 'rts.campaign.save';
 const VERSION = 1;
@@ -81,7 +82,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works'];
 
 function pack(w) {
   const enc = encoder(w);
@@ -210,6 +211,7 @@ export function loadGame(data, hooks) {
   w.wall.fallen = W.wallFallen;
   w.events = dec(W.events);
   w.home = FACTIONS[0].seat || w.home;
+  if (w.works) restoreWorks(w);
   for (const s of data.towns) unpackTown(w, w.pois[s.i], s);
   w.encounter = null;
   w.hooks = hooks;

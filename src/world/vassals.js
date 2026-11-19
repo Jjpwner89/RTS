@@ -12,6 +12,7 @@
 // other's id) and look to you to judge it; the discontented band into one faction
 // (w.faction) with a demand, and rise if you refuse it. A vassal may be imprisoned
 // (v.prison) and later pardoned, landless (v.landless) until you give him a village.
+import { worksPride } from './works.js';
 
 export const DUES = [
   { name: 'Light', share: 0.15, mood: 10 },
@@ -112,6 +113,7 @@ export function opinion(w, v) {
     if (left > 0) sum.set(m.text, (sum.get(m.text) || 0) + m.n * left);
   }
   for (const [text, n] of sum) add(n, text);
+  for (const [text, n] of worksPride(w)) add(n, text);
   why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
   return { total: Math.max(-100, Math.min(100, why.reduce((n, [k]) => n + k, 0))), why };
 }

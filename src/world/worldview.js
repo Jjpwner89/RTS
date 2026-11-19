@@ -231,7 +231,7 @@ export class WorldView {
   // Screen positions of everything clickable, refreshed each frame for picking.
   update(camera, selected) {
     const w = this.world, v = new THREE.Vector3();
-    if (w.wall && w.wall.fallen !== this.wallFallen) this.drawOldWall();
+    if (w.wall && `${w.wall.fallen}:${w.wall.sealedCount || 0}` !== this.wallFallen) this.drawOldWall();
     const rect = this.labelsEl.getBoundingClientRect();
     const toScreen = (x, y, z) => {
       v.set(x, y, z).project(camera);
@@ -574,7 +574,7 @@ export class WorldView {
   drawOldWall() {
     const W = this.world.wall;
     if (this.oldWall) { this.scene.remove(this.oldWall); this.oldWall.traverse(o => o.isInstancedMesh && o.dispose()); }
-    this.wallFallen = W?.fallen;
+    this.wallFallen = `${W?.fallen}:${W?.sealedCount || 0}`;
     if (!W?.points?.length) return;
     const pts = W.points, h = this.heightAt, S = 2.6, PIECE = 10 * S;
     // distance along the wall to each point, and where each breach road crosses it
@@ -588,7 +588,7 @@ export class WorldView {
       return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, dx: b.x - a.x, dz: b.z - a.z };
     };
     const cuts = [];
-    for (const br of W.fallen ? W.breaches : []) {
+    for (const br of W.fallen ? W.breaches.filter(b => !b.sealed) : []) {   // a mended stretch stands whole
       const p = br.from, q = br.to;
       let hit = null;
       for (let i = 1; i < pts.length && !hit; i++) {

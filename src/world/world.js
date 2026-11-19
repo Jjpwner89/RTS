@@ -18,6 +18,7 @@ import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { govern } from './governor.js';
 import { tickEvents } from './events.js';
+import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -432,8 +433,10 @@ export class World {
     town.rebelHouse = this.bandits;
     // A knights' hall wants the rank of Count, and its finishing is a moment.
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
-    town.onMilestone = () => {
+    town.greatRule = () => cathedralRule(this);
+    town.onMilestone = b => {
       if (p.owner !== 0) return;
+      if (b?.kind === 'cathedral') return cathedralDone(this, p);
       this.log(`A knights' hall stands in ${p.name}. Your veterans may train there as men-at-arms and knights.`, 0);
       this.hooks.herald?.({ house: FACTIONS[0], title: `A knights' hall in ${p.name}`, text: 'Your veterans may train there as men-at-arms and knights: few, costly, slow to replace, and the best men in the realm.' });
       this.hooks.rankUp?.('hall');
@@ -495,7 +498,7 @@ export class World {
       const len = dist(a, e) + r.length;
       if (!best || len < best.len) best = { len, path: e === a.at ? r.path : [e, ...r.path] };
     }
-    if (!best || !best.path.length) return false;
+    if (!best || !best.path.length || !Number.isFinite(best.len)) return false;   // no road there (a mended wall)
     a.path = best.path;
     a.target = dest;
     a.at = null;
@@ -777,7 +780,7 @@ export class World {
     return { attackerWins, A: cut(A, attackerWins ? winLoss : loseLoss, attackerWins), D: cut(D, attackerWins ? loseLoss : winLoss, !attackerWins) };
   }
 
-  defenceBonus(p) { return 1.2 * KINDS[p.kind].defence; }
+  defenceBonus(p) { return 1.2 * KINDS[p.kind].defence * (p.kind === 'crown' && workDone(this, 'walls') ? 1.5 : 1); }
 
   autoResolve(enc) {
     const r = this.resolve(enc.army.units, enc.defenders, enc.kind === 'assault' ? this.defenceBonus(enc.poi) : 1);
@@ -1186,7 +1189,8 @@ export class World {
     const mine = real.filter(p => p.owner === 0 || B.has(p.owner)).length;
     const rivals = FACTIONS.slice(1, this.bandits).filter(h => h.alive);
     if (this.crown.owner === 0 && mine >= real.length / 2) { this.crowned = true; this.winner = 0; this.victory = 'sword'; }
-    else if (!rivals.length || rivals.every(h => B.has(h.index))) { this.crowned = true; this.winner = 0; this.victory = rivals.length ? 'acclaim' : 'sword'; }
+    // A palace at Kingsbridge, yours, means one great house may hold out.
+    else if (!rivals.length || rivals.filter(h => !B.has(h.index)).length <= (workDone(this, 'palace') && this.crown.owner === 0 && rivals.length >= 2 ? 1 : 0)) { this.crowned = true; this.winner = 0; this.victory = rivals.length ? 'acclaim' : 'sword'; }
     else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0 && !a.wagon)) this.winner = 1;
     if (this.crowned && this.winner === 0) this.chron(this.victory === 'acclaim' ? 'Every great house named you king, and you were crowned at Kingsbridge.' : 'Kingsbridge was yours and the realm knelt: you were crowned.');
     if (this.winner !== null) this.hooks.ended(this.winner);
@@ -1251,7 +1255,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); tickTrade(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
@@ -1360,7 +1364,7 @@ export class World {
     p.mem = remember(town, 0, this.time);
     if (keep.garrison.length) town.addTroops(keep.garrison.map(u => ({ ...u })), this.angle(p, p.links[0]));
     Object.assign(town, { readOnly: v, purse: { gold: Math.round(v.gold) }, flagColor: v.color, event: () => {},
-      onFall: () => {}, onRebel: () => {}, onMilestone: () => {}, hallRule: () => 'Not your village' });
+      onFall: () => {}, onRebel: () => {}, onMilestone: () => {}, hallRule: () => 'Not your village', greatRule: () => 'Not your village' });
     return look;
   }
 

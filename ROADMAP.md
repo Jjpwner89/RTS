@@ -154,7 +154,11 @@ All approved. Owners in brackets.
 
 **Economy and the realm** (Realm)
 - **Trade carts** between market towns; bandits raid them, and you can escort them (see the carts in §1b). **Built (2026-11-19).**
-- **Showpiece projects**: a cathedral, rebuilding the old north wall, the royal city.
+- **Showpiece projects**: a cathedral, rebuilding the old north wall, the royal city. **Built (2026-11-19)** in works.js:
+  - **Cathedral**: a town building (stone 300, planks 120, iron 20; four minutes' building), one in your realm, from the rank of Count in a village of 100 people. Mood +25 in its village. Consecrated, it is a herald and a chronicle line; every great house thinks 10 better of you, and vassals +5 while it stands in your lands. Drawn as the abbey until Art makes a cathedral model.
+  - **The royal city**, once Kingsbridge is yours, in three stages paid in gold, one after another: mend the walls (400 gold, 4 min: Kingsbridge defends at ×1.5, whoever holds it), reopen the great market (500, 4 min: 0.6 gold a second to whoever holds it, and its caravans carry double), raise the palace (900, 6 min, from Duke: vassals +5, and one great house may hold out when you are crowned by acclaim).
+  - **The old north wall** (Part 2): at a place of yours just south of a breach, rebuild the wall (500 gold, 5 min). The road from the war camp behind it is shut, so its hosts must go round. While a strong host waits in that camp it batters the stretch every five minutes; about half the blows land, and three bring it down again, each with a warning.
+  - Great works go one at a time (the cathedral apart), paid up front, and stop if the place is lost. The place panel shows them under Great works.
 - **Each kind of place plays differently**: abbey relics and pilgrims, toll fights at fords, mine collapses.
 
 **Part 2** (Realm, Battles for units)

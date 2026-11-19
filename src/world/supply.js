@@ -6,6 +6,7 @@
 // be caught on the road.
 
 import { FACTIONS, power } from './world.js';
+import { workDone } from './works.js';
 
 export const EAT = 1 / 120;        // food per man per second
 export const CARRY = 2;            // food per man the carts hold: four minutes
@@ -165,7 +166,7 @@ export function tickTrade(w, dt) {
     const dest = to[Math.floor(w.rand() * to.length)];
     if (!dest) continue;
     const people = p.town ? p.town.population : p.eco?.pop ?? 20;
-    const gold = Math.round(20 + people * 0.6);
+    const gold = Math.round((20 + people * 0.6) * (p.kind === 'crown' && workDone(w, 'market') ? 2 : 1));
     const side = p.owner;   // free markets have no lord to send a caravan
     if (side === null || side === undefined) continue;
     const cart = w.spawnArmy(side, [], p, `Caravan from ${p.name}`, 'wagon');

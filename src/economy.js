@@ -109,6 +109,8 @@ export const BUILDINGS = {
   well: { name: 'Well', icon: 'well', group: 'Village', cost: { stone: 10 }, radius: 2.5, build: 8, hp: 150, mood: 3, desc: 'Clean water close by. Lifts the mood a little.' },
   monastery: { name: 'Chapel', icon: 'monastery', group: 'Village', cost: { stone: 30, planks: 10 }, radius: 6, build: 24, hp: 250, mood: 10,
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
+  cathedral: { name: 'Cathedral', icon: 'monastery', group: 'Village', cost: { stone: 300, planks: 120, iron: 20 }, radius: 10, build: 240, hp: 900, mood: 25, great: true,
+    desc: 'The showpiece of a realm: a great stone church, one in all your lands. Lifts the village a great deal, and once it is consecrated every great house and vassal thinks better of you. From the rank of Count, in a village of 100 people.' },
   watchtower: { name: 'Watchtower', icon: 'watchtower', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
     desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
   hall: { name: "Knights' hall", icon: 'hall', group: 'Military', cost: { planks: 40, stone: 60 }, radius: 7, build: 45, hp: 400, hall: true,
@@ -533,6 +535,10 @@ export class Town {
       const why = this.hallRule?.() || (keepLevel(this) < 3 ? 'Needs a keep of level 3 (60 people)' : null);
       if (why) return { ok: false, reason: why };
     }
+    if (B.great) {
+      const why = this.greatRule?.(kind) || (this.population < 100 ? 'Needs a village of 100 people' : null);
+      if (why) return { ok: false, reason: why };
+    }
     if (Math.hypot(x, z) > this.territory) return { ok: false, reason: 'Outside your land' };
     if (Math.hypot(x, z) < KEEP.radius + B.radius + 3) return { ok: false, reason: 'Too close to the keep' };
     for (const b of this.buildings) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
@@ -880,7 +886,7 @@ export class Town {
 
   upgradeCheck(b) {
     const U = UPGRADES[(b.level || 1) + 1];
-    if (!U || b.state !== 'active' || b.B.hall) return { ok: false, reason: 'Fully upgraded', done: true };
+    if (!U || b.state !== 'active' || b.B.hall || b.B.great) return { ok: false, reason: 'Fully upgraded', done: true };
     if (this.population < U.pop) return { ok: false, reason: `Needs a village of ${U.pop} people` };
     if (this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
     if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
@@ -1161,7 +1167,7 @@ export class Town {
       for (const o of crew) if (b.B.jobs && b.workers.length < this.jobs(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
       audio.play('built', b, this.battle); // audio
-      if (b.B.hall) this.onMilestone?.(b);
+      if (b.B.hall || b.B.great) this.onMilestone?.(b);
     }
   }
 
