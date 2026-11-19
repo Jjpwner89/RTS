@@ -6,7 +6,7 @@ import { Battle } from './battle.js';
 import { BattleView } from './view.js';
 import { Controls } from './controls.js';
 import { Hud } from './hud.js';
-import { Town } from './economy.js';
+import { Town, TEMPLATES } from './economy.js';
 import { TownView } from './townview.js';
 import { TownHud } from './townhud.js';
 import { rng } from './noise.js';
@@ -40,7 +40,7 @@ const hooks = {
   place: (g, e) => {
     if (!placing) return false;
     if (!g) return true;
-    const res = town.place(placing, g.x, g.z);
+    const res = placing.startsWith('tpl:') ? town.placeTemplate(placing.slice(4), g.x, g.z) : town.place(placing, g.x, g.z);
     // The same building stays in hand, to place several; right-click or Esc ends it.
     if (!res.ok) townHud.flash(res.reason);
     return true;
@@ -80,7 +80,8 @@ function frame(now) {
   placeSun(controls.cam, heightAt);
   view.update(controls.selection);
   townView.update(selected);
-  townView.showGhost(placing, hoverAt, placing && hoverAt && town.canPlace(placing, hoverAt.x, hoverAt.z).ok);
+  const ghost = placing?.startsWith('tpl:') ? TEMPLATES[placing.slice(4)].list[0] : placing;
+  townView.showGhost(ghost, hoverAt, ghost && hoverAt && town.canPlace(ghost, hoverAt.x, hoverAt.z, { free: ghost !== placing }).ok);
   hud.update(controls.selection, paused, speed);
   townHud.update(selected, [...controls.selection], placing);
   audio.frame(camera, controls.cam, { battle, town, paused }); // audio

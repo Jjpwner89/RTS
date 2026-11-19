@@ -6,6 +6,7 @@
 // hears of it), then the host marches with rams and ladders and lays siege.
 import { FACTIONS, GRACE, power, headcount, takeUnits, dist, recruit } from './world.js';
 import { protectedFrom } from './diplomacy.js';
+import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
 
 const BENT = {
@@ -66,13 +67,9 @@ function houseMind(w, h) {
   // Raise men for the field at the muster place, while the people can spare them.
   if (h.arms >= 6) w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)));
 
-  // A rich lord at war buys sellswords rather than sit on his gold.
-  if (!h.bandit && h.gold > 500 && w.time > (ai.hiredAt ?? -Infinity) + 300 && FACTIONS.some(o => o.alive && !o.bandit && o !== h && w.atWar(h.index, o.index))) {
-    h.gold -= 360;
-    ai.hiredAt = w.time;
-    recruit(muster.garrison, 'sellsword', TYPES.sellsword.count, `${h.short} sellswords`);
-    if (muster.visible) w.log(`${h.name} has hired sellswords at ${muster.name}.`, 2);
-  }
+  // A rich lord at war hires a mercenary company rather than sit on his gold, and pays
+  // its wages from then on (companies.js).
+  if (!h.bandit && w.time > (ai.hiredAt ?? -Infinity) + 300 && rivalHire(w, h, muster)) ai.hiredAt = w.time;
 
   // Send men beyond what each place keeps at home to the muster place.
   for (const p of mine) {

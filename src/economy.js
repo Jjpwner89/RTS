@@ -126,6 +126,23 @@ export const TAXES = [
 // Hired men, paid in gold at the keep. They cost no villagers.
 export const HIRES = ['sellsword', 'hiredxbow', 'household'].map(k => ({ key: k, name: TYPES[k].name, count: TYPES[k].count, gold: TYPES[k].gold * TYPES[k].count }));
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
+// Town templates, from the rank of Lord: a block of buildings laid out at once round the
+// spot you pick, the first in the middle. Each has a focus; sizes by population come later.
+export const TEMPLATES = {
+  hamlet: { name: 'Houses round a well', icon: 'well', focus: 'Homes', list: ['well', 'house', 'house', 'house', 'house', 'house'],
+    desc: 'Five houses round a well: room for thirty more people, and a little cheer.' },
+  market: { name: 'Market square', icon: 'market', focus: 'Trade', list: ['market', 'well', 'storehouse', 'house', 'house', 'house', 'house'],
+    desc: 'A market with a well and a storehouse, ringed by houses: gold and good cheer.' },
+  workshops: { name: 'Workshop yard', icon: 'carpenter', focus: 'Production', list: ['storehouse', 'carpenter', 'smelter', 'tanner', 'house', 'house'],
+    desc: 'A storehouse with a carpenter, a smelter and a tanner beside it, and homes for their workers.' },
+  barracks: { name: 'Barracks yard', icon: 'barracks', focus: 'Military', list: ['barracks', 'weaponsmith', 'carpenter', 'storehouse', 'house', 'house'],
+    desc: 'A barracks with the smith and carpenter that arm it, a storehouse, and homes.' },
+};
+export const templateCost = t => {
+  const c = {};
+  for (const k of TEMPLATES[t].list) for (const [g, n] of Object.entries(BUILDINGS[k].cost)) c[g] = (c[g] || 0) + n;
+  return c;
+};
 
 // What each villager needs to become a soldier of that type (battle.js sets the kits).
 // Engines are raised at the siege workshop: their cost once, and a full crew.
@@ -462,8 +479,8 @@ export class Town {
 
   // The cost is set aside at once, and carried to the site before builders can finish.
   // `ready` puts up a finished building for free (villages that start with some).
-  place(kind, x, z, { ready = false } = {}) {
-    const check = ready ? { ok: true } : this.canPlace(kind, x, z);
+  place(kind, x, z, { ready = false, free = false } = {}) {
+    const check = ready ? { ok: true } : this.canPlace(kind, x, z, { free });
     if (!check.ok) return check;
     const B = BUILDINGS[kind];
     for (const t of this.nodes.tree) if (t.standing && Math.hypot(t.x - x, t.z - z) < B.radius + 2) this.trees.fell(t);
@@ -474,6 +491,29 @@ export class Town {
     this.buildings.push(b);
     this.stockCache = null;
     return { ok: true, building: b };
+  }
+
+  // Lays out a town template round (x, z): the first building as near the spot as it fits,
+  // the rest in rings round it. All of it must be affordable at once.
+  placeTemplate(name, x, z) {
+    const T = TEMPLATES[name];
+    if (!T) return { ok: false, reason: 'No such template' };
+    const cost = templateCost(name);
+    if (!this.canAfford(cost)) return { ok: false, reason: `Needs ${listCost(cost)}` };
+    const placed = [];
+    for (const kind of T.list) {
+      let done = false;
+      for (let r = 0; r <= 48 && !done; r += 3) {
+        const steps = r ? Math.max(6, Math.round(r * 0.9)) : 1;
+        for (let i = 0; i < steps && !done; i++) {
+          const a = (i / steps) * Math.PI * 2 + r * 0.37;
+          const res = this.place(kind, x + Math.sin(a) * r, z + Math.cos(a) * r, { free: true });
+          if (res.ok) { placed.push(res.building); done = true; }
+        }
+      }
+    }
+    if (!placed.length) return { ok: false, reason: 'No room here' };
+    return { ok: true, placed: placed.length, of: T.list.length };
   }
 
   demolish(b) {
@@ -671,6 +711,7 @@ export class Town {
       add(TAXES[this.taxes].mood, TAXES[this.taxes].name.toLowerCase());
       add(this.population >= this.housing ? -5 : 0, 'crowded homes');
       add(-Math.round(Math.min(35, this.grief)), 'mourning the dead');
+      for (const f of this.moodHooks || []) add(...f());
       add(this.underAttack ? -10 : 0, 'under attack');
       this.moodWhy = why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
       this.moodWant = Math.max(0, Math.min(100, 50 + why.reduce((n, [k]) => n + k, 0)));

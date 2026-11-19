@@ -29,7 +29,7 @@ const PLANS = {
 const GROW = {
   farming: ['farm', 'mill', 'bakery', 'farm', 'well'],
   military: ['mine', 'smelter', 'carpenter', 'weaponsmith', 'woodcutter'],
-  trade: ['market', 'storehouse', 'farm', 'woodcutter'],
+  trade: ['market', 'carpenter', 'storehouse', 'farm', 'woodcutter'],
   production: ['mine', 'smelter', 'woodcutter', 'quarry', 'carpenter'],
 };
 // How big a place can grow: people and buildings, before its size factor.
@@ -159,18 +159,23 @@ function nextBuild(e) {
   if (e.pop >= housing(e) - 3 && housing(e) < (e.maxPop ?? 120)) return 'house';
   if (e.planAt < plan.length) return plan[e.planAt];
   if ((s.wood || 0) < 40) return 'woodcutter';
-  // a little more of its trade, now and then
-  if (builtCount(e) % 2) return null;
+  // a little more of its trade, every other turn
+  e.rests = (e.rests || 0) + 1;
+  if (e.rests % 2) return null;
   const more = GROW[e.focus] || GROW.farming;
   return more[(e.grown || 0) % more.length];
 }
 
 function build(e) {
   const k = nextBuild(e), cost = BUILDINGS[k]?.cost;
-  if (!cost || !Object.entries(cost).every(([g, q]) => (e.stock[g] || 0) >= q)) return false;
+  const plan = PLANS[e.focus] || PLANS.farming, more = GROW[e.focus] || GROW.farming;
+  if (!cost || !Object.entries(cost).every(([g, q]) => (e.stock[g] || 0) >= q)) {
+    // Something it can't pay for yet: when growing, try the next thing on the list instead.
+    if (cost && e.planAt >= plan.length && more[(e.grown || 0) % more.length] === k) e.grown = (e.grown || 0) + 1;
+    return false;
+  }
   for (const [g, q] of Object.entries(cost)) e.stock[g] -= q;
   add(e, k);
-  const plan = PLANS[e.focus] || PLANS.farming, more = GROW[e.focus] || GROW.farming;
   if (e.planAt < plan.length) { if (plan[e.planAt] === k) e.planAt++; }
   else if (more[(e.grown || 0) % more.length] === k) e.grown = (e.grown || 0) + 1;
   return k;

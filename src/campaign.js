@@ -19,8 +19,11 @@ import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
 import { canSave, saveGame, readSave, loadGame } from './world/save.js';
 import { KINDS } from './world/realm.js';
-import { BUILDINGS } from './economy.js';
-import { worth, FOCUS_NAMES, WEALTH } from './world/holdings.js';
+import { BUILDINGS, TEMPLATES } from './economy.js';
+const ghostKind = k => k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
+import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
+import { offer, wage, hire as hireCompany, release } from './world/companies.js';
+import { vassalOf, holdingsOf, living, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
@@ -55,6 +58,11 @@ const hooks = {
     dropBundle(p);
   },
   captured: () => {},
+  granted: p => {
+    if (mode === 'town' && current.poi === p) showWorld();
+    dropBundle(p);
+    selected = p;
+  },
   // A place you stormed is won, beaten off, or given up.
   stormEnded: (p, won, chose) => {
     const here = mode === 'town' && current.poi === p;
@@ -77,6 +85,7 @@ const hooks = {
     showResult('You are crowned', `${how} Long live the king.`, 'Continue', () => crownedThenNorth());
   },
   herald: msg => herald(msg),
+  rankUp: () => { audio.play('drums'); setTimeout(() => audio.play('horn'), 900); },
   offer: o => asks.push({ kind: 'offer', ...o }),
 };
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks);
@@ -129,12 +138,23 @@ function townBundle(p) {
     focus: r => b.controls.focus([r]),
     startPlacing: kind => { st.placing = kind; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
+    templates: () => world.rank !== 'Reeve',
+    companies: () => (world.companies || []).map(c => {
+      const o = offer(world, c, 0), boss = c.employer !== null && c.employer !== undefined ? FACTIONS[c.employer] : null;
+      const where = world.byId[c.home]?.name;
+      return { id: c.id, name: c.name, size: c.size, unit: TYPES[c.key].name.toLowerCase(), wage: wage(c), ok: o.ok, why: o.why,
+        status: c.employer === 0 ? 'in your service' : o.ok ? `${o.price} gold${o.outbid ? ` (outbid ${boss.name})` : ''}${where ? ` · at ${where}` : ''}` : o.why };
+    }),
+    hireCompany: id => { const c = world.companies.find(o => o.id === id); return hireCompany(world, c, 0, p); },
+    companyOf: r => (world.companies || []).find(c => c.employer === 0 && c.name === r.name),
+    dismissCompany: r => { const c = (world.companies || []).find(o => o.employer === 0 && o.name === r.name); if (c) release(world, c, 'dismissed'); },
     findAttackers: () => b.controls.focus(town.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.routing)),
     place: (g, e) => {
       if (!st.placing) return false;
       if (town.hostile) { st.placing = null; return true; }
       if (!g) return true;
-      const res = town.place(st.placing, g.x, g.z);
+      const res = st.placing.startsWith('tpl:') ? town.placeTemplate(st.placing.slice(4), g.x, g.z) : town.place(st.placing, g.x, g.z);
+      if (res.ok && res.of) townHud.flash(res.placed < res.of ? `Laid out ${res.placed} of ${res.of}: no room for the rest` : 'Laid out');
       // The same building stays in hand, to place several; right-click or Esc ends it.
       if (!res.ok) townHud.flash(res.reason);
       return true;
@@ -460,10 +480,10 @@ function worldPanel() {
   const waitingAt = it && it.units && it.at && !it.path.length ? it.at : null;
   if (it?.house) return housePanel(el, it.house);
   const company = waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).length : 0;
-  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}`;
+  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}:${it.vassal || ''}:${living(world).map(v => v.id).join('.')}`;
   if (key !== panelKey) {
     panelKey = key;
-    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div>`
+    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div>`
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
@@ -475,12 +495,20 @@ function worldPanel() {
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
+        + (own && world.rank !== 'Reeve' && world.home !== it ? `<div class="grant"><p class="note">Give it to a vassal to run for you: a share of its gold and men, and one less village to watch. You can take it back.</p>`
+          + `<button data-act="grant" class="wide" data-f="grant">${ico('crown')} Give it to a new vassal</button>`
+          + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('') + '</div>' : '')
+        : it.vassal ? `<div data-f="vassal"></div>
+          <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please him">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger him">+</button></div>
+          <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please him">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger him">+</button></div>
+          <div class="row"><button data-act="v:gift">${ico('gold', '#e8c45a')} Gift (${GIFT} gold)</button><button data-act="v:council" data-f="council"></button></div>
+          <button data-act="revoke" class="wide warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button>`
         : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
   if (!it) {
     const held = world.pois.filter(p => p.owner === 0);
-    const men = held.reduce((n, p) => n + p.town.garrison().reduce((k, r) => k + r.alive, 0), 0)
+    const men = held.reduce((n, p) => n + (p.town ? p.town.garrison().reduce((k, r) => k + r.alive, 0) : headcount(p.garrison)), 0)
       + world.armies.filter(a => a.side === 0).reduce((n, a) => n + headcount(a.units), 0);
     set('rank', world.crowned ? (world.part === 2 ? 'King of the realm · the north is at war with you' : 'King of the realm') : `${world.rank} of ${world.home.owner === 0 ? world.home.name : 'nowhere'}`);
     set('realm', `${held.length} of ${world.pois.length} places held · ${men} soldiers`);
@@ -497,6 +525,16 @@ function worldPanel() {
       return `<div class="h${h.alive ? "" : " gone"}${met && h.alive ? ' pick' : ''}" data-house="${h.index}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${mood(d.opinion).toLowerCase()}` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : tie}</small></div>`;
     }).join('') + (world.invader !== null ? (h => `<div class="h${h.alive ? '' : ' gone'}"><i style="background:${h.color}"></i><span>${h.lord}<br><small>${h.name} · no terms</small></span><small class="war">${h.alive ? 'at war' : 'broken'}</small></div>`)(FACTIONS[world.invader]) : '') + (unmet.length ? `<div class="h unmet"><i style="background:#8a8478"></i><span>${unmet.length === FACTIONS.slice(1, world.bandits).length ? `${unmet.length} great houses` : `${unmet.length} more house${unmet.length > 1 ? 's' : ''}`}<br><small>not yet met: explore to find their lands</small></span><small></small></div>` : '');
     if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }
+    // Your vassals, after Crusader Kings 2: one opinion number, the reasons on hover.
+    const vl = el.querySelector('[data-f="vassals"]'), vs = living(world);
+    const vrows = vs.length ? `<h4>Vassals</h4>` + vs.map(v => {
+      const o = opinion(world, v), held = holdingsOf(world, v);
+      const men = held.reduce((n, p) => n + headcount(p.garrison), 0);
+      const initials = v.name.split(' ').slice(1).map(w => w[0]).join('');
+      const why = o.why.map(([n, t]) => `${n > 0 ? '+' : ''}${n} ${t}`).join('\n');
+      return `<div class="h pick" data-vassal="${v.id}" title="${moodWord(o.total)}\n${why}"><i class="shield" style="background:${v.color}">${initials}</i><span>${v.name}${v.council ? ` ${ico('crown', '#e8c45a')}` : ''}<br><small>${held.map(p => p.name).join(', ')} · ${men} men · paid ${Math.floor(v.paid)}${v.refusing ? ' · <b class="war">refusing</b>' : ''}</small></span><b class="op" style="color:${moodColor(o.total)}">${o.total > 0 ? '+' : ''}${o.total}</b></div>`;
+    }).join('') : '';
+    if (vl && vl.dataset.html !== vrows) { vl.dataset.html = vrows; vl.innerHTML = vrows; }
   } else if (it.wagon) {
     set('men', `${it.wagon.food} food`);
     set('status', it.wagon.to.gone ? `Going back to ${it.wagon.from.name}` : `On the way to ${it.wagon.to.name}`);
@@ -519,15 +557,28 @@ function worldPanel() {
     set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
   } else {
     const who = it.visible ? it.owner : it.known?.owner;
-    const whoText = !it.seen ? 'Unexplored' : who === null ? 'Free folk with their own militia' : who === 0 ? 'Yours' : `Held by ${FACTIONS[who].name}${world.atWar(0, who) ? ' (at war with you)' : ''}`;
+    const lord = vassalOf(world, it);
+    const whoText = !it.seen ? 'Unexplored' : who === null ? 'Free folk with their own militia' : lord ? `Yours, held for you by <b style="color:${lord.color}">${lord.name}</b>` : who === 0 ? 'Yours' : `Held by ${FACTIONS[who].name}${world.atWar(0, who) ? ' (at war with you)' : ''}`;
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     if (it.town) {
+      const can = world.canGrant(it);
+      for (const b of el.querySelectorAll('[data-act^="grant"]')) { b.disabled = !can.ok; b.title = can.ok ? '' : can.why; }
       set('men', `${it.town.population} villagers · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers`);
       set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
     } else {
       set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
       set('intel', intelText(it));
+      if (lord) {
+        const o = opinion(world, lord), e = it.eco, T = TEMPERS[lord.temper];
+        set('vassal', `<p title="${o.why.map(([n, t]) => `${n > 0 ? '+' : ''}${n} ${t}`).join('\n')}"><b style="color:${moodColor(o.total)}">${moodWord(o.total)} (${o.total > 0 ? '+' : ''}${o.total})</b> · ${T.name}: ${T.about}</p>`
+          + `<p class="note">Wants ${WANTS[lord.want].text}. Hover the opinion for the reasons.</p>`
+          + `<p>${Math.round(e.pop)} people · ${builtCount(e)} buildings · stores worth about ${worth(e.stock)} gold</p>`
+          + `<p>Has paid you ${Math.floor(lord.paid)} gold and sent ${lord.sent} men${lord.refusing ? ' · <b class="war">refuses dues and levies</b>' : ''}</p>`);
+        set('dues', `${DUES[lord.dues].name} (${Math.round(DUES[lord.dues].share * 100)}%)`);
+        set('levy', `${LEVIES[lord.levy].name} (${Math.round(LEVIES[lord.levy].share * 100)}%)`);
+        set('council', lord.council ? 'Off your council' : `${ico('crown')} Seat on your council`);
+      }
       const btn = el.querySelector('[data-f="spy"]'), can = world.canSpy(it), going = world.spies.some(s => s.at === it.id);
       if (btn) {
         btn.hidden = !it.seen || it.owner === 0 || !it.eco?.buildings;
@@ -574,6 +625,8 @@ function housePanel(el, h) {
 }
 
 $('wpanel').onclick = e => {
+  const vrow = e.target.closest('[data-vassal]');
+  if (vrow) { const v = world.vassals.find(o => o.id === +vrow.dataset.vassal); selected = v && holdingsOf(world, v)[0] || null; return; }
   const row = e.target.closest('[data-house]');
   if (row && row.classList.contains('pick')) { selected = { house: FACTIONS[+row.dataset.house] }; return; }
   const dip = e.target.closest('[data-dip]');
@@ -588,6 +641,17 @@ $('wpanel').onclick = e => {
   if (act === 'back') { selected = null; return; }
   if (act === 'enter') enterTown(it);
   if (act === 'spy' && it && world.sendSpy(it)) panelKey = null;
+  if (act?.startsWith('grant') && it) {
+    const to = act.includes(':') ? world.vassals.find(v => v.id === +act.split(':')[1]) : null;
+    const v = world.grant(it, to);
+    if (v) flash(`${it.name} is now held for you by ${v.name}.`, true);
+    panelKey = null;
+  }
+  if (act?.startsWith('v:') && it) {
+    const r = world.vassalAct(vassalOf(world, it), act.slice(2));
+    if (r.text) flash(r.text, r.ok);
+  }
+  if (act === 'revoke' && it && world.revoke(it)) panelKey = null;
   if (act === 'muster') {
     const regs = it.town.garrison().filter(r => !r.routing && !r.regrouping);
     const a = regs.length ? world.muster(it, regs) : null;
@@ -697,7 +761,8 @@ function frame(now) {
       const st = b.st;
       if (st.selected?.removed) st.selected = null;
       b.townView.update(st.selected);
-      b.townView.showGhost(st.placing, st.hoverAt, st.placing && st.hoverAt && b.town.canPlace(st.placing, st.hoverAt.x, st.hoverAt.z).ok);
+      const ghost = ghostKind(st.placing);
+      b.townView.showGhost(ghost, st.hoverAt, ghost && st.hoverAt && b.town.canPlace(ghost, st.hoverAt.x, st.hoverAt.z, { free: ghost !== st.placing }).ok);
       townHud.update(st.selected, [...b.controls.selection], st.placing);
     }
   }

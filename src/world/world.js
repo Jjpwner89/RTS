@@ -4,6 +4,8 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
+import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, DUES, LEVIES, COUNCIL, GIFT } from './vassals.js';
+import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
@@ -110,12 +112,15 @@ function remember(t, side, time) {
   const pieces = W.pieces.filter(p => p.side === side && p.state !== 'site' && idx.has(p.a) && idx.has(p.b))
     .map(p => ({ a: idx.get(p.a), b: idx.get(p.b), material: p.material, gate: p.gate, broken: p.state === 'broken' }));
   return { at: time, keepLevel: t.keepLevel, centre: W.centre[side],
-    buildings: t.buildings.filter(b => b.state === 'active').map(b => ({ kind: b.kind, x: b.x, z: b.z })), nodes, pieces };
+    buildings: t.buildings.filter(b => b.state === 'active').map(b => ({ kind: b.kind, x: b.x, z: b.z, level: b.level || 1 })), nodes, pieces };
 }
 
 // Puts a remembered place back up for `side`. Left long enough, its holders mend the walls.
 function rebuild(town, mem, side, mended) {
-  for (const b of mem.buildings) town.place(b.kind, b.x, b.z, { ready: true });
+  for (const b of mem.buildings) {
+    const r = town.place(b.kind, b.x, b.z, { ready: true });
+    if (r.ok && b.level > 1) r.building.level = b.level;
+  }
   if (mem.keepLevel) town.keepLevel = mem.keepLevel;
   if (!mem.pieces.length && !mem.nodes.some(n => n.tower)) return false;
   const W = town.battle.walls;
@@ -181,6 +186,7 @@ export class World {
     this.wall = { points: this.beyond.wall, fallen: false, breaches: [] };
     this.ecoClock = 0;
     this.spies = [];
+    this.vassals = [];
     this.sightClock = 0;
     startHouseMinds(this);
     startDiplomacy(this);
@@ -305,13 +311,18 @@ export class World {
     const lvl = e.level;
     const pace = h?.trait === 'builder' ? 1.15 : h?.trait === 'raider' || h?.trait === 'hothead' ? 1.05 : 1;
     const traded = runEconomy(p, dt, { pace });
-    const taxes = dt * e.pop * 0.004 * K.gold * (h?.trait === 'merchant' ? 1.5 : 1);
-    if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
+    const v = vassalOf(this, p);
+    // A vassal taxes as your own villages do (fair taxes, a middling mood); rival lords'
+    // books are kept rougher.
+    const taxes = dt * e.pop * K.gold * (v ? 0.012 * 0.9 : 0.004 * (h?.trait === 'merchant' ? 1.5 : 1));
+    // A vassal keeps what his village earns, less your dues.
+    if (v) FACTIONS[0].gold += share(this, v, taxes + traded);
+    else if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
     else e.gold += taxes * 0.5 + traded;
     const want = this.keepHome(p), have = headcount(p.garrison);
     if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * 0.4)))
-      recruit(p.garrison, u.key, u.count, h ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`);
-    if (h && !h.bandit) h.arms += kits(e);
+      recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`);
+    if (h && !h.bandit && !v) h.arms += kits(e);
     if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
   }
 
@@ -360,6 +371,8 @@ export class World {
     town.purse = FACTIONS[0];
     town.onFall = () => { p.falling = true; };
     town.rebelHouse = this.bandits;
+    // Hired companies stationed here weigh on the village's mood.
+    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village']];
     town.onRebel = n => {
       if (p.owner !== 0) return;
       this.log(`${n} villagers of ${p.name} have risen in revolt!`, 1);
@@ -468,7 +481,7 @@ export class World {
       this.removeArmy(guard);
       this.log(`${guard.name} falls back into ${p.name} to meet them.`);
     } else if (guard && this.atWar(a.side, 0)) { this.ask({ kind: 'field', army: guard, enemy: a, poi: p, then: () => this.arrive(a, p, came) }); return; }
-    if (p.owner === 0) this.attackTown(a, p, came);
+    if (p.owner === 0 && p.town) this.attackTown(a, p, came);
     else if (a.mode === 'raid') this.autoRaid(a, p);
     else this.autoAssault(a, p);
   }
@@ -505,6 +518,20 @@ export class World {
       men += headcount(a.units);
       from++;
       if (!this.order(a, dest)) this.enterTown(a, p, p);
+    }
+    // Vassals send their share of their men, unless they are too aggrieved to.
+    for (const p of this.pois) {
+      const v = vassalOf(this, p);
+      if (!v || p === dest || p.owner !== 0) continue;
+      if (v.refusing) { this.log(`${v.name} sends nobody from ${p.name}.`, 1); continue; }
+      const units = takeUnits(p.garrison, power(p.garrison) * LEVIES[v.levy].share);
+      if (!units.length) continue;
+      const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
+      men += headcount(units);
+      from++;
+      v.sent += headcount(units);
+      recall(this, v, `Sent ${headcount(units)} men to your banners at ${dest.name}`);
+      if (!this.order(a, dest)) { mergeInto(p.garrison, units); this.removeArmy(a); }
     }
     const here = dest.town ? dest.town.garrison().reduce((n, r) => n + r.alive, 0) : 0;
     this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} village${from > 1 ? 's' : ''}, to join ${here} there.` : `The banners are called, but no other village has men to send. ${here} stand ready at ${dest.name}.`);
@@ -648,6 +675,14 @@ export class World {
   takePlace(p, owner) {
     const was = p.owner;
     p.owner = owner;
+    const v = vassalOf(this, p);
+    if (v) {
+      p.vassal = null;
+      recall(this, v, `Lost ${p.name} to ${FACTIONS[owner]?.name || 'free folk'}`);
+      this.log(`${v.name} has lost ${p.name}.`, 1);
+      for (const o of living(this)) if (o !== v) mark(this, o, -8, `You let ${p.name} fall`, 1200);
+    }
+    if (owner === 0 && was !== null && was !== 0) for (const o of living(this)) mark(this, o, 4, 'Your victories', 900);
     if (was !== null && FACTIONS[was]?.seat === p) {
       // (you fall back to a village you run yourself, the biggest first)
       const size = q => q.town ? 1000 + q.town.population : q.eco?.pop ?? 0;
@@ -822,7 +857,9 @@ export class World {
         if (p.owner !== null && FACTIONS[p.owner]) FACTIONS[p.owner].gold = Math.max(0, FACTIONS[p.owner].gold - loss * 2);
         FACTIONS[a.side].gold += loss * 2;
       }
-      if (p.visible) this.log(`${FACTIONS[a.side].short} raiders burned the edges of ${p.name}.`, 2);
+      if (p.visible) this.log(`${FACTIONS[a.side].short} raiders burned the edges of ${p.name}.`, p.owner === 0 ? 1 : 2);
+      const v = vassalOf(this, p);
+      if (v) { mark(this, v, -6, 'Raided while you looked on', 600); recall(this, v, `${p.name} was raided by ${FACTIONS[a.side].name}`); }
     } else p.garrison = r.D;
     this.retreat(a);
   }
@@ -899,6 +936,19 @@ export class World {
   }
 
   // ---- the end ----
+
+  // Each rank brings new tools and new trouble, with a moment when you reach it.
+  checkRank() {
+    const ORDER = ['Reeve', 'Lord', 'Count', 'Duke', 'King'], now = ORDER.indexOf(this.rank);
+    const seen = ORDER.indexOf(this.rankSeen || 'Reeve');
+    if (now <= seen) return;
+    this.rankSeen = this.rank;
+    const R = RANKS[this.rank];
+    if (!R) return;
+    this.log(`You are now ${R.title}. ${R.tools}`, 0);
+    this.hooks.herald?.({ house: FACTIONS[0], title: `You are ${R.title}`, text: `${R.tools} ${R.trouble}` });
+    this.hooks.rankUp?.(this.rank);
+  }
 
   // Your rank follows how much of the realm you hold.
   get rank() {
@@ -986,11 +1036,97 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this); tickCompanies(this, 5); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
     thinkDiplomacy(this, dt);
+  }
+
+  // ---- vassals ----
+  // From the rank of Lord you may give a village to a vassal, who runs it on the same rules
+  // as every place you don't run yourself. Its streets and walls are remembered, so if you
+  // take it back you find it as you left it, with whatever the vassal built since.
+
+  canGrant(p) {
+    if (p.owner !== 0 || !p.town) return { ok: false, why: 'Not a village of yours' };
+    if (this.rank === 'Reeve') return { ok: false, why: 'From the rank of Lord' };
+    if (p === this.home || FACTIONS[0].seat === p) return { ok: false, why: 'Your seat stays yours' };
+    if (p.town.hostile || p.town.underAttack || p.town.revolt) return { ok: false, why: 'Not while it is fighting' };
+    return { ok: true };
+  }
+
+  // Gives village p to vassal v, or to a new one.
+  grant(p, v = null) {
+    if (!this.canGrant(p).ok) return null;
+    const t = p.town;
+    const men = t.garrison().filter(r => r.alive > 0).map(r => unit(r.T.key, r.alive, r.name));
+    const people = t.villagers.filter(o => o.state !== 'soldier').length;
+    p.mem = remember(t, 0, this.time);
+    const eco = fromTown(t, { kept: 1 });
+    eco.pop = Math.max(10, people);
+    Object.assign(p, { town: null, garrison: men, eco });
+    if (v) {
+      mark(this, v, 12, `Given ${p.name}`, Infinity);
+      recall(this, v, `Given ${p.name} by you`);
+    } else v = makeVassal(this, p);
+    p.vassal = v.id;
+    this.log(`You have given ${p.name} to ${v.name}.`);
+    this.hooks.granted?.(p, v);
+    return v;
+  }
+
+  // Takes a village back from its vassal. It stands as you left it, with what the vassal
+  // built since laid out around your streets. The other vassals take note.
+  revoke(p) {
+    const v = vassalOf(this, p);
+    if (!v || p.owner !== 0) return false;
+    const e = p.eco, men = p.garrison;
+    const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(e.pop))), retinue: false, stock: stores(e) });
+    if (p.mem) rebuild(town, p.mem, 0, true);
+    p.mem = null;
+    layOut(town, p, e.level, town.rand);
+    p.eco = null;
+    p.vassal = null;
+    if (men.length) town.addTroops(men, this.angle(p, p.links[0]));
+    recall(this, v, `${p.name} was taken back by you`);
+    if (!holdingsOf(this, v).length) v.gone = true;
+    else mark(this, v, -30, `You took ${p.name} back`, 2400);
+    for (const o of living(this)) if (o !== v) mark(this, o, -12, `You took ${p.name} from ${v.name}`, 1800);
+    this.log(`You have taken ${p.name} back from ${v.name}.`, 1);
+    return true;
+  }
+
+  // What you can do for or to a vassal, from the place panel.
+  vassalAct(v, act) {
+    if (!v || v.gone) return { ok: false };
+    const me = FACTIONS[0];
+    if (act === 'dues+' || act === 'dues-' || act === 'levy+' || act === 'levy-') {
+      const k = act.startsWith('dues') ? 'dues' : 'levy', up = act.endsWith('+');
+      const was = v[k];
+      v[k] = Math.max(0, Math.min(2, v[k] + (up ? 1 : -1)));
+      if (v[k] === was) return { ok: false };
+      // Raising what he owes stings for a while on top of the standing grievance.
+      if (up) mark(this, v, -6, 'You raised what is owed', 900);
+      recall(this, v, `${k === 'dues' ? 'Dues' : 'Levies'} set to ${(k === 'dues' ? DUES : LEVIES)[v[k]].name.toLowerCase()}`);
+      return { ok: true };
+    }
+    if (act === 'gift') {
+      if (me.gold < GIFT) return { ok: false, text: `Needs ${GIFT} gold` };
+      me.gold -= GIFT;
+      v.gold += GIFT;
+      mark(this, v, 15, 'Your gifts', 900);
+      recall(this, v, `Received a gift of ${GIFT} gold`);
+      return { ok: true, text: `${v.name} thanks you for the gift.` };
+    }
+    if (act === 'council') {
+      if (!v.council && living(this).filter(o => o.council).length >= COUNCIL) return { ok: false, text: `Your council has ${COUNCIL} seats` };
+      v.council = !v.council;
+      if (!v.council) mark(this, v, -10, 'Put off your council', 1200);
+      recall(this, v, v.council ? 'Given a seat on your council' : 'Put off your council');
+      return { ok: true };
+    }
+    return { ok: false };
   }
 
   // ---- spies ----
@@ -1071,6 +1207,16 @@ export class World {
 }
 
 export function unit(key, count, name) { return { key, count, name }; }
+
+// What each rank brings (the crown has its own moment).
+const RANKS = {
+  Lord: { title: 'a lord', tools: 'You may give villages to vassals to run for you, lay out whole quarters from town templates, and call the banners.',
+    trouble: 'Vassals have minds of their own: watch what they think of you.' },
+  Count: { title: 'a count', tools: 'Your villages with a strong keep may raise a knights\' hall for elite men.',
+    trouble: 'The great houses take you seriously now, and a slighted vassal may stop paying.' },
+  Duke: { title: 'a duke', tools: 'Half the realm looks to you; the crown is within reach.',
+    trouble: 'Every house measures itself against you now.' },
+};
 
 // The north fights in great numbers, with heavy foot and horse when the battle code has them.
 function northGarrison(p, rand) {
