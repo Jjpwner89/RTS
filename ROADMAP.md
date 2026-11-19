@@ -27,7 +27,7 @@ Difficulty settings come later. Now the job is one fair base game.
 Small, high-value fixes to everyday play (creator, 2026-11-19); they can go in early.
 
 - Keep placing and the B-letter hotkeys are built (see DESIGN_NOTES).
-- **Neighbourhoods**: once you have levelled up a bit, place a block of buildings at once, such as a cluster of houses round a well. The small first step toward town templates (§2).
+- **Neighbourhoods**: covered by the town templates (§2), which place a block of buildings at once.
 - **Three kinds of cart on the roads**, all of which can be raided (enemy armies that meet a wagon take what it carries):
   - **Trade caravans** carry gold between market towns (the trade carts in §8).
   - **Supply trains** feed armies (the food wagons; extend as needed).
@@ -44,6 +44,8 @@ Rank today is only a title worked out from places held. Each rank should change 
 | Duke | Bigger regiments; plan campaigns and sieges from the map | Coalitions of houses against a player who grows too strong |
 | King | Royal decrees: laws on levies, taxes and the crown's peace, each with a trade-off | Great vassals with claims; then Part 2 |
 
+- **Done (2026-11-19):** rank-up moments (a herald, drums then a horn, and what the new rank opens), vassals, town templates, mercenary companies and the knights' hall, below and in DESIGN_NOTES. Still to do from the table: captains and one muster from many villages (Count), bigger regiments and campaign planning (Duke), coalitions (§6), royal decrees (King).
+
 ### Vassals
 
 A vassal runs a town for you: builds it up, raises troops and pays gold. But he has **his own interests**.
@@ -55,6 +57,8 @@ A vassal runs a town for you: builds it up, raises troops and pays gold. But he 
   - **Factions**: unhappy vassals band together to demand lower dues, independence or a different king, and rise if refused.
   - **Rewards and punishments**: grant land, give a seat on your council, revoke a holding (others take note), imprison or pardon.
 - **On screen, after Crusader Kings 2**: a plain vassal list with each lord's shield, the town he holds, his troops and gold paid, and **one opinion number** coloured green to red. Hovering it shows the reasons. A small icon marks anyone in a faction. That's all the screen needs.
+- **Built (2026-11-19):** grant a village (from Lord), the realm's vassal list and one opinion number with reasons on hover, a temper and one want each, dues and levies up or down, gifts, three council seats, taking a village back (the others take note), a lord too aggrieved stops paying and sending men, and each lord's short memory of what happened to him. His village runs on the tracked economy and keeps your layout.
+- **Not built yet:** feuds between vassals, factions and their demands, imprison or pardon, marriages and titles as ambitions, and going into a vassal's town (it opens only when you take it back).
 
 ### Town templates
 
@@ -67,6 +71,17 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
   - **Production**: workshops and the long chains.
   - **Trade**: markets, roads, storehouses, gold.
 - It will take time to develop; start with one focus and one size and grow from there.
+- **Built (2026-11-19):** four templates in the build bar's Towns tab from Lord (hamlet, market square, workshops, barracks quarter), each placed in rings round where you click and paid for whole. Not yet: sizes by population, and resource buildings placed near their resources.
+
+### Knights' hall (creator, 2026-11-19)
+
+- **Built:** from Count, with a keep of level 3 or more; finishing the first one is a milestone (herald, music). Men-at-arms and knights train there now, not in the barracks: only from **veterans** (villagers who fought as levies and came home), in batches of up to 6, for their kit, a fee in gold and minutes of drill each, up to 24 men per hall. They march out a little more seasoned than the veterans they were.
+- **Not yet:** rivals building halls and training elites by the same rules (they still raise them from their economy), and its own icon (it uses the barracks icon; asked of Art).
+
+### Mercenary companies (creator, 2026-11-19)
+
+- **Built:** six named companies with captains, waiting at the market towns, fords and the crown. A price to hire, then wages every minute from the treasury; unpaid they grumble, then desert, and many take to the roads as bandits. Each company stationed in a village costs it 4 mood ("sellswords in the village"). Rivals hire them on the same terms (Penhallow, the merchant house, most readily, even at peace) and pay wages too, and you can outbid a rival at twice the price. The household guard stays a one-off purchase.
+- Unit stats are Battles' to change; companies use the existing sellsword and hired crossbow stats.
 
 ## 3. Tools for managing attention (Realm, small hooks in Battles)
 

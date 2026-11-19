@@ -8,7 +8,7 @@
 import { audio } from './audio.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
-import { TYPES } from './battle.js';
+import { TYPES, vetRank, VET_RANKS } from './battle.js';
 
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
@@ -111,6 +111,8 @@ export const BUILDINGS = {
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
   watchtower: { name: 'Watchtower', icon: 'watchtower', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
     desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
+  hall: { name: "Knights' hall", icon: 'barracks', group: 'Military', cost: { planks: 40, stone: 60 }, radius: 7, build: 45, hp: 400, hall: true,
+    desc: "Trains veterans into men-at-arms and knights: slow, costly and worth it. From the rank of Count, in a village whose keep is level 3." },
 };
 // Building upgrades: gold and goods, once the village is big enough. Each level works
 // faster, houses hold more and stores keep more haulers.
@@ -148,6 +150,14 @@ export const templateCost = t => {
 // Engines are raised at the siege workshop: their cost once, and a full crew.
 export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 'maa', 'lightcav', 'cav', 'knight']
   .map(k => [k, { name: TYPES[k].name, kit: TYPES[k].kit }]));
+// Elite men come only from a knights' hall, trained from veterans: a few at a time, for
+// their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most.
+export const ELITE = {
+  maa: { fee: 8, drill: 45 },
+  knight: { fee: 20, drill: 75 },
+};
+export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least experience (Blooded)
+const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : t.population >= 150 ? 5 : t.population >= 100 ? 4 : t.population >= 60 ? 3 : t.population >= 30 ? 2 : 1;
 export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuchet']
   .map(k => [k, { name: TYPES[k].name, cost: TYPES[k].cost, crew: TYPES[k].count }]));
 
@@ -460,6 +470,10 @@ export class Town {
   canPlace(kind, x, z, { free = false } = {}) {
     const B = BUILDINGS[kind], p = { x, z };
     if (!free && !this.canAfford(B.cost)) return { ok: false, reason: `Needs ${listCost(B.cost)}` };
+    if (B.hall) {
+      const why = this.hallRule?.() || (keepLevel(this) < 3 ? 'Needs a keep of level 3 (60 people)' : null);
+      if (why) return { ok: false, reason: why };
+    }
     if (Math.hypot(x, z) > this.territory) return { ok: false, reason: 'Outside your land' };
     if (Math.hypot(x, z) < KEEP.radius + B.radius + 3) return { ok: false, reason: 'Too close to the keep' };
     for (const b of this.buildings) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
@@ -575,7 +589,9 @@ export class Town {
     const out = Math.atan2(barracks.x, barracks.z);
     const fx = barracks.x + Math.sin(out) * 16, fz = barracks.z + Math.cos(out) * 16;
     for (const v of men) { this.release(v); v.hidden = false; }
-    const r = this.battle.addRegiment(0, key, fx, fz, out, { count: men.length, from: men, name: `Levy ${KITS[key].name.toLowerCase()}` });
+    // Veterans come home: men who fought before bring their experience back to the levy.
+    const xp = Math.round(men.reduce((n, v) => n + (v.xp || 0), 0) / men.length * 10) / 10;
+    const r = this.battle.addRegiment(0, key, fx, fz, out, { count: men.length, from: men, name: `Levy ${KITS[key].name.toLowerCase()}`, xp });
     r.levy = key;
     r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
     audio.play('drums', barracks, this.battle); // audio: a levy raised
@@ -605,12 +621,88 @@ export class Town {
     for (const s of r.soldiers) {
       if (!s.alive || s.gone || !s.villager) continue;
       const v = s.villager;
-      Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null });
+      Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null, xp: Math.max(v.xp || 0, r.xp || 0) });
       if (KITS[r.levy]) for (const [g, n] of Object.entries(KITS[r.levy].kit)) this.put(rack, g, n);
     }
     this.battle.disband(r);
     this.event(`${r.name} went home to work.`);
     return true;
+  }
+
+  // When a fight in the village is over, the regiments that fought and lived learn from it
+  // (battle.js vetRank): the experience a levy takes home with its men.
+  blooded() {
+    const up = [];
+    for (const r of this.battle.regs) {
+      if (r.side !== 0 || r.gone || r.T.engine || !r.fought || r.alive <= 0) continue;
+      const kills = r.kills - (r.killsSeen || 0);
+      r.killsSeen = r.kills;
+      r.fought = false;
+      r.xp = Math.round(((r.xp || 0) + 1 + Math.min(1, kills / Math.max(1, r.initial))) * 10) / 10;
+      const rank = vetRank(r.xp);
+      if (rank > (r.vet || 0)) { r.vet = rank; up.push(`${r.name} are ${VET_RANKS[rank].toLowerCase()}`); }
+    }
+    if (up.length) this.event(`${up.join('; ')}.`);
+  }
+
+  // ---- the knights' hall ----
+
+  veterans() { return this.villagers.filter(v => v.state !== 'soldier' && (v.xp || 0) >= HALL.veteran); }
+  hallMen(hall) { return this.battle.regs.filter(r => r.hall === hall.id && !r.gone).reduce((n, r) => n + r.alive, 0); }
+
+  trainCheck(key, hall) {
+    const E = ELITE[key];
+    if (hall.state !== 'active') return { ok: false, reason: 'Not built yet' };
+    if (hall.training) return { ok: false, reason: `Training ${hall.training.n} ${KITS[hall.training.key].name.toLowerCase()}` };
+    const room = HALL.cap - this.hallMen(hall);
+    if (room <= 0) return { ok: false, reason: `The hall holds ${HALL.cap} men` };
+    const vets = this.veterans().length;
+    if (!vets) return { ok: false, reason: 'Needs veterans: villagers who fought as levies and came home' };
+    const kit = KITS[key].kit;
+    const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(this.free(g) / n)));
+    const byGold = Math.floor(this.purse.gold / E.fee);
+    const n = Math.min(HALL.batch, room, vets, byKit, byGold);
+    const short = Object.entries(kit).filter(([g, k]) => this.free(g) < k).map(([g]) => GOODS[g].name.toLowerCase());
+    if (n < 1) return { ok: false, reason: byKit < 1 ? `Short of ${short.join(', ')}` : `Needs ${E.fee} gold each` };
+    return { ok: true, n };
+  }
+
+  // Kit and fees are paid now; the veterans drill for minutes before they march out.
+  train(key, hall) {
+    const c = this.trainCheck(key, hall);
+    if (!c.ok) return c;
+    const E = ELITE[key], kit = {};
+    for (const [g, k] of Object.entries(KITS[key].kit)) kit[g] = k * c.n;
+    this.spend(kit);
+    this.purse.gold -= E.fee * c.n;
+    hall.training = { key, n: c.n, left: E.drill * c.n, total: E.drill * c.n };
+    this.event(`${c.n} veterans have begun their training as ${KITS[key].name.toLowerCase()}.`);
+    return { ok: true };
+  }
+
+  updateHalls(dt) {
+    for (const hall of this.buildings) {
+      const T = hall.training;
+      if (!T || hall.state !== 'active') continue;
+      T.left -= dt;
+      hall.status = `Training ${T.n} ${KITS[T.key].name.toLowerCase()}: ${Math.ceil(T.left / 60)} min left`;
+      if (T.left > 0) continue;
+      hall.training = null;
+      hall.status = '';
+      const men = this.veterans().sort((a, b) => (b.xp || 0) - (a.xp || 0)).slice(0, T.n);
+      // Veterans who died meanwhile: their kit goes back to the stores.
+      if (men.length < T.n) for (const [g, k] of Object.entries(KITS[T.key].kit)) this.put(this.keep, g, k * (T.n - men.length));
+      if (!men.length) { this.event('The veterans in training are gone; their kit is back in the stores.'); continue; }
+      for (const v of men) { this.release(v); v.hidden = false; }
+      const xp = Math.max(...men.map(v => v.xp || 0)) + 2;
+      const out = Math.atan2(hall.x, hall.z);
+      const r = this.battle.addRegiment(0, T.key, hall.x + Math.sin(out) * 18, hall.z + Math.cos(out) * 18, out,
+        { count: men.length, from: men, name: KITS[T.key].name, xp });
+      Object.assign(r, { levy: T.key, elite: true, hall: hall.id });
+      r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
+      audio.play('drums', hall, this.battle); // audio
+      this.event(`${men.length} ${KITS[T.key].name.toLowerCase()} have finished their training.`);
+    }
   }
 
   // ---- engines, hired men and upgrades ----
@@ -663,7 +755,7 @@ export class Town {
 
   upgradeCheck(b) {
     const U = UPGRADES[(b.level || 1) + 1];
-    if (!U || b.state !== 'active') return { ok: false, reason: 'Fully upgraded', done: true };
+    if (!U || b.state !== 'active' || b.B.hall) return { ok: false, reason: 'Fully upgraded', done: true };
     if (this.population < U.pop) return { ok: false, reason: `Needs a village of ${U.pop} people` };
     if (this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
     if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
@@ -944,6 +1036,7 @@ export class Town {
       for (const o of crew) if (b.B.jobs && b.workers.length < this.jobs(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
       audio.play('built', b, this.battle); // audio
+      if (b.B.hall) this.onMilestone?.(b);
     }
   }
 
@@ -1071,6 +1164,7 @@ export class Town {
       if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
     }
     this.updateMood(dt);
+    this.updateHalls(dt);
     this.updateRevolt(dt);
     this.nextArrival -= dt;
     if (this.nextArrival <= 0) {
@@ -1143,6 +1237,7 @@ export class Town {
 
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
+    if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
     const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length })).filter(sp => sp.count > 0);
     if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
     g.onLeave?.(survivors);
@@ -1323,13 +1418,14 @@ export class Town {
     for (const sp of specs) {
       const from = [];
       for (let i = 0; i < sp.count; i++) from.push({ x: entry.x + (this.rand() - 0.5) * 14, z: entry.z + (this.rand() - 0.5) * 14 });
-      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from });
+      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0 });
       r.levy = sp.levy || null;
       r.retinue = !!sp.retinue;
+      r.elite = !!sp.elite;
       if (r.levy) {
         r.soldiers.forEach(s => {
           const v = this.addVillager(s.x, s.z);
-          v.state = 'soldier'; v.soldier = s; s.villager = v;
+          v.state = 'soldier'; v.soldier = s; s.villager = v; v.xp = sp.xp || 0;
         });
       }
       const stand = { x: Math.sin(angle) * standAt, z: Math.cos(angle) * standAt };
@@ -1346,7 +1442,7 @@ export class Town {
       const gone = new Set(men.map(s => s.villager).filter(Boolean));
       this.villagers = this.villagers.filter(v => !gone.has(v));
       this.battle.disband(r);
-      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue });
+      specs.push({ key: r.T.key, count: men.length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite });
     }
     return specs;
   }

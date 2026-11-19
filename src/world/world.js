@@ -371,6 +371,14 @@ export class World {
     town.purse = FACTIONS[0];
     town.onFall = () => { p.falling = true; };
     town.rebelHouse = this.bandits;
+    // A knights' hall wants the rank of Count, and its finishing is a moment.
+    town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
+    town.onMilestone = () => {
+      if (p.owner !== 0) return;
+      this.log(`A knights' hall stands in ${p.name}. Your veterans may train there as men-at-arms and knights.`, 0);
+      this.hooks.herald?.({ house: FACTIONS[0], title: `A knights' hall in ${p.name}`, text: 'Your veterans may train there as men-at-arms and knights: few, costly, slow to replace, and the best men in the realm.' });
+      this.hooks.rankUp?.('hall');
+    };
     // Hired companies stationed here weigh on the village's mood.
     town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village']];
     town.onRebel = n => {
