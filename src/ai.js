@@ -25,7 +25,8 @@ export function thinkAI(battle, side, { hold = false, start = 8, regs = null } =
 }
 
 function thinkField(battle, side, mine, { hold = false } = {}) {
-  const foes = battle.regs.filter(r => r.side !== side && !r.gone);
+  // Only what it can see: regiments hidden in woods are not there for it yet.
+  const foes = battle.regs.filter(r => r.side !== side && !r.gone && battle.sees(side, r));
   const standing = foes.filter(r => !r.routing && !r.regrouping);
   if (!standing.length) return;
 

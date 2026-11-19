@@ -31,6 +31,7 @@ export function payGoods(town, cost) {
 
 export function attachSiege(b, { scene, town, heightAt, flash }) {
   const battle = town.battle, W = battle.walls;
+  if (!battle.trees && town.trees) battle.setWoods(town.trees);   // the village's woods hide men too
   const view = new SiegeView(scene, battle, heightAt);
   const ui = { tool: null, drag: null, hover: null, selected: null, view };
   const afford = cost => town.canAfford(cost);

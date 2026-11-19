@@ -141,10 +141,62 @@ export class Battle {
     this.onRuin = null;
     this.buildingSide = 0;
     this.masons = 1;           // crews raising wall sites (a village sets this from its people)
+    this.trees = null;         // the field's trees, for woods (setWoods)
+    this.woods = null;         // how wooded each 4 m cell is, 0..1
+    this.viewer = 0;           // the side whose eyes the view uses: enemies it can't see are not drawn
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
   event(side, text) { this.events.push({ time: this.time, side, text }); }
+
+  // ---- woods and sight ----
+
+  setWoods(trees) { this.trees = trees; this.woodsAt = -Infinity; }
+
+  // How wooded the ground is at (x, z): 0 open, 1 thick wood. Rebuilt now and then, as trees fall.
+  woodAt(x, z) {
+    if (!this.trees) return 0;
+    if (this.time - this.woodsAt > 10) this.buildWoods();
+    const i = Math.floor((x + GSPAN) / CELL), j = Math.floor((z + GSPAN) / CELL);
+    if (i < 0 || j < 0 || i >= GN || j >= GN) return 0;
+    return this.woods[j * GN + i];
+  }
+
+  buildWoods() {
+    this.woodsAt = this.time;
+    const w = this.woods ||= new Float32Array(GN * GN);
+    w.fill(0);
+    for (const t of this.trees.spots) {
+      if (!t.standing) continue;
+      const i = Math.floor((t.x + GSPAN) / CELL), j = Math.floor((t.z + GSPAN) / CELL);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const ii = i + di, jj = j + dj;
+        if (ii >= 0 && jj >= 0 && ii < GN && jj < GN) w[jj * GN + ii] += di || dj ? 0.2 : 0.45;
+      }
+    }
+    for (let k = 0; k < w.length; k++) w[k] = Math.min(1, w[k]);
+  }
+
+  // Once a second: who the enemy can see. A regiment in woods is hidden until an enemy comes
+  // within 30 m, it shoots, or it fights. A regiment that was hidden strikes as an ambush.
+  updateSight() {
+    const all = this.regs.filter(r => !r.gone);
+    for (const r of all) {
+      let near = Infinity;
+      for (const o of all) if (o.side !== r.side) near = Math.min(near, Math.hypot(o.cx - r.cx, o.cz - r.cz));
+      let inWood = 0, n = 0;
+      for (const m of r.soldiers) if (m.alive && !m.gone) { n++; if (this.woodAt(m.x, m.z) > 0.3) inWood++; }
+      const cover = n > 0 && inWood >= n * 0.6 && near > 30;
+      const busy = r.engaged > 0 || this.time - (r.lastShot ?? -99) < 3 || r.routing;
+      const hidden = cover && !busy;
+      if (hidden) { r.hiddenAt = this.time; r.ambushed = false; }
+      r.seen = !hidden;
+      r.unseen = hidden && r.side !== this.viewer;
+    }
+  }
+
+  // Whether `side` can see regiment o (its own always).
+  sees(side, o) { return o.side === side || o.seen !== false; }
   label(r) { return `${r.side ? 'Enemy ' : ''}${r.name}`; }
 
   // Side 0 (the player) deploys on +z facing -z; side 1 on -z facing +z.
@@ -653,6 +705,7 @@ export class Battle {
     this.updateStones(dt);
     if (Math.floor(this.time) !== Math.floor(this.time - dt)) {
       this.checkVictory();
+      this.updateSight();
       this.answerFoes();
       if (this.walls.any) this.wallsTick();
     }
@@ -1260,7 +1313,8 @@ export class Battle {
   groundPace(s, ux, uz) {
     const grade = (this.heightAt(s.x + ux * 1.5, s.z + uz * 1.5) - this.heightAt(s.x, s.z)) / 1.5;
     const k = s.reg.T.mounted ? 1.6 : 1.1;
-    return Math.max(0.55, Math.min(1.15, 1 - grade * k));
+    const wood = this.trees ? this.woodAt(s.x, s.z) * (s.reg.T.mounted ? 0.5 : 0.3) : 0;
+    return Math.max(0.55, Math.min(1.15, 1 - grade * k)) * (1 - wood);
   }
 
   // How steeply a stands above b, from -1 to 1: a grade of 1 in 5 counts fully. For men
@@ -1330,8 +1384,18 @@ export class Battle {
     const A = s.reg.T, D = t.reg.T, tr = t.reg, ar = s.reg;
     const FA = FORMATIONS[ar.formation] || FORMATIONS.line, FD = FORMATIONS[tr.formation] || FORMATIONS.line;
     s.lunge = 1;
+    // Among trees no formation holds together and no charge gathers pace.
+    const wood = this.trees ? Math.max(this.woodAt(t.x, t.z), this.woodAt(s.x, s.z)) : 0;
     let flank = tr.routing ? 0 : this.flankOf(s.x, s.z, t);
-    let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def + this.captainBonus(ar) * 0.015;
+    let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015;
+    // Out of hiding: the first blows of an ambush shake the men they fall on.
+    if (!ar.ambushed && this.time - (ar.hiddenAt ?? -99) < 6 && ar.side !== tr.side) {
+      ar.ambushed = true;
+      tr.morale -= 12;
+      chance += 0.1;
+      this.event(tr.side, `${tr.name} is ambushed!`);
+      this.event(ar.side, `${ar.name} springs an ambush!`);
+    }
     if (tr.routing) chance += 0.35;
     chance += [0, 0.15, 0.3][flank];
     if (D.mounted && A.vsMounted) chance += A.vsMounted;
@@ -1350,12 +1414,15 @@ export class Battle {
         chance -= 0.1;
         this.hurt(s, 4);                       // riding onto braced spears
       } else {
-        const mul = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3);
-        chance += 0.35;
+        const full = (A.chargeMul || 2) * (FA.charge || 1) * (1 + Math.max(0, slope) * 0.3);
+        const mul = 1 + (full - 1) * (1 - wood * 0.8);
+        chance += 0.35 * (1 - wood * 0.7);
         dmg *= mul;
-        tr.morale -= 0.8 * (FA.charge || 1);
-        const dx = t.x - s.x, dz = t.z - s.z, d = Math.hypot(dx, dz) || 1;
-        t.x += dx / d * 1.5; t.z += dz / d * 1.5;
+        tr.morale -= 0.8 * (FA.charge || 1) * (1 - wood * 0.7);
+        if (wood < 0.5) {
+          const dx = t.x - s.x, dz = t.z - s.z, d = Math.hypot(dx, dz) || 1;
+          t.x += dx / d * 1.5; t.z += dz / d * 1.5;
+        }
       }
     } else if (!A.charge && this.time < ar.chargeUntil && !s.charged) {
       // Foot charging in: one hard first blow.
@@ -1519,13 +1586,13 @@ export class Battle {
     let range = base;
     if (r.targetReg && !r.targetReg.gone) {
       range = reach(r.targetReg);
-      if (dist(r.targetReg) <= range) tgt = r.targetReg;
+      if (dist(r.targetReg) <= range && this.sees(r.side, r.targetReg)) tgt = r.targetReg;
     } else if (!r.dest && r.fireAtWill) {
       // Loose at will: the nearest enemy in range, sparing anyone already in melee with friends.
       // From a wall, engines and ladder men come first.
       let bd = Infinity;
       for (const o of this.regs) {
-        if (o.side === r.side || o.gone || (o.engaged > 0 && !o.posts)) continue;
+        if (o.side === r.side || o.gone || (o.engaged > 0 && !o.posts) || !this.sees(r.side, o)) continue;
         const d = dist(o), R = reach(o);
         if (d > R) continue;
         const score = d / R * (r.posts && o.engine ? 0.6 : 1);
@@ -1542,6 +1609,7 @@ export class Battle {
       s.fireCd -= dt;
       if (s.fireCd > 0) continue;
       s.fireCd = T.reload * (0.75 + this.rand() * 0.5);
+      r.lastShot = this.time;
       this.loose(s, tgt, range);
     }
   }
@@ -1604,7 +1672,7 @@ export class Battle {
   answerFoes() {
     for (const r of this.regs) {
       if (!this.usable(r) || r.T.range || r.engine || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.ai === 'siege') continue;
-      const ok = o => o.side !== r.side && this.usable(o) && !o.posts && !o.gone && o.alive > 0
+      const ok = o => o.side !== r.side && this.usable(o) && !o.posts && !o.gone && o.alive > 0 && this.sees(r.side, o)
         && (!this.nav.any || this.nav.reachable(r.side, r.cx, r.cz, o.cx, o.cz));
       let best = null, bd = 25;
       for (const o of this.regs) {
@@ -1646,6 +1714,7 @@ export class Battle {
     if (E && r.targetWall) return r.dest ? 'Moving up' : E.ready < (E.setup || 0) ? 'Setting up' : 'Battering';
     if (r.posts) return r.posts[0]?.perch.side === r.side ? 'On the walls' : 'Storming the walls';
     if (r.targetWall) return 'Attacking the wall';
+    if (r.seen === false) return 'Hidden in the woods';
     if (r.hold) return 'Holding';
     return '';
   }

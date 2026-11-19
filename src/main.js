@@ -3,7 +3,8 @@
 // ?mode=siege to storm a walled fort with engines, ?mode=defend to hold one.
 import * as THREE from 'three';
 import { createStage } from './stage.js';
-import { makeHeight, buildTerrain } from './terrain.js';
+import { makeHeight, drawGround, plantTrees, drawTrees } from './terrain.js';
+import { addCopses } from './battlefield.js';
 import { Battle } from './battle.js';
 import { BattleView, keepModel } from './view.js';
 import { SiegeView } from './siegeview.js';
@@ -28,8 +29,13 @@ const canvas = document.getElementById('view');
 const { renderer, scene, camera, placeSun } = createStage(canvas);
 
 const heightAt = makeHeight(seed, homes || undefined);
-buildTerrain(scene, heightAt, seed, FORT ? { clear: (x, z) => Math.abs(x) < 150 && Math.abs(z) < 250 } : undefined);
+drawGround(scene, heightAt, seed);
+// Forest round the edges; a few copses out in the field (none round a fort).
+const trees = plantTrees(seed, (x, z) => Math.abs(x) < (FORT ? 150 : 120) && Math.abs(z) < 250, 0.56, 900);
+if (!FORT) addCopses(trees, seed);
+drawTrees(scene, heightAt, trees);
 const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', ...(homes ? { homes } : {}) });
+battle.setWoods(trees);
 const view = new BattleView(scene, battle, heightAt, { keeps: mode === 'field' });
 const siegeView = new SiegeView(scene, battle, heightAt);
 const rand = rng(seed + 5);

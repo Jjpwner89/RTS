@@ -378,7 +378,7 @@ export class BattleView {
       for (const s of list) {
         if (m.light && s.gone) continue;
         if (!m.light && !s.alive && s.fall >= 1 && darkened.has(s)) continue;   // corpses stay put
-        if (s.gone) {
+        if (s.gone || s.reg.unseen) {     // unseen: hidden from you in the woods (battle.updateSight)
           d.position.set(0, -50, 0); d.scale.setScalar(0.001);
         } else {
           const walking = s.v > 0.4 && s.alive;
@@ -427,8 +427,8 @@ export class BattleView {
 
     for (const bn of this.banners) {
       const r = bn.r;
-      bn.sprite.visible = !r.gone;
-      if (r.gone) continue;
+      bn.sprite.visible = !r.gone && !r.unseen;
+      if (!bn.sprite.visible) continue;
       bn.sprite.position.copy(this.bannerPos(r));
       const sel = selection.has(r);
       if (sel !== bn.selected) {
