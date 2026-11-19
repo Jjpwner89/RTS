@@ -38,6 +38,13 @@ const PREBUILT = [
   ['house', 'farm', 'woodcutter', 'house', 'storehouse', 'farm', 'carpenter', 'house'],
   ['house', 'farm', 'woodcutter', 'house', 'storehouse', 'farm', 'carpenter', 'house', 'house', 'barracks', 'farm'],
 ];
+// What stands in a place you storm or take: more for a lord's seat, most for the royal city.
+function layoutFor(p, lvl) {
+  if (p.kind === 'crown') return [...PREBUILT[3], 'house', 'house', 'house', 'house', 'house', 'house', 'storehouse', 'carpenter', 'barracks', 'farm', 'house', 'house'];
+  const seat = p.seat !== undefined;
+  return [...PREBUILT[Math.min(3, lvl - 1 + (seat ? 1 : 0))], ...(seat ? ['house', 'house'] : [])];
+}
+
 function prebuild(town, kinds, rand) {
   for (const kind of kinds) {
     for (let tries = 0; tries < 200; tries++) {
@@ -72,6 +79,7 @@ export class World {
     FACTIONS.push({ ...BANDITS, index: this.bandits, gold: 0, arms: 0, alive: true });
     this.houses = FACTIONS;
     this.wars = new Set();          // "i:j" with i < j
+    this.met = new Set();           // houses that have sent you word
     this.pois = realm.places.map((p, i) => ({ ...p, seed: seed + 1000 * (i + 1), garrison: [], town: null, seen: false, visible: false }));
     const byOld = new Map(realm.places.map((p, i) => [p, this.pois[i]]));
     for (const p of this.pois) p.links = p.links.map(q => byOld.get(q));
@@ -84,7 +92,8 @@ export class World {
 
     for (const p of this.pois) {
       if (p.kind === 'camp') p.owner = this.bandits;
-      if (p.owner === 0) this.makeTown(p, { kind: p.kind });
+      // Your village starts with a couple of family houses, so it can grow from the first minute.
+      if (p.owner === 0) { const t = this.makeTown(p, { kind: p.kind }); prebuild(t, ['house', 'house'], t.rand); }
       else this.seedHolding(p);
     }
     this.ecoClock = 0;
@@ -111,7 +120,9 @@ export class World {
     if (i === j || this.atWar(i, j)) return;
     this.wars.add(this.warKey(i, j));
     const a = FACTIONS[i], b = FACTIONS[j];
+    if (i === 0) this.meet(j);
     if (j === 0) {
+      this.meet(i);
       const line = a.taunts?.[Math.floor(this.rand() * a.taunts.length)];
       this.log(`${a.name} has declared war on you!`, 1);
       this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: line ? `“${line}”` : '' });
@@ -136,7 +147,9 @@ export class World {
   strength(i) { return strengthOf(this, i); }
 
   // You have met a house once you have seen one of its places.
-  knows(h) { return this.pois.some(p => p.owner === h && p.seen); }
+  // A house you have dealt with (war, heralds, offers) is known even before you find its lands.
+  knows(h) { return this.met.has(h) || this.pois.some(p => p.owner === h && p.seen); }
+  meet(h) { if (h !== null && h !== undefined && h !== 0) this.met.add(h); }
 
   // ---- holdings you don't run by hand ----
 
@@ -144,7 +157,8 @@ export class World {
     const K = KINDS[p.kind], g = K.garrison || 1;
     const lvl = p.kind === 'crown' ? 3 : p.seat !== undefined ? 2 : 1;
     p.eco = { pop: Math.round((p.seat !== undefined ? 55 : 32) * K.pop + (p.kind === 'crown' ? 30 : 0)), level: lvl, arms: 0 };
-    const n = k => Math.round(k * g);
+    const vary = 0.7 + this.rand() * 0.6;   // no two places keep quite the same guard
+    const n = k => Math.round(k * g * vary);
     if (p.kind === 'camp') p.garrison = [unit('bandit', 30 + Math.floor(this.rand() * 15), `${p.name.replace(/ Camp$/, '')} outlaws`)];
     else if (p.kind === 'crown') p.garrison = [unit('spear', 40, 'Royal guard'), unit('sword', 40, 'Royal men-at-arms'), unit('archer', 30, 'Royal archers'), unit('militia', 40, 'City watch')];
     else if (p.owner === null) p.garrison = [unit('militia', n(26), `${p.name} militia`), unit('archer', n(10), `${p.name} bowmen`)];
@@ -431,7 +445,7 @@ export class World {
     const lvl = p.eco?.level ?? 1;
     const town = this.makeTown(p, { villagers: Math.max(6, Math.min(40, Math.round(pop * 0.5))), retinue: false,
       stock: { wood: 60 + lvl * 20, stone: 10 + lvl * 10, food: 50 + lvl * 20, planks: 10 } });
-    prebuild(town, PREBUILT[Math.min(3, lvl - 1)], town.rand);
+    prebuild(town, layoutFor(p, lvl), town.rand);
     p.eco = null;
     town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last));
     this.removeArmy(a);
@@ -477,11 +491,11 @@ export class World {
     const defenders = p.garrison;
     const town = this.makeTown(p, { kind: p.kind, villagers: 0, retinue: false,
       stock: { wood: 30 + lvl * 20, stone: 10 + lvl * 10, food: 40 + lvl * 20, planks: 10 } });
-    prebuild(town, PREBUILT[Math.min(3, lvl - 1)], town.rand);
+    prebuild(town, layoutFor(p, lvl), town.rand);
     town.keepLevel = Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
     const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
     const H = owner === null ? NEUTRAL : FACTIONS[owner];
-    town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name };
+    town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came };
     town.flagColor = H.color;
     town.holdKeep(defenders, came, { house: owner ?? 1 });
     town.addTroops(a.units, came, { stand: 100 });
@@ -541,6 +555,7 @@ export class World {
   // A rival marches on one of your villages: the fight happens there, in the village itself.
   attackTown(a, p, came) {
     const t = p.town, H = FACTIONS[a.side];
+    if (!H.bandit) this.meet(a.side);
     this.removeArmy(a);
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,

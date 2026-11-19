@@ -110,6 +110,7 @@ function townBundle(p) {
     focus: r => b.controls.focus([r]),
     startPlacing: kind => { st.placing = kind; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
+    findAttackers: () => b.controls.focus(town.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.routing)),
     place: (g, e) => {
       if (!st.placing) return false;
       if (town.hostile) { st.placing = null; return true; }
@@ -129,6 +130,8 @@ function townBundle(p) {
   b.controls = new Controls(stage.camera, canvas, town.battle, view, heightAt, b.hooks);
   b.controls.enabled = false;
   Object.assign(b.controls.cam, { x: 0, z: 40, dist: 120 });
+  // Storming: start behind your own men, looking in at the keep.
+  if (town.hostile) { const a = town.hostile.entry; Object.assign(b.controls.cam, { x: Math.sin(a) * 75, z: Math.cos(a) * 75, dist: 135, yaw: a }); }
   bundles.set(p, b);
   return b;
 }
@@ -346,13 +349,15 @@ function worldPanel() {
     const backing = FACTIONS.filter(h => world.dip[h.index]?.backs && h.alive).length;
     set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
     const list = el.querySelector('[data-f="houses"]');
-    const rows = FACTIONS.slice(1, world.bandits).map(h => {
+    // Houses you have not met share one line; you learn who they are by finding their lands.
+    const unmet = FACTIONS.slice(1, world.bandits).filter(h => !world.knows(h.index) && h.alive && !world.atWar(0, h.index));
+    const rows = FACTIONS.slice(1, world.bandits).filter(h => !unmet.includes(h)).map(h => {
       const met = world.knows(h.index), war = world.atWar(0, h.index);
       const n = world.pois.filter(p => p.seen && p.known?.owner === h.index).length;
       const d = world.dip[h.index];
       const tie = d.vassal ? 'your vassal' : d.married ? 'married' : d.allied ? 'allied' : war ? 'at war' : 'peace';
       return `<div class="h${h.alive ? "" : " gone"}${met && h.alive ? ' pick' : ''}" data-house="${h.index}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${mood(d.opinion).toLowerCase()}` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : tie}</small></div>`;
-    }).join('');
+    }).join('') + (unmet.length ? `<div class="h unmet"><i style="background:#8a8478"></i><span>${unmet.length === FACTIONS.slice(1, world.bandits).length ? `${unmet.length} great houses` : `${unmet.length} more house${unmet.length > 1 ? 's' : ''}`}<br><small>not yet met: explore to find their lands</small></span><small></small></div>` : '');
     if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }
   } else if (it.units) {
     set('men', `${headcount(it.units)} men`);

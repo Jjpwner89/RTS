@@ -79,7 +79,7 @@ export function thinkDiplomacy(w, dt) {
 // The AI's own proposals, which you accept or turn down.
 function offerFrom(w, H, d) {
   const h = H.index, mine = w.strength(0), theirs = w.strength(h);
-  const ask = (title, text, accept, decline) => w.hooks.offer?.({ house: H, title, text, accept, decline });
+  const ask = (title, text, accept, decline) => { w.meet(h); w.hooks.offer?.({ house: H, title, text, accept, decline }); };
   if (w.atWar(0, h)) {
     const losing = d.score >= 30 || theirs < mine * 0.6;
     if (losing && theirs < mine * 0.35 && !d.vassal) {

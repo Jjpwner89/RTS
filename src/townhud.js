@@ -21,7 +21,12 @@ export class TownHud {
     this.tab = 'Village';
     this.infoKey = null;
     if (town.hostile) this.buildStorm();
-    else { this.buildStock(); this.buildMenu(); this.stockEl.onclick = null; }
+    else {
+      this.buildStock();
+      this.buildMenu();
+      // Clicking the alarm takes you to the attackers.
+      this.stockEl.onclick = e => { if (e.target.closest('.raid.now')) this.hooks.findAttackers?.(); };
+    }
     this.buildEl.hidden = !!town.hostile;
     // onclick rather than addEventListener: a new village's panels replace the old handlers.
     this.infoEl.onclick = e => {
@@ -96,7 +101,7 @@ export class TownHud {
     set('pop', `${ico('people')} ${t.population} / ${t.housing}`);
     set('idle', `${t.hauling} carrying · ${t.idle} idle`);
     set('hunger', t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
-    set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
+    set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
 
     for (const el of this.tabEls) el.classList.toggle('on', el.dataset.tab === this.tab);

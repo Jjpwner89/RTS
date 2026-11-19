@@ -153,6 +153,7 @@ function runPlan(w, h, B, plan) {
       plan.staging = nearestOwn(w, h, T).place || h.seat;
       if (T.owner === 0) {
         w.log(`Scouts report that ${h.lord} is gathering a host at ${plan.staging.name}. They mean to march on ${T.name}.`, 1);
+        w.meet(h.index);
         w.hooks.herald?.({ house: h, title: `${h.name} gathers a host`, text: `At ${plan.staging.name}, against ${T.name}. Strike their raiders and their muster before it marches, or make ready your walls.` });
       }
     }
