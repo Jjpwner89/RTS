@@ -1,5 +1,6 @@
-// Draws the walls, towers, gates and ladders, siege engines and their stones, and the
-// ghost of a wall being placed, and the siege's passing sights: boiling oil, mines and night torches. Each thing looks for its baked model first (buildingModel:
+// Draws the walls, towers, gates and ladders, siege engines and their stones, the ghost
+// of a wall being placed, and the siege's passing sights: boiling oil, mines and night
+// torches. Each thing looks for its baked model first (buildingModel:
 // wall.stone, wall.wood, *.broken, tower.*, gate.* and gate.*.door, siege.ram,
 // siege.mangonel(.arm), siege.trebuchet(.arm), siege.ladder, siege.stone) and otherwise
 // uses the simple shapes below, built to the same sizes:
