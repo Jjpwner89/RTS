@@ -2,6 +2,7 @@
 // smoke and flame while they burn and leave charred posts behind; while an army deploys,
 // the ground it may deploy on; and the weather: rain falling, or fog closing in.
 import * as THREE from 'three';
+import { waterMaterial } from './scenery.js';
 
 export class FieldView {
   constructor(scene, battle) {
@@ -66,7 +67,7 @@ export class FieldView {
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.82, side: THREE.DoubleSide }));
+    const mesh = new THREE.Mesh(geo, waterMaterial({ opacity: 0.85 }));
     mesh.receiveShadow = true;
     this.group.add(mesh);
   }
@@ -126,14 +127,14 @@ export class FieldView {
   setWeather(kind) {
     const scene = this.scene;
     if (!this.clearSky) {
-      this.clearSky = { bg: scene.background?.clone?.(), fog: scene.fog && { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far }, lights: [] };
+      this.clearSky = { bg: scene.background, fog: scene.fog && { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far }, lights: [] };
       scene.traverse(o => { if (o.isLight) this.clearSky.lights.push([o, o.intensity]); });
     }
     const C = this.clearSky;
     const look = { clear: null, rain: { sky: '#8d969c', near: 90, far: 480, light: 0.72 }, fog: { sky: '#c4c8c4', near: 20, far: 200, light: 0.85 },
       night: { sky: '#161d2b', near: 40, far: 320, light: 0.16 } }[kind];
     const sky = look ? new THREE.Color(look.sky) : null;
-    if (C.bg && scene.background?.isColor) scene.background.copy(sky || C.bg);
+    scene.background = sky || C.bg;
     if (C.fog && scene.fog) {
       scene.fog.color.copy(sky || C.fog.color);
       scene.fog.near = look ? look.near : C.fog.near;

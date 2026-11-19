@@ -2,6 +2,7 @@
 // fight on one map. URL option: ?seed=123 for a fixed map.
 import { createStage } from './stage.js';
 import { makeHeight, buildTerrain } from './terrain.js';
+import { landMask, drawCover } from './scenery.js';
 import { Battle } from './battle.js';
 import { BattleView } from './view.js';
 import { Controls } from './controls.js';
@@ -19,7 +20,10 @@ const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
 const canvas = document.getElementById('view');
 const { renderer, scene, camera, placeSun } = createStage(canvas);
 const heightAt = makeHeight(seed, [{ x: 0, z: 0 }]);
-const { trees } = buildTerrain(scene, heightAt, seed, { clear: (x, z) => Math.hypot(x, z) < 45, woods: 0.5, count: 1500 });
+// A track south to where raiders come from, and the trodden ground round the keep.
+const land = landMask(seed, { homes: [{ x: 0, z: 0 }], roads: [{ pts: [[0, 0], [0, -400]], width: 6 }], wear: [{ x: 0, z: 0, r: 24 }] });
+const { trees } = buildTerrain(scene, heightAt, seed, { clear: (x, z) => Math.hypot(x, z) < 45, woods: 0.5, count: 1500, land });
+drawCover(scene, heightAt, seed, { land, trees, avoid: (x, z) => Math.hypot(x, z) < 16 });
 // Your routers run to the keep; raiders run back to their camp and leave.
 const battle = new Battle(heightAt, seed, { deploy: false, homes: [{ x: 0, z: 0 }, { x: 0, z: -225 }], disbandAtHome: [false, true] });
 const rand = rng(seed + 7);

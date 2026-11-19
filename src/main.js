@@ -4,8 +4,9 @@
 // ?river=1 or 0 to have a river across the field or not (else half of fields do).
 import * as THREE from 'three';
 import { createStage } from './stage.js';
-import { makeHeight, drawGround, plantTrees, drawTrees } from './terrain.js';
+import { makeHeight, drawGround, plantTrees, drawTrees, HOMES } from './terrain.js';
 import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js';
+import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { Battle } from './battle.js';
 import { BattleView, keepModel } from './view.js';
@@ -33,11 +34,15 @@ const { renderer, scene, camera, placeSun } = createStage(canvas);
 const riverParam = params.get('river');
 const river = mode === 'field' && riverParam !== '0' ? makeRiver(seed, { force: riverParam === '1' }) : null;
 const heightAt = carveRiver(makeHeight(seed, homes || undefined), river);
-drawGround(scene, heightAt, seed);
+// Tracks from each keep, fields round them, then grass, flowers, stones and bushes (scenery.js).
+const land = landMask(seed, { homes: homes || HOMES, river, fields: true });
+drawGround(scene, heightAt, seed, { land });
 // Forest round the edges; a few copses out in the field (none round a fort).
 const trees = plantTrees(seed, (x, z) => (Math.abs(x) < (FORT ? 150 : 120) && Math.abs(z) < 250) || (river && Math.abs(river.across(x, z)) < river.half + 3), 0.56, 900);
 if (!FORT) addCopses(trees, seed, { avoid: (x, z) => river && Math.abs(river.across(x, z)) < river.half + 3 });
 drawTrees(scene, heightAt, trees);
+drawCover(scene, heightAt, seed, { land, trees, avoid: (x, z) => (river && Math.abs(river.across(x, z)) < river.half + 1.5)
+  || (FORT ? Math.hypot(x - FORT.x, z - FORT.z) < 50 : HOMES.some(h => Math.hypot(x - h.x, z - h.z) < 34)) });
 // ?enemy=norrhold: the enemy is a Norrhold host (axemen, javelin men, war dogs).
 const battle = new Battle(heightAt, seed, { scale, deploy: mode === 'field', hosts: ['south', params.get('enemy') === 'norrhold' ? 'norrhold' : 'south'], ...(homes ? { homes } : {}) });
 battle.setWoods(trees);

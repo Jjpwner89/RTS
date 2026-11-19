@@ -296,3 +296,6 @@ body.campaign.mode-world #orders { display: none !important; }
 
 /* Looking round a vassal's village: nothing to build or order. */
 body.readonly :is(#build, #defences, #march, #orders) { display: none !important; }
+
+/* Darkens the screen's edges a little; stage.js puts it just after the 3D view. */
+.vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(30, 20, 10, .3) 100%); }

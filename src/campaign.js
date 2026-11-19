@@ -13,6 +13,7 @@ import { thinkAI, unwatched } from './ai.js';
 import { attachSiege } from './siegeui.js';
 import { SiegeView } from './siegeview.js';
 import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js';
+import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
@@ -124,10 +125,14 @@ function townBundle(p, look = null) {
   const old = !look && bundles.get(p);
   if (old && old.town === p.town) return old;
   if (old) dropBundle(p);
-  const town = look ? look.town : p.town, heightAt = look ? look.heightAt : p.heightAt, onRoad = look ? look.onRoad : p.onRoad;
+  const town = look ? look.town : p.town, heightAt = look ? look.heightAt : p.heightAt;
   const scene = stage.newScene();
-  drawGround(scene, heightAt, p.seed, { tint: (x, z) => (onRoad(x, z) ? 1 : 0) });
-  drawTrees(scene, heightAt, look ? look.trees : p.trees);
+  // Its roads run out from the keep toward the places they lead to (scenery.js).
+  const trees = look ? look.trees : p.trees;
+  const land = landMask(p.seed, { homes: [{ x: 0, z: 0 }], roads: (p.roadAngles || []).map(a => ({ pts: [[0, 0], [Math.sin(a) * 400, Math.cos(a) * 400]], width: 6 })), wear: [{ x: 0, z: 0, r: 24 }] });
+  drawGround(scene, heightAt, p.seed, { land });
+  drawTrees(scene, heightAt, trees);
+  drawCover(scene, heightAt, p.seed, { land, trees, avoid: (x, z) => Math.hypot(x, z) < 16 });
   const view = new BattleView(scene, town.battle, heightAt, { capacity: 400, keeps: false });
   const townView = new TownView(scene, town, heightAt, rng(p.seed + 11));
   const st = { placing: null, hoverAt: null, selected: null };
@@ -291,11 +296,14 @@ function startField(enc, { watch = true } = {}) {
   const river = makeRiver(fseed, { chance: 0.4 });       // sometimes a river to cross (battlefield.js)
   const heightAt = carveRiver(makeHeight(fseed, assault ? [keepAt, HOMES[0]] : HOMES), river);
   const scene = stage.newScene();
-  drawGround(scene, heightAt, fseed);
+  const homes = [{ x: 0, z: 240 }, assault ? keepAt : { x: 0, z: -240 }];
+  const land = landMask(fseed, { homes, river, fields: true });
+  drawGround(scene, heightAt, fseed, { land });
   const wet = (x, z) => river && Math.abs(river.across(x, z)) < river.half + 3;
   const trees = plantTrees(fseed, (x, z) => (Math.abs(x) < 120 && Math.abs(z) < 250) || (assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 60) || wet(x, z), 0.56, 900);
   addCopses(trees, fseed, { avoid: (x, z) => (assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 60) || wet(x, z) });   // woods to hide in (battlefield.js)
   drawTrees(scene, heightAt, trees);
+  drawCover(scene, heightAt, fseed, { land, trees, avoid: (x, z) => (river && Math.abs(river.across(x, z)) < river.half + 1.5) || (assault && Math.hypot(x - keepAt.x, z - keepAt.z) < 30) });
   // You come from the south; defenders of a place run back to its keep, others leave the field.
   const battle = new Battle(heightAt, fseed, { deploy: false, homes: [{ x: 0, z: 240 }, assault ? keepAt : { x: 0, z: -240 }], disbandAtHome: [true, !assault] });
   battle.setWoods(trees);

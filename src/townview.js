@@ -147,6 +147,9 @@ export class TownView {
     keep.position.set(0, heightAt(0, 0) - 0.5, 0);
     keep.castShadow = keep.receiveShadow = true;
     scene.add(keep);
+    // Ground cover (scenery.js) comes off ground that something stands on.
+    this.cover = scene.userData.cover;
+    this.cover?.clear(0, 0, 16);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[0], side: THREE.DoubleSide }));
     flag.position.set(2, heightAt(0, 0) + keepTop(keepGeo) + 2.5, 0);
     this.flag = poleFor(flag, 4, 2.4);
@@ -156,6 +159,7 @@ export class TownView {
       for (const n of town.nodes[kind]) {
         const m = new THREE.Mesh(deposit(kind, rand), this.mat);
         m.position.set(n.x, heightAt(n.x, n.z) - 0.4, n.z);
+        this.cover?.clear(n.x, n.z, 3.5);
         m.castShadow = m.receiveShadow = true;
         scene.add(m);
       }
@@ -277,6 +281,7 @@ export class TownView {
         icon.position.set(b.x, this.heightAt(b.x, b.z) + (b.B.radius > 5 ? 6 : 7.5), b.z);
         this.scene.add(mesh, icon);
         this.meshes.set(b, o = { mesh, icon, state: null, warn: null, level: b.level || 1 });
+        this.cover?.clear(b.x, b.z, b.B.radius + 1);
       }
       if ((b.level || 1) !== o.level) { o.level = b.level || 1; o.mesh.geometry = this.geo(b.kind, b.style, o.level); }
       if (b.state === 'site') o.mesh.scale.y = Math.max(0.08, b.progress);
