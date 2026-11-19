@@ -1,0 +1,22 @@
+// Convert the supplied CC0 Quaternius FBX to glTF without replacing its rig.
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {T} from './rig-tools.mjs';
+const moduleURL=process.env.THREE_MODULE;
+const pkg=moduleURL?new URL('../',moduleURL):null;
+const {FBXLoader}=await import(pkg?new URL('examples/jsm/loaders/FBXLoader.js',pkg).href:'three/addons/loaders/FBXLoader.js');
+const {GLTFExporter}=await import(pkg?new URL('examples/jsm/exporters/GLTFExporter.js',pkg).href:'three/addons/exporters/GLTFExporter.js');
+globalThis.FileReader=class{readAsArrayBuffer(blob){blob.arrayBuffer().then(b=>{this.result=b;this.onloadend?.();});}};
+globalThis.window={URL:{createObjectURL:()=>''}};
+const dir=path.dirname(fileURLToPath(import.meta.url)),buffer=fs.readFileSync(path.join(dir,'Horse.source.fbx'));
+const horse=new FBXLoader().parse(buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength),'');
+horse.name='HorseMetres';
+horse.traverse(o=>{if(o.isMesh){o.material=[].concat(o.material).map(m=>new T.MeshStandardMaterial({name:m.name||'horse',color:m.color.clone().convertLinearToSRGB(),roughness:.9,metalness:0,flatShading:true}));if(o.material.length===1)o.material=o.material[0];}});
+horse.updateMatrixWorld(true);const box=new T.Box3().setFromObject(horse),scale=1.75/(box.max.y-box.min.y);
+horse.scale.setScalar(scale);horse.position.y=-box.min.y*scale;horse.updateMatrixWorld(true);
+const clips=horse.animations;
+const exported=await new GLTFExporter().parseAsync(horse,{binary:true,animations:clips,onlyVisible:true,trs:true});
+fs.writeFileSync(path.join(dir,'Horse.normalized.glb'),Buffer.from(exported));
+const b=Buffer.from(exported),len=b.readUInt32LE(12),j=JSON.parse(b.subarray(20,20+len));
+console.log('Converted original horse',{metresPerFbxUnit:scale,bones:j.skins[0].joints.length,clips:j.animations.map(a=>a.name)});

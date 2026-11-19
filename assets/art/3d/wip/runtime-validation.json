@@ -1,0 +1,374 @@
+{
+  "errors": [],
+  "results": [
+    {
+      "clip": "Spear_Thrust",
+      "source": "male",
+      "frames": 25,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 5,
+      "minMeshY": -0.0033499878604615614
+    },
+    {
+      "clip": "Spear_Thrust",
+      "source": "female",
+      "frames": 25,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Spear_Brace",
+      "source": "male",
+      "frames": 37,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 7,
+      "minMeshY": -0.007358581541565046
+    },
+    {
+      "clip": "Spear_Brace",
+      "source": "female",
+      "frames": 37,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "March_Upright",
+      "source": "male",
+      "frames": 37,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 7,
+      "minMeshY": -0.0023408497778806296
+    },
+    {
+      "clip": "March_Upright",
+      "source": "female",
+      "frames": 37,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Bow_Loose",
+      "source": "male",
+      "frames": 49,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 9,
+      "minMeshY": -0.0024309622042701998
+    },
+    {
+      "clip": "Bow_Loose",
+      "source": "female",
+      "frames": 49,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Crossbow_Span",
+      "source": "male",
+      "frames": 91,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 16,
+      "minMeshY": -0.003795283737202299
+    },
+    {
+      "clip": "Crossbow_Span",
+      "source": "female",
+      "frames": 91,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Shield_Block",
+      "source": "male",
+      "frames": 19,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 4,
+      "minMeshY": -0.0033650950407972456
+    },
+    {
+      "clip": "Shield_Block",
+      "source": "female",
+      "frames": 19,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Shield_Wall",
+      "source": "male",
+      "frames": 61,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 11,
+      "minMeshY": -0.0032321068160597946
+    },
+    {
+      "clip": "Shield_Wall",
+      "source": "female",
+      "frames": 61,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Javelin_Throw",
+      "source": "male",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 6,
+      "minMeshY": -0.003204484660220258
+    },
+    {
+      "clip": "Javelin_Throw",
+      "source": "female",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Rout",
+      "source": "male",
+      "frames": 23,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 5,
+      "minMeshY": -0.012645120363822203
+    },
+    {
+      "clip": "Rout",
+      "source": "female",
+      "frames": 23,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Cheer",
+      "source": "male",
+      "frames": 46,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 9,
+      "minMeshY": -0.002583599025498087
+    },
+    {
+      "clip": "Cheer",
+      "source": "female",
+      "frames": 46,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Chop",
+      "source": "male",
+      "frames": 43,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 8,
+      "minMeshY": -0.0032302215630862644
+    },
+    {
+      "clip": "Chop",
+      "source": "female",
+      "frames": 43,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Hoe",
+      "source": "male",
+      "frames": 55,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 10,
+      "minMeshY": -0.0037507740035168965
+    },
+    {
+      "clip": "Hoe",
+      "source": "female",
+      "frames": 55,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Mine",
+      "source": "male",
+      "frames": 49,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 9,
+      "minMeshY": -0.0030981085687533396
+    },
+    {
+      "clip": "Mine",
+      "source": "female",
+      "frames": 49,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Carry",
+      "source": "male",
+      "frames": 43,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 8,
+      "minMeshY": -0.0066163316846010265
+    },
+    {
+      "clip": "Carry",
+      "source": "female",
+      "frames": 43,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Ride_Idle",
+      "source": "male",
+      "frames": 91,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 16,
+      "minMeshY": 0.5410034915161022
+    },
+    {
+      "clip": "Ride_Idle",
+      "source": "female",
+      "frames": 91,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Ride_Trot",
+      "source": "male",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 6,
+      "minMeshY": 0.4952170389503859
+    },
+    {
+      "clip": "Ride_Trot",
+      "source": "female",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Ride_Gallop",
+      "source": "male",
+      "frames": 21,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 5,
+      "minMeshY": 0.37532322969513177
+    },
+    {
+      "clip": "Ride_Gallop",
+      "source": "female",
+      "frames": 21,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Ride_Couch",
+      "source": "male",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 6,
+      "minMeshY": 0.5449815524122684
+    },
+    {
+      "clip": "Ride_Couch",
+      "source": "female",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Ride_Slash",
+      "source": "male",
+      "frames": 28,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 6,
+      "minMeshY": 0.5449815524122684
+    },
+    {
+      "clip": "Ride_Slash",
+      "source": "female",
+      "frames": 28,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 0,
+      "minMeshY": null
+    },
+    {
+      "clip": "Gallop",
+      "source": "horse",
+      "frames": 21,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 5,
+      "minMeshY": -0.016117382918016107
+    },
+    {
+      "clip": "Rear",
+      "source": "horse",
+      "frames": 61,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 11,
+      "minMeshY": -0.022633516962745317
+    },
+    {
+      "clip": "Trot",
+      "source": "horse",
+      "frames": 31,
+      "missingTargets": [],
+      "maxJointPositionDifference": 0,
+      "meshSamples": 6,
+      "minMeshY": -0.009641863793761859
+    }
+  ]
+}

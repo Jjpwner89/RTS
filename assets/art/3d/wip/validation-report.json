@@ -1,20 +1,194 @@
 [
   {
     "file": "clips-foot.glb",
-    "bytes": 1242584,
+    "bytes": 3239668,
     "joints": 62,
     "checks": "passed",
     "khronos": {
       "errors": 0,
       "warnings": 5,
-      "warningNote": "Only source-inherited NODE_SKINNED_MESH_NON_ROOT; exact source hierarchy retained."
+      "warningNote": "Source skinned-mesh hierarchy/transforms retained; no animation warnings."
     },
     "clips": [
       {
         "name": "Spear_Thrust",
         "duration": 0.800000011920929,
         "loop": false,
-        "tracks": 186
+        "tracks": 186,
+        "maxFrameRotationDegrees": 27.86310836114899
+      },
+      {
+        "name": "Spear_Brace",
+        "duration": 1.2000000476837158,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 12.153714044593706
+      },
+      {
+        "name": "March_Upright",
+        "duration": 1.2000000476837158,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 20.58337488283238
+      },
+      {
+        "name": "Bow_Loose",
+        "duration": 1.600000023841858,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 49.90447130254544
+      },
+      {
+        "name": "Crossbow_Span",
+        "duration": 3,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 16.023746769293524
+      },
+      {
+        "name": "Shield_Block",
+        "duration": 0.6000000238418579,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 43.66122943176535
+      },
+      {
+        "name": "Shield_Wall",
+        "duration": 2,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 0.3196019208687414
+      },
+      {
+        "name": "Javelin_Throw",
+        "duration": 1,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 63.984065857965405
+      },
+      {
+        "name": "Rout",
+        "duration": 0.7333333492279053,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 41.15341683998834
+      },
+      {
+        "name": "Cheer",
+        "duration": 1.5,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 44.99694608057081
+      },
+      {
+        "name": "Chop",
+        "duration": 1.399999976158142,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 38.29636608093406
+      },
+      {
+        "name": "Hoe",
+        "duration": 1.7999999523162842,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 1.5390930424423168
+      },
+      {
+        "name": "Mine",
+        "duration": 1.600000023841858,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 22.647282226460327
+      },
+      {
+        "name": "Carry",
+        "duration": 1.399999976158142,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 15.720946013724653
+      }
+    ]
+  },
+  {
+    "file": "clips-riders.glb",
+    "bytes": 1848920,
+    "joints": 62,
+    "checks": "passed",
+    "khronos": {
+      "errors": 0,
+      "warnings": 5,
+      "warningNote": "Source skinned-mesh hierarchy/transforms retained; no animation warnings."
+    },
+    "clips": [
+      {
+        "name": "Ride_Idle",
+        "duration": 3,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 0.040371004773280886
+      },
+      {
+        "name": "Ride_Trot",
+        "duration": 1,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 0.29893213845607675
+      },
+      {
+        "name": "Ride_Gallop",
+        "duration": 0.6666666865348816,
+        "loop": true,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 1.219108227133781
+      },
+      {
+        "name": "Ride_Couch",
+        "duration": 1,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 17.177224988645655
+      },
+      {
+        "name": "Ride_Slash",
+        "duration": 0.8999999761581421,
+        "loop": false,
+        "tracks": 186,
+        "maxFrameRotationDegrees": 30.876281008912624
+      }
+    ]
+  },
+  {
+    "file": "clips-horse.glb",
+    "bytes": 367740,
+    "joints": 28,
+    "checks": "passed",
+    "khronos": {
+      "errors": 0,
+      "warnings": 2,
+      "warningNote": "Source skinned-mesh hierarchy/transforms retained; no animation warnings."
+    },
+    "clips": [
+      {
+        "name": "Gallop",
+        "duration": 0.6666666865348816,
+        "loop": true,
+        "tracks": 84,
+        "maxFrameRotationDegrees": 43.320337650257336
+      },
+      {
+        "name": "Rear",
+        "duration": 2,
+        "loop": false,
+        "tracks": 84,
+        "maxFrameRotationDegrees": 19.408294398739493
+      },
+      {
+        "name": "Trot",
+        "duration": 1,
+        "loop": true,
+        "tracks": 84,
+        "maxFrameRotationDegrees": 15.65635219199607
       }
     ]
   }

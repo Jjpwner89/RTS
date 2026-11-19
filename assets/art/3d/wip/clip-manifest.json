@@ -1,6 +1,40 @@
 {
+  "status": "Authored and validated; ready for in-game Art review",
   "source": "Male_Adventurer.source.glb",
+  "sources": [
+    {
+      "file": "Male_Adventurer.source.glb",
+      "sha256": "2caf3ea58a06744c44a360c941c3355b499ba5adf8edf549b98fc347c45faa28"
+    },
+    {
+      "file": "Horse.source.fbx",
+      "sha256": "6db270ddc7591e9a013f96eab445031381fa6d5d68d2feba567f964e0fe68d90"
+    }
+  ],
+  "packs": {
+    "foot": "../clips-foot.glb",
+    "riders": "../clips-riders.glb",
+    "horse": "../clips-horse.glb"
+  },
   "fps": 30,
+  "coordinateSystem": "Y up, metres, +Z forward",
+  "equipmentGrip": {
+    "position": [
+      0,
+      0.135,
+      -0.035
+    ],
+    "shaftAxis": [
+      1,
+      0,
+      0
+    ],
+    "shieldNormal": [
+      0,
+      1,
+      0
+    ]
+  },
   "clips": [
     {
       "name": "Spear_Thrust",
@@ -30,6 +64,237 @@
         ],
         "offhandSeparation": 0.29
       }
+    },
+    {
+      "name": "Spear_Brace",
+      "duration": 1.2,
+      "loop": false,
+      "hold": true,
+      "events": [
+        {
+          "time": 1,
+          "event": "brace-held"
+        }
+      ]
+    },
+    {
+      "name": "March_Upright",
+      "duration": 1.2,
+      "loop": true
+    },
+    {
+      "name": "Bow_Loose",
+      "duration": 1.6,
+      "loop": false,
+      "weapon": {
+        "bone": "Wrist.L",
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ]
+      },
+      "events": [
+        {
+          "time": 0.3,
+          "event": "nock"
+        },
+        {
+          "time": 1.0666666667,
+          "event": "loose"
+        },
+        {
+          "time": 1.3,
+          "event": "reach-next-arrow"
+        }
+      ]
+    },
+    {
+      "name": "Crossbow_Span",
+      "duration": 3,
+      "loop": false,
+      "equipmentGrounded": [
+        0.4,
+        2.4
+      ],
+      "events": [
+        {
+          "time": 0.4,
+          "event": "foot-in-stirrup"
+        },
+        {
+          "time": 1.2,
+          "event": "string-spanned"
+        },
+        {
+          "time": 2.1,
+          "event": "bolt-laid"
+        },
+        {
+          "time": 2.8,
+          "event": "shoot"
+        }
+      ]
+    },
+    {
+      "name": "Shield_Block",
+      "duration": 0.6,
+      "loop": false,
+      "events": [
+        {
+          "time": 0.2,
+          "event": "block-impact"
+        }
+      ]
+    },
+    {
+      "name": "Shield_Wall",
+      "duration": 2,
+      "loop": true
+    },
+    {
+      "name": "Javelin_Throw",
+      "duration": 1,
+      "loop": false,
+      "events": [
+        {
+          "time": 0.6333333333,
+          "event": "release-javelin"
+        }
+      ]
+    },
+    {
+      "name": "Rout",
+      "duration": 0.7333333333333333,
+      "loop": true,
+      "equipment": "none"
+    },
+    {
+      "name": "Cheer",
+      "duration": 1.5,
+      "loop": false
+    },
+    {
+      "name": "Chop",
+      "duration": 1.4,
+      "loop": true,
+      "events": [
+        {
+          "time": 0.9,
+          "event": "axe-contact"
+        }
+      ]
+    },
+    {
+      "name": "Hoe",
+      "duration": 1.8,
+      "loop": true,
+      "events": [
+        {
+          "time": 1.2,
+          "event": "pull-soil"
+        }
+      ]
+    },
+    {
+      "name": "Mine",
+      "duration": 1.6,
+      "loop": true,
+      "events": [
+        {
+          "time": 1.0333333333,
+          "event": "pick-contact"
+        }
+      ]
+    },
+    {
+      "name": "Carry",
+      "duration": 1.4,
+      "loop": true,
+      "equipment": "sack on right shoulder"
+    },
+    {
+      "name": "Ride_Idle",
+      "duration": 3,
+      "loop": true,
+      "horseClip": "Idle",
+      "seatHeight": 1.185
+    },
+    {
+      "name": "Ride_Trot",
+      "duration": 1,
+      "loop": true,
+      "horseClip": "Trot",
+      "phase": 0,
+      "seatHeight": 1.185
+    },
+    {
+      "name": "Ride_Gallop",
+      "duration": 0.6666666666666666,
+      "loop": true,
+      "horseClip": "Gallop",
+      "phase": 0,
+      "seatHeight": 1.185
+    },
+    {
+      "name": "Ride_Couch",
+      "duration": 1,
+      "loop": false,
+      "hold": true,
+      "horseClip": "Idle",
+      "upperBodyOverlay": "Ride_Gallop",
+      "events": [
+        {
+          "time": 0.7,
+          "event": "lance-couched"
+        }
+      ]
+    },
+    {
+      "name": "Ride_Slash",
+      "duration": 0.9,
+      "loop": false,
+      "horseClip": "Idle",
+      "events": [
+        {
+          "time": 0.6,
+          "event": "sword-contact"
+        }
+      ]
+    },
+    {
+      "name": "Gallop",
+      "duration": 0.6666666666666666,
+      "loop": true,
+      "gait": "four-beat charge",
+      "cycleSeconds": 0.6666666666666666
+    },
+    {
+      "name": "Rear",
+      "duration": 2,
+      "loop": false,
+      "events": [
+        {
+          "time": 1,
+          "event": "rear-apex"
+        },
+        {
+          "time": 1.8,
+          "event": "forefeet-land"
+        }
+      ]
+    },
+    {
+      "name": "Trot",
+      "duration": 1,
+      "loop": true,
+      "gait": "diagonal pairs",
+      "cycleSeconds": 1
     }
   ]
 }

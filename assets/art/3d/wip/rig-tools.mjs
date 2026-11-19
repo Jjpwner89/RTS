@@ -29,14 +29,22 @@ export class Rig{
  aim(name,local,target){this.update();let o=this.by[name],from=local.clone().applyQuaternion(this.quat(name)).normalize(),to=target.clone().sub(this.pos(name)).normalize();this.setQ(name,Q().setFromUnitVectors(from,to).multiply(this.quat(name)));}
  // Analytic two-link IK, with a stable bend pole in model coordinates.
  limb(a,b,end,target,pole,length2){
- const A=this.pos(a),l1=this.by[b].position.length(),l2=length2||this.by[end].position.length(),v=target.clone().sub(A),dist=v.length(),d=Math.min(l1+l2-0.00001,Math.max(Math.abs(l1-l2)+0.00001,dist)),dir=v.normalize();
+ const A=this.pos(a),l1=this.pos(a).distanceTo(this.pos(b)),l2=length2||this.pos(b).distanceTo(this.pos(end)),v=target.clone().sub(A),dist=v.length(),d=Math.min(l1+l2-0.00001,Math.max(Math.abs(l1-l2)+0.00001,dist)),dir=v.normalize();
  let bend=pole.clone().sub(A);bend.addScaledVector(dir,-bend.dot(dir)).normalize();
  const along=(l1*l1-l2*l2+d*d)/(2*d),height=Math.sqrt(Math.max(0,l1*l1-along*along)),B=A.clone().addScaledVector(dir,along).addScaledVector(bend,height);
- this.aim(a,this.by[b].position,B);this.aim(b,end?this.by[end].position:V([0,1,0]),target);
- return Math.max(0,dist-l1-l2);
+ this.limbBases||={};
+ if(!this.limbBases[a]){
+  const qa=this.quat(a),qb=this.quat(b),B0=this.pos(b),endAxis=end?this.by[end].position.clone():V([0,1,0]);
+  const fore=endAxis.clone().applyQuaternion(qb),normal=B0.clone().sub(A).cross(fore).normalize();
+  this.limbBases[a]={upper:frame(this.by[b].position,normal.clone().applyQuaternion(qa.invert())).invert(),lower:frame(endAxis,normal.clone().applyQuaternion(qb.invert())).invert()};
+ }
+ const normal=bend.clone().cross(dir).normalize(),basis=this.limbBases[a];
+ this.setQ(a,frame(B.clone().sub(A),normal).multiply(basis.upper));
+ this.setQ(b,frame(target.clone().sub(B),normal).multiply(basis.lower));
+ this.maxLimbError=Math.max(this.maxLimbError||0,dist-l1-l2);return Math.max(0,dist-l1-l2);
  }
 }
-export function frame(x,y){x=x.clone().normalize();y=y.clone().addScaledVector(x,-y.dot(x)).normalize();const z=x.clone().cross(y).normalize();return Q().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z));}
+export function frame(x,y){x=x.clone().normalize();y=y.clone().addScaledVector(x,-y.dot(x));if(y.length()<1e-5)y=(Math.abs(x.x)<.8?V([1,0,0]):V([0,0,1])).addScaledVector(x,-(Math.abs(x.x)<.8?x.x:x.z));y.normalize();const z=x.clone().cross(y).normalize();return Q().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z));}
 export class Human{
  constructor(src){this.r=new Rig(src);this.r.sample('Idle_Neutral',0);this.base=this.r.capture();this.r.sample('Idle_Sword',0.4);this.grip=this.r.capture();this.r.restore(this.base);this.footQ={L:this.r.quat('Foot.L'),R:this.r.quat('Foot.R')};this.legLen={};for(let s of ['L','R'])this.legLen[s]=this.r.pos('LowerLeg.'+s).distanceTo(this.r.pos('Foot.'+s));}
  reset(){this.r.restore(this.base);for(let i=0;i<this.r.nodes.length;i++){if(/^(Index|Middle|Ring|Pinky|Thumb)/.test(this.r.nodes[i].name))this.r.nodes[i].quaternion.copy(this.grip[i].q);let m=this.r.nodes[i].name.match(/^(Index|Middle|Ring|Pinky)([234])/);if(m)this.r.nodes[i].quaternion.multiply(Q().setFromAxisAngle(V([1,0,0]),rad({2:-62,3:-74,4:-35}[m[2]])));}this.r.update();}
@@ -44,7 +52,7 @@ export class Human{
  legs(left=[.15,.02275,.15],right=[-.15,.02275,-.12],poles=null){for(let [s,p]of [['L',left],['R',right]]){let target=V(p);this.r.setPos('Foot.'+s,target);this.r.setQ('Foot.'+s,this.footQ[s]);let pole=poles?.[s]||V([p[0],.5,1]);this.r.limb('UpperLeg.'+s,'LowerLeg.'+s,null,target,pole,this.legLen[s]);this.r.setPos('PT.'+s,pole);}}
  // Grip centre is offset into the palm. local +X is the tool shaft axis.
  hand(s,centre,axis=[0,0,1],down=[0,-1,0],open=0,pole=null){
- let q=frame(V(axis),V(down)),offset=V([0,.135,-.035]),target=V(centre).sub(offset.applyQuaternion(q));
+ let q=frame(V(axis),down?V(down):V(centre).sub(this.r.pos('UpperArm.'+s))),offset=V([0,.135,-.035]),target=V(centre).sub(offset.applyQuaternion(q));
  this.r.limb('UpperArm.'+s,'LowerArm.'+s,'Wrist.'+s,target,pole||V([s==='L'?.65:-.65,1.05,-.25]));
  this.r.setQ('Wrist.'+s,q);this.maxGripError=Math.max(this.maxGripError||0,this.r.pos('Wrist.'+s).add(V([0,.135,-.035]).applyQuaternion(q)).distanceTo(V(centre)));
  if(open)for(let i=0;i<this.r.nodes.length;i++)if(new RegExp('^(Index|Middle|Ring|Pinky|Thumb).*\\.'+s+'$').test(this.r.nodes[i].name))this.r.nodes[i].quaternion.slerp(this.base[i].q,open);

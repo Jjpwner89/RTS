@@ -1,32 +1,120 @@
-QUATERNIUS MEDIEVAL ANIMATION CLIPS — BRIEFS 7.1 / 7.2
-First delivery: Spear_Thrust, 2026-11-19.
+QUATERNIUS MEDIEVAL CLIPS — BRIEFS 7.1 AND 7.2
+Delivered 2026-11-19. Status: authored, visually reviewed, validated; ready
+for the Art workstream's in-game review and bake.
 
-clips-foot.glb retains the exact Male_Adventurer.source.glb node names,
-hierarchy, rest transforms, skin joints, inverse bind matrices and source
-geometry. Only the animation set and flat material colours are replaced.
-No prototype body, replacement skeleton, or assets/models.glb edit.
+FILES
+clips-foot.glb: 14 clips
+  Spear_Thrust, Spear_Brace, March_Upright, Bow_Loose, Crossbow_Span,
+  Shield_Block, Shield_Wall, Javelin_Throw, Rout, Cheer, Chop, Hoe, Mine, Carry.
+clips-riders.glb: 5 clips
+  Ride_Idle, Ride_Trot, Ride_Gallop, Ride_Couch, Ride_Slash.
+clips-horse.glb: 3 clips
+  Gallop, Rear, Trot.
 
-Spear_Thrust: 24 intervals / 25 samples at 30 Hz, 0.8 seconds, one shot.
-Start and end are the same guard. Root is constant. Body transfers weight
-over a stepping left foot; right foot stays planted.
+All animation is sampled at 30 Hz, in place, Y up, metres, facing +Z.
+Loop metadata, durations, action events and source hashes are in
+wip/clip-manifest.json and animation.extras inside each GLB.
+Spear_Brace and Ride_Couch are one-shot transitions into a held final pose:
+use LoopOnce and clampWhenFinished. Other one-shots return to guard, except
+the javelin release leaves the throwing hand open. Use the loop flag for
+March_Upright, Shield_Wall, Rout, Chop, Hoe, Mine, Carry, the three riding
+gaits, Gallop and Trot.
 
-Equipment convention: parent spear to Wrist.R, position [0, .135, -.035]
-in wrist coordinates. Shaft follows wrist-local +X. Preview shaft is 2.6 m,
-with 0.9 m behind the grip. Wrist.L follows a grip 0.29 m farther along
-the shaft. Bone names in GLB retain dots; Three.js GLTFLoader sanitizes
-Wrist.R to WristR when it creates runtime objects and tracks.
+ORIGINAL RIGS AND MESHES
+The foot/rider files retain all 62 source joints, exact names (including
+dots), hierarchy, rest transforms, inverse bind matrices and original
+Quaternius Male_Adventurer geometry. The female Medieval source was also
+checked through the game's Three.js loader. No prototype bodies or new
+character skeletons are involved. Cloth is neutral grey named "cloth".
+The original backpack is retained in the source mesh and hidden in review.
 
-Review: serve the RTS directory and open assets/art/3d/wip/review.html.
-Includes original source body, a grip-reference spear, play/pause, timeline,
-orbit controls. Backpack is hidden for the review, retained in the source
-mesh for compatibility. Spear prop belongs to the review only.
+Horse clips retain the supplied 2018 Farm Animals horse's 28 skin joints,
+all original bone names and parent relationships. Horse.normalized.glb is
+the original FBX converted using Three.js r170 FBXLoader/GLTFExporter.
+HorseMetres supplies the constant unit conversion: 0.0025340962604301583
+times the FBX loader's scene units, with its rest geometry grounded and
+1.75 m tall. The FBX loader reduces vertices with more than four influences
+to four, as it does in the existing game model pipeline.
+Use the same normalization for horse playback and mounted previews.
 
-Rebuild with Node.js and Three.js 0.170.0:
+The original Idle/Walk/Run/etc. are not copied into the delivered packs.
+The normalized WIP horse retains its original clips for reference only.
+The original source files remain untouched. assets/models.glb is handled
+by the Art workstream separately.
+
+EQUIPMENT
+The exported packs contain original character/horse reference meshes and
+animation, not replacement equipment. The review's simple tools, shield,
+bow, sack, log and rock are contact guides only.
+Default grip centre in wrist-local coordinates: [0, 0.135, -0.035].
+Weapon/tool shaft runs along wrist-local +X. Spears, swords, javelins,
+axes, hoes, picks and lances use Wrist.R. Bow and shield use Wrist.L.
+For the reference shield, its outward normal is wrist-local +Y.
+Three.js sanitizes Wrist.R to WristR at load time; raw GLB names keep dots.
+
+Spear_Thrust uses a second grip 0.29 m along the shaft. Reference spear:
+2.6 m shaft with 0.91 m behind the right grip. At the end of Spear_Brace
+that butt is grounded behind the back foot and the point faces upward
+toward the horse's chest.
+Chop and Mine use second grips 0.16 m / 0.15 m ahead of the right hand.
+Hoe uses a second grip 0.18 m ahead, with the head approximately 1 m
+ahead of the right grip. It follows ground level during the pull.
+Bow_Loose's right hand controls the string; detach the arrow at its loose
+event. Hide/release the javelin at its release event; Rout carries no gear.
+Crossbow_Span needs a grounded equipment phase while BOTH hands span the
+string. Blend into that phase from 0.30–0.45 s and out from 2.40–2.55 s.
+Reference ground grip: [0, 0.68, 0.36], shaft direction [0, -1, 0.1]
+normalized. Animate string/bolt separately using the supplied events.
+This prevents the crossbow stock following the hands during the pull.
+The bow, crossbow, arrow and projectile mechanics belong to the equipment
+animation layer; no extra bones have been added to the character rig.
+
+RIDERS
+Ride_Trot and Trot share a 1 s cycle; Ride_Gallop and Gallop share a 20/30 s
+cycle. Start each rider/horse pair at phase zero and use identical time
+scales. Riders are already posed at the normalized horse's seat height:
+place their scene origins together, without adding a second saddle offset.
+The rider's pelvis, feet and rein hands follow a seat reference transformed
+by the actual horse Body bone through the gait.
+Ride_Idle, Ride_Couch and Ride_Slash are mounted actions based on the horse's
+Idle pose. For a moving charge, blend the couched upper-body pose over
+Ride_Gallop while leaving the mounted gait on the pelvis and legs.
+
+REVIEW AND REBUILD
+Serve the RTS repository and open assets/art/3d/wip/review.html.
+The viewer offers all 22 clips, playback, timeline scrubbing and orbit.
+wip/reviews/ has four-pose contact sheets for every clip.
+The original Spear_Thrust test was committed before authoring the rest;
+its initial review image remains wip/spear-thrust-review.png.
+
+From assets/art/3d, using Node.js with Three.js 0.170.0:
+  THREE_MODULE=file:///path/to/three/build/three.module.js node wip/convert-horse.mjs
   THREE_MODULE=file:///path/to/three/build/three.module.js node wip/make-clips.mjs
-Validate:
   THREE_MODULE=file:///path/to/three/build/three.module.js \
   GLTF_VALIDATOR=file:///path/to/gltf-validator/index.js node wip/validate-clips.mjs
 
-Source character and horse: Quaternius CC0, as recorded in tools/models/README.md.
-Animation authoring and review files live in assets/art/3d/wip/.
-The Art workstream selects/bakes these into the game's models separately.
+For the local viewer with a local Three.js package:
+  THREE_DIR=/path/to/three node wip/serve-review.cjs
+Then open http://127.0.0.1:8917/assets/art/3d/wip/review.html.
+
+VALIDATION
+wip/validation-report.json: exact clip sets, 30 fps, finite samples, unit
+quaternions, fixed roots, closed loop poses, original rig/bind data and
+Khronos glTF validation. Zero errors. The five human warnings and two horse
+warnings concern inherited skinned-mesh parent/local transforms; retaining
+the source hierarchy preserves its compatibility with the game loader.
+wip/runtime-validation.json: all 19 human clips on the original male and
+female rigs, plus all 3 horse clips on the source horse rig: 41 applications,
+no missing targets or browser errors, zero joint-position differences.
+Includes sampled mesh ground bounds. Hoof/shoe edge contact is within
+2.3 cm of the ground on these low-poly meshes.
+wip/contact-checks.json: authored grip target residuals (maximum 1.6 cm).
+Small residuals occur where an arm reaches its anatomical limit.
+All loops were visually reviewed on the original meshes.
+
+SOURCES
+Quaternius CC0 sources and licences are recorded in tools/models/README.md.
+The female check source is the Female/Medieval.glb URL used in
+tools/models/fetch.py. Rebuilds need only the two supplied sources in WIP;
+that optional compatibility check additionally needs FEMALE_SOURCE pointing
+to a downloaded Female/Medieval.glb.
