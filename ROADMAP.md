@@ -29,9 +29,10 @@ Small, high-value fixes to everyday play (creator, 2026-11-19); they can go in e
 - Keep placing and the B-letter hotkeys are built (see DESIGN_NOTES).
 - **Neighbourhoods**: covered by the town templates (§2), which place a block of buildings at once.
 - **Three kinds of cart on the roads**, all of which can be raided (enemy armies that meet a wagon take what it carries):
-  - **Trade caravans** carry gold between market towns (the trade carts in §8).
+  - **Trade caravans** carry gold between market towns (the trade carts in §8). **Built (2026-11-19):** every 4–6 minutes each held market (and Kingsbridge) sends a caravan of 20 + 0.6 × its people in gold to one of its three nearest markets whose lord is not at war with its own. Arrived, the sender's lord is paid and the receiving market's lord half as much again. An enemy or outlaw army that meets it takes the gold for its house.
   - **Supply trains** feed armies (the food wagons; extend as needed).
-  - **Supply runs** move goods, and ideally settlers, from one of your villages to another. Used now and then, mostly to restart a place you have just taken or that was burned.
+  - **Supply runs** move goods, and ideally settlers, from one of your villages to another. Used now and then, mostly to restart a place you have just taken or that was burned. **Built (2026-11-19):** a village's panel on the map has a Supply run button for each of the four nearest villages of yours: half its spare food, bread, wood, planks, stone and iron (up to a cap of each) and four families if it has more than 20 people. One run at a time from each village. If the far village is lost on the way, the wagon turns home; a raider who meets it seizes the lot.
+  - **Escorts (built):** an army of yours near one of your caravans or supply runs can Escort it and rides beside it until it arrives. A raider must get past it: one much weaker is driven off, otherwise you fight it on the road. A new order ends the escort.
 
 ## 2. The climb: every rank brings new tools and new trouble (Realm)
 
@@ -152,7 +153,7 @@ All approved. Owners in brackets.
 - **Wyndham's schemes**: a gate opened from inside, a bribed captain, built on the spies in §1. **Built (2026-11-19), the bribed captain:** while a scheming house is at war with you, an event warns that one of your captains in the field is taking its gold; pay double, take away the command, or ignore it and risk the army marching over to them. The gate opened from inside waits on Battles.
 
 **Economy and the realm** (Realm)
-- **Trade carts** between market towns; bandits raid them, and you can escort them (see the carts in §1b).
+- **Trade carts** between market towns; bandits raid them, and you can escort them (see the carts in §1b). **Built (2026-11-19).**
 - **Showpiece projects**: a cathedral, rebuilding the old north wall, the royal city.
 - **Each kind of place plays differently**: abbey relics and pilgrims, toll fights at fords, mine collapses.
 

@@ -15,7 +15,7 @@ import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { buildFort } from '../walls.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
-import { supplyArmies, moveWagon, catchWagons, provision, takeFood, capacity, wound, heal } from './supply.js';
+import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { govern } from './governor.js';
 import { tickEvents } from './events.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
@@ -487,6 +487,7 @@ export class World {
   // March to a place. An army out on a road turns back or carries on, whichever is shorter.
   order(a, dest) {
     if (a.halted || a.retreating) return false;
+    a.escort = null;
     const ends = a.at ? [a.at] : [a.last, a.path[0]].filter(Boolean);
     let best = null;
     for (const e of ends) {
@@ -1245,12 +1246,12 @@ export class World {
     if (this.winner !== null) return;
     this.time += dt;
     for (const p of this.pois) if (p.town) this.updateTown(p, dt);
-    for (const a of [...this.armies]) if (!a.gone) { if (a.wagon) moveWagon(this, a, dt); else this.moveArmy(a, dt); }
+    for (const a of [...this.armies]) if (!a.gone) { if (a.wagon) moveWagon(this, a, dt); else if (a.escort) followCart(this, a); else this.moveArmy(a, dt); }
     this.checkMeetings();
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); tickTrade(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);

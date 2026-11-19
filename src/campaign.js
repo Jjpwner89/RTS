@@ -17,7 +17,7 @@ import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
-import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
+import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText } from './world/supply.js';
 import { canSave, saveGame, readSave, loadGame } from './world/save.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
@@ -645,23 +645,29 @@ function worldPanel() {
   const waitingAt = it && it.units && it.at && !it.path.length ? it.at : null;
   if (it?.house) return housePanel(el, it.house);
   const company = waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).length : 0;
-  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}:${it.vassal || ''}:${living(world).map(v => v.id).join('.')}`;
+  const carts = own && it.units && !it.wagon && !it.escort ? cartsNear(world, it) : [];
+  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}:${carts.map(c => c.id)}:${it.escort || ''}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}:${world.pois.filter(q => q.owner === 0 && q.town).length}:${it.vassal || ''}:${living(world).map(v => v.id).join('.')}`;
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div>`
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
+    else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('gold', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
+    else if (it.wagon?.run) el.innerHTML = `<h3>${ico('village')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Spare goods and a few families for another of your villages. A raider who meets it on the road seizes the lot; one of your armies can ride with it.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
     else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
       + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
+      + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the caravan until it arrives. A raider must beat it first.">${ico('gold', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide">Join with ${o.name} (${headcount(o.units)})</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
+        + (own ? (q => q.length ? `<div class="runs"><p class="note">Send half its spare food and building goods, and four families if it can spare them, to another of your villages.</p>`
+          + q.map(o => `<button data-act="run:${o.id}" class="wide" data-f="run${o.id}">${ico('village')} Supply run to ${o.name}</button>`).join('') + '</div>' : '')(world.pois.filter(o => o !== it && o.owner === 0 && o.town).sort((a, b) => Math.hypot(a.x - it.x, a.z - it.z) - Math.hypot(b.x - it.x, b.z - it.z)).slice(0, 4)) : '')
         + (own && world.rank !== 'Reeve' && world.home !== it ? `<div class="grant"><p class="note">Give it to a vassal to run for you: a share of its gold and men, and one less village to watch. You can take it back.</p>`
           + `<button data-act="grant" class="wide" data-f="grant">${ico('crown')} Give it to a new vassal</button>`
           + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('')
@@ -709,6 +715,14 @@ function worldPanel() {
     const jail = prisoners(world);
     const prows = vrows + (jail.length ? `<h4>In your dungeon</h4>` + jail.map(v => `<div class="h"><i class="shield" style="background:${v.color}">${v.name.split(' ').slice(1).map(w => w[0]).join('')}</i><span>${v.name}<br><small>${TEMPERS[v.temper].name}</small></span><button data-act="pardon:${v.id}" title="Out, grateful and landless, until you give him a village">Pardon</button></div>`).join('') : '');
     if (vl && vl.dataset.html !== prows) { vl.dataset.html = prows; vl.innerHTML = prows; }
+  } else if (it.wagon?.trade) {
+    set('men', it.side === 0 || it.visible ? `${it.wagon.gold} gold · ${FACTIONS[it.side]?.name || ''}` : 'A caravan');
+    const guard = world.armies.find(o => o.escort === it.id && !o.gone);
+    set('status', `On the road to ${it.wagon.to.name}${guard ? `, guarded by ${guard.name}` : ''}`);
+  } else if (it.wagon?.run) {
+    set('men', loadText(it.wagon));
+    const guard = world.armies.find(o => o.escort === it.id && !o.gone);
+    set('status', `On the road to ${it.wagon.to.name}${guard ? `, guarded by ${guard.name}` : ''}`);
   } else if (it.wagon) {
     set('men', `${it.wagon.food} food`);
     set('status', it.wagon.to.gone ? `Going back to ${it.wagon.from.name}` : `On the way to ${it.wagon.to.name}`);
@@ -736,6 +750,7 @@ function worldPanel() {
     if (own) set('ride', it.lord === 0 ? `${ico('crown')} Ride home` : world.lordHurt > world.time ? `${ico('crown')} Your lord is mending` : `${ico('crown')} Ride with this army`);
     const sp = it.siege && world.byId[it.siege.p];
     if (sp) set('status', sp.siegeFood > 0 ? `Besieging ${sp.name}: its stores last about ${clock(sp.siegeFood)}` : `Besieging ${sp.name}: the place is starving`);
+    else if (it.escort) set('status', `Riding with the ${world.armies.find(o => o.id === it.escort)?.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase()) || 'caravan'}`);
     else set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
   } else {
     const who = it.visible ? it.owner : it.known?.owner;
@@ -745,6 +760,7 @@ function worldPanel() {
     if (it.town) {
       const can = world.canGrant(it);
       for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; if (!can.ok) b.title = can.why; }
+      for (const b of el.querySelectorAll('[data-act^="run:"]')) { const r = runCheck(world, it, world.byId[b.dataset.act.slice(4)]); b.disabled = !r.ok; b.title = r.ok ? loadText(r.load) : r.why; }
       set('men', `${it.town.population} villagers · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers`);
       set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
     } else {
@@ -857,6 +873,8 @@ $('wpanel').onclick = e => {
   if (act === 'banners') { world.callBanners(it && !it.units ? it : world.home); panelKey = null; }
   if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
+  if (act?.startsWith('run:')) { const r = sendRun(world, it, world.byId[act.slice(4)]); flash(r.ok ? `The wagon sets out: ${loadText(r.wagon.wagon)}.` : r.why, r.ok); }
+  if (act?.startsWith('escort:')) { const c = world.armies.find(a => a.id === +act.slice(7)); if (!escort(world, it, c)) flash('That caravan is gone.'); panelKey = null; }
   if (act === 'wagon' && it.units && !it.wagon && !it.gone) { if (!sendWagon(world, it)) flash('No village has food to spare.'); }
 };
 
