@@ -38,7 +38,7 @@ function split(group) {
 function compact(geo, tris) {
   let g = mergeVertices(geo, 1e-4);
   let idx = g.index.array;
-  if (tris) idx = MeshoptSimplifier.simplify(new Uint32Array(idx), new Float32Array(g.attributes.position.array), 3, Math.round(tris) * 3, 0.06)[0];
+  if (tris) idx = MeshoptSimplifier.simplify(new Uint32Array(idx), new Float32Array(g.attributes.position.array), 3, Math.min(idx.length, Math.max(3, Math.round(tris) * 3)), 0.06)[0];
   const remap = new Map(), pos = [], col = [], P = g.attributes.position, Cc = g.attributes.color;
   const index = Array.from(idx, i => {
     if (!remap.has(i)) { remap.set(i, remap.size); pos.push(P.getX(i), P.getY(i), P.getZ(i)); col.push(Cc.getX(i), Cc.getY(i), Cc.getZ(i)); }
@@ -46,7 +46,8 @@ function compact(geo, tris) {
   });
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  out.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  // colours as bytes: a third of the space, and plenty for flat colours
+  out.setAttribute('color', new THREE.Uint8BufferAttribute(col.map(v => Math.round(Math.min(1, Math.max(0, v)) * 255)), 3, true));
   out.setIndex(index);
   return out;
 }
@@ -101,9 +102,14 @@ const BUILDINGS = {
 };
 
 // `scaleOf` sizes a building by another model's width, so upgrade levels keep their relative sizes.
-async function buildingGeo([parts, width, scaleOf]) {
+// A recipe can also be a function that returns finished (non-indexed) geometry, for walls, engines and the like.
+async function buildingGeo(recipe) {
+  if (typeof recipe === 'function') return compact(await recipe());
+  return compact(await flatBuilding(recipe));
+}
+async function flatBuilding([parts, width, scaleOf]) {
   const g = new THREE.Group();
-  for (const [make, x = 0, z = 0] of parts) { const o = await make(); o.position.set(x, 0, z); g.add(o); }
+  for (const [make, x = 0, z = 0, ry = 0] of parts) { const o = await make(); o.position.set(x, 0, z); o.rotation.y = ry; g.add(o); }
   let size = width;
   if (scaleOf) {
     // scale by the reference model, then keep that size while centring
@@ -111,30 +117,404 @@ async function buildingGeo([parts, width, scaleOf]) {
     const own = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
     size = Math.max(own.x, own.z) * width / Math.max(ref.x, ref.z);
   }
-  const w = C.fit(g, size);
-  const { gear } = split(w);
-  return compact(gear);
+  return split(C.fit(g, size)).gear;
 }
 
-export async function bakeAll() {
+// ============================================================ the full game: more units, levels, walls and engines
+
+// ---- plain geometry helpers: non-indexed, position + colour ----
+const lin = c => new THREE.Color(c);
+function solid(geo, colour) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  for (const a of Object.keys(g.attributes)) if (a !== 'position') g.deleteAttribute(a);
+  const c = lin(colour), n = g.attributes.position.count;
+  g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: n * 3 }, (_, i) => [c.r, c.g, c.b][i % 3]), 3));
+  return g;
+}
+const block = (w, h, d, colour, x = 0, y = 0, z = 0, { rx = 0, ry = 0, rz = 0 } = {}) => {
+  const g = new THREE.BoxGeometry(w, h, d);
+  g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz);
+  g.translate(x, y + h / 2 * (rx || rz ? 0 : 1), z);
+  return solid(g, colour);
+};
+const join = list => mergeGeometries(list.filter(Boolean).map(g => g.index ? g.toNonIndexed() : g));
+// Keep the triangles whose centre passes `keep(x, y, z)`.
+function crop(geo, keep) {
+  const p = geo.attributes.position, c = geo.attributes.color, P = [], Cc = [];
+  for (let i = 0; i < p.count; i += 3) {
+    const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3, z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+    if (!keep(x, y, z)) continue;
+    for (let k = i; k < i + 3; k++) { P.push(p.getX(k), p.getY(k), p.getZ(k)); Cc.push(c.getX(k), c.getY(k), c.getZ(k)); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
+  return g;
+}
+const size = g => { g.computeBoundingBox(); return g.boundingBox.getSize(new THREE.Vector3()); };
+// Stretch to exactly [x, y, z] metres, centred on x and z, standing on y = 0.
+function fitBox(geo, [X, Y, Z]) {
+  geo.computeBoundingBox();
+  const b = geo.boundingBox, s = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
+  geo.translate(-c.x, -b.min.y, -c.z);
+  geo.scale(X / s.x, Y / s.y, Z / s.z);
+  return geo;
+}
+// The average colour of the triangles a model draws with one material, for matching added parts to it.
+async function packColour(name, material) {
+  const o = await R.rtsModel(name);
+  let c = null;
+  o.traverse(m => { if (!c && m.isMesh) [].concat(m.material).forEach(x => { if (!c && x.name === material) c = x.color.clone(); }); });
+  return c || lin('#888');
+}
+const rtsFlat = async name => split(await R.rtsModel(name)).gear;
+
+// ---- Kenney Castle Kit (CC0): its colours come from a palette texture; read them into vertex colours ----
+const palettes = new Map();
+function pixels(tex) {
+  if (palettes.has(tex)) return palettes.get(tex);
+  const img = tex.image, cv = document.createElement('canvas');
+  cv.width = img.width; cv.height = img.height;
+  const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+  const out = { w: img.width, h: img.height, d: cx.getImageData(0, 0, img.width, img.height).data };
+  palettes.set(tex, out);
+  return out;
+}
+// Kenney's toy orange and blue become weathered wood and a hide roof; greys stay.
+function kenneyTone(c) {
+  const hsl = {}; c.getHSL(hsl);
+  if (hsl.s < 0.25) return c;
+  if (hsl.h > 0.5 && hsl.h < 0.75) return c.setHSL(0.08, 0.22, Math.min(0.5, hsl.l * 0.7));
+  return c.setHSL(0.075, Math.min(0.45, hsl.s * 0.55), hsl.l * 0.72);
+}
+async function kenney(name) {
+  const o = (await C.gltf('assets/kenney/' + name + '.glb')).scene.clone(true);
+  o.traverse(m => {
+    if (!m.isMesh) return;
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(), uv = g.attributes.uv, n = g.attributes.position.count, col = [], c = new THREE.Color();
+    const mat = [].concat(m.material)[0], px = mat.map ? pixels(mat.map) : null;
+    for (let i = 0; i < n; i++) {
+      if (px && uv) {
+        const x = Math.min(px.w - 1, Math.max(0, Math.floor(uv.getX(i) * px.w))), y = Math.min(px.h - 1, Math.max(0, Math.floor(uv.getY(i) * px.h))), k = (y * px.w + x) * 4;
+        c.setRGB(px.d[k] / 255, px.d[k + 1] / 255, px.d[k + 2] / 255, THREE.SRGBColorSpace);
+      } else c.copy(mat.color);
+      kenneyTone(c);
+      col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    m.geometry = g;
+    m.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  });
+  return o;
+}
+// An engine with a moving arm: the frame and the arm baked apart at one scale, the arm about its own pivot.
+// `length` is the size in metres along the engine's longest ground side; `turn` turns its front to +z.
+async function engine(name, armNode, { length, height, turn = 0 }) {
+  const o = await kenney(name);
+  const g = new THREE.Group(); g.add(o); o.rotation.y = turn;
+  g.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(g), s = b.getSize(new THREE.Vector3()), mid = b.getCenter(new THREE.Vector3());
+  const k = height ? height / s.y : length / Math.max(s.x, s.z);
+  const arm = armNode && o.getObjectByName(armNode);
+  // the arm keeps its place's rotation and scale, with its pivot moved to the origin
+  const wm = arm ? arm.matrixWorld.clone() : null;
+  if (arm) arm.parent.remove(arm);
+  const place = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-mid.x, -b.min.y, -mid.z));
+  const frame = split(g).gear.applyMatrix4(place);
+  if (!arm) return { frame };
+  const pivot = new THREE.Vector3().setFromMatrixPosition(wm);
+  wm.setPosition(0, 0, 0);
+  const holder = new THREE.Group();
+  arm.matrixAutoUpdate = false; arm.matrix.copy(wm);
+  holder.add(arm);
+  const armGeo = split(holder).gear.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k));
+  const pv = pivot.sub(new THREE.Vector3(mid.x, b.min.y, mid.z)).multiplyScalar(k);
+  return { frame, arm: armGeo, pivot: pv.toArray().map(v => +v.toFixed(2)) };
+}
+
+// ---- units ----
+const PLATE_ALL = ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR', 'LowerArmL', 'LowerArmR', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR'];
+const SURCOAT = R.ARMOUR.sword[1];
+const plate = (colour, bones = PLATE_ALL) => [{ bones, push: 0.03, color: colour, metal: true }, SURCOAT];
+const teamMat = (shade = 1) => { const m = new THREE.MeshLambertMaterial({ color: '#ffffff' }); m.userData.team = shade; return m; };
+// Seat a rider on the Quaternius horse; the saddle cloth (and a knight's caparison) take the team colour.
+async function mount(fig, { caparison } = {}) {
+  const h = await R.horse(0);
+  h.group.traverse(m => { if (m.isMesh && m.geometry.type === 'BoxGeometry') m.material = teamMat(1); });
+  const g = new THREE.Group();
+  g.add(h.group);
+  fig.group.position.set(0, h.saddle.y + 0.08 - fig.bones.hips.y, h.saddle.z - fig.bones.hips.z);
+  g.add(fig.group);
+  if (caparison) {
+    // a cloth fitted over the horse's body: its own triangles between chest and tail, pushed out and hanging a little lower
+    h.group.updateMatrixWorld(true);
+    const tris = [], v = new THREE.Vector3();
+    h.group.traverse(m => {
+      if (!m.isMesh || m.geometry.type === 'BoxGeometry') return;
+      const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, p = geo.attributes.position;
+      for (let i = 0; i < p.count; i += 3) {
+        const t = [0, 1, 2].map(k => v.fromBufferAttribute(p, i + k).applyMatrix4(m.matrixWorld).clone());
+        const cy = (t[0].y + t[1].y + t[2].y) / 3, cz = (t[0].z + t[1].z + t[2].z) / 3;
+        if (cy > h.saddle.y * 0.55 && cz > h.saddle.z - 0.62 && cz < h.saddle.z + 0.72) for (const q of t) tris.push(q.x, q.y, q.z);
+      }
+    });
+    let shell = new THREE.BufferGeometry();
+    shell.setAttribute('position', new THREE.Float32BufferAttribute(tris, 3));
+    shell = mergeVertices(shell, 1e-3); shell.computeVertexNormals();
+    const p = shell.attributes.position, n = shell.attributes.normal;
+    for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * 0.05, p.getY(i) + n.getY(i) * 0.05 - (p.getY(i) < h.saddle.y * 0.8 ? 0.12 : 0), p.getZ(i) + n.getZ(i) * 0.05);
+    const cap = new THREE.Mesh(shell, teamMat(0.85));
+    g.add(cap);
+  }
+  return g;
+}
+// A crossbow in the right hand: a stock with the bow turned crosswise at its front.
+async function crossbow(fig) {
+  await R.hang(fig, { item: 'W_Bow_Wooden', at: 'R', len: 0.62, off: [0, 0.02, 0.36], rot: [0, 0, 90] });
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.72), new THREE.MeshLambertMaterial({ color: '#6b4a2e' }));
+  stock.position.copy(fig.bones.R).add(new THREE.Vector3(0, 0, 0.2));
+  fig.group.add(stock);
+}
+const plume = fig => {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.34, 5), teamMat(1));
+  m.position.set(fig.head.getCenter(new THREE.Vector3()).x, fig.head.max.y + 0.2, fig.head.getCenter(new THREE.Vector3()).z - 0.03);
+  m.rotation.x = -0.35;
+  fig.group.add(m);
+};
+const cape = fig => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.85, 0.05), teamMat(0.8));
+  const sh = fig.bones.shL.clone().add(fig.bones.shR).multiplyScalar(0.5);
+  m.position.set(sh.x, sh.y - 0.38, sh.z - 0.2);
+  m.rotation.x = 0.18;
+  fig.group.add(m);
+};
+const Q = R.FAMILIES.find(f => f.id === 'qmod');
+const MORE_UNITS = {
+  // the existing heavy cavalry, now with a team saddle cloth
+  cav: async () => mount(await Q.build('cav', 0)),
+  crossbow: async () => {
+    const f = await people('Male_Adventurer', { armour: [{ bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], push: 0.024, color: '#7d848c', metal: true }, SURCOAT] });
+    await R.hang(f, { item: 'Helmet2', at: 'head' });
+    await crossbow(f);
+    return f;
+  },
+  lightcav: async () => {
+    const f = await people('Male_Adventurer', { seated: true, armour: R.ARMOUR.archer });
+    await R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
+    await R.hang(f, R.KIT.cav[0]);
+    return mount(f);
+  },
+  maa: async () => {
+    const f = await people('Male_Adventurer', { armour: plate('#a9b0b8') });
+    await R.hang(f, { item: 'Helmet1', at: 'head' });
+    await R.fitPads(f);
+    await R.hang(f, { item: 'W_Axe', at: 'R', len: 1.5, off: [0, 0.1, 0.05], rot: [10, 90, 0] });
+    await R.hang(f, R.KIT.sword[1]);
+    return f;
+  },
+  knight: async () => {
+    const f = await people('Male_King', { seated: true, armour: plate('#c3c8ce') });
+    await R.hang(f, { item: 'Helmet1', at: 'head' });
+    await R.fitPads(f);
+    await R.hang(f, { item: 'W_Spear', at: 'R', len: 3.9, off: [0, 0, 0.05], rot: [62, 0, 0] });
+    await R.hang(f, R.KIT.cav[1]);
+    return mount(f, { caparison: true });
+  },
+  captain: async () => {
+    const f = await people('Male_King', { seated: true, armour: plate('#d2d5d9') });
+    await R.hang(f, { item: 'Helmet3', at: 'head' });
+    plume(f);
+    await R.fitPads(f);
+    cape(f);
+    await R.hang(f, R.KIT.sword[0]);
+    return mount(f, { caparison: true });
+  },
+  // a camp tent: canvas walls in the team colour under a pale roof
+  tent: async () => {
+    const g = new THREE.Group();
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(2.4, 2.2, 8), new THREE.MeshLambertMaterial({ color: '#e8dfc8' }));
+    roof.position.y = 3.1; g.add(roof);
+    const wall = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 2, 8, 1, true), teamMat(0.9));
+    wall.position.y = 1; g.add(wall);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.6), new THREE.MeshLambertMaterial({ color: '#5a4030' }));
+    pole.position.y = 2.3; g.add(pole);
+    return { group: g };
+  },
+};
+for (const k of ['knight', 'captain', 'lightcav', 'cav']) MORE_UNITS[k].heavy = true;
+
+// ---- buildings with levels, and the new ones ----
+const MORE_BUILDINGS = {
+  // the first town centre reads as a fort: forts and army camps
+  fort: [[[rts('TownCenter_FirstAge_Level1')]], 24, 'TownCenter_FirstAge_Level3'],
+  // a village keep grows through the rest of the town-centre line
+  'keep.1': [[[rts('TownCenter_FirstAge_Level2')]], 24, 'TownCenter_FirstAge_Level3'],
+  'keep.2': [[[rts('TownCenter_FirstAge_Level3')]], 24],
+  'keep.3': [[[rts('TownCenter_SecondAge_Level1')]], 24, 'TownCenter_FirstAge_Level3'],
+  'keep.4': [[[rts('TownCenter_SecondAge_Level2')]], 24, 'TownCenter_FirstAge_Level3'],
+  'keep.5': [[[rts('TownCenter_SecondAge_Level3')]], 24, 'TownCenter_FirstAge_Level3'],
+  // the Wonder castles: wood fort, wood castle, stone castle, fortress
+  'castle.1': [[[rts('Wonder_FirstAge_Level2')]], 30, 'Wonder_FirstAge_Level3'],
+  'castle.2': [[[rts('Wonder_FirstAge_Level3')]], 30],
+  'castle.3': [[[rts('Wonder_SecondAge_Level2')]], 30, 'Wonder_FirstAge_Level3'],
+  'castle.4': [[[rts('Wonder_SecondAge_Level3')]], 30, 'Wonder_FirstAge_Level3'],
+  storehouse: [[[rts('Storage_FirstAge_Level2')]], 9],
+  market: [[[rts('Market_FirstAge_Level2')]], 12],
+  tanner: [[[mvp('House_2')], [mvp('Barrel'), 3.2, 1.8], [mvp('Bags'), 3.2, -1.2]], 8],
+  armourer: [[[rts('Barracks_FirstAge_Level1')], [mvp('Cauldron'), 4.5, 2.5]], 9],
+  stable: [[[mvp('Stable')], [mvp('Hay'), 4, 2]], 11],
+  mill: [[[rts('Windmill_FirstAge')], [mvp('Bags'), 3.2, 2]], 8],
+  bakery: [[[mvp('House_1')], [mvp('Bags'), 3, 2], [mvp('Barrel'), -3, 2]], 7.5],
+  siegeworks: [[[rts('Storage_FirstAge_Level3')], [rts('Logs'), 5, 3], [mvp('Cart'), -5, 3.5, 0.6]], 13],
+  watchtower: [[[rts('WatchTower_FirstAge_Level1')]], 4.5, 'WatchTower_FirstAge_Level2'],
+  monastery: [[[rts('Temple_FirstAge_Level2')]], 18],
+  dock: [[[rts('Port_FirstAge_Level1')]], 12],
+  wagon: [[[mvp('Cart')]], 3.6],
+  well: [[[mvp('Well')]], 2.6],
+};
+// Upgrade levels: `<kind>.2` and `<kind>.3`, each sized against its level-one model so the step up shows.
+const LEVELS = {
+  storehouse: ['Storage_FirstAge_Level2', 'Storage_FirstAge_Level3', 'Storage_SecondAge_Level2', 9],
+  market: ['Market_FirstAge_Level2', 'Market_FirstAge_Level3', 'Market_SecondAge_Level2', 12],
+  barracks: ['Barracks_FirstAge_Level2', 'Barracks_FirstAge_Level3', 'Barracks_SecondAge_Level2', 11],
+  bowyer: ['Archery_FirstAge_Level1', 'Archery_FirstAge_Level2', 'Archery_SecondAge_Level1', 7],
+  watchtower: ['WatchTower_FirstAge_Level1', 'WatchTower_FirstAge_Level2', 'WatchTower_SecondAge_Level2', 4.5],
+};
+const sizedBy = (name, ref, width) => [[[rts(name)]], width, ref];
+for (const [kind, [one, two, three, width]] of Object.entries(LEVELS)) {
+  MORE_BUILDINGS[kind + '.2'] = sizedBy(two, one, width);
+  MORE_BUILDINGS[kind + '.3'] = sizedBy(three, one, width);
+}
+for (const st of [1, 2, 3]) {
+  MORE_BUILDINGS[`house.${st - 1}.2`] = sizedBy(`Houses_FirstAge_${st}_Level3`, `Houses_FirstAge_${st}_Level2`, 6.5);
+  MORE_BUILDINGS[`house.${st - 1}.3`] = sizedBy(`Houses_SecondAge_${st}_Level2`, `Houses_FirstAge_${st}_Level2`, 6.5);
+}
+MORE_BUILDINGS['farm.2'] = [[[rts('Farm_FirstAge_Level3')], [rts('Farm_FirstAge_Level3_Wheat')]], 17, 'Farm_FirstAge_Level2'];
+
+// ---- walls, towers and gates, to the battle's measurements (length on x, outer face toward -z) ----
+async function wallParts() {
+  if (wallParts.done) return wallParts.done;
+  const stone = await packColour('Wall_SecondAge', 'Stone_Light'), stoneDark = await packColour('Wall_SecondAge', 'Stone');
+  const wood = await packColour('Wall_FirstAge', 'Wood'), iron = lin('#3b3f45');
+  return (wallParts.done = { stone, stoneDark, wood, iron });
+}
+// merlons along the outer edge of a wall top
+const merlons = (len, y, z, colour, { w = 0.8, h = 1, d = 0.45, step = 1.6 } = {}) => {
+  const out = [], n = Math.round(len / step);
+  for (let i = 0; i < n; i++) out.push(block(w, h, d, colour, -len / 2 + step * (i + 0.5), y, z));
+  return out;
+};
+const rubble = (len, depth, colour, seed = 1) => {
+  let r = seed; const rand = () => (r = (r * 16807) % 2147483647) / 2147483647;
+  const out = [];
+  for (let i = 0; i < 26; i++) {
+    const s = 0.5 + rand() * 1.1;
+    out.push(block(s, s * 0.7, s, colour, (rand() - 0.5) * len, 0, (rand() - 0.5) * depth * 1.6, { ry: rand() * 3 }));
+  }
+  return out;
+};
+async function stoneWall() {
+  const { stone } = await wallParts();
+  const body = fitBox(await rtsFlat('Wall_SecondAge'), [10, 5, 2.5]);
+  return join([body, ...merlons(10, 5, -1.02, stone)]);
+}
+async function woodWall() {
+  const { wood } = await wallParts();
+  const stakes = fitBox(await rtsFlat('Wall_FirstAge'), [10, 4.5, 0.45]);
+  stakes.translate(0, 0, -0.52);
+  const deck = [block(10, 0.16, 1.05, wood.clone().multiplyScalar(0.85), 0, 3.34, 0.22)];
+  for (let x = -4.5; x <= 4.5; x += 3) deck.push(block(0.22, 3.34, 0.22, wood.clone().multiplyScalar(0.7), x, 0, 0.62));
+  return join([stakes, ...deck]);
+}
+// a tower cut from the end of the pack's walled pair of towers
+async function towerFrom(name, dims) {
+  const g = await rtsFlat(name), s = size(g);
+  g.computeBoundingBox();
+  const maxX = g.boundingBox.max.x, cut = maxX - s.z * 1.15;
+  return fitBox(crop(g, x => x > cut), dims);
+}
+async function gate(kind) {
+  const { stone, stoneDark, wood, iron } = await wallParts();
+  if (kind === 'stone') {
+    const side = async x => { const g = fitBox(await rtsFlat('Wall_SecondAge'), [2.5, 5, 2.5]); g.translate(x, 0, 0); return g; };
+    return join([await side(-3.75), await side(3.75),
+      block(1, 6.2, 2.9, stoneDark, -2.9, 0, 0), block(1, 6.2, 2.9, stoneDark, 2.9, 0, 0),
+      block(5, 1.1, 2.5, stone, 0, 3.9, 0), ...merlons(10, 5, -1.02, stone)]);
+  }
+  const side = async x => { const g = fitBox(await rtsFlat('Wall_FirstAge'), [2.5, 4.5, 0.45]); g.translate(x, 0, -0.52); return g; };
+  const dark = wood.clone().multiplyScalar(0.7);
+  return join([await side(-3.75), await side(3.75),
+    block(0.45, 5.6, 0.45, dark, -2.7, 0, -0.52), block(0.45, 5.6, 0.45, dark, 2.7, 0, -0.52),
+    block(5.8, 0.4, 0.5, dark, 0, 4.9, -0.52), block(10, 0.16, 1.05, wood.clone().multiplyScalar(0.85), 0, 3.34, 0.22)]);
+}
+async function door(kind) {
+  const { wood, iron } = await wallParts();
+  const plank = wood.clone().multiplyScalar(kind === 'stone' ? 0.6 : 0.8);
+  const leaf = x => [block(2.45, 4.9, 0.22, plank, x, 0, 0), ...[0.8, 2.4, 4].map(y => block(2.3, 0.18, 0.26, iron, x, y, 0))];
+  return join([...leaf(-1.25), ...leaf(1.25)]);
+}
+const ENGINES = {};
+async function engines() {
+  if (ENGINES.done) return ENGINES;
+  ENGINES.ram = await engine('siege-ram', null, { length: 6, turn: -Math.PI / 2 });
+  ENGINES.mangonel = await engine('siege-catapult', 'catapult', { length: 4, turn: -Math.PI / 2 });
+  ENGINES.trebuchet = await engine('siege-trebuchet', 'arm', { height: 9, turn: -Math.PI / 2 });
+  ENGINES.tower = await engine('siege-tower', null, { height: 10, turn: -Math.PI / 2 });
+  ENGINES.done = true;
+  return ENGINES;
+}
+function ladder() {
+  const wood = lin('#7a5a3a'), out = [block(0.12, 0.1, 8, wood, -0.36, 0, 4), block(0.12, 0.1, 8, wood, 0.36, 0, 4)];
+  for (let z = 0.4; z < 8; z += 0.45) out.push(block(0.72, 0.06, 0.07, wood, 0, 0.02, z));
+  return join(out);
+}
+Object.assign(MORE_BUILDINGS, {
+  'wall.stone': stoneWall,
+  'wall.wood': woodWall,
+  'wall.stone.broken': async () => { const { stone, stoneDark } = await wallParts(); return join([crop(await stoneWall(), (x, y) => y < 1.4), ...rubble(10, 2.5, stone, 3), ...rubble(9, 2.5, stoneDark, 7).slice(0, 12)]); },
+  'wall.wood.broken': async () => { const { wood } = await wallParts(); return join([crop(await woodWall(), (x, y) => y < 1.2), ...rubble(10, 1.5, wood.clone().multiplyScalar(0.75), 5).slice(0, 16)]); },
+  'tower.stone': () => towerFrom('WallTowers_SecondAge', [8, 11, 8]),
+  'tower.wood': () => towerFrom('WallTowers_FirstAge', [6, 7.4, 6]),
+  'gate.stone': () => gate('stone'),
+  'gate.wood': () => gate('wood'),
+  'gate.stone.door': () => door('stone'),
+  'gate.wood.door': () => door('wood'),
+  'siege.ram': async () => (await engines()).ram.frame,
+  'siege.mangonel': async () => (await engines()).mangonel.frame,
+  'siege.mangonel.arm': async () => (await engines()).mangonel.arm,
+  'siege.trebuchet': async () => (await engines()).trebuchet.frame,
+  'siege.trebuchet.arm': async () => (await engines()).trebuchet.arm,
+  'siege.tower': async () => (await engines()).tower.frame,
+  'siege.ladder': async () => ladder(),
+  'siege.stone': async () => solid(new THREE.IcosahedronGeometry(0.3, 0), '#8a857a'),
+});
+Object.assign(UNITS, MORE_UNITS);
+Object.assign(BUILDINGS, MORE_BUILDINGS);
+export const pivots = async () => { const e = await engines(); return { mangonel: e.mangonel.pivot, trebuchet: e.trebuchet.pivot }; };
+
+// `only` (a RegExp on 'unit.<key>' or 'building.<name>') bakes a subset for a quick look, without saving.
+export async function bakeAll(only) {
   await MeshoptSimplifier.ready;
   const scene = new THREE.Scene(), mat = new THREE.MeshLambertMaterial({ vertexColors: true }), report = {};
   const add = (name, geo) => { const m = new THREE.Mesh(geo, mat); m.name = name; scene.add(m); };
   for (const [key, make] of Object.entries(UNITS)) {
+    if (only && !only.test('unit.' + key)) continue;
     const fig = await make();
-    const { gear, cloth, counts } = split(fig.group);
+    const { gear, cloth, counts } = split(fig.isObject3D ? fig : fig.group);
     if (!gear || !cloth) throw new Error(`${key}: ${counts} gear/cloth pieces`);
     const full = { gear: compact(gear), cloth: compact(cloth) };
-    const total = tri(full.gear) + tri(full.cloth), budget = key === 'cav' ? LIGHT * 1.6 : LIGHT;
+    const total = tri(full.gear) + tri(full.cloth), budget = make.heavy ? LIGHT * 1.6 : LIGHT;
     const light = { gear: compact(gear, budget * tri(full.gear) / total), cloth: compact(cloth, budget * tri(full.cloth) / total) };
     for (const part of ['gear', 'cloth']) { add(`unit.${key}.${part}`, full[part]); add(`unit.${key}.${part}.light`, light[part]); }
     report[key] = `${total} → ${tri(light.gear) + tri(light.cloth)}`;
   }
   for (const [name, recipe] of Object.entries(BUILDINGS)) {
+    if (only && !only.test('building.' + name)) continue;
     const geo = await buildingGeo(recipe);
     add('building.' + name, geo);
     report[name] = tri(geo);
   }
+  if (only) return { scene, report };
   const glb = await new GLTFExporter().parseAsync(scene, { binary: true });
   const res = await fetch('/save/models.glb', { method: 'PUT', body: glb });
   return { saved: res.ok, bytes: glb.byteLength, report };

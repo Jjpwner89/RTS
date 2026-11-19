@@ -141,7 +141,7 @@ export class TownView {
     this.meshes = new Map();
     this.icons = {};
 
-    // the keep grows through three levels with the village; see keepLevel()
+    // the keep grows through five levels with the village; see wantedKeepLevel()
     this.keepLevel = this.wantedKeepLevel();
     const keepGeo = keepModel({ palisade: false, level: this.keepLevel });
     const keep = this.keep = new THREE.Mesh(keepGeo, this.mat);
@@ -202,14 +202,22 @@ export class TownView {
     for (const o of [this.ghostRange, this.territoryRing, this.selectRing]) { o.visible = false; scene.add(o); }
   }
 
-  // Town centre level I for a hamlet, II from 30 people, III from 60.
-  wantedKeepLevel() { const n = this.town.population; return n >= 60 ? 3 : n >= 30 ? 2 : 1; }
-
-  // Houses come in three styles, picked per building; every other kind has one model.
-  geo(kind, style = 0) {
-    const key = kind === 'house' ? kind + (style % HOUSE_STYLES) : kind;
-    return this.geos[key] || (this.geos[key] = (kind === 'house' ? houseModel(style) : buildingModel(kind)) || MODELS[kind]());
+  // The town-centre line: level I for a hamlet, then II from 30 people, III from 60, IV from 100 and V from 150.
+  // A level the town sets itself (town.keepLevel) wins, so upgrades can cost gold later.
+  wantedKeepLevel() {
+    if (this.town.keepLevel) return this.town.keepLevel;
+    const n = this.town.population;
+    return n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
   }
+
+  // Houses come in three styles, picked per building. Buildings with upgrade levels (b.level 2 or 3) have a model for
+  // each; a level without one keeps the one below.
+  geo(kind, style = 0, level = 1) {
+    const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind;
+    for (let l = level; l > 1; l--) if (buildingModel(`${base}.${l}`)) return this.cached(`${base}.${l}`, () => buildingModel(`${base}.${l}`));
+    return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(kind)) || (MODELS[kind] || MODELS.storehouse)());
+  }
+  cached(key, make) { return this.geos[key] || (this.geos[key] = make()); }
 
   icon(b, warn) {
     const key = b.kind + (warn ? '!' : '');
@@ -259,7 +267,7 @@ export class TownView {
       let o = this.meshes.get(b);
       if (!o) {
         b.style ??= Math.floor(this.town.rand ? this.town.rand() * HOUSE_STYLES : Math.random() * HOUSE_STYLES);
-        const mesh = new THREE.Mesh(this.geo(b.kind, b.style), this.siteMat);
+        const mesh = new THREE.Mesh(this.geo(b.kind, b.style, b.level), this.siteMat);
         mesh.position.set(b.x, this.heightAt(b.x, b.z) - 0.1, b.z);
         mesh.rotation.y = b.angle;
         mesh.castShadow = mesh.receiveShadow = true;
@@ -268,8 +276,9 @@ export class TownView {
         icon.renderOrder = 9;
         icon.position.set(b.x, this.heightAt(b.x, b.z) + (b.B.radius > 5 ? 6 : 7.5), b.z);
         this.scene.add(mesh, icon);
-        this.meshes.set(b, o = { mesh, icon, state: null, warn: null });
+        this.meshes.set(b, o = { mesh, icon, state: null, warn: null, level: b.level || 1 });
       }
+      if ((b.level || 1) !== o.level) { o.level = b.level || 1; o.mesh.geometry = this.geo(b.kind, b.style, o.level); }
       if (b.state === 'site') o.mesh.scale.y = Math.max(0.08, b.progress);
       if (o.state !== b.state) {
         o.state = b.state;

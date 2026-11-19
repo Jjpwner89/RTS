@@ -13,6 +13,9 @@ try {
   const gltf = await new GLTFLoader().loadAsync(new URL('../assets/models.glb', import.meta.url).href);
   gltf.scene.traverse(o => {
     if (!o.isMesh) return;
+    // colours are stored as bytes; widen them to floats so the models merge with shapes built in code
+    const c = o.geometry.attributes.color;
+    if (c && !(c.array instanceof Float32Array)) o.geometry.setAttribute('color', new THREE.Float32BufferAttribute(Float32Array.from(c.array, v => c.normalized ? v / 255 : v), 3));
     o.geometry.computeVertexNormals();
     geos[o.name] = o.geometry;
   });

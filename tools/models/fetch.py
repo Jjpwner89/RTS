@@ -31,8 +31,12 @@ for x in json.loads(get(f'https://api.github.com/repos/{R}/git/trees/main?recurs
     if x['path'].startswith('public/models/') and x['path'].endswith('.gltf'):
         save(f'https://raw.githubusercontent.com/{R}/main/' + x['path'], os.path.join(assets, 'qrts', x['path'].rsplit('/', 1)[-1]))
 
-# Medieval Village Pack (sawmill, blacksmith, cauldron and a reference house), GLB
+# Medieval Village Pack (houses, workshops and props), GLB
 V = 'https://raw.githubusercontent.com/trebeljahr/quaternius-showcase/main/public/glb/medieval_village_pack'
-for n in ['House_4', 'Sawmill', 'Blacksmith', 'Mill', 'Stable', 'Cauldron']:
+for n in ['House_1', 'House_2', 'House_4', 'Sawmill', 'Blacksmith', 'Mill', 'Stable', 'Cauldron', 'Barrel', 'Bags', 'Hay', 'Cart', 'Well']:
     save(f'{V}/{n}.glb', os.path.join(assets, 'qmvp', n + '.glb'))
+# Kenney Castle Kit siege engines (CC0, kenney.nl), kept in this folder
+import shutil
+here = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kenney')
+shutil.copytree(here, os.path.join(assets, 'kenney'), dirs_exist_ok=True)
 print('done')

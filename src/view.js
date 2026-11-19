@@ -98,8 +98,8 @@ function asPart(geo) {
 }
 const stripped = g => { for (const a of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(a)) g.deleteAttribute(a); return g; };
 
-// The keep is the Fantasy RTS town centre, at `level` 1 to 3; a village's keep grows as it does.
-export function keepModel({ palisade = true, level = 3 } = {}) {
+// The keep is the Fantasy RTS town centre, at `level` 1 to 5; a village's keep grows as it does.
+export function keepModel({ palisade = true, level = 2 } = {}) {
   const baked = buildingModel('keep.' + level);
   if (baked) {
     const parts = [asPart(baked)];
@@ -136,7 +136,10 @@ export function keepModel({ palisade = true, level = 3 } = {}) {
 }
 
 // The lord's seat on the world map: the wooden castle.
-export const castleModel = () => buildingModel('castle') || keepModel();
+// `level` 1 to 4: wood fort, wood castle, stone castle, fortress.
+export const castleModel = (level = 2) => buildingModel('castle.' + level) || buildingModel('castle') || keepModel();
+// A fort: forts and army camps.
+export const fortModel = () => buildingModel('fort') || keepModel({ palisade: false, level: 1 });
 // Houses come in three styles; `style` picks one.
 export function houseModel(style = 0) {
   const baked = buildingModel('house.' + (style % HOUSE_STYLES));
