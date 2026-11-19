@@ -653,6 +653,7 @@ export class Battle {
     this.updateStones(dt);
     if (Math.floor(this.time) !== Math.floor(this.time - dt)) {
       this.checkVictory();
+      this.answerFoes();
       if (this.walls.any) this.wallsTick();
     }
   }
@@ -1527,7 +1528,7 @@ export class Battle {
     s.lunge = 0.6;
     this.arrows.push({
       x0: s.x, y0: s.y + 1.6, z0: s.z, x1, z1, y1: (o.level === 1 ? o.y : this.heightAt(x1, z1)) + 0.9,
-      t: 0, T, h: 2 + d * (s.reg.T.pierce ? 0.08 : 0.16), dmg: s.reg.T.arrowDmg, pierce: s.reg.T.pierce || 0, side: s.reg.side,
+      t: 0, T, h: 2 + d * (s.reg.T.pierce ? 0.08 : 0.16), dmg: s.reg.T.arrowDmg, pierce: s.reg.T.pierce || 0, side: s.reg.side, from: s.reg,
       bolt: !!s.reg.T.pierce,
     });
     audio.play('bow', s, this); // audio
@@ -1555,10 +1556,31 @@ export class Battle {
         hit.reg.morale -= 0.25;
         audio.play('arrowhit', hit, this); // audio
         hit.reg.lastHit = this.time;
+        hit.reg.shotBy = a.from;
         this.hurt(hit, a.dmg);
       }
     }
     this.arrows.length = w;
+  }
+
+  // Melee regiments left standing with no orders don't stand and take it: they go for
+  // a foe who comes within 25 m, or for the bowmen shooting them from up to 60 m.
+  // Hold, the walls, engines and the siege AI's men keep to what they were doing.
+  answerFoes() {
+    for (const r of this.regs) {
+      if (!this.usable(r) || r.T.range || r.engine || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.ai === 'siege') continue;
+      const ok = o => o.side !== r.side && this.usable(o) && !o.posts && !o.gone && o.alive > 0
+        && (!this.nav.any || this.nav.reachable(r.side, r.cx, r.cz, o.cx, o.cz));
+      let best = null, bd = 25;
+      for (const o of this.regs) {
+        if (!ok(o)) continue;
+        const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
+        if (d < bd) { bd = d; best = o; }
+      }
+      const shooter = r.shotBy;
+      if (!best && shooter && this.time - r.lastHit < 3 && ok(shooter) && Math.hypot(shooter.cx - r.cx, shooter.cz - r.cz) < 60) best = shooter;
+      if (best) this.orderAttack([r], best);
+    }
   }
 
   checkVictory() {
