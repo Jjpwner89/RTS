@@ -80,7 +80,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals'];
 
 function pack(w) {
   const enc = encoder(w);

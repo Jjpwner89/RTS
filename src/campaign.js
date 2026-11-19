@@ -17,6 +17,7 @@ import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon } from './world/supply.js';
 import { canSave, saveGame, readSave, loadGame } from './world/save.js';
 import { KINDS } from './world/realm.js';
+import { GOALS, updateGoals } from './world/goals.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
@@ -166,6 +167,22 @@ function enterTown(p) {
 }
 
 function showWorld() { setMode('world', null); }
+
+// ---- the first goals ----
+// A short list in the corner of the map, the next step lit; finishing one says so wherever you are.
+const goalSeen = { visited: !!loaded };
+let goalsShown = -1;
+$('goals').onclick = () => { $('goals').classList.toggle('folded'); goalsShown = -1; };
+function goals() {
+  if (mode === 'town') goalSeen.visited = true;
+  for (const g of updateGoals(world, goalSeen)) { world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.`); }
+  if (goalsShown === world.goals) return;
+  goalsShown = world.goals;
+  const el = $('goals');
+  el.hidden = world.goals >= GOALS.length || world.part === 2;
+  el.innerHTML = `<h4>Goals <small>${world.goals} of ${GOALS.length} · click for ${el.classList.contains('folded') ? 'all' : 'less'}</small></h4>` + GOALS.map((g, i) =>
+    `<div class="${i < world.goals ? 'done' : i === world.goals ? 'now' : 'later'}">${i < world.goals ? '✓' : i === world.goals ? '▸' : '·'} ${g.text}${i === world.goals && g.tip ? `<small>${g.tip}</small>` : ''}</div>`).join('');
+}
 
 function setMode(m, b) {
   if (current?.controls) current.controls.enabled = false;
@@ -424,11 +441,11 @@ function worldPanel() {
   const waitingAt = it && it.units && it.at && !it.path.length ? it.at : null;
   if (it?.house) return housePanel(el, it.house);
   const company = waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).length : 0;
-  const key = !it ? `none:${world.home?.owner}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}` : `p${it.id}:${it.owner}:${!!it.town}`;
+  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}`;
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div>`
-      + (world.home?.owner === 0 && world.home.town ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
+      + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
     else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="status" data-f="status"></p>`
@@ -438,7 +455,7 @@ function worldPanel() {
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
-        + (own ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
+        + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
         : `<p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
@@ -641,6 +658,7 @@ function frame(now) {
     }
   }
   topBar();
+  goals();
   worldLog();
   audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events } // audio
     : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events });

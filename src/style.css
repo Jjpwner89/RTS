@@ -231,3 +231,15 @@ body.quake #view { animation: quake 0.12s linear 6; }
 #stock .mood .good { color: #9fd27a; }
 #stock .mood .bad { color: #ff8a5a; }
 #info h3 small { color: var(--dim); font-weight: 400; font-size: 12px; }
+
+/* The first goals, top left of the map. Click to fold. */
+#goals { position: fixed; top: 64px; left: 16px; width: 260px; background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 4px 12px 8px; font-size: 12px; cursor: pointer; }
+body.campaign:not(.mode-world) #goals { display: none; }
+#goals[hidden] { display: none; }
+#goals h4 { margin: 4px 0 6px; font-size: 13px; }
+#goals h4 small { color: var(--dim); font-weight: 400; margin-left: 6px; }
+#goals div { margin: 3px 0; color: var(--dim); }
+#goals .done { opacity: 0.55; text-decoration: line-through; }
+#goals .now { color: var(--ink); }
+#goals .now small { display: block; color: var(--gold); opacity: 0.85; margin: 2px 0 0 12px; }
+#goals.folded div:not(.now) { display: none; }
