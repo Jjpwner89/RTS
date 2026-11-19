@@ -79,9 +79,9 @@ const LIGHT = 1500;
 // [model makers placed at x, z], and the width in metres across the widest side
 const rts = n => () => R.rtsModel(n), mvp = n => () => R.mvpModel(n);
 const BUILDINGS = {
-  'house.0': [[[rts('Houses_FirstAge_1_Level2')]], 6.5],
-  'house.1': [[[rts('Houses_FirstAge_2_Level2')]], 6.5],
-  'house.2': [[[rts('Houses_FirstAge_3_Level2')]], 6.5],
+  'house.0': [[[rts('Houses_FirstAge_1_Level3')]], 6.5],
+  'house.1': [[[rts('Houses_FirstAge_2_Level3')]], 6.5],
+  'house.2': [[[rts('Houses_FirstAge_3_Level3')]], 6.5],
   woodcutter: [[[rts('Storage_FirstAge_Level1')], [rts('Logs'), 3.4, 2.4], [rts('Resource_PineTree_Group_Cut'), -3.5, -3.5]], 7.5],
   quarry: [[[async () => C.fit(await R.rtsModel('Resource_Rock_2'), 5)], [rts('Crate_Stack1'), 3.2, 2.6]], 7],
   mine: [[[rts('Mine')]], 7],
@@ -390,9 +390,11 @@ for (const [kind, [one, two, three, width]] of Object.entries(LEVELS)) {
   MORE_BUILDINGS[kind + '.2'] = sizedBy(two, one, width);
   MORE_BUILDINGS[kind + '.3'] = sizedBy(three, one, width);
 }
+// (the pack's first-age Level1 and Level2 houses are open frames that read as building sites, so a
+// level-one house is the closed first-age hut and the two upgrades are second-age tiled houses)
 for (const st of [1, 2, 3]) {
-  MORE_BUILDINGS[`house.${st - 1}.2`] = sizedBy(`Houses_FirstAge_${st}_Level3`, `Houses_FirstAge_${st}_Level2`, 6.5);
-  MORE_BUILDINGS[`house.${st - 1}.3`] = sizedBy(`Houses_SecondAge_${st}_Level2`, `Houses_FirstAge_${st}_Level2`, 6.5);
+  MORE_BUILDINGS[`house.${st - 1}.2`] = sizedBy(`Houses_SecondAge_${st}_Level1`, `Houses_FirstAge_${st}_Level3`, 6.5);
+  MORE_BUILDINGS[`house.${st - 1}.3`] = sizedBy(`Houses_SecondAge_${st}_Level2`, `Houses_FirstAge_${st}_Level3`, 6.5);
 }
 MORE_BUILDINGS['farm.2'] = [[[rts('Farm_FirstAge_Level3')], [rts('Farm_FirstAge_Level3_Wheat')]], 17, 'Farm_FirstAge_Level2'];
 
@@ -487,7 +489,22 @@ async function towerFrom(name, dims) {
   const g = await rtsFlat(name), s = size(g);
   g.computeBoundingBox();
   const maxX = g.boundingBox.max.x, cut = maxX - s.z * 1.15;
-  return fitBox(crop(g, x => x > cut), dims);
+  return unflag(fitBox(crop(g, x => x > cut), dims));
+}
+// Take off the pack's red pennant (and its pole above the cloth), which reads as an enemy's mark.
+function unflag(g) {
+  const p = g.attributes.position, c = g.attributes.color;
+  const red = i => c.getX(i) > c.getY(i) * 2 && c.getX(i) > c.getZ(i) * 2;
+  let low = Infinity;
+  for (let i = 0; i < p.count; i++) if (red(i)) low = Math.min(low, p.getY(i));
+  if (low === Infinity) return g;
+  const keep = new Set();
+  for (let i = 0; i < p.count; i += 3) {
+    const y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3;
+    if (!red(i) && y < low) keep.add(i);
+  }
+  let k = 0;
+  return crop(g, () => keep.has((k++) * 3));
 }
 async function gate(kind) {
   const { stone, stoneDark, wood } = await wallParts();

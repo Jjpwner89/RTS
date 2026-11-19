@@ -59,13 +59,17 @@ export class WorldView {
     const EXTENT = this.half + 140;       // woods reach this far
     const GROUND = this.half * 2.2;       // the ground runs on past them so the edge never shows
     drawGround(this.scene, h, world.seed, { extent: GROUND, seg: Math.round(320 * Math.min(1.6, this.half / WORLD_HALF)) });
+    const wall = world.wall?.points || [], wr = wall.map(q => Math.hypot(q.x, q.z));
+    const wallMin = Math.min(...wr) - 40, wallMax = Math.max(...wr) + 40;
+    const nearWall = (x, z) => { const r = Math.hypot(x, z); if (!(r > wallMin && r < wallMax)) return false; for (let i = 1; i < wall.length; i++) if (nearSegment(x, z, wall[i - 1], wall[i]) < 26) return true; return false; };
     const trees = plantTrees(world.seed, (x, z) => world.pois.some(p => Math.hypot(x - p.x, z - p.z) < (p.kind === 'crown' ? 175 : 80))
-      || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12), 0.52, Math.round(6500 * (EXTENT / (WORLD_HALF + 140)) ** 2), EXTENT);
+      || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12) || nearWall(x, z), 0.52, Math.round(6500 * (EXTENT / (WORLD_HALF + 140)) ** 2), EXTENT);
     for (const t of trees.spots) { t.k *= 1.8; t.tall *= 1.8; }
     drawTrees(this.scene, h, trees);
     for (const r of world.roads) this.scene.add(this.road(r.a, r.b));
 
     this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    this.drawOldWall();
     this.places = new Map();
     for (const p of world.pois) {
       const g = new THREE.Group();
@@ -128,6 +132,7 @@ export class WorldView {
   // Screen positions of everything clickable, refreshed each frame for picking.
   update(camera, selected) {
     const w = this.world, v = new THREE.Vector3();
+    if (w.wall && w.wall.fallen !== this.wallFallen) this.drawOldWall();
     const rect = this.labelsEl.getBoundingClientRect();
     const toScreen = (x, y, z) => {
       v.set(x, y, z).project(camera);
@@ -284,6 +289,18 @@ export class WorldView {
       }
     };
     const out = (a, r) => [Math.sin(a) * r, Math.cos(a) * r];
+    // tents in a loose ring, kept off the roads
+    const tents = (n, r0, r1, colour = '#6b5a44', s = 1) => {
+      const tent = unitModel('tent');
+      if (!tent) return;
+      const cloth = once('tentCloth' + colour, () => Object.assign(this.mat.clone(), { color: new THREE.Color(colour) }));
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2 + rand() * 0.5;
+        if (nearRoad(a, 0.2)) continue;
+        const [x, z] = out(a, r0 + rand() * (r1 - r0));
+        put(tent.gear, x, z, a, s); put(tent.cloth, x, z, a, s, cloth);
+      }
+    };
     let centre;
     if (p.town) {
       // the village in miniature: its keep, and its buildings where they stand, drawn closer together
@@ -299,7 +316,22 @@ export class WorldView {
         const a = Math.atan2(b.x, b.z), r = 20 + Math.hypot(b.x, b.z) * k;
         put(geo, Math.sin(a) * r, Math.cos(a) * r, b.angle || 0, 0.6);
       }
-    } else switch (seat ? 'seat' : p.kind) {
+    } else switch (p.kind === 'pass' || p.kind === 'warcamp' ? p.kind : seat ? 'seat' : p.kind) {
+      case 'pass':
+        // the mountain gate: a great castle inside stone walls, the northern host camped outside
+        centre = put(castleModel(4), 0, 0, 0, 1.1);
+        ring(10, 30, 38, 0.3);
+        this.cityWall(put, roads, 54, 'stone', 4);
+        tents(14, 66, 82, '#7a7266', 1.4);
+        break;
+      case 'warcamp':
+        // a stockade of rough stakes and timber towers, packed with the host's tents
+        centre = put(fortModel(), 0, 0, 0, 0.5);
+        tents(9, 18, 22, '#7a7266', 1.3);
+        tents(12, 28, 34, '#7a7266', 1.3);
+        this.cityWall(put, roads, 42, 'wood', 5);
+        tents(8, 52, 62, '#7a7266', 1.2);
+        break;
       case 'crown':
         centre = put(castleModel(4), 0, 0, 0, 1.2);
         put(buildingModel('market.3'), ...out(2.4, 30), 2.4);
@@ -349,11 +381,7 @@ export class WorldView {
       case 'camp': {
         // bandits: rough tents round a fort-like stockade
         centre = put(fortModel(), 0, 0, 0, 0.45);
-        const tent = unitModel('tent'), cloth = this.campCloth || (this.campCloth = Object.assign(this.mat.clone(), { color: new THREE.Color('#6b5a44') }));
-        for (let i = 0; i < 5; i++) {
-          const a = i / 5 * Math.PI * 2 + rand(), [x, z] = out(a, 16 + rand() * 6);
-          if (tent) { put(tent.gear, x, z, a); put(tent.cloth, x, z, a, 1, cloth); }
-        }
+        tents(5, 16, 22);
         break;
       }
       default:
@@ -365,17 +393,86 @@ export class WorldView {
     if (centre) o.flag.position.set(4.5, S * centre.scale.x * keepTop(centre.geometry) + 4, 0);
   }
 
-  // A ring of stone walls and towers round the royal city, with a gate wherever a road comes in.
-  cityWall(put, roads, R) {
+  // A ring of walls and towers round a place, stone or timber, with a gate wherever a road comes in.
+  cityWall(put, roads, R, mat = 'stone', every = 6) {
     const n = Math.round(Math.PI * 2 * R / 10), len = Math.PI * 2 * R / n;
     const gates = new Set(roads.map(r => ((Math.round(r / (Math.PI * 2) * n) % n) + n) % n));
     for (let i = 0; i < n; i++) {
       const a = i / n * Math.PI * 2, x = Math.sin(a) * R, z = Math.cos(a) * R;
       // the outer face points away from the city
-      const m = put(buildingModel(gates.has(i) ? 'gate.stone' : 'wall.stone'), x, z, a + Math.PI);
+      const m = put(buildingModel(gates.has(i) ? `gate.${mat}` : `wall.${mat}`), x, z, a + Math.PI);
       if (m) m.scale.x = len / 10 * 1.02;
-      if (i % 6 === 3) { const b = (i + 0.5) / n * Math.PI * 2; put(buildingModel('tower.stone'), Math.sin(b) * R, Math.cos(b) * R, b, 0.8); }
+      if (i % every === Math.floor(every / 2)) { const b = (i + 0.5) / n * Math.PI * 2; put(buildingModel(`tower.${mat}`), Math.sin(b) * R, Math.cos(b) * R, b, 0.8); }
     }
+  }
+
+  // ---- the old wall across the north: whole in Part 1, broken where the war camps' roads cross in Part 2 ----
+
+  drawOldWall() {
+    const W = this.world.wall;
+    if (this.oldWall) { this.scene.remove(this.oldWall); this.oldWall.traverse(o => o.isInstancedMesh && o.dispose()); }
+    this.wallFallen = W?.fallen;
+    if (!W?.points?.length) return;
+    const pts = W.points, h = this.heightAt, S = 2.6, PIECE = 10 * S;
+    // distance along the wall to each point, and where each breach road crosses it
+    const along = [0];
+    for (let i = 1; i < pts.length; i++) along.push(along[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
+    const total = along[along.length - 1];
+    const at = s => {
+      let i = 1;
+      while (i < pts.length - 1 && along[i] < s) i++;
+      const a = pts[i - 1], b = pts[i], t = (s - along[i - 1]) / ((along[i] - along[i - 1]) || 1);
+      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, dx: b.x - a.x, dz: b.z - a.z };
+    };
+    const cuts = [];
+    for (const br of W.fallen ? W.breaches : []) {
+      const p = br.from, q = br.to;
+      let hit = null;
+      for (let i = 1; i < pts.length && !hit; i++) {
+        const a = pts[i - 1], b = pts[i];
+        const d = (q.x - p.x) * (b.z - a.z) - (q.z - p.z) * (b.x - a.x);
+        if (!d) continue;
+        const t = ((a.x - p.x) * (b.z - a.z) - (a.z - p.z) * (b.x - a.x)) / d, u = ((a.x - p.x) * (q.z - p.z) - (a.z - p.z) * (q.x - p.x)) / d;
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) hit = along[i - 1] + u * (along[i] - along[i - 1]);
+      }
+      if (hit === null) {   // no crossing found: break it nearest the breach's marker
+        let best = Infinity;
+        for (let s = 0; s <= total; s += 5) { const c = at(s), d = Math.hypot(c.x - br.x, c.z - br.z); if (d < best) { best = d; hit = s; } }
+      }
+      cuts.push(hit);
+    }
+    const gap = s => Math.min(Infinity, ...cuts.map(c => Math.abs(c - s)));
+    const n = Math.max(1, Math.round(total / PIECE)), len = total / n;
+    const lots = new Map(), m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+    const add = (name, x, z, y, yaw, sx, s) => {
+      m4.compose(new THREE.Vector3(x, y, z), q4.setFromAxisAngle(up, yaw), new THREE.Vector3(sx, s, s));
+      (lots.get(name) || lots.set(name, []).get(name)).push(m4.clone());
+    };
+    let seed = (this.world.seed || 7) % 2147483646 + 1;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < n; i++) {
+      const s = (i + 0.5) * len, c = at(s), e0 = at(i * len), e1 = at((i + 1) * len);
+      // the outer face (local -z) looks north, away from the realm
+      const yaw = Math.atan2(c.x, c.z) + Math.PI;
+      const y = Math.min(h(e0.x, e0.z), h(c.x, c.z), h(e1.x, e1.z)) - 0.6;
+      const g = gap(s), worn = W.fallen && rand() < 0.08;
+      if (g > len * 0.9) add(g < len * 2 || worn ? 'wall.stone.broken' : 'wall.stone', c.x, c.z, y, yaw, len / 10 * 1.02, S);
+      if (i % 4 === 0 || i === n - 1) {
+        const ts = i === n - 1 ? total : i * len, t = at(ts), tg = gap(ts);
+        if (tg > len * 0.6) add(tg < len * 2.5 ? 'tower.stone.broken' : 'tower.stone', t.x, t.z, h(t.x, t.z) - 0.6, yaw, S * 0.85, S * 0.85);
+      }
+    }
+    const group = new THREE.Group();
+    for (const [name, list] of lots) {
+      const geo = buildingModel(name) || buildingModel(name.replace('.broken', ''));
+      if (!geo) continue;
+      const im = new THREE.InstancedMesh(geo, this.mat, list.length);
+      list.forEach((m, k) => im.setMatrixAt(k, m));
+      im.castShadow = im.receiveShadow = true;
+      group.add(im);
+    }
+    this.oldWall = group;
+    this.scene.add(group);
   }
 
   // ---- fog of war: a pale wash over land you have not seen, thinner over land seen before ----
