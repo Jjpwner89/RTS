@@ -1,0 +1,212 @@
+{
+  "section": "portraits",
+  "brief_revision": 3,
+  "mode": "built-in image_gen",
+  "status": "complete",
+  "assets": [
+    {
+      "id": "varn",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Lord Edric Varn: lean hard man about forty, weathered face, short dark beard, old scar through one eyebrow. Blackened mail, worn red #c8423a surcoat, fur-trimmed cloak thrown back. A restrained half-smile that does not reach his eyes: dangerous, practical, self-assured raider, never a cartoon villain. Warm light from one side. Soft dark muted red smoke-hazed dusk background, faint suggestion of a distant medieval wall, kept quiet. No heraldic badge needed.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f9e361e9-bbf8-48d1-8662-5fbe96db2f47.png",
+      "output": "assets/art/wip/portraits/varn-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Good alternate, slightly more heroic upward gaze."
+    },
+    {
+      "id": "varn",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Lord Edric Varn: lean hard man about forty, weathered face, short dark beard, old scar through one eyebrow. Blackened mail, worn red #c8423a surcoat, fur-trimmed cloak thrown back. A restrained half-smile that does not reach his eyes: dangerous, practical, self-assured raider, never a cartoon villain. Warm light from one side. Soft dark muted red smoke-hazed dusk background, faint suggestion of a distant medieval wall, kept quiet. No heraldic badge needed. Alternate independent take: slightly leaner angular face, more economical brush shapes, subtle rather than theatrical smile.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-ac8b106e-2138-435a-9c0d-a90b5a422c6b.png",
+      "output": "assets/art/wip/portraits/varn-take-2.png",
+      "status": "selected",
+      "final": "assets/art/portraits/varn.png",
+      "review": "Selected for more legible restrained half-smile and clear practical cloak fastening; face, eyes, brow scar and mail reviewed."
+    },
+    {
+      "id": "carrow",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match its painterly rendering, finish and portrait proportions; depict the different person described here, not the reference man. Lady Aldith Carrow, a broad-shouldered practical proud woman in her fifties. Mature calm shrewd face, grey-streaked hair under a simple linen veil. Good wool gown in gold #d9a441 and brown, keys just hinted at the lower crop, holding an unmarked folded building plan low at her chest. Builder's confidence. Pale stone castle masonry and faint scaffolding in a quiet dark gold-brown background. Warm window light from left.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-cdb1a437-fc9c-43d6-9fe4-87f38c961b45.png",
+      "output": "assets/art/wip/portraits/carrow-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    },
+    {
+      "id": "carrow",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match its painterly rendering, finish and portrait proportions; depict the different person described here, not the reference man. Lady Aldith Carrow, a broad-shouldered practical proud woman in her fifties. Mature calm shrewd face, grey-streaked hair under a simple linen veil. Good wool gown in gold #d9a441 and brown, keys just hinted at the lower crop, holding an unmarked folded building plan low at her chest. Builder's confidence. Pale stone castle masonry and faint scaffolding in a quiet dark gold-brown background. Warm window light from left. Alternate take: a subtly different natural expression and facial structure, keep the same framing and all brief details.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-ccad69f5-fe42-4010-9414-caec50b06053.png",
+      "output": "assets/art/wip/portraits/carrow-take-2.png",
+      "status": "selected",
+      "final": "assets/art/portraits/carrow.png",
+      "review": "Calm shrewd expression, natural visible hand, gold wool and folded plan clearly read; mature face and scaffold setting match."
+    },
+    {
+      "id": "stonemere",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match its painterly rendering, finish and portrait proportions; depict the different person described here, not the reference man. Lord Osric Stonemere, seventy, heavy-set and immovable, deeply patient. White beard, deep-set thoughtful eyes and aged face. Furred slate-grey #6f7f8f robe over matte plate at the shoulders. One natural hand rests on a sword pommel at the lower edge. Great grey stone wall suggested in soft quiet slate background at evening, warm light from left.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a78112da-7e2b-4f84-8b01-3509a5d72966.png",
+      "output": "assets/art/wip/portraits/stonemere-take-1.png",
+      "status": "selected",
+      "final": "assets/art/portraits/stonemere.png",
+      "review": "Patient heavy-set elder with slate robe, natural hand on pommel and unmarked fastening; alternate has incorrect lion heraldry."
+    },
+    {
+      "id": "stonemere",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match its painterly rendering, finish and portrait proportions; depict the different person described here, not the reference man. Lord Osric Stonemere, seventy, heavy-set and immovable, deeply patient. White beard, deep-set thoughtful eyes and aged face. Furred slate-grey #6f7f8f robe over matte plate at the shoulders. One natural hand rests on a sword pommel at the lower edge. Great grey stone wall suggested in soft quiet slate background at evening, warm light from left. Alternate take: a subtly different natural expression and facial structure, keep the same framing and all brief details.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c59ef5df-3fb8-4302-bc40-8b99ddbb553a.png",
+      "output": "assets/art/wip/portraits/stonemere-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    },
+    {
+      "id": "wyndham",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match broad painterly rendering and gallery framing; make the completely different person described here, with their own distinctive face, costume and background. Do not copy reference face or clasp. Lady Rohese Wyndham, a 35-year-old woman, elegant composed, dark braided hair beneath a fine jewelled net. Purple #7b4fa0 velvet gown with fine gold-thread border, no cloak or armour. A closed folded letter sealed with plain wax held low at chest in natural fingers. Clever charming slightly dangerous amused knowing expression, not a witch. Quiet candlelit chamber, muted dark purple tapestry. Warm side light.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b86a852e-85c4-44b4-99f1-b3d9a0fb54ae.png",
+      "output": "assets/art/wip/portraits/wyndham-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    },
+    {
+      "id": "wyndham",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match broad painterly rendering and gallery framing; make the completely different person described here, with their own distinctive face, costume and background. Do not copy reference face or clasp. Lady Rohese Wyndham, a 35-year-old woman, elegant composed, dark braided hair beneath a fine jewelled net. Purple #7b4fa0 velvet gown with fine gold-thread border, no cloak or armour. A closed folded letter sealed with plain wax held low at chest in natural fingers. Clever charming slightly dangerous amused knowing expression, not a witch. Quiet candlelit chamber, muted dark purple tapestry. Warm side light. Alternate independent take with subtly different expression and face, retain all character details.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-02f89505-4214-494b-ba8a-cef03fe65662.png",
+      "output": "assets/art/wip/portraits/wyndham-take-2.png",
+      "status": "selected",
+      "final": "assets/art/portraits/wyndham.png",
+      "review": "Legible knowing expression and natural hands, purple gown and sealed letter; clean silhouette."
+    },
+    {
+      "id": "penhallow",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match broad painterly rendering and gallery framing; make the completely different person described here, with their own distinctive face, costume and background. Do not copy reference face or clasp. Lord Gervase Penhallow, a well-fed cheerful man of fifty, completely clean-shaven, heavy jaw, warm smiling eyes that conceal a hard bargainer. Rich green #2f8f6a houppelande with fur trim, a chain of office with a plain medallion, rings on a natural hand holding a simple small leather coin purse low at chest. Quiet soft-focus harbour market behind in dark muted green. Warm side light. No heraldic symbols.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-983902f8-4f25-423a-9252-2600a7d25c37.png",
+      "output": "assets/art/wip/portraits/penhallow-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    },
+    {
+      "id": "penhallow",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match broad painterly rendering and gallery framing; make the completely different person described here, with their own distinctive face, costume and background. Do not copy reference face or clasp. Lord Gervase Penhallow, a well-fed cheerful man of fifty, completely clean-shaven, heavy jaw, warm smiling eyes that conceal a hard bargainer. Rich green #2f8f6a houppelande with fur trim, a chain of office with a plain medallion, rings on a natural hand holding a simple small leather coin purse low at chest. Quiet soft-focus harbour market behind in dark muted green. Warm side light. No heraldic symbols. Alternate independent take with subtly different expression and face, retain all character details.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-19e39dab-6cf5-4406-86f1-56430e074b3c.png",
+      "output": "assets/art/wip/portraits/penhallow-take-2.png",
+      "status": "selected",
+      "final": "assets/art/portraits/penhallow.png",
+      "review": "Warmer open expression, green reads clearly, natural purse grip, distinct merchant silhouette."
+    },
+    {
+      "id": "dunmore",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match broad painterly rendering and gallery framing; make the completely different person described here, with their own distinctive face, costume and background. Do not copy reference face or clasp. Lord Hal Dunmore, a handsome reckless 22-year-old young knight. Youthful angular clean-shaven face, tousled fair hair, one small fresh cheek cut. Bright but matte steel plate armour beneath orange #e07a2f surcoat, helmet tucked under his arm at the lower crop and a plain orange lance pennon just visible behind. Energetic confident bravado in a slightly turning posture, still clear head and mid-chest framing. Quiet bright open sky and soft tourney field background, warm sunlight. No coat of arms, no lions or badges.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-89ca6cda-01c1-44bd-93ed-1a96e59d6c19.png",
+      "output": "assets/art/wip/portraits/dunmore-take-1.png",
+      "status": "selected",
+      "final": "assets/art/portraits/dunmore.png",
+      "review": "Energetic young face, small cheek cut, readable orange surcoat, helmet and pennon; convincing armour fastening."
+    },
+    {
+      "id": "dunmore",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY: match broad painterly rendering and gallery framing; make the completely different person described here, with their own distinctive face, costume and background. Do not copy reference face or clasp. Lord Hal Dunmore, a handsome reckless 22-year-old young knight. Youthful angular clean-shaven face, tousled fair hair, one small fresh cheek cut. Bright but matte steel plate armour beneath orange #e07a2f surcoat, helmet tucked under his arm at the lower crop and a plain orange lance pennon just visible behind. Energetic confident bravado in a slightly turning posture, still clear head and mid-chest framing. Quiet bright open sky and soft tourney field background, warm sunlight. No coat of arms, no lions or badges. Alternate independent take with subtly different expression and face, retain all character details.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-77d9e15e-5eee-4a9c-807b-0b6b6cef4bec.png",
+      "output": "assets/art/wip/portraits/dunmore-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    },
+    {
+      "id": "player",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY for the painterly finish and portrait scale. A different man: the player's newly landed lord, about thirty, open and determined, likeable, grounded, medium brown tidy hair, light stubble, no scars. Plain good blue #3d6fd6 surcoat over matte mail, no jewellery, no headwear, no fancy fur or armour plates. Capable and approachable, neither a swaggering hero nor a villain. Relaxed shoulders turned slightly toward viewer's right, head gently turned toward viewer, hands outside frame. Warm morning light from upper left. Quiet blue-grey morning background with a small timber keep on a low green hill at the right, hopeful beginning. No coat of arms or badge.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-fba043c6-9050-41f2-aba5-d349b1ca1cd6.png",
+      "output": "assets/art/wip/portraits/player-take-1.png",
+      "status": "selected",
+      "final": "assets/art/portraits/player.png",
+      "review": "Selected for open approachable expression, clear blue surcoat, clean anatomy and matching morning keep setting."
+    },
+    {
+      "id": "player",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: one finished medieval strategy-game lord portrait, opaque PNG, 768x960 pixels, vertical 4:5. One person, head and shoulders to mid-chest, three-quarter view looking just past viewer; face large, upper middle and legible in a 64px circular crop. Warm readable stylised digital painting, visible broad confident brushwork, simplified planes and silhouettes, natural anatomy, soft clean colour, matte cloth and steel. Cohesive character-card gallery compatible with low-poly Quaternius medieval models, not photoreal, not gritty, not anime. Grounded 13th\u201314th century England/northern France feel, no magic. No frame, no text, letters, numbers, signature or watermark. Input image 1 is a STYLE REFERENCE ONLY for the painterly finish and portrait scale. A different man: the player's newly landed lord, about thirty, open and determined, likeable, grounded, medium brown tidy hair, light stubble, no scars. Plain good blue #3d6fd6 surcoat over matte mail, no jewellery, no headwear, no fancy fur or armour plates. Capable and approachable, neither a swaggering hero nor a villain. Relaxed shoulders turned slightly toward viewer's right, head gently turned toward viewer, hands outside frame. Warm morning light from upper left. Quiet blue-grey morning background with a small timber keep on a low green hill at the right, hopeful beginning. No coat of arms or badge. Alternate facial take with a slightly softer brow and a restrained welcoming expression; keep pose and setting identical.",
+      "references": [
+        "assets/art/portraits/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-e0a17a02-e7d1-43f7-8d9f-0cdd938e57dc.png",
+      "output": "assets/art/wip/portraits/player-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    },
+    {
+      "id": "player-f",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the edit target: a player's medieval lord portrait. Create the female player counterpart. Change only the person to an adult woman about thirty, with a natural open determined likeable face and medium brown hair tied practically back. No jewellery or headwear. Keep exactly the same pose, body angle, head position and size, blue #3d6fd6 surcoat over mail, modest closed neckline, lighting direction, painted brushwork, timber keep, green hill and blue morning sky. Calm capable newly landed lord at the beginning of her story. Natural proportions, no makeup glamour. Single head-and-mid-chest portrait; no hands. Opaque vertical 4:5 PNG for export at 768x960. No text, frame, crest, letters, numbers or watermark.",
+      "references": [
+        "assets/art/wip/portraits/player-take-1.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-0af4ec71-f854-40dd-8c5d-0aa55226920b.png",
+      "output": "assets/art/wip/portraits/player-f-take-1.png",
+      "status": "selected",
+      "final": "assets/art/portraits/player-f.png",
+      "review": "Selected for open approachable expression, clear blue surcoat, clean anatomy and matching morning keep setting."
+    },
+    {
+      "id": "player-f",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the edit target: a player's medieval lord portrait. Create the female player counterpart. Change only the person to an adult woman about thirty, with a natural open determined likeable face and medium brown hair tied practically back. No jewellery or headwear. Keep exactly the same pose, body angle, head position and size, blue #3d6fd6 surcoat over mail, modest closed neckline, lighting direction, painted brushwork, timber keep, green hill and blue morning sky. Calm capable newly landed lord at the beginning of her story. Natural proportions, no makeup glamour. Single head-and-mid-chest portrait; no hands. Opaque vertical 4:5 PNG for export at 768x960. No text, frame, crest, letters, numbers or watermark. Alternate face with a slightly firmer jaw and more resolved expression; preserve all other invariants.",
+      "references": [
+        "assets/art/wip/portraits/player-take-1.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f516d971-bd6e-4924-9f88-6cb8b706064f.png",
+      "output": "assets/art/wip/portraits/player-f-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "review": "Retained alternate."
+    }
+  ]
+}
