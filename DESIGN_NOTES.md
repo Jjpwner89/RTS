@@ -139,6 +139,16 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - Strategic zoom with banners that stay a fixed size on screen.
 - URL options: `?seed=123` for a fixed map, `?scale=4` for four lines a side.
 
+**Walls, sieges and the new army** (battles workstream), 2026-11-19:
+- **Walls**: palisades and stone walls, towers and gates, each stretch with its own hp. In a village the Defences panel lets you drag out a wall, click towers and gates onto it, rebuild broken stretches, cut a gate into a wall or pull a stretch down for part of its cost. Walls are paid for when placed, and masons build them over time (more masons as the village grows). Villagers and your men pass your own gates; enemies have to break in.
+- **On the walls**: right-click your own wall to man it. Men climb up by towers and gates. Archers shoot further from walls and furthest from towers, merlons stop many arrows, and men on the wall beat climbers and anyone hacking at the wall below.
+- **Breaking in**: rams on gates, ladders on quiet stretches (defenders push them down), mangonels and trebuchets throwing stones that also hit buildings, and axes on palisades. A gate is forced open by attackers who get inside, and retaken by its owners.
+- **New units**: crossbowmen, light and heavy cavalry, men-at-arms, knights, sellswords and hired crossbows (paid in gold), and household men. Each has a role, the kit it needs and a cost in goods for engines.
+- **Captains**: one named captain per army rides with a regiment, giving a small bonus to morale and fighting. He gains levels over battles and can fall.
+- **Orders bar**: formations (line, tight, loose, wedge, schiltron) on N/T/L/V/X, Charge (C), Hold (G) and Fire at will (R).
+- **AI**: attackers camp, bring up engines, ladder where the walls are thin and storm once there is a way in. Defenders man the walls facing them, answer ladders and sally against engines. Siege hosts that attack your village do the same.
+- `battle.html?mode=siege` storms a stone fort; `?mode=defend` holds one. At `?scale=4`, about 5,000 soldiers run at 5–7 ms a step.
+
 ## The full game (decided 2026-11-18)
 
 The creator answered the big design questions for building the full game in one long push. These answers lead; anything left open is Claude's call.
