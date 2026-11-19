@@ -98,7 +98,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 
 Lords and captains remember what happened, which is where the stories come from.
 
-- **Lords**: grudges for burned villages, sieges and broken truces; a lord who fled comes back for revenge; taunts drawn from real history ("You burned Wick. I have not forgotten").
+- **Lords**: grudges for burned villages, sieges and broken truces; a lord who fled comes back for revenge; taunts drawn from real history ("You burned Wick. I have not forgotten"). **Built (2026-11-19):** each house keeps up to ten grudges against you (a place taken, a place burned, a field battle lost, a captain killed, a broken word, and for an heir his father's death, which never fades). They weigh on its opinion as they fade, its hosts go first for places you took from it, a sore lord fancies his chances against you more, its war heralds quote them ("You burned Wick. I have not forgotten."), and its panel lists what it holds against you.
 - **Captains**: traits earned in battles they survive (steady under arrows, reckless in the charge, hated by Varn). *(Battle side done: `captainReport()` gives traits and memory lines.)* **Built (2026-11-19):** every army of 20 or more marches under a named captain (src/world/captains.js), yours and the rivals'; he rides into its field battles, levels up, earns traits, keeps a memory (hover his line) and can fall; between musters he waits for the next army.
 - **Built so Claude can connect to it later**: each character's memory is a short readable list of events, so the Claude director (parked in DESIGN_NOTES) can read it and write lines, choices and events from it.
 
@@ -110,7 +110,7 @@ Done 2026-11-19: high ground, woods, rivers and bridges, fatigue and arrows, dep
 
 - Houses band together against a player who grows too strong, and fall out again when the threat passes. **Built 2026-11-19:** from 20 minutes in and until you are crowned, once you hold 30% of the realm's places (or 20% with nearly twice the strongest house's men), every house that isn't allied, married, your vassal or backing you, and doesn't like you much, makes peace with the others and declares war on you under one herald. Members dislike you more and aim their hosts at your places first. It breaks up when you fall under 22% and stop out-muscling them, when it shrinks to one house (each peace you make takes one out), or after 40 minutes; another can't form for 30 more.
 - Rebellions grow from low mood and from vassal factions (above). *Faction risings built 2026-11-19.*
-- **Peasant revolts** (done by Realm): rebels gather in the woods and come back as a raid. The creator wants to **see them gather and walk out of the village** before they come back.
+- **Peasant revolts** (done by Realm): rebels gather in the woods and come back as a raid. The creator wants to **see them gather and walk out of the village** before they come back. *Built: rebels in red gather by the keep for a quarter-minute, march out along a road, and come back that way.*
 
 ## 7. Events and onboarding (Realm; Art for pictures)
 

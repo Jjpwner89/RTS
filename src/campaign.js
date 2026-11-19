@@ -29,7 +29,7 @@ import { GOALS, updateGoals } from './world/goals.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
-import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
+import { actions as dipActions, act as dipAct, mood, grudgeLines } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
@@ -744,12 +744,14 @@ function housePanel(el, h) {
     const ties = [d.vassal && 'Your vassal', d.married && 'Joined to you by marriage', d.allied && 'Your ally', d.backs && 'Backs your claim to the crown'].filter(Boolean);
     el.innerHTML = `<div class="lord"><div class="face" style="background:${h.color}"><img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')"></div>
       <div><h3 style="color:${h.color}">${h.lord}</h3><small>${h.name} · the ${h.trait}</small></div></div>
-      <p class="note">${h.blurb}</p><p data-f="mood" class="status"></p><p data-f="state"></p>${ties.length ? `<p>${ties.join(' · ')}</p>` : ''}
+      <p class="note">${h.blurb}</p><p data-f="mood" class="status"></p><p data-f="state"></p><p data-f="grudges" class="note"></p>${ties.length ? `<p>${ties.join(' · ')}</p>` : ''}
       <div class="dip">${list.map(a => `<button data-dip="${a.id}" class="wide${a.warn ? ' warn' : ''}" ${a.ok ? '' : 'disabled'} title="${a.ok ? '' : a.why}">${a.label}${a.ok ? '' : `<small>${a.why}</small>`}</button>`).join('')}</div>
       <button data-act="back" class="wide">Back to your realm</button>`;
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
   set('mood', `${mood(d.opinion)} toward you (${Math.round(d.opinion)})`);
+  const held = grudgeLines(world, h).slice(0, 3);
+  set('grudges', held.length ? `Holds against you: ${held.join('; ')}.` : '');
   const n = world.pois.filter(p => p.owner === h.index).length;
   set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}`);
 }

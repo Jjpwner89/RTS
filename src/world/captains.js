@@ -11,6 +11,7 @@
 // w.captains holds every captain; an army holds its captain's id (a.captain).
 import { FACTIONS, headcount } from './world.js';
 import { traitName } from '../battle.js';
+import { grudge } from './diplomacy.js';
 
 const FIRST = ['Aldric', 'Bennet', 'Corin', 'Dunstan', 'Emeric', 'Garrick', 'Hugh', 'Jory', 'Kester', 'Leofric', 'Merek', 'Osbert',
   'Piers', 'Roland', 'Sewell', 'Tobin', 'Warin', 'Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel'];
@@ -81,6 +82,7 @@ export function afterBattle(w, battle, armies, where) {
         C.army = null;
         a.captain = null;
         w.log(mine ? `Your captain ${C.name} fell${where ? ` at ${where}` : ''}.` : `The enemy captain ${C.name} fell${where ? ` at ${where}` : ''}.`, mine ? 1 : 0);
+        if (!mine && where) grudge(w, a.side, 'captain', where);
       } else if (mine && (rep.levelled || rep.trait)) {
         w.log(`Captain ${C.name}${rep.levelled ? ` is now level ${C.level}` : ''}${rep.levelled && rep.trait ? ', and' : ''}${rep.trait ? ` ${rep.traitName}` : ''}.`);
       }
@@ -108,6 +110,8 @@ function lordFell(w, a, where) {
   H.lord = `${HEIRS[Math.floor(w.rand() * HEIRS.length)]} ${H.short}`;
   H.lordAlive = true;
   H.mourning = w.time + 900;
+  H.grudges = (H.grudges || []).filter(g => g.kind !== 'father');
+  grudge(w, side, 'father', where || 'the battle');
   w.log(`${was} has fallen${where ? ` at ${where}` : ''}! ${H.lord} takes up the banner of ${H.name}.`, 0);
   w.hooks.herald?.({ house: H, title: `${was} is dead`, text: `Fallen in battle${where ? ` at ${where}` : ''}. ${H.lord} is lord of ${H.name} now, and the house is shaken.` });
 }

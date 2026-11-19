@@ -17,7 +17,7 @@ import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } 
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { govern } from './governor.js';
-import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers } from './diplomacy.js';
+import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
 // the World so drawing code can look owners up without holding the world.
@@ -216,8 +216,8 @@ export class World {
     if (i === 0) this.meet(j);
     if (j === 0) {
       this.meet(i);
-      const line = a.taunts?.[Math.floor(this.rand() * a.taunts.length)];
       if (quiet) return;
+      const line = tauntFor(this, a);
       this.log(`${a.name} has declared war on you!`, 1);
       this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: line ? `“${line}”` : '' });
     } else if (i === 0) {
@@ -684,6 +684,7 @@ export class World {
       e.units = theirs;
       wound(e, theirsBefore);
       note(this, e.side, won ? 'wonField' : 'lostField');
+      if (won) grudge(this, e.side, 'beaten', enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name);
       if (won) {
         this.log(`${e.name} was beaten at ${was}.`);
         this.retreat(e);
@@ -709,6 +710,7 @@ export class World {
   capture(p, a) {
     const was = p.owner;
     note(this, was, 'tookPlace');
+    grudge(this, was, 'took', p.name);
     this.takePlace(p, 0);
     const pop = p.eco?.pop ?? 20;
     const lvl = p.eco?.level ?? 1;
@@ -823,6 +825,8 @@ export class World {
   wonStorm(p) {
     const t = p.town, h = t.hostile, was = h.owner;
     note(this, was, 'tookPlace');
+    grudge(this, was, 'took', p.name);
+    if (t.buildings.some(o => o.state === 'ruined')) grudge(this, was, 'burned', p.name);
     this.takePlace(p, 0);
     t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * (h.yielded ? 0.8 : 0.5)))) });
     t.flagColor = null;
@@ -863,6 +867,7 @@ export class World {
       else p.eco.level = Math.max(1, p.eco.level - Math.floor(burned / 3));
     }
     if (!chose) note(this, h.owner, 'lostField');
+    if (burned) grudge(this, h.owner, 'burned', p.name);
     const fire = burned ? `, leaving ${burned} of its buildings in ashes` : '';
     this.log(chose ? `You pull back from ${p.name}${fire}.` : `The attack on ${p.name} has failed${fire}.`, chose ? 0 : 1);
     if (mine.length) {

@@ -25,6 +25,37 @@ export function startDiplomacy(w) {
   w.dipClock = 10;
 }
 
+// Grudges: what a lord holds against you, and where. They weigh on his opinion and fade
+// slowly (a father's death never), he goes back for what you took, and his taunts come
+// from them: "You burned Wick. I have not forgotten."
+const GRUDGES = {
+  took: { n: 12, fade: 3600, line: p => `You took ${p} from me. I mean to have it back.`, why: p => `You took ${p}` },
+  burned: { n: 10, fade: 3000, line: p => `You burned ${p}. I have not forgotten.`, why: p => `You burned ${p}` },
+  beaten: { n: 5, fade: 1800, line: p => `You beat me at ${p}. You will not be so lucky twice.`, why: p => `Beaten by you at ${p}` },
+  captain: { n: 4, fade: 1800, line: p => `My captain died at ${p}. His widow asks what I mean to do about it.`, why: p => `His captain died at ${p}` },
+  father: { n: 30, fade: Infinity, line: p => `You killed my father at ${p}. I will see you in the ground.`, why: p => `You killed his father at ${p}` },
+  broke: { n: 6, fade: 4800, line: () => 'You broke your word to me once. You will not have the chance again.', why: () => 'You broke your word' },
+};
+export function grudge(w, h, kind, place = '') {
+  const H = FACTIONS[h];
+  if (!H || h === 0 || H.bandit || H.invader || !GRUDGES[kind]) return;
+  const list = (H.grudges ||= []);
+  list.push({ kind, place, at: Math.round(w.time) });
+  if (list.length > 10) list.splice(list.findIndex(g => g.kind !== 'father'), 1);
+}
+const live = (w, H) => (H.grudges || []).filter(g => w.time - g.at < GRUDGES[g.kind].fade)
+  .map(g => ({ ...g, weight: GRUDGES[g.kind].n * (GRUDGES[g.kind].fade === Infinity ? 1 : 1 - (w.time - g.at) / GRUDGES[g.kind].fade) }));
+export const grudgeWeight = (w, H) => live(w, H).reduce((n, g) => n + g.weight, 0);
+export const grudgeLines = (w, H) => live(w, H).sort((a, b) => b.weight - a.weight).map(g => GRUDGES[g.kind].why(g.place));
+// A lord still sore over a place he lost to you goes back for it first.
+export const wantsBack = (w, H, p) => live(w, H).some(g => g.kind === 'took' && g.place === p.name);
+// A taunt: one of his two heaviest grudges more often than not, else one of his house's sayings.
+export function tauntFor(w, H) {
+  const top = live(w, H).sort((a, b) => b.weight - a.weight).slice(0, 2), g = top[Math.floor(w.rand() * top.length)];
+  if (g && w.rand() < 0.75) return GRUDGES[g.kind].line(g.place);
+  return H.taunts?.[Math.floor(w.rand() * H.taunts.length)];
+}
+
 export const mood = o => (o >= 60 ? 'Devoted' : o >= 30 ? 'Friendly' : o >= 10 ? 'Warm' : o > -10 ? 'Wary' : o > -40 ? 'Cold' : 'Hostile');
 
 // Something happened between you and a house: battles won and lost, places taken.
@@ -52,6 +83,7 @@ function target(w, h) {
   if (w.coalition?.members.includes(h)) t -= 15;
   else if (bordering(w, h) && !d.allied && !d.married) t -= 10;
   t -= d.broken * 15;
+  t -= grudgeWeight(w, H);
   t += d.gift;
   const ratio = w.strength(0) / Math.max(1, w.strength(h));
   if (ratio > 2) t += H.trait === 'schemer' || H.trait === 'merchant' ? 15 : H.trait === 'hothead' ? -5 : 5;
@@ -265,6 +297,7 @@ export function act(w, h, id, theirs = false) {
   if (id === 'war') {
     if (w.time < d.truceUntil || d.allied || d.married) {
       d.broken++;
+      grudge(w, h, 'broke');
       for (const o of FACTIONS) if (w.dip[o.index] && o.index !== 0) w.dip[o.index].opinion -= 10;
       w.log('The realm marks that you broke your word.', 1);
     }
