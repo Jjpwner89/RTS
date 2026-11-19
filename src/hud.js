@@ -42,8 +42,10 @@ export class Hud {
   buildTerms() {
     let el = document.getElementById('terms');
     if (!el) { el = document.createElement('div'); el.id = 'terms'; document.body.append(el); }
-    el.innerHTML = `<b></b><button class="yes"></button><button class="no">Fight on</button>`;
+    el.innerHTML = `<b></b><button class="yes"></button><button class="extra" hidden></button><button class="no">Fight on</button>`;
     el.querySelector('.yes').onclick = () => this.battle.acceptTerms();
+    // The campaign may offer a third answer (battle.termsExtra(terms) → { label, run }), e.g. a ransom.
+    el.querySelector('.extra').onclick = () => { const x = this.battle.terms && this.battle.termsExtra?.(this.battle.terms); if (x) x.run(); };
     el.querySelector('.no').onclick = () => this.battle.refuseTerms();
     this.termsEl = el;
     // A champion's challenge, for the player to take up or refuse.
@@ -188,6 +190,7 @@ export class Hud {
       this.termsEl.querySelector('b').textContent = T.side ? 'The garrison asks for terms.' : 'Our garrison cannot hold.';
       this.termsEl.querySelector('.yes').textContent = T.side ? 'Accept their surrender' : 'Yield on terms';
     }
+    if (T) { const x = b.termsExtra?.(T), xe = this.termsEl.querySelector('.extra'); xe.hidden = !x; if (x && xe.textContent !== x.label) xe.textContent = x.label; }
     const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     document.getElementById('strength').innerHTML =
       `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`

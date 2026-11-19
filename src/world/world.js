@@ -973,6 +973,21 @@ export class World {
       if (b.terms?.side === 1 && town.hostile) town.hostile.yielded = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...carry(r) }));
       yieldTo();
     };
+    // Or they buy their way out: their lord pays a ransom for the men, and resents it.
+    const H2 = owner !== null && !FACTIONS[owner]?.bandit && !FACTIONS[owner]?.invader ? FACTIONS[owner] : null;
+    b.termsExtra = T => {
+      if (T.side !== 1 || !H2) return null;
+      const men = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0).reduce((n, r) => n + r.alive, 0);
+      const price = Math.min(Math.floor(H2.gold), 40 + 4 * men);
+      if (price < 30) return null;
+      return { label: `Let them go for a ransom (${price} gold)`, run: () => {
+        H2.gold -= price; FACTIONS[0].gold += price;
+        if (this.dip[owner]) this.dip[owner].opinion -= 5;
+        this.log(`${H2.lord} pays ${price} gold to see the garrison of ${p.name} home.`);
+        this.chron(`The garrison of ${p.name} was ransomed by ${H2.name} for ${price} gold.`);
+        b.acceptTerms();
+      } };
+    };
     this.removeArmy(a);
     this.log(`${a.name} is storming ${p.name}.`);
   }
@@ -1045,6 +1060,29 @@ export class World {
     this.checkEnd();
   }
 
+  // A walled village of yours that cannot hold may yield on terms: its men march out under
+  // arms to your nearest place, and the village passes whole to the attacker, its people
+  // spared (rather than storm and sack).
+  allowYield(p) {
+    const t = p.town, b = t.battle;
+    if (b.yieldWired) return;
+    b.yieldWired = true;
+    b.termsAllowed = true;
+    const yieldTo = b.acceptTerms.bind(b);
+    b.acceptTerms = () => {
+      if (b.terms?.side === 0 && !t.hostile && p.owner === 0) {
+        t.yieldedOurs = t.garrison().filter(r => r.alive > 0)
+          .map(r => ({ key: r.T.key, count: r.alive, name: r.name, xp: r.xp || 0, elite: !!r.elite, ...carry(r) }));
+        yieldTo();
+        t.lost = true;
+        this.chron(`${p.name} yielded on terms.`);
+        p.falling = true;
+        return;
+      }
+      yieldTo();
+    };
+  }
+
   // An army's captain rides into a fight in a village with its biggest foot regiment.
   seatCaptain(battle, side, c, regs) {
     if (!c || !regs?.length) return;
@@ -1057,6 +1095,7 @@ export class World {
     const t = p.town, H = FACTIONS[a.side], c = captainOf(this, a);
     if (!H.bandit) this.meet(a.side);
     this.removeArmy(a);
+    this.allowYield(p);
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,
       onLeave: survivors => {
@@ -1125,7 +1164,7 @@ export class World {
     note(this, side, 'lostPlace');
     const theirs = groups.flatMap(g => g.regs).filter(r => !r.disbanded && alive(r) > 0)
       .map(r => ({ ...unit(r.T.key, alive(r), r.name), ...carry(r) }));
-    const ours = t.garrison().filter(r => alive(r) > 0)
+    const ours = t.yieldedOurs || t.garrison().filter(r => alive(r) > 0)
       .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...carry(r) }));
     const pop = t.villagers.filter(v => v.state !== 'soldier').length;
     this.takePlace(p, side);
@@ -1134,7 +1173,7 @@ export class World {
     const eco = FACTIONS[side].invader || FACTIONS[side].bandit ? { pop: Math.max(10, pop * 0.7), level: 1, arms: 0 } : fromTown(t);
     Object.assign(p, { town: null, garrison: theirs.length ? theirs : [unit('spear', 10, `${FACTIONS[side].short} spearmen`)], eco });
     this.log(`${p.name} has fallen to ${FACTIONS[side].name}.`, 1);
-    if (ours.length) this.retreat(this.spawnArmy(0, ours, p, `Survivors of ${p.name}`));
+    if (ours.length) this.retreat(this.spawnArmy(0, ours, p, t.yieldedOurs ? `Garrison of ${p.name}` : `Survivors of ${p.name}`));
     this.hooks.fell(p);
     this.checkEnd();
   }
