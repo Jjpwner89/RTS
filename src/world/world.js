@@ -46,6 +46,10 @@ function layOut(town, p, lvl, rand, near = 18) {
     ...(seat || crown || p.kind === 'castle' ? ['barracks', 'weaponsmith'] : []),
     ...(crown ? ['storehouse', 'carpenter', 'barracks', 'bowyer'] : []),
   ];
+  // A place that already has its streets back (see remember) only gets what it lacks.
+  const have = {};
+  for (const b of town.buildings) have[b.kind] = (have[b.kind] || 0) + 1;
+  const lacking = kind => have[kind] > 0 ? (have[kind]--, false) : true;
   const roads = p.roadAngles?.length ? p.roadAngles : [rand() * Math.PI * 2];
   const at = (kind, spot) => {
     for (let tries = 0; tries < 60; tries++) {
@@ -63,9 +67,9 @@ function layOut(town, p, lvl, rand, near = 18) {
     return { x: Math.sin(a) * along + Math.cos(a) * across, z: Math.cos(a) * along - Math.sin(a) * across };
   };
   const ring = (lo, hi) => () => { const a = rand() * Math.PI * 2, r = lo + rand() * (hi - lo); return { x: Math.sin(a) * r, z: Math.cos(a) * r }; };
-  for (let i = 0; i < houses; i++) at('house', rand() < 0.75 ? street(near, near + 55) : ring(near, near + 35)) || at('house', ring(near, 95));
-  for (const kind of crafts) at(kind, ring(near + 4, near + 45)) || at(kind, ring(near, 95));
-  for (let i = 0; i < farms; i++) at('farm', ring(Math.max(55, near + 25), 95));
+  for (let i = have.house || 0; i < houses; i++) at('house', rand() < 0.75 ? street(near, near + 55) : ring(near, near + 35)) || at('house', ring(near, 95));
+  for (const kind of crafts.filter(lacking)) at(kind, ring(near + 4, near + 45)) || at(kind, ring(near, 95));
+  for (let i = have.farm || 0; i < farms; i++) at('farm', ring(Math.max(55, near + 25), 95));
 }
 
 function prebuild(town, kinds, rand, near = 25) {
@@ -78,6 +82,42 @@ function prebuild(town, kinds, rand, near = 25) {
       break;
     }
   }
+}
+
+// A place keeps its streets and walls when it changes hands: what stood is put back up
+// the next time anyone fights there. Burned buildings and unfinished sites are gone.
+function remember(t, side, time) {
+  const W = t.battle.walls, idx = new Map();
+  const nodes = W.nodes.filter(n => n.side === side).map((n, i) => {
+    idx.set(n, i);
+    return { x: n.x, z: n.z, tower: n.tower && n.tower.state !== 'site' ? { material: n.tower.material, broken: n.tower.state === 'broken' } : null };
+  });
+  const pieces = W.pieces.filter(p => p.side === side && p.state !== 'site' && idx.has(p.a) && idx.has(p.b))
+    .map(p => ({ a: idx.get(p.a), b: idx.get(p.b), material: p.material, gate: p.gate, broken: p.state === 'broken' }));
+  return { at: time, keepLevel: t.keepLevel, centre: W.centre[side],
+    buildings: t.buildings.filter(b => b.state === 'active').map(b => ({ kind: b.kind, x: b.x, z: b.z })), nodes, pieces };
+}
+
+// Puts a remembered place back up for `side`. Left long enough, its holders mend the walls.
+function rebuild(town, mem, side, mended) {
+  for (const b of mem.buildings) town.place(b.kind, b.x, b.z, { ready: true });
+  if (mem.keepLevel) town.keepLevel = mem.keepLevel;
+  if (!mem.pieces.length && !mem.nodes.some(n => n.tower)) return false;
+  const W = town.battle.walls;
+  const nodes = mem.nodes.map(n => W.node(n.x, n.z, side, { snap: false }));
+  for (const p of mem.pieces) {
+    const q = W.addPiece(nodes[p.a], nodes[p.b], side, p.material, true);
+    if (p.gate) W.makeGate(q, { ready: true });
+    if (p.broken && !mended) Object.assign(q, { hp: 0, state: 'broken', open: true });
+  }
+  mem.nodes.forEach((n, i) => {
+    if (!n.tower) return;
+    const r = W.placeTower(n.x, n.z, side, n.tower.material, { ready: true });
+    if (r.ok && n.tower.broken && !mended) Object.assign(r.tower, { hp: 0, state: 'broken' });
+  });
+  W.centre[side] = mem.centre || { x: 0, z: 0 };
+  W.changed();
+  return true;
 }
 
 export class World {
@@ -475,6 +515,8 @@ export class World {
     const lvl = p.eco?.level ?? 1;
     const town = this.makeTown(p, { villagers: Math.max(6, Math.min(40, Math.round(pop * 0.5))), retinue: false,
       stock: { wood: 60 + lvl * 20, stone: 10 + lvl * 10, food: 50 + lvl * 20, planks: 10 } });
+    if (p.mem) rebuild(town, p.mem, 0, true);
+    p.mem = null;
     layOut(town, p, lvl, town.rand);
     p.eco = null;
     town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last));
@@ -524,13 +566,15 @@ export class World {
     const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
     // Castles, lords' seats, Kingsbridge and the north's strongholds have walls round the
     // keep, with the gate facing the road you came by. Their buildings stand outside.
-    const walled = ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
-    if (walled) {
+    const kept = p.mem && rebuild(town, p.mem, 1, this.time - p.mem.at > 240);
+    p.mem = null;
+    const walled = kept || ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
+    if (walled && !kept) {
       const stone = p.kind !== 'warcamp' && (lvl >= 2 || p.kind === 'castle' || p.kind === 'crown' || p.kind === 'pass');
       buildFort(town.battle.walls, 1, 0, 0, p.kind === 'crown' ? 30 : 24, { gateAngle: came, material: stone ? 'stone' : 'wood', sides: p.kind === 'crown' ? 8 : 6 });
     }
     layOut(town, p, lvl, town.rand, walled ? (p.kind === 'crown' ? 40 : 33) : 16);
-    town.keepLevel = Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
+    town.keepLevel = town.keepLevel || Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
     const H = owner === null ? NEUTRAL : FACTIONS[owner];
     town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came };
     town.flagColor = H.color;
@@ -574,6 +618,7 @@ export class World {
       .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue })).filter(u => u.count >= 3);
     const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => unit(r.T.key, left(r), r.name)).filter(u => u.count >= 3);
     const burned = t.buildings.filter(o => o.state === 'ruined').length;
+    p.mem = remember(t, 1, this.time);
     p.town = null;
     p.garrison = theirs;
     p.eco = h.eco || { pop: h.pop, level: 1, arms: 0 };
@@ -659,6 +704,7 @@ export class World {
       .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue }));
     const pop = t.villagers.filter(v => v.state !== 'soldier').length;
     this.takePlace(p, side);
+    p.mem = remember(t, 0, this.time);
     Object.assign(p, { town: null, garrison: theirs.length ? theirs : [unit('spear', 10, `${FACTIONS[side].short} spearmen`)],
       eco: { pop: Math.max(10, pop * 0.7), level: 1, arms: 0 } });
     this.log(`${p.name} has fallen to ${FACTIONS[side].name}.`, 1);
