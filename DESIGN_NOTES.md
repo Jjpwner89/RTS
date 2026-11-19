@@ -121,6 +121,18 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - **Taxes** are set per village with − and + in the stock panel, from none to cruel. Gold also comes from a **market**, which sells only what is spare above a reserve (wood, stone and food on; planks, iron and swords off until you switch them on).
 - **Upgrades**: any building can be raised to level 2 (40 gold, a village of 30) and level 3 (120 gold, a village of 60). Each level works faster, houses hold three more, and stores keep another hauler.
 - **The governor** (`src/world/governor.js`) builds in any village of yours you are not watching: farms when food runs short, houses when it is full, woodcutters, a storehouse, then a well, market, chapel, mill and bakery. One building at a time from the village's own goods; it never raises men or spends gold. Switch it off at the keep.
+- **Revolts**: a village of 15 or more kept below mood 15 for two minutes revolts. A third of its people (6–40) gather in the woods and raid it as "Rebel peasants". The stock panel counts down beforehand. Afterwards the rest are cowed (+15 mood), and there is no second revolt for ten minutes.
+- **Watchtower** (Military): your place sees 120 further on the realm map, more at higher levels; the best three towers count, with diminishing returns.
+- **Planks are kept for building**: workshops leave 25 planks alone, just as they leave 20 wood, so a carpenter no longer turns every plank into shields.
+
+**Running the realm** (Realm workstream), 2026-11-19:
+- **Saves** (`src/world/save.js`): one slot in the browser. The game saves itself every two minutes between fights; there's also a Save button. Continue on the menu (`world.html?continue`) rebuilds the map from its seed and then puts back everything that happened.
+- **Armies eat** (`src/world/supply.js`): a man eats one food every two minutes, and the carts hold four minutes' worth. Armies refill near their own places (yours draw from village stores). A starving army loses its wounded first, then deserts. A third of the men lost in a fight are wounded; they walk with the army and rejoin as it rests fed. Supply wagons go from your villages to an army far from home, and enemies can catch them.
+- **Call the banners**: every village raises what its barracks can arm, keeps half its people at work, and sends its men to one place. Armies waiting at the same place can **join**.
+- **Losing your seat** moves it to your biggest remaining village.
+- **Rival houses** hire 60 sellswords when they have gold over 500 and are at war, at most every five minutes.
+- **Buy peace** at war for 150 gold plus a quarter of their strength (at most 1000), with a ten-minute truce.
+- **Opening**: rivals leave your places, and the free villages within 260 of Ashford, alone for the first 20 minutes. A goals panel at the top left of the map (`src/world/goals.js`) leads from "go to Ashford" through work, growth, arms and a first conquest to count and crown. Each step is ticked when the realm shows it done.
 
 **Village** (`town.html`), 2026-11-18, the first point of interest:
 - A keep and 12 villagers in a clearing in the woods, with stone outcrops and ore deposits around.
