@@ -143,13 +143,31 @@ Second: **sieges with grandeur**. Wars build up: scouts and raiding parties firs
 
 Third: **named rival lords** with traits and taunts.
 
+### The feeling to build toward
+
+**From village mayor to king.** You start hands-on, like Age of Empires: placing every hut in one clearing and arming your first 30–50 spearmen. You finish as a king: your people strong and wealthy, a city you built, armies in the thousands, and your enemies beaten. Each step up must feel bigger and crunchier, never just more clicking.
+
+**The scale ladder.** Every rank changes what you handle by hand and how big things get:
+
+| Rank | You hold | Your armies | What you do by hand |
+|---|---|---|---|
+| Reeve | One village | 30–50 men, a few regiments | Place every building, raise each levy |
+| Lord | 2–4 places | 100–200 | Your seat by hand; other villages run themselves; the first wars |
+| Count | 5–10 | Several hundred, a captain per army | Order levies raised across villages in one go; field armies |
+| Duke | 10–20 | 1,000+, bigger regiments | Plan campaigns and sieges; zoom in for the battles that matter |
+| King | Most of the realm | Thousands, several armies | Command the realm; the city is your showpiece |
+
+The tools grow with the rank: regiments get bigger, levies can be called from many villages at once to a muster point, captains run armies you don't watch, and the battle view draws thousands (full detail near the camera only).
+
+**Part 2.** Uniting the realm is not the end. The victory screen cracks and falls apart: the land beyond the edge of the map opens, and a great foreign power invades. Part 2 is a war, not a unification. The invaders can't be bargained with (no diplomacy), they raid hard and bring huge hosts, and you meet them with everything you built.
+
 ### Decisions
 
 | Topic | Decision |
 |---|---|
 | Campaign | One map of 25–40 places, 4–6 rival houses, 6–15 hours. A sandbox with a light tutorial opening. |
 | Winning | Be crowned: hold the royal seat and most of the realm, **or win by diplomacy** when enough houses back your claim (friendship, a marriage alliance, or being far stronger and liked). |
-| Ending | After the victory screen, pressing Next shatters it: a great invasion comes from the edge of the map. |
+| Ending | After the victory screen, pressing Next shatters it and Part 2 begins (see above). |
 | Tone | Grounded medieval, stylised look, no magic. |
 | Sieges | Stronghold style: free-placed walls, towers and gates; ladders, rams, catapults and trebuchets; defenders fight from the walls. The pack's first keep model reads as a fort, not your main keep. |
 | Supply | Simple: armies carry **food**. Wagons bring more from your villages; starving armies desert. Wounded men recover with food and rest. |
