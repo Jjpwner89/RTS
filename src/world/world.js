@@ -316,6 +316,12 @@ export class World {
     const town = new Town(battle, heightAt, trees, rng(p.seed + 7), { kind: p.kind, ...opts });
     town.purse = FACTIONS[0];
     town.onFall = () => { p.falling = true; };
+    town.rebelHouse = this.bandits;
+    town.onRebel = n => {
+      if (p.owner !== 0) return;
+      this.log(`${n} villagers of ${p.name} have risen in revolt!`, 1);
+      this.hooks.herald?.({ house: FACTIONS[this.bandits], title: `${p.name} rises`, text: `Taxed and hungry and grieving, ${n} of your own people have taken up pitchforks. Put them down, then ease their lot.` });
+    };
     Object.assign(p, { town, heightAt, trees, garrison: [], aiClock: 0, pruneClock: 30, onRoad });
     return town;
   }
@@ -812,7 +818,7 @@ export class World {
 
   updateVision() {
     const eyes = [
-      ...this.pois.filter(p => p.owner === 0).map(p => ({ x: p.x, z: p.z, r: SIGHT.place })),
+      ...this.pois.filter(p => p.owner === 0).map(p => ({ x: p.x, z: p.z, r: SIGHT.place + lookouts(p) })),
       ...this.armies.filter(a => a.side === 0).map(a => ({ x: a.x, z: a.z, r: SIGHT.army })),
     ];
     const sees = o => eyes.some(e => dist(e, o) < e.r);
@@ -985,6 +991,14 @@ function pickKind(h, r, time) {
 }
 
 // Folds arriving units into a garrison, filling regiments of the same kind first.
+// How much further a place of yours sees for its watchtowers (only the best three count).
+function lookouts(p) {
+  if (!p.town) return 0;
+  return p.town.buildings.filter(b => b.kind === 'watchtower' && b.state === 'active')
+    .map(b => b.B.sight * (1 + 0.3 * ((b.level || 1) - 1))).sort((a, b) => b - a).slice(0, 3)
+    .reduce((n, r, i) => n + r / (i + 1), 0);
+}
+
 export function mergeInto(garrison, units) {
   for (const u of units) recruit(garrison, u.key, u.count, u.name);
 }

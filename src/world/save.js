@@ -114,7 +114,7 @@ function packTown(t) {
     felled: t.trees.spots.filter(s => !s.standing).map(s => s.i),
     walls: { nodes, pieces, centre: W.centre[0] },
     state: { taxes: t.taxes, mood: t.mood, grief: t.grief, governor: t.governor, hungry: t.hungry, time: t.time, territory: t.territory,
-      nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, flagColor: t.flagColor },
+      nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, flagColor: t.flagColor, misery: t.misery, rebelCool: t.rebelCool },
   };
 }
 

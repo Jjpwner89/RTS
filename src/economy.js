@@ -107,6 +107,8 @@ export const BUILDINGS = {
   well: { name: 'Well', icon: 'well', group: 'Village', cost: { stone: 10 }, radius: 2.5, build: 8, hp: 150, mood: 3, desc: 'Clean water close by. Lifts the mood a little.' },
   monastery: { name: 'Chapel', icon: 'monastery', group: 'Village', cost: { stone: 30, planks: 10 }, radius: 6, build: 24, hp: 250, mood: 10,
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
+  watchtower: { name: 'Watchtower', icon: 'keep', group: 'Military', cost: { wood: 20, stone: 10 }, radius: 3, build: 14, hp: 200, sight: 120,
+    desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
 };
 // Building upgrades: gold and goods, once the village is big enough. Each level works
 // faster, houses hold more and stores keep more haulers.
@@ -178,6 +180,8 @@ export class Town {
     this.grief = 0;
     this.moodClock = 0;
     this.leaveClock = 40;
+    this.misery = 0;
+    this.rebelCool = 300;
     this.timedRaids = timedRaids;
     this.raid = { next: 300, wave: 0 };
     this.attackers = [];
@@ -679,6 +683,26 @@ export class Town {
         }
       }
     }
+    // Kept wretched for two minutes, a big enough village rises: the angriest take up
+    // pitchforks, gather in the woods and come back to burn. Afterwards the rest are cowed.
+    this.rebelCool -= dt;
+    this.misery = this.mood < 15 && !this.underAttack ? this.misery + dt : Math.max(0, this.misery - dt * 2);
+    if (this.misery >= 120 && this.rebelCool <= 0 && this.population >= 15) this.rebel();
+  }
+
+  rebel() {
+    const n = Math.min(40, Math.max(6, Math.round(this.population * 0.3)));
+    const out = this.villagers.filter(v => v.state !== 'soldier' && v.state !== 'shelter').slice(-n);
+    for (const v of out) this.release(v);
+    this.villagers = this.villagers.filter(v => !out.includes(v));
+    this.misery = 0;
+    this.rebelCool = 600;
+    this.mood = Math.min(100, this.mood + 15);
+    this.grief = 0;
+    this.event(`${out.length} villagers have risen against you and fled to the woods!`, 1);
+    this.receiveAttack([{ key: 'militia', count: out.length, name: 'Rebel peasants' }], this.rand() * Math.PI * 2,
+      { mode: 'raid', name: 'Rebels', house: this.rebelHouse ?? 1 });
+    this.onRebel?.(out.length);
   }
 
   // Gold for each villager each second at this tax rate, weighed by the mood.

@@ -66,6 +66,13 @@ function houseMind(w, h) {
   // Raise men for the field at the muster place, while the people can spare them.
   if (h.arms >= 6) w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)));
 
+  // A rich lord at war buys sellswords rather than sit on his gold.
+  if (!h.bandit && h.gold > 500 && FACTIONS.some(o => o.alive && !o.bandit && o !== h && w.atWar(h.index, o.index))) {
+    h.gold -= 360;
+    recruit(muster.garrison, 'sellsword', TYPES.sellsword.count, `${h.short} sellswords`);
+    if (muster.visible) w.log(`${h.name} has hired sellswords at ${muster.name}.`, 2);
+  }
+
   // Send men beyond what each place keeps at home to the muster place.
   for (const p of mine) {
     if (p === muster || headcount(p.garrison) < w.keepHome(p) * 1.3 + 8) continue;
