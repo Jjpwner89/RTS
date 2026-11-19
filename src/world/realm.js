@@ -30,14 +30,14 @@ export const BANDITS = { id: 'bandits', name: 'Bandits', short: 'Bandit', lord: 
 
 // What each kind of place is good for, on the map and as a village.
 export const KINDS = {
-  village: { name: 'Village', icon: '🏘️', about: 'Farms and families.', pop: 1, gold: 1, arms: 1, defence: 1 },
-  castle: { name: 'Castle', icon: '🏰', about: 'Strong walls and a big garrison, few people.', pop: 0.6, gold: 0.8, arms: 1, defence: 1.6, garrison: 1.6 },
-  mine: { name: 'Mining village', icon: '⛏️', about: 'Rich in stone and iron ore: arms come faster.', pop: 0.8, gold: 1, arms: 1.7, defence: 1 },
-  ford: { name: 'Ford', icon: '🌉', about: 'Holds the river crossing: tolls, and a strong place to defend.', pop: 0.8, gold: 1.4, arms: 1, defence: 1.3 },
-  monastery: { name: 'Abbey', icon: '⛪', about: 'Monks, granaries and learning: people grow quickly and stay content.', pop: 1.2, gold: 1.2, arms: 0.5, defence: 1 },
-  market: { name: 'Market town', icon: '⚖️', about: 'Trade and gold.', pop: 1.1, gold: 2, arms: 0.8, defence: 1 },
-  crown: { name: 'Royal seat', icon: '👑', about: 'The old royal city. Hold it, and most of the realm, to be crowned.', pop: 1.5, gold: 2, arms: 1.2, defence: 1.8, garrison: 2 },
-  camp: { name: 'Bandit camp', icon: '🏴', about: 'Outlaws who raid the roads and villages nearby.', pop: 0.3, gold: 0.3, arms: 0.5, defence: 0.9 },
+  village: { name: 'Village', icon: 'village', about: 'Farms and families.', pop: 1, gold: 1, arms: 1, defence: 1 },
+  castle: { name: 'Castle', icon: 'castle', about: 'Strong walls and a big garrison, few people.', pop: 0.6, gold: 0.8, arms: 1, defence: 1.6, garrison: 1.6 },
+  mine: { name: 'Mining village', icon: 'mine', about: 'Rich in stone and iron ore: arms come faster.', pop: 0.8, gold: 1, arms: 1.7, defence: 1 },
+  ford: { name: 'Ford', icon: 'ford', about: 'Holds the river crossing: tolls, and a strong place to defend.', pop: 0.8, gold: 1.4, arms: 1, defence: 1.3 },
+  monastery: { name: 'Abbey', icon: 'monastery', about: 'Monks, granaries and learning: people grow quickly and stay content.', pop: 1.2, gold: 1.2, arms: 0.5, defence: 1 },
+  market: { name: 'Market town', icon: 'market', about: 'Trade and gold.', pop: 1.1, gold: 2, arms: 0.8, defence: 1 },
+  crown: { name: 'Royal seat', icon: 'crown', about: 'The old royal city. Hold it, and most of the realm, to be crowned.', pop: 1.5, gold: 2, arms: 1.2, defence: 1.8, garrison: 2 },
+  camp: { name: 'Bandit camp', icon: 'camp', about: 'Outlaws who raid the roads and villages nearby.', pop: 0.3, gold: 0.3, arms: 0.5, defence: 0.9 },
 };
 
 const PRE = ['Ash', 'Holl', 'Stow', 'Black', 'Thorn', 'Wen', 'Ald', 'Bram', 'Cran', 'Dun', 'Elm', 'Fen', 'Gar', 'Hal', 'Ive', 'Kel',

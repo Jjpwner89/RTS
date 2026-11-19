@@ -2,6 +2,11 @@
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
 import { GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, KITS, listCost } from './economy.js';
+import { ico } from './icons.js';
+
+const gi = g => ico(GOODS[g].icon, GOODS[g].color);
+// Writes HTML only when it changed, so icons are not rebuilt every frame.
+const put = (el, html) => { if (el.dataset.was !== html) { el.dataset.was = html; el.innerHTML = html; } };
 
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -31,7 +36,7 @@ export class TownHud {
       <div class="raid" data-s="raid"></div>
       ${GOOD_GROUPS.map(([label, goods]) => `
         <h4>${label}</h4>
-        <div class="goods">${goods.map(g => `<span title="${GOODS[g].name}"><i>${GOODS[g].icon}</i><b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
+        <div class="goods">${goods.map(g => `<span title="${GOODS[g].name}">${gi(g)}<b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
     this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
   }
 
@@ -39,7 +44,7 @@ export class TownHud {
     const tabs = BUILD_GROUPS.map(g => `<button class="tab" data-tab="${g}">${g}</button>`).join('');
     const items = Object.entries(BUILDINGS).map(([k, B]) => `
       <button class="item" data-build="${k}" data-group="${B.group}" title="${B.desc}">
-        <i>${B.icon}</i><span>${B.name}</span><small>${listCost(B.cost)}</small>
+        ${ico(B.icon)}<span>${B.name}</span><small>${listCost(B.cost)}</small>
       </button>`).join('');
     this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="hint">Shift-click to place several · right-click or Esc to stop</div>`;
     this.buildEl.onclick = e => {
@@ -62,11 +67,11 @@ export class TownHud {
   update(selected, regs, placing) {
     const t = this.town, s = t.stock;
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
-    const set = (k, v) => { this.stockEl.querySelector(`[data-s="${k}"]`).textContent = v; };
-    set('pop', `👥 ${t.population} / ${t.housing}`);
+    const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
+    set('pop', `${ico('people')} ${t.population} / ${t.housing}`);
     set('idle', `${t.hauling} carrying · ${t.idle} idle`);
     set('hunger', t.hungry ? 'Food has run out: nobody new will settle.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
-    set('raid', t.underAttack ? '⚔️ Under attack!' : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
+    set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
 
     for (const el of this.tabEls) el.classList.toggle('on', el.dataset.tab === this.tab);
@@ -91,7 +96,7 @@ export class TownHud {
       this.infoEl.hidden = !key;
     }
     if (!key) return;
-    for (const el of this.infoEl.querySelectorAll('[data-f]')) el.textContent = this.field(el.dataset.f);
+    for (const el of this.infoEl.querySelectorAll('[data-f]')) put(el, this.field(el.dataset.f));
     for (const el of this.infoEl.querySelectorAll('[data-act]')) {
       const [ok, title] = this.allowed(el.dataset.act);
       el.disabled = !ok;
@@ -108,7 +113,7 @@ export class TownHud {
 
   buildingHtml(b) {
     const B = b.B;
-    const rows = [`<h3><i>${B.icon}</i> ${B.name}</h3>`, `<p class="status" data-f="status"></p>`];
+    const rows = [`<h3>${ico(B.icon)} ${B.name}</h3>`, `<p class="status" data-f="status"></p>`];
     if (b.kind === 'keep') {
       rows.push(`<p data-f="workers"></p><p data-f="hp"></p><p class="store" data-f="store"></p>`,
         `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`);
@@ -146,17 +151,17 @@ export class TownHud {
     return rows.join('');
   }
 
-  goodsList(goods) { return Object.entries(goods).map(([g, n]) => `${n} ${GOODS[g].icon}`).join(' + '); }
+  goodsList(goods) { return Object.entries(goods).map(([g, n]) => `${n} ${gi(g)}`).join(' + '); }
 
   field(f) {
     const b = this.selected, r = this.reg;
     if (f === 'status') return b.state === 'ruined' ? 'Burned by raiders' : b.kind === 'keep' ? `${this.town.population} villagers · ${b.status.toLowerCase()}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
-    if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${GOODS[g].icon}`).join(' · ')}`;
+    if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'workers') return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} / ${b.B.jobs}`;
     if (f === 'store') {
       const held = Object.entries(b.store).filter(([, n]) => n >= 1);
-      return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${GOODS[g].icon}`).join(' · ')}` : 'Holds nothing';
+      return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${gi(g)}`).join(' · ')}` : 'Holds nothing';
     }
     if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
     if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : ''}`;

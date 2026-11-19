@@ -1,6 +1,7 @@
 // Draws the town: the keep, buildings (as sites, standing or burned), villagers at
 // work, stone and ore deposits, and the ghost of a building being placed.
 import * as THREE from 'three';
+import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
@@ -103,21 +104,18 @@ function deposit(kind, rand) {
 
 function iconTexture(icon, warn) {
   const c = document.createElement('canvas');
-  c.width = c.height = 64;
+  c.width = c.height = 128;
   const ctx = c.getContext('2d');
   ctx.beginPath();
-  ctx.arc(32, 32, 27, 0, Math.PI * 2);
+  ctx.arc(64, 64, 55, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(24, 20, 16, 0.78)';
   ctx.fill();
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 8;
   ctx.strokeStyle = warn ? '#ff9a4a' : 'rgba(224, 194, 122, 0.7)';
   ctx.stroke();
-  ctx.font = '32px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(icon, 32, 35);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  iconImage(icon, warn ? '#ffb27a' : '#f0dca8', img => { ctx.drawImage(img, 30, 30, 68, 68); tex.needsUpdate = true; });
   return tex;
 }
 

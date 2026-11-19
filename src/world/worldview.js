@@ -7,6 +7,7 @@ import { part, box, keepModel, keepTop, castleModel, fortModel, houseModel, SKIN
 import { unitModel, buildingModel, HOUSE_STYLES } from '../models.js';
 import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
+import { ico } from '../icons.js';
 
 export const WORLD_HALF = REALM_RADIUS + 140;
 const EXTENT = WORLD_HALF + 140;      // woods reach this far
@@ -144,10 +145,10 @@ export class WorldView {
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
       const men = p.town ? p.town.garrison().reduce((n, r) => n + r.alive, 0) : p.visible ? headcount(p.garrison) : p.known?.men;
-      const alarm = p.town?.underAttack ? ' ⚔️' : '';
+      const alarm = p.town?.underAttack ? ` ${ico('battle', '#ff8a5a')}` : '';
       const K = KINDS[p.kind];
-      const html = !p.seen ? `<b style="color:${own.color}">${K.icon} ${p.name}</b><small>unexplored</small>`
-        : `<b style="color:${own.color}">${K.icon} ${p.name}${alarm}</b><small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
+      const html = !p.seen ? `<b style="color:${own.color}">${ico(K.icon)} ${p.name}</b><small>unexplored</small>`
+        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b><small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46 });
@@ -195,7 +196,7 @@ export class WorldView {
       const s = toScreen(x, this.heightAt(x, z) + 16, z);
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
-      const html = `${a.retreating ? '🏳️' : a.mode === 'raid' ? '🔥' : a.mode === 'siege' ? '🏰' : '⚔️'} ${headcount(a.units)}`;
+      const html = `${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${headcount(a.units)}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });

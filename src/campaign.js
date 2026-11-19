@@ -13,6 +13,8 @@ import { thinkAI } from './ai.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { KINDS } from './world/realm.js';
+import { ico } from './icons.js';
+import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
@@ -44,6 +46,7 @@ const world = new World(seed, {
   ended: winner => showResult(winner === 0 ? 'You are crowned' : 'Defeat',
     winner === 0 ? 'Kingsbridge is yours and the realm kneels. Long live the king.' : 'Your last village has fallen.', 'New campaign', () => location.reload()),
   herald: msg => herald(msg),
+  offer: o => asks.push({ kind: 'offer', ...o }),
 });
 
 // A lord's words or big news, shown for a while at the top without stopping the game.
@@ -233,7 +236,12 @@ function nextAsk() {
   if (a.kind === 'encounter' && (a.enc.army.gone || world.encounter !== a.enc)) return nextAsk();
   const box = $('prompt');
   const buttons = [];
-  if (a.kind === 'alarm') {
+  if (a.kind === 'offer') {
+    if (!a.house.alive) return nextAsk();
+    box.querySelector('h2').textContent = a.title;
+    box.querySelector('p').textContent = a.text;
+    buttons.push(['Accept', () => { const r = a.accept(); if (r?.text) flash(r.text, true); }], ['Decline', () => a.decline()]);
+  } else if (a.kind === 'alarm') {
     const p = a.poi;
     if (!p.town) return nextAsk();
     box.querySelector('h2').textContent = `${p.name} is under attack!`;
@@ -293,29 +301,34 @@ function worldPanel() {
   const el = $('wpanel'), it = selected;
   const own = it && (it.units ? it.side === 0 : it.owner === 0);
   const waitingAt = it && it.units && it.at && !it.path.length ? it.at : null;
+  if (it?.house) return housePanel(el, it.house);
   const key = !it ? 'none' : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}` : `p${it.id}:${it.owner}:${!!it.town}`;
   if (key !== panelKey) {
     panelKey = key;
-    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><div class="houses" data-f="houses"></div><p class="note">Click a place or an army to select it. Double-click one of your villages to go there. Drag to pan, scroll to zoom.</p>`;
+    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p class="status" data-f="status"></p>`
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
-    else el.innerHTML = `<h3>${KINDS[it.kind].icon} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
+    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3><p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         : `<p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
-  const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e) e.textContent = v; };
+  const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
   if (!it) {
     const held = world.pois.filter(p => p.owner === 0);
     const men = held.reduce((n, p) => n + p.town.garrison().reduce((k, r) => k + r.alive, 0), 0)
       + world.armies.filter(a => a.side === 0).reduce((n, a) => n + headcount(a.units), 0);
     set('rank', `${world.rank} of ${world.home.owner === 0 ? world.home.name : 'nowhere'}`);
     set('realm', `${held.length} of ${world.pois.length} places held · ${men} soldiers`);
+    const backing = FACTIONS.filter(h => world.dip[h.index]?.backs && h.alive).length;
+    set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
     const list = el.querySelector('[data-f="houses"]');
     const rows = FACTIONS.slice(1, world.bandits).map(h => {
       const met = world.knows(h.index), war = world.atWar(0, h.index);
       const n = world.pois.filter(p => p.seen && p.known?.owner === h.index).length;
-      return `<div class="h${h.alive ? "" : " gone"}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${n} known places` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : war ? 'at war' : 'peace'}</small></div>`;
+      const d = world.dip[h.index];
+      const tie = d.vassal ? 'your vassal' : d.married ? 'married' : d.allied ? 'allied' : war ? 'at war' : 'peace';
+      return `<div class="h${h.alive ? "" : " gone"}${met && h.alive ? ' pick' : ''}" data-house="${h.index}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${mood(d.opinion).toLowerCase()}` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : tie}</small></div>`;
     }).join('');
     if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }
   } else if (it.units) {
@@ -328,7 +341,7 @@ function worldPanel() {
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     if (it.town) {
       set('men', `${it.town.population} villagers · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers`);
-      set('status', it.town.underAttack ? '⚔️ Under attack!' : '');
+      set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
     } else {
       set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
@@ -336,9 +349,39 @@ function worldPanel() {
   }
 }
 
+// A rival lord: what they think of you, and what you can put to them.
+function housePanel(el, h) {
+  const d = world.dip[h.index], list = dipActions(world, h.index);
+  const key = `h${h.index}:${list.map(a => a.id + a.ok).join()}:${d.married}${d.allied}${d.vassal}${d.backs}`;
+  if (key !== panelKey) {
+    panelKey = key;
+    const initials = h.lord.split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
+    const ties = [d.vassal && 'Your vassal', d.married && 'Joined to you by marriage', d.allied && 'Your ally', d.backs && 'Backs your claim to the crown'].filter(Boolean);
+    el.innerHTML = `<div class="lord"><div class="face" style="background:${h.color}"><img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')"></div>
+      <div><h3 style="color:${h.color}">${h.lord}</h3><small>${h.name} · the ${h.trait}</small></div></div>
+      <p class="note">${h.blurb}</p><p data-f="mood" class="status"></p><p data-f="state"></p>${ties.length ? `<p>${ties.join(' · ')}</p>` : ''}
+      <div class="dip">${list.map(a => `<button data-dip="${a.id}" class="wide${a.warn ? ' warn' : ''}" ${a.ok ? '' : 'disabled'} title="${a.ok ? '' : a.why}">${a.label}${a.ok ? '' : `<small>${a.why}</small>`}</button>`).join('')}</div>
+      <button data-act="back" class="wide">Back to your realm</button>`;
+  }
+  const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
+  set('mood', `${mood(d.opinion)} toward you (${Math.round(d.opinion)})`);
+  const n = world.pois.filter(p => p.owner === h.index).length;
+  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}`);
+}
+
 $('wpanel').onclick = e => {
+  const row = e.target.closest('[data-house]');
+  if (row && row.classList.contains('pick')) { selected = { house: FACTIONS[+row.dataset.house] }; return; }
+  const dip = e.target.closest('[data-dip]');
+  if (dip && !dip.disabled) {
+    const r = dipAct(world, selected.house.index, dip.dataset.dip);
+    if (r.text) flash(r.text, r.ok);
+    panelKey = null;
+    return;
+  }
   const act = e.target.closest('[data-act]')?.dataset.act;
   const it = selected;
+  if (act === 'back') { selected = null; return; }
   if (act === 'enter') enterTown(it);
   if (act === 'muster') {
     const regs = it.town.garrison().filter(r => !r.routing && !r.regrouping);
@@ -392,7 +435,7 @@ function topBar() {
     document.body.classList.toggle('paused', paused);
     for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === speed);
     const foes = world.armies.filter(a => a.side !== 0 && a.visible && !a.retreating && a.mode !== 'column' && world.atWar(0, a.side));
-    $('strength').textContent = foes.length ? `⚠️ ${foes.map(a => `${a.name} (${headcount(a.units)})`).join(', ')} on the march` : '';
+    { const html = foes.length ? `${ico('warning', '#ffb05a')} ${foes.map(a => `${a.name} (${headcount(a.units)})`).join(', ')} on the march` : ''; if ($('strength').dataset.was !== html) { $('strength').dataset.was = html; $('strength').innerHTML = html; } }
   }
   if (mode === 'town') $('clock').textContent = clock(world.time);
   const n = mode === 'town' ? current.controls.selection.size : 0;
@@ -430,7 +473,7 @@ function frame(now) {
   if (mode === 'world') {
     worldControls.update(dt);
     stage.placeSun(worldControls.cam, worldView.heightAt, 700);
-    worldView.update(cam, selected);
+    worldView.update(cam, selected?.house ? null : selected);
     worldPanel();
   } else {
     const b = current;

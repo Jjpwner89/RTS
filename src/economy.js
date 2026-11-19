@@ -7,20 +7,20 @@
 // built matters. Workers who are stuck fetch or clear their own goods, more slowly.
 
 export const GOODS = {
-  wood: { name: 'Wood', icon: '🪵' },
-  stone: { name: 'Stone', icon: '🪨' },
-  food: { name: 'Food', icon: '🍖' },
-  flax: { name: 'Flax', icon: '🌿' },
-  feathers: { name: 'Feathers', icon: '🪶' },
-  ore: { name: 'Iron ore', icon: '⛏️' },
-  planks: { name: 'Planks', icon: '🪚' },
-  string: { name: 'String', icon: '🧵' },
-  iron: { name: 'Iron', icon: '🔩' },
-  shields: { name: 'Shields', icon: '🛡️' },
-  bows: { name: 'Bows', icon: '🏹' },
-  arrows: { name: 'Arrows', icon: '➶' },
-  spears: { name: 'Spears', icon: '🔱' },
-  swords: { name: 'Swords', icon: '🗡️' },
+  wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
+  stone: { name: 'Stone', icon: 'stone', color: '#bdb8ad' },
+  food: { name: 'Food', icon: 'food', color: '#e07a5f' },
+  flax: { name: 'Flax', icon: 'flax', color: '#9fc46e' },
+  feathers: { name: 'Feathers', icon: 'feathers', color: '#ece6d6' },
+  ore: { name: 'Iron ore', icon: 'ore', color: '#c47a58' },
+  planks: { name: 'Planks', icon: 'planks', color: '#e0b47a' },
+  string: { name: 'String', icon: 'string', color: '#e6d6a6' },
+  iron: { name: 'Iron', icon: 'iron', color: '#aeb8c4' },
+  shields: { name: 'Shields', icon: 'shields', color: '#d2a05a' },
+  bows: { name: 'Bows', icon: 'bows', color: '#c89060' },
+  arrows: { name: 'Arrows', icon: 'arrows', color: '#e2d4b0' },
+  spears: { name: 'Spears', icon: 'spears', color: '#c4ccd6' },
+  swords: { name: 'Swords', icon: 'swords', color: '#dfe4ea' },
 };
 export const GOOD_GROUPS = [
   ['Raw', ['wood', 'stone', 'food', 'flax', 'feathers', 'ore']],
@@ -36,36 +36,36 @@ export const GOOD_GROUPS = [
 // Workshops stop asking for wood once the village is down to its last, so construction can go on.
 const RESERVE = { wood: 20 };
 export const BUILDINGS = {
-  house: { name: 'House', icon: '🏠', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
+  house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers.' },
-  storehouse: { name: 'Storehouse', icon: '📦', group: 'Village', cost: { wood: 15 }, radius: 4.5, build: 12, jobs: 3, hp: 150,
+  storehouse: { name: 'Storehouse', icon: 'storehouse', group: 'Village', cost: { wood: 15 }, radius: 4.5, build: 12, jobs: 3, hp: 150,
     haul: true, storage: true, desc: 'Holds any goods. Its three haulers carry goods between the buildings around it.' },
-  woodcutter: { name: 'Woodcutter', icon: '🪓', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 3, hp: 120,
+  woodcutter: { name: 'Woodcutter', icon: 'woodcutter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 3, hp: 120,
     gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 3 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
-  quarry: { name: 'Quarry', icon: '⚒️', group: 'Gather', cost: { wood: 12 }, radius: 3.5, build: 12, jobs: 2, hp: 120,
+  quarry: { name: 'Quarry', icon: 'quarry', group: 'Gather', cost: { wood: 12 }, radius: 3.5, build: 12, jobs: 2, hp: 120,
     gather: { node: 'rock', range: 35, need: 1, time: 8, out: { stone: 2 } }, desc: 'Cuts stone from a grey outcrop. Build it close to one.' },
-  mine: { name: 'Mine', icon: '⛏️', group: 'Gather', cost: { wood: 15, stone: 5 }, radius: 3.5, build: 15, jobs: 2, hp: 150,
+  mine: { name: 'Mine', icon: 'mine', group: 'Gather', cost: { wood: 15, stone: 5 }, radius: 3.5, build: 15, jobs: 2, hp: 150,
     gather: { node: 'ore', range: 30, need: 1, time: 9, out: { ore: 2 } }, desc: 'Digs iron ore from a rust-red deposit. Build it close to one.' },
-  hunter: { name: "Hunter's lodge", icon: '🦌', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 2, hp: 120,
+  hunter: { name: "Hunter's lodge", icon: 'hunter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 2, hp: 120,
     gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 3, feathers: 2 } }, desc: 'Hunts in the woods for food and feathers.' },
-  farm: { name: 'Farm', icon: '🌾', group: 'Gather', cost: { wood: 12 }, radius: 9, build: 12, jobs: 2, hp: 100,
+  farm: { name: 'Farm', icon: 'farm', group: 'Gather', cost: { wood: 12 }, radius: 9, build: 12, jobs: 2, hp: 100,
     gather: { node: 'field', time: 7, out: { food: 4 } }, desc: 'Grows grain on its own field. Needs open ground.' },
-  flax: { name: 'Flax field', icon: '🌿', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
+  flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
     gather: { node: 'field', time: 8, out: { flax: 2 } }, desc: 'Grows flax for bowstring.' },
-  carpenter: { name: 'Carpenter', icon: '🪚', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
+  carpenter: { name: 'Carpenter', icon: 'carpenter', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6 }],
     desc: 'Saws wood into planks, and planks into shields.' },
-  ropemaker: { name: 'Ropemaker', icon: '🧵', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
+  ropemaker: { name: 'Ropemaker', icon: 'ropemaker', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { flax: 2 }, out: { string: 1 }, time: 7, keep: 20 }], desc: 'Twists flax into bowstring.' },
-  smelter: { name: 'Smelter', icon: '🔥', group: 'Craft', cost: { wood: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
+  smelter: { name: 'Smelter', icon: 'smelter', group: 'Craft', cost: { wood: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
     recipes: [{ in: { ore: 2, wood: 1 }, out: { iron: 1 }, time: 9, keep: 20 }], desc: 'Smelts ore into iron, burning wood.' },
-  bowyer: { name: 'Bowyer', icon: '🏹', group: 'Craft', cost: { planks: 10, stone: 5 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
+  bowyer: { name: 'Bowyer', icon: 'bowyer', group: 'Craft', cost: { planks: 10, stone: 5 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { planks: 2, string: 1 }, out: { bows: 1 }, time: 10 }, { in: { planks: 1, feathers: 2 }, out: { arrows: 10 }, time: 8 }],
     desc: 'Makes bows from planks and string, and arrows from planks and feathers.' },
-  weaponsmith: { name: 'Weaponsmith', icon: '⚔️', group: 'Craft', cost: { planks: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
+  weaponsmith: { name: 'Weaponsmith', icon: 'weaponsmith', group: 'Craft', cost: { planks: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
     recipes: [{ in: { iron: 1, planks: 1 }, out: { spears: 1 }, time: 9 }, { in: { iron: 2 }, out: { swords: 1 }, time: 12 }],
     desc: 'Fits iron heads to spear shafts, and forges swords.' },
-  barracks: { name: 'Barracks', icon: '🚩', group: 'Military', cost: { planks: 20, stone: 20 }, radius: 6, build: 20, hp: 250,
+  barracks: { name: 'Barracks', icon: 'barracks', group: 'Military', cost: { planks: 20, stone: 20 }, radius: 6, build: 20, hp: 250,
     desc: 'Holds the arms, and calls up villagers as soldiers when their kit is here.' },
 };
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
@@ -77,7 +77,7 @@ export const KITS = {
   sword: { name: 'Swordsmen', kit: { swords: 1, shields: 1 } },
 };
 
-const KEEP = { name: 'Keep', icon: '🏰', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
+const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
 const WALK = 3.4;
 

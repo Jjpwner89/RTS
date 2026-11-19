@@ -10,6 +10,7 @@ import { rng } from '../noise.js';
 import { thinkAI } from '../ai.js';
 import { generateRealm, KINDS, BANDITS, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds } from './rivals.js';
+import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
 // the World so drawing code can look owners up without holding the world.
@@ -89,6 +90,7 @@ export class World {
     this.ecoClock = 0;
     this.sightClock = 0;
     startHouseMinds(this);
+    startDiplomacy(this);
     this.updateVision();
   }
 
@@ -130,6 +132,8 @@ export class World {
       if (other !== null && army.target && army.target.owner === other && army.side !== 0) this.retreat(army);
     }
   }
+
+  strength(i) { return strengthOf(this, i); }
 
   // You have met a house once you have seen one of its places.
   knows(h) { return this.pois.some(p => p.owner === h && p.seen); }
@@ -386,11 +390,12 @@ export class World {
     if (enc.kind === 'assault') {
       const p = enc.poi;
       if (won) { this.log(`You have taken ${p.name}!`); this.capture(p, a); }
-      else { p.garrison = theirs; this.log(`The attack on ${p.name} failed.`, 1); this.retreat(a); }
+      else { p.garrison = theirs; this.log(`The attack on ${p.name} failed.`, 1); note(this, p.owner, 'lostField'); this.retreat(a); }
     } else {
       const e = enc.enemy;
       e.halted = false;
       e.units = theirs;
+      note(this, e.side, won ? 'wonField' : 'lostField');
       if (won) {
         this.log(`${e.name} was beaten at ${was}.`);
         this.retreat(e);
@@ -407,6 +412,7 @@ export class World {
 
   capture(p, a) {
     const was = p.owner;
+    note(this, was, 'tookPlace');
     this.takePlace(p, 0);
     const pop = p.eco?.pop ?? 20;
     const lvl = p.eco?.level ?? 1;
@@ -507,6 +513,7 @@ export class World {
     const alive = r => r.soldiers.filter(s => s.alive).length;
     const groups = t.attackers.filter(g => g.regs.some(r => !r.disbanded && alive(r) > 0));
     const side = groups[0]?.house ?? 1;
+    note(this, side, 'lostPlace');
     const theirs = groups.flatMap(g => g.regs).filter(r => !r.disbanded && alive(r) > 0)
       .map(r => unit(r.T.key, alive(r), r.name));
     const ours = t.garrison().filter(r => alive(r) > 0)
@@ -576,10 +583,14 @@ export class World {
 
   checkEnd() {
     if (this.winner !== null) return;
+    // Crowned by the sword (Kingsbridge and half the realm, counting the places of houses
+    // that back you) or by acclaim (every great house still standing backs your claim).
     const real = this.pois.filter(p => p.kind !== 'camp');
-    const mine = real.filter(p => p.owner === 0).length;
-    if (this.crown.owner === 0 && mine >= real.length / 2) { this.crowned = true; this.winner = 0; }
-    else if (FACTIONS.slice(1, this.bandits).every(h => !h.alive)) { this.crowned = true; this.winner = 0; }
+    const B = new Set(backers(this).map(h => h.index));
+    const mine = real.filter(p => p.owner === 0 || B.has(p.owner)).length;
+    const rivals = FACTIONS.slice(1, this.bandits).filter(h => h.alive);
+    if (this.crown.owner === 0 && mine >= real.length / 2) { this.crowned = true; this.winner = 0; this.victory = 'sword'; }
+    else if (!rivals.length || rivals.every(h => B.has(h.index))) { this.crowned = true; this.winner = 0; this.victory = rivals.length ? 'acclaim' : 'sword'; }
     else if (!this.pois.some(p => p.owner === 0) && !this.armies.some(a => a.side === 0)) this.winner = 1;
     if (this.winner !== null) this.hooks.ended(this.winner);
   }
@@ -593,10 +604,19 @@ export class World {
     for (const a of [...this.armies]) if (!a.gone) this.moveArmy(a, dt);
     this.checkMeetings();
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
+    thinkDiplomacy(this, dt);
+  }
+
+  // Your taxes: every villager pays a little, more in market towns and fords; vassals
+  // send a share of theirs.
+  collectTaxes(dt) {
+    const me = FACTIONS[0];
+    for (const p of this.pois) if (p.owner === 0 && p.town) me.gold += dt * p.town.population * 0.012 * KINDS[p.kind].gold;
+    for (const h of FACTIONS) if (this.dip?.[h.index]?.vassal && h.alive) { const n = Math.min(h.gold, dt * 0.6); h.gold -= n; me.gold += n; }
   }
 
   updateTown(p, dt) {

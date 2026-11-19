@@ -5,6 +5,7 @@
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
 import { FACTIONS, GRACE, power, headcount, takeUnits, dist } from './world.js';
+import { protectedFrom } from './diplomacy.js';
 import { TYPES } from '../battle.js';
 
 const BENT = {
@@ -106,10 +107,10 @@ function thinkWars(w, h, B) {
     const d = Math.min(...mine.map(q => dist(p, q)));
     if (d < 420) near.set(p.owner, Math.min(near.get(p.owner) ?? Infinity, d));
   }
-  const strength = i => w.pois.filter(p => p.owner === i).reduce((n, p) => n + w.defence(p), 0)
-    + w.armies.filter(a => a.side === i).reduce((n, a) => n + power(a.units), 0);
+  const strength = i => w.strength(i);
   const ours = strength(h.index);
-  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && (i !== 0 || w.time > GRACE))
+  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && (i !== 0 || (w.time > GRACE && !protectedFrom(w, 0, h.index)))
+    && !(FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20))
     .map(i => ({ i, odds: ours / Math.max(1, strength(i)) }))
     .sort((a, b) => b.odds - a.odds);
   const pick = choices[0];
