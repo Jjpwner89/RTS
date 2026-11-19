@@ -432,6 +432,48 @@ export class World {
     this.log(`Your army has marched into ${p.name}.`);
   }
 
+  // Call the banners: every village of yours raises what its barracks can arm (keeping
+  // half its people at work) and sends its whole garrison, bar the men on its walls, to
+  // `dest`. They join that village's garrison there, ready to be mustered as one host.
+  callBanners(dest) {
+    const BEST = ['knight', 'cav', 'maa', 'crossbow', 'lightcav', 'sword', 'spear', 'archer'];
+    let men = 0, from = 0;
+    for (const p of this.pois) {
+      const t = p.town;
+      if (p.owner !== 0 || !t || t.hostile || t.underAttack) continue;
+      for (const b of t.buildings) {
+        if (b.kind !== 'barracks' || b.state !== 'active') continue;
+        for (const key of BEST) {
+          while (t.levyCheck(key, b).ok && t.villagers.filter(v => v.state !== 'soldier').length - t.levyCheck(key, b).n >= t.population / 2) t.raise(key, b);
+        }
+      }
+      if (p === dest) continue;
+      const regs = t.garrison().filter(r => !r.routing && !r.regrouping && !r.posts);
+      if (!regs.length) continue;
+      const a = this.muster(p, regs);
+      if (!a) continue;
+      a.name = `Banners of ${p.name}`;
+      men += headcount(a.units);
+      from++;
+      if (!this.order(a, dest)) this.enterTown(a, p, p);
+    }
+    const here = dest.town ? dest.town.garrison().reduce((n, r) => n + r.alive, 0) : 0;
+    this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} village${from > 1 ? 's' : ''}, to join ${here} there.` : `The banners are called, but no other village has men to send. ${here} stand ready at ${dest.name}.`);
+    return { men, from };
+  }
+
+  // Two armies of yours waiting at the same place become one.
+  join(a, b) {
+    for (const u of b.units) {
+      const same = a.units.find(o => o.key === u.key && o.name === u.name);
+      if (same) same.count += u.count; else a.units.push({ ...u });
+    }
+    a.wounded = [...(a.wounded || []), ...(b.wounded || [])];
+    a.food = (a.food || 0) + (b.food || 0);
+    this.log(`${b.name} joins ${a.name}: ${headcount(a.units)} men.`);
+    this.removeArmy(b);
+  }
+
   // Regiments leave a village of yours and become an army on the map.
   muster(p, regs) {
     const units = p.town.takeTroops(regs);
