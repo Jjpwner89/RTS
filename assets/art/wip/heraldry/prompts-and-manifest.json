@@ -1,0 +1,456 @@
+{
+  "section": "heraldry",
+  "brief_revision": 3,
+  "mode": "built-in image_gen",
+  "status": "complete",
+  "assets": [
+    {
+      "id": "varn",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #c8423a. One single big centred charge: one black wolf head in profile, neck cleanly cut off (couped), ears alert, restrained snarl, bold unbroken black silhouette; tiny red negative-space eye and mouth if necessary, no white teeth.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-5d60ece4-5ee1-4987-8be2-ecc85ea5148e.png",
+      "output": "assets/art/wip/heraldry/varn-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/varn.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Clear correct charge, bold two-colour silhouette, even matte field and clean heater shape."
+    },
+    {
+      "id": "varn",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #c8423a. One single big centred charge: one black wolf head in profile, neck cleanly cut off (couped), ears alert, restrained snarl, bold unbroken black silhouette; tiny red negative-space eye and mouth if necessary, no white teeth. Independent alternate take, simplify contours further for tiny-size readability while preserving this exact charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-2eedc5c2-2e04-4a90-8e28-0e6a798cc224.png",
+      "output": "assets/art/wip/heraldry/varn-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "carrow",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #d9a441. One single big centred charge: one solid black stone tower, exactly three battlements across its flat top, one large gold negative-space arched doorway; extremely simple bold silhouette.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-bd2b83e1-6f83-4245-9801-0115200c6f6d.png",
+      "output": "assets/art/wip/heraldry/carrow-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/carrow.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Clear correct charge, bold two-colour silhouette, even matte field and clean heater shape."
+    },
+    {
+      "id": "carrow",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #d9a441. One single big centred charge: one solid black stone tower, exactly three battlements across its flat top, one large gold negative-space arched doorway; extremely simple bold silhouette. Independent alternate take, simplify contours further for tiny-size readability while preserving this exact charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c2206995-af29-49cf-a1d8-b65ea22814f7.png",
+      "output": "assets/art/wip/heraldry/carrow-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "stonemere",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #6f7f8f. One single big centred charge: one white portcullis: bold white horizontal top beam, four thick white vertical bars with pointed lower ends and two thick horizontal crossbars; open slate squares, no chains or extra ornaments.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-ec5d793f-565e-442a-9a21-79ff246f79a5.png",
+      "output": "assets/art/wip/heraldry/stonemere-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/stonemere.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Clear correct charge, bold two-colour silhouette, even matte field and clean heater shape."
+    },
+    {
+      "id": "stonemere",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #6f7f8f. One single big centred charge: one white portcullis: bold white horizontal top beam, four thick white vertical bars with pointed lower ends and two thick horizontal crossbars; open slate squares, no chains or extra ornaments. Independent alternate take, simplify contours further for tiny-size readability while preserving this exact charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b1a75dc0-7438-41a6-b5a8-51b3e8835864.png",
+      "output": "assets/art/wip/heraldry/stonemere-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "wyndham",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #7b4fa0. One single big centred charge: one silver-white upright medieval key: a large simple round bow at top, thick vertical shaft, and two bold teeth facing right near bottom; no filigree.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f4b6715d-795b-44c1-a74e-34d28d9ea42f.png",
+      "output": "assets/art/wip/heraldry/wyndham-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/wyndham.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Clear correct charge, bold two-colour silhouette, even matte field and clean heater shape."
+    },
+    {
+      "id": "wyndham",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #7b4fa0. One single big centred charge: one silver-white upright medieval key: a large simple round bow at top, thick vertical shaft, and two bold teeth facing right near bottom; no filigree. Independent alternate take, simplify contours further for tiny-size readability while preserving this exact charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-5d6e9f68-900b-4f33-88dc-6da8ec42a963.png",
+      "output": "assets/art/wip/heraldry/wyndham-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "penhallow",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #2f8f6a. One single big centred charge: one gold medieval sailing ship, simple curved hull and a SINGLE mast with the sail furled in a thick horizontal gold bundle on one yard; no waves, no flags, no rigging web, only bold essential silhouette; recognisable at 24px.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-741cc480-c102-413c-88fc-4b88e96522a3.png",
+      "output": "assets/art/wip/heraldry/penhallow-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/penhallow.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Correct charge and field, bold silhouette, clean edge, no extra symbols."
+    },
+    {
+      "id": "penhallow",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #2f8f6a. One single big centred charge: one gold medieval sailing ship, simple curved hull and a SINGLE mast with the sail furled in a thick horizontal gold bundle on one yard; no waves, no flags, no rigging web, only bold essential silhouette; recognisable at 24px. Independent alternate take, simpler bolder contours, same charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-db8e3d8f-1eff-4c77-8b13-98075e111008.png",
+      "output": "assets/art/wip/heraldry/penhallow-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "dunmore",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #e07a2f. One single big centred charge: one black horse rearing in profile facing left, bold solid silhouette with two bent forelegs lifted, two hindlegs grounded, flowing tail; anatomically convincing horse, no rider, no wings, no saddle.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-21f66079-5ed9-489a-a421-0a28efbad1b4.png",
+      "output": "assets/art/wip/heraldry/dunmore-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/dunmore.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Correct charge and field, bold silhouette, clean edge, no extra symbols."
+    },
+    {
+      "id": "dunmore",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Field colour #e07a2f. One single big centred charge: one black horse rearing in profile facing left, bold solid silhouette with two bent forelegs lifted, two hindlegs grounded, flowing tail; anatomically convincing horse, no rider, no wings, no saddle. Independent alternate take, simpler bolder contours, same charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-4d4a3bb3-3ba0-4bdd-83f1-12f0278b503a.png",
+      "output": "assets/art/wip/heraldry/dunmore-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "player",
+      "take": 1,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Exception to two tinctures: gold star is the one allowed accent. Field colour #3d6fd6. One single big centred charge: one thick white chevron (inverted V) spanning lower middle, with one small simple five-point gold star above the chevron in the upper centre. Exactly blue, white and gold. No other symbols..",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a7654cd6-58ea-40f2-80b7-fbce7dc10593.png",
+      "output": "assets/art/wip/heraldry/player-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/player.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Correct charge and field, bold silhouette, clean edge, no extra symbols."
+    },
+    {
+      "id": "player",
+      "take": 2,
+      "prompt": "Use case: stylized-concept. Asset: a single flat painted heraldic heater shield for a medieval RTS, square 512x512 PNG with genuinely transparent background outside shield. Straight-on symmetrical heater shield occupying about 90% canvas, flat top, gently curving sides ending at a centred point. Thin darker outline. Crisp simple silhouette legible at 24 pixels. Flat matte colour with only a very slight brush texture, even lighting. NO 3D bevel, no shiny metal, no rim hardware, no gradient, no shadows outside shield, no scrollwork, no crown or helmet, no supporters, no letters or text. Two tinctures only. The field remains a large clear block of its house colour. Exception to two tinctures: gold star is the one allowed accent. Field colour #3d6fd6. One single big centred charge: one thick white chevron (inverted V) spanning lower middle, with one small simple five-point gold star above the chevron in the upper centre. Exactly blue, white and gold. No other symbols.. Independent alternate take, simpler bolder contours, same charge and field.",
+      "references": [],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-3c6e3d3b-9cfb-4000-b8f7-8a86d4154e75.png",
+      "output": "assets/art/wip/heraldry/player-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "varn-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-0b4172ef-16f9-41db-a01f-57211296c7c4.png",
+      "output": "assets/art/wip/heraldry/varn-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/varn-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching charge and field, straight rectangular format and no pole or cloth folds."
+    },
+    {
+      "id": "varn-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/varn.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-5e938043-881b-4854-9518-4bf9f3584e61.png",
+      "output": "assets/art/wip/heraldry/varn-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "carrow-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/carrow.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-159da3b9-225a-4ba8-827e-a48c2163d05c.png",
+      "output": "assets/art/wip/heraldry/carrow-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/carrow-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching charge and field, straight rectangular format and no pole or cloth folds."
+    },
+    {
+      "id": "carrow-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/carrow.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-89ae4439-c699-4660-b3be-d274ff4b82b1.png",
+      "output": "assets/art/wip/heraldry/carrow-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "stonemere-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/stonemere.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-7bd05156-5762-43cb-86a9-e088d71bed15.png",
+      "output": "assets/art/wip/heraldry/stonemere-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/stonemere-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching charge and field, straight rectangular format and no pole or cloth folds."
+    },
+    {
+      "id": "stonemere-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/stonemere.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-588f5f75-ab83-405e-bd3e-af588473d553.png",
+      "output": "assets/art/wip/heraldry/stonemere-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "wyndham-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/wyndham.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-1d2e15e8-a8cc-4ef7-be99-5c346fcfcf7d.png",
+      "output": "assets/art/wip/heraldry/wyndham-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/wyndham-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching charge and field, straight rectangular format and no pole or cloth folds."
+    },
+    {
+      "id": "wyndham-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/wyndham.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c579ecef-e7d6-419a-8e8e-5df2496b79a9.png",
+      "output": "assets/art/wip/heraldry/wyndham-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "penhallow-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/penhallow.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-940e8162-839f-4ab3-99df-ee950fbae5af.png",
+      "output": "assets/art/wip/heraldry/penhallow-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/penhallow-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching emblem and colours; straight flat banner and clear large charge."
+    },
+    {
+      "id": "penhallow-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/penhallow.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-0bb705c6-f836-47ae-a033-72d33ee815cd.png",
+      "output": "assets/art/wip/heraldry/penhallow-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "dunmore-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/dunmore.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-3b328aba-77df-40f4-a6c1-5746676ad575.png",
+      "output": "assets/art/wip/heraldry/dunmore-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/dunmore-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching emblem and colours; straight flat banner and clear large charge."
+    },
+    {
+      "id": "dunmore-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/dunmore.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-d3d63b7e-0b0e-482f-94c1-2f1f1f1456d5.png",
+      "output": "assets/art/wip/heraldry/dunmore-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    },
+    {
+      "id": "player-banner",
+      "take": 1,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration.",
+      "references": [
+        "assets/art/heraldry/player.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-9b05c938-f35c-4b27-9f94-f5b9909cac88.png",
+      "output": "assets/art/wip/heraldry/player-banner-take-1.png",
+      "status": "selected",
+      "final": "assets/art/heraldry/player-banner.png",
+      "size": [
+        256,
+        384
+      ],
+      "review": "Matching emblem and colours; straight flat banner and clear large charge."
+    },
+    {
+      "id": "player-banner",
+      "take": 2,
+      "prompt": "Use case: precise-object-edit. Input image 1 is the selected house shield, and is the exact heraldry reference. Produce its FLAT VERTICAL RECTANGULAR BANNER version for a medieval strategy game. Preserve the exact field colour, charge shape, charge orientation, number of elements, and flat subtly painted matte finish. Replace the heater shield outline with a straight tall rectangular field, width:height 2:3, on a transparent background; export intended at 256x384 pixels. Banner nearly fills canvas leaving only a narrow transparent margin. The charge is large and centred, same proportions as reference, not stretched. A very thin darker outline at rectangle edge. Absolutely flat front view with straight parallel edges, no folds, pole, finial, cord, tassels, ripples, lighting gradient, shadows or bevel. No shield shape inside banner. No text or additional decoration. Alternate take preserving exact arms, with slightly tighter centring and cleaner edges.",
+      "references": [
+        "assets/art/heraldry/player.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-1ead593c-9feb-43ae-9866-241ac17061a5.png",
+      "output": "assets/art/wip/heraldry/player-banner-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        384
+      ],
+      "review": "Retained alternate."
+    }
+  ]
+}
