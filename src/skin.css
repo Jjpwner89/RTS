@@ -1,0 +1,61 @@
+/* Parchment and ink, the art brief's direction for the interface: parchment panels with thin
+   bronze rims, a dark leather strip for the top bar, ribbon buttons, dyed-blue cloth for what is
+   chosen. Loaded after style.css; the tokens below go on every panel and button. When the painted
+   UI kit arrives, its images replace --grain and the gradients here. */
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+:root {
+  --head-font: "IM Fell English SC", Georgia, serif; --body-font: "Alegreya Sans", "Gill Sans", system-ui, sans-serif;
+  --panel: var(--surface); --edge: #b89559;
+  --ink: #2b1d0e; --dim: #6e5533; --gold: #8d3b16; --good: #2f6a26; --bad: #a3271a;
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .38  0 0 0 0 .26  0 0 0 0 .1  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --surface: var(--grain), radial-gradient(ellipse at 45% 35%, #f3e8c9 0%, #e6d4a6 60%, #d2b77e 115%);
+  --surface-border: 1px solid #b89559; --surface-radius: 3px;
+  --surface-shadow: 0 0 0 1px #4a3018, inset 0 0 22px rgba(120, 78, 24, .38), 0 6px 16px rgba(0, 0, 0, .38);
+  --bar-surface: var(--grain), linear-gradient(#4b3220, #2f1e12); --bar-border: 1px solid #1a0f07; --bar-ink: #f0e2c0; --bar-dim: #c8ad80;
+  --bar-shadow: inset 0 0 0 1px rgba(214, 170, 96, .35), 0 6px 16px rgba(0, 0, 0, .45);
+  --btn: linear-gradient(#f2e5c3, #dcc593); --btn-hover: linear-gradient(#f8eed0, #e6d1a2); --btn-ink: #2b1d0e;
+  --btn-border: 1px solid #7a5a2e; --btn-radius: 2px; --btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 1px 1px rgba(0, 0, 0, .25);
+  --btn-on: var(--grain), linear-gradient(#3a64b0, #24447f); --btn-on-ink: #f6ecd2; --btn-on-border: 1px solid #172d57;
+  --track: rgba(80, 50, 20, .18); --strength: #5a4126; --icon: #4a3219; --rule: rgba(110, 80, 40, .35); --hilite: rgba(141, 59, 22, .1);
+}
+
+body { font-family: var(--body-font); color: var(--ink); }
+:is(#stock, #build, #info, #help, #wpanel, #goals, #alerts, #defences, .modal, #herald, #deploy, #terms, #duel, #paused-tag, #log div, #toast, #end, #orders .group, .wlabel, .card) {
+  background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow); outline: var(--surface-outline, none); outline-offset: var(--surface-outline-offset, 0);
+  color: var(--ink);
+}
+#top { background: var(--bar-surface, var(--surface)); border: var(--bar-border, var(--surface-border)); border-radius: var(--surface-radius);
+  box-shadow: var(--bar-shadow, var(--surface-shadow)); outline: var(--bar-outline, var(--surface-outline, none)); outline-offset: var(--surface-outline-offset, 0); color: var(--bar-ink, var(--ink)); padding: 7px 14px; }
+#top #clock, #top #strength { color: var(--bar-dim, var(--dim)); }
+:is(h2, h3, h4, #top .title, .wlabel.place b) { font-family: var(--head-font); font-weight: var(--head-weight, 400); letter-spacing: var(--head-spacing, .02em); }
+#top .title { font-size: 17px; }
+:is(#stock, #info, #wpanel, #alerts, #goals) h4 { font-family: var(--head-font); font-size: 13px; color: var(--dim); }
+#goals h4 { color: var(--gold); border-bottom-color: var(--rule); }
+button { font-family: var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow, none); }
+button:hover { background: var(--btn-hover); }
+button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #result button, #deploy .go, #terms .yes, #duel .yes, #help-close { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border, var(--btn-border)); }
+#cards .card.selected { outline: 2px solid var(--gold); outline-offset: 1px; }
+.card .bar { background: var(--track); }
+.card .strength i { background: var(--strength); }
+#build .item .ico, #info h3 .ico { color: var(--icon); }
+#stock .people .ico { color: var(--gold); }
+#build .item kbd { color: var(--dim); border-color: var(--rule); }
+:is(#alerts div span, #stock .raid.now u) { color: var(--ink); }
+#goals .now { background: var(--hilite); border-left-color: var(--gold); }
+#goals .done, #goals .later { color: var(--dim); }
+:is(.houses .h.pick, .vassals .h, #alerts div.go):hover { background: var(--hilite); }
+#stock .mood .good { color: var(--good); }
+#stock .mood .bad { color: var(--bad); }
+.wlabel.side1 { color: var(--bad); }
+.modal { backdrop-filter: none; }
+/* Small print on buttons follows the button, not the panel. */
+:is(button small, button .note, #build .item small, #defences .items small) { color: var(--btn-dim, var(--dim)); }
+#build .item kbd { color: var(--btn-dim, var(--dim)); }
+#goals { background: var(--surface); }
+.card .morale i { background: #3f7d34; }
+#stock .goods .ico, #info p .ico, .wlabel .ico, #alerts .ico { filter: brightness(.5) saturate(1.6); }
+.wlabel b { filter: brightness(.55) saturate(1.4); }
+#herald { border-left: 6px solid var(--hc, var(--gold)); }
+/* A routing regiment's card flushes red parchment rather than the dark red. */
+@keyframes blink { to { background: var(--grain), linear-gradient(#efc3a4, #d58f70); } }

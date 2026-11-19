@@ -40,14 +40,15 @@ body.paused #paused-tag { display: block; }
 #cards { position: fixed; left: 16px; right: 16px; bottom: 12px; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 #cards > :first-child { margin-left: auto; }
 #cards > :last-child { margin-right: auto; }
-.card { flex: 0 0 auto; width: 112px; display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto auto auto; gap: 3px 6px; padding: 5px; text-align: left; background: var(--panel); }
-.card canvas { grid-row: 1 / 5; width: 44px; height: 44px; border-radius: 4px; }
-.card .name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card .bar { height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
+/* Name across the top so "1st Heavy cavalry" fits, the icon beside the two bars, the state line under both. */
+.card { flex: 0 0 auto; width: 112px; display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto auto auto; align-content: start; gap: 2px 6px; padding: 5px; text-align: left; background: var(--panel); }
+.card canvas { grid-row: 2 / 4; grid-column: 1; width: 30px; height: 30px; border-radius: 4px; }
+.card .name { grid-column: 1 / -1; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .bar { align-self: center; height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
 .card .bar i { display: block; height: 100%; }
 .card .strength i { background: #d8cfba; }
 .card .morale i { background: var(--good); }
-.card .state { font-size: 10px; color: var(--dim); white-space: nowrap; }
+.card .state { grid-column: 1 / -1; font-size: 10px; color: var(--dim); white-space: nowrap; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .card.routing { animation: blink 0.8s infinite alternate; }
 .card.routing .morale i { background: var(--bad); }
@@ -119,7 +120,7 @@ body.town #cards { left: 372px; }
 #info .recipe small { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
 #info .recipe.on small { color: var(--good); }
 #info .row { display: flex; gap: 6px; margin-top: 10px; }
-#info .wide { width: 100%; display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
+#info .wide { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 8px; margin-top: 4px; text-align: left; }
 #info .wide small { color: var(--dim); font-size: 11px; }
 #info button:disabled { opacity: 0.45; cursor: default; }
 
@@ -217,7 +218,7 @@ body.campaign.mode-town #cards { left: 372px; }
 #wpanel h3 .ico { width: 22px; height: 22px; vertical-align: -0.3em; }
 
 /* Battle commands over the regiment cards (hud.js), and the village's defences panel (siegeui.js). */
-#orders { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; z-index: 2; }
+#orders { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; z-index: 2; }
 #orders.open { display: flex; }
 #orders .group { display: flex; gap: 3px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 3px; }
 #orders button { padding: 3px 9px; font-size: 12px; }

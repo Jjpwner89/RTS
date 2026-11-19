@@ -320,12 +320,12 @@ function panel() {
   const style = document.createElement('style');
   style.textContent = `
     #sound-panel { position: fixed; z-index: 60; width: 220px; padding: 10px 12px;
-      background: rgba(26, 22, 18, 0.95); border: 1px solid rgba(224, 194, 122, 0.35); border-radius: 8px; color: #efe6d2; font-size: 13px; }
+      background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; color: var(--ink); font-size: 13px; }
     #sound-panel[hidden] { display: none; }
     #sound-panel label { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; margin: 4px 0; }
-    #sound-panel input[type=range] { width: 100%; accent-color: #ffd970; }
+    #sound-panel input[type=range] { width: 100%; accent-color: var(--gold); }
     #sound-panel .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
-    #sound-panel a { color: #ffd970; }`;
+    #sound-panel a { color: var(--gold); }`;
   document.head.append(style);
   const wrap = document.createElement('span');
   wrap.id = 'sound';
