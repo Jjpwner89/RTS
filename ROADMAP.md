@@ -98,7 +98,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 Lords and captains remember what happened, which is where the stories come from.
 
 - **Lords**: grudges for burned villages, sieges and broken truces; a lord who fled comes back for revenge; taunts drawn from real history ("You burned Wick. I have not forgotten").
-- **Captains**: traits earned in battles they survive (steady under arrows, reckless in the charge, hated by Varn). *(Battle side done: `captainReport()` gives traits and memory lines.)*
+- **Captains**: traits earned in battles they survive (steady under arrows, reckless in the charge, hated by Varn). *(Battle side done: `captainReport()` gives traits and memory lines.)* **Built (2026-11-19):** every army of 20 or more marches under a named captain (src/world/captains.js), yours and the rivals'; he rides into its field battles, levels up, earns traits, keeps a memory (hover his line) and can fall; between musters he waits for the next army.
 - **Built so Claude can connect to it later**: each character's memory is a short readable list of events, so the Claude director (parked in DESIGN_NOTES) can read it and write lines, choices and events from it.
 
 ## 5. Terrain matters in battle (Battles)
@@ -124,7 +124,7 @@ All approved. Owners in brackets.
 - **Veterans come home** (Battles + Realm): levies who survive return with experience and make better levies next time. *(Battle side done: ranks from `xp`; the village side is Realm's.)* The dead lower the mood, and graves or a memorial stone appear (Art).
 - **The land remembers** (Realm + Art): battlefields leave cairns and ruins, and places gain names ("Hollin Ford, where Varn's host broke").
 - **A written chronicle** (Realm): the campaign told from its events, with named captains, lords and battles, readable as a book at the end. Feeds the Claude director later.
-- **Your lord in person** (Battles + Realm): a unit on the field and on the map. A village runs better while you are there, and battles you join get a bonus. *(Battle side done: `setLord()`.)*
+- **Your lord in person** (Battles + Realm): a unit on the field and on the map. A village runs better while you are there, and battles you join get a bonus. *(Battle side done: `setLord()`.)* **Built (2026-11-19):** *Ride with this army* from one of your places; you take the field with it (a wound sends you home to mend for ten minutes). Rival lords ride with their great hosts, Dunmore with every host; a fallen rival lord's heir takes over and the house mourns before it marches again. Not yet: a village running better while you are there.
 - **Knight your captains** (Realm): give a veteran captain a village and he becomes your vassal.
 
 **Sieges with grandeur**

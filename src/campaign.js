@@ -27,6 +27,7 @@ import { offer, wage, hire as hireCompany, release } from './world/companies.js'
 import { vassalOf, holdingsOf, living, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
+import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
 import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
@@ -289,6 +290,17 @@ function issueChallenge(b) {
   b.battle.challenge(1, champion, { decides });
 }
 
+// Captains and lords take the field with their armies (world/captains.js): the captain
+// with the biggest foot regiment, the lord with the next.
+function leaders(battle, side, army) {
+  if (!army) return;
+  const regs = battle.regs.filter(r => r.side === side && !r.T.range && !r.T.engine).sort((x, y) => y.alive - x.alive);
+  const reg = regs[0] || battle.regs.find(r => r.side === side);
+  const c = captainOf(world, army);
+  if (c) battle.setCaptain(side, c, reg);
+  if (army.lord !== null && army.lord !== undefined) battle.setLord(side, { name: lordName(world, army.lord), alive: true }, regs[1] || reg);
+}
+
 function startField(enc, { watch = true } = {}) {
   const fseed = seed + 50000 + Math.floor(world.time * 7);
   const assault = enc.kind === 'assault';
@@ -310,6 +322,8 @@ function startField(enc, { watch = true } = {}) {
   battle.setRiver(river);
   deploy(battle, 0, enc.army.units, 0, 95, Math.PI);
   deploy(battle, 1, enc.defenders, 0, assault ? -95 : -95, 0);
+  leaders(battle, 0, enc.army);
+  leaders(battle, 1, enc.enemy);
   battle.checkWinner = true;
   if (assault) {
     const keep = new THREE.Mesh(keepModel(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
@@ -374,7 +388,9 @@ function finishAway() {
   b.done = true;
   const won = bt.winner !== null ? bt.winner === 0 : standing(bt, 0) > standing(bt, 1);
   const where = b.enc.poi ? b.enc.poi.name : 'the road';
-  world.settle(b.enc, won, survivors(bt, 0), survivors(bt, 1));
+  const mine = survivors(bt, 0), theirs = survivors(bt, 1);
+  afterBattle(world, bt, [b.enc.army, b.enc.enemy], b.enc.poi?.name);
+  world.settle(b.enc, won, mine, theirs);
   flash(`${won ? 'Victory' : 'Defeat'} at ${where}: you lost ${bt.losses[0]}, they lost ${bt.losses[1]}.`, won);
   stage.dispose(b.scene);
 }
@@ -387,7 +403,7 @@ function takeCommand() {
   setMode('field', b);
 }
 
-const alive = r => r.soldiers.filter(s => s.alive).length;
+const alive = r => r.soldiers.filter(s => s.alive && !s.captain).length;   // captains and lords are not men of the ranks
 // Survivors keep the experience they earned (battle.js veterans): xp on each unit.
 const survivors = (battle, side) => {
   const xp = new Map(battle.veterans(side).map(v => [v.reg, v.xp]));
@@ -401,6 +417,7 @@ function endField(won) {
   b.done = true;
   const mine = survivors(b.battle, 0), theirs = survivors(b.battle, 1);
   const lost = [0, 1].map(s => b.battle.losses[s]);
+  afterBattle(world, b.battle, [b.enc.army, b.enc.enemy], b.enc.poi?.name);
   world.settle(b.enc, won, mine, theirs);
   showResult(won ? 'Victory' : b.retreated ? 'Retreat' : 'Defeat',
     `Your losses: ${lost[0]} · Enemy losses: ${lost[1]}`, 'Back to the map', () => {
@@ -585,7 +602,8 @@ function worldPanel() {
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
-    else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="status" data-f="status"></p>`
+    else if (it.units) el.innerHTML = `<h3>${it.name}</h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
+      + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide">Join with ${o.name} (${headcount(o.units)})</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
@@ -653,6 +671,8 @@ function worldPanel() {
       if (btn) btn.hidden = !!fedAt(world, it);
     }
     set('units', it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
+    if (own || it.visible) { set('captain', captainLine(world, it)); const ce = el.querySelector('[data-f="captain"]'); if (ce) ce.title = captainMemory(world, it); }
+    if (own) set('ride', it.lord === 0 ? `${ico('crown')} Ride home` : world.lordHurt > world.time ? `${ico('crown')} Your lord is mending` : `${ico('crown')} Ride with this army`);
     set('status', it.retreating ? `Falling back to ${it.path.at(-1)?.name}` : it.halted ? 'In battle' : it.path.length ? `Marching to ${it.path.at(-1).name}` : waitingAt ? `Waiting at ${waitingAt.name}` : 'Waiting');
   } else {
     const who = it.visible ? it.owner : it.known?.owner;
@@ -759,6 +779,7 @@ $('wpanel').onclick = e => {
   }
   if (act === 'garrison' && it.at?.town) world.enterTown(it, it.at, it.last);
   if (act === 'banners') { world.callBanners(it && !it.units ? it : world.home); panelKey = null; }
+  if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
   if (act === 'wagon' && it.units && !it.wagon && !it.gone) { if (!sendWagon(world, it)) flash('No village has food to spare.'); }
 };

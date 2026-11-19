@@ -6,6 +6,7 @@
 import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, DUES, LEVIES, COUNCIL, GIFT } from './vassals.js';
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
+import { assignCaptain, releaseCaptain } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
@@ -186,6 +187,7 @@ export class World {
     this.wall = { points: this.beyond.wall, fallen: false, breaches: [] };
     this.ecoClock = 0;
     this.spies = [];
+    this.captains = [];
     this.vassals = [];
     this.sightClock = 0;
     startHouseMinds(this);
@@ -398,10 +400,11 @@ export class World {
       x: at.x, z: at.z, at, last: at, path: [], heading: 0, halted: false, retreating: false, mode, target: null, visible: side === 0 };
     if (mode !== 'wagon') provision(a);
     this.armies.push(a);
+    if (mode !== 'wagon') assignCaptain(this, a);
     return a;
   }
 
-  removeArmy(a) { this.armies = this.armies.filter(o => o !== a); a.gone = true; }
+  removeArmy(a) { this.armies = this.armies.filter(o => o !== a); a.gone = true; releaseCaptain(this, a); }
 
   // Shortest way by road from one place to another.
   route(from, to) {
@@ -554,6 +557,11 @@ export class World {
     }
     a.wounded = [...(a.wounded || []), ...(b.wounded || [])];
     a.food = (a.food || 0) + (b.food || 0);
+    // A lord rides on with the joined army; the better captain commands it.
+    if (b.lord !== null && b.lord !== undefined) a.lord = b.lord;
+    const ca = this.captains.find(c => c.id === a.captain), cb = this.captains.find(c => c.id === b.captain);
+    if (cb && (!ca || cb.xp > ca.xp)) { if (ca) ca.army = null; a.captain = cb.id; cb.army = a.id; b.captain = null; }
+    else if (!ca) assignCaptain(this, a);
     this.log(`${b.name} joins ${a.name}: ${headcount(a.units)} men.`);
     this.removeArmy(b);
   }

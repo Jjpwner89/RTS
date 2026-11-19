@@ -183,7 +183,8 @@ function runPlan(w, h, B, plan) {
     const S = plan.staging;
     if (!S || S.owner !== h.index) { plan.staging = nearestOwn(w, h, T).place; return; }
     const need = w.defence(T) * B.need + 20, spare = spareAt(w, S);
-    const ready = spare >= need || (plan.waited > 420 && spare >= w.defence(T) * 1.1);
+    // A house whose lord has just fallen mourns before it marches again (world/captains.js).
+    const ready = (h.mourning ?? 0) < w.time && (spare >= need || (plan.waited > 420 && spare >= w.defence(T) * 1.1));
     if (!ready) {
       if (plan.waited > 720) { h.ai.plan = null; h.ai.cool = 90; }
       return;
