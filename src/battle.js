@@ -12,50 +12,88 @@ import { Nav } from './nav.js';
 // household troops, who cost no villagers. engine: a siege engine worked by the regiment.
 // look: the model to borrow until the unit has its own.
 export const TYPES = {
-  spear: { key: 'spear', name: 'Spearmen', role: 'Hold the line; stop horse from the front', count: 80, files: 20, spacing: 1.6, speed: 3.0, hp: 12, atk: 3, def: 5, dmg: 4, reach: 2.4, cooldown: 1.4, morale: 65, shield: true, vsMounted: 0.3, braces: true,
+  spear: { key: 'spear', armour: 'none', name: 'Spearmen', role: 'Hold the line; stop horse from the front', count: 80, files: 20, spacing: 1.6, speed: 3.0, hp: 12, atk: 3, def: 5, dmg: 4, reach: 2.4, cooldown: 1.4, morale: 65, shield: true, vsMounted: 0.3, braces: true,
     kit: { spears: 1, shields: 1 } },
-  sword: { key: 'sword', name: 'Swordsmen', role: 'Win the melee against other foot', count: 72, files: 18, spacing: 1.5, speed: 3.3, hp: 12, atk: 6, def: 3, dmg: 5, reach: 1.8, cooldown: 1.1, morale: 70, shield: true,
+  sword: { key: 'sword', armour: 'none', name: 'Swordsmen', role: 'Win the melee against other foot', count: 72, files: 18, spacing: 1.5, speed: 3.3, hp: 12, atk: 6, def: 3, dmg: 5, reach: 1.8, cooldown: 1.1, morale: 70, shield: true,
     kit: { swords: 1, shields: 1 } },
-  archer: { key: 'archer', name: 'Archers', role: 'Loose fast at range; weak against armour', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 8, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 85, reload: 4.5, arrowDmg: 5, quiver: 24,
+  archer: { key: 'archer', armour: 'none', name: 'Archers', role: 'Loose fast at range; weak against armour', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 8, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 85, reload: 4.5, arrowDmg: 5, quiver: 24,
     kit: { bows: 1, arrows: 10 } },
-  crossbow: { key: 'crossbow', name: 'Crossbowmen', role: 'Slow, heavy bolts that punch through armour', count: 60, files: 20, spacing: 1.7, speed: 3.0, hp: 10, atk: 2, def: 3, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 55, range: 100, reload: 8, arrowDmg: 9, pierce: 0.7, quiver: 16, look: 'archer',
+  crossbow: { key: 'crossbow', armour: 'none', name: 'Crossbowmen', role: 'Slow, heavy bolts that punch through armour', count: 60, files: 20, spacing: 1.7, speed: 3.0, hp: 10, atk: 2, def: 3, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 55, range: 100, reload: 8, arrowDmg: 9, pierce: 0.7, quiver: 16, look: 'archer',
     kit: { crossbows: 1, bolts: 10 } },
-  lightcav: { key: 'lightcav', name: 'Light cavalry', role: 'Fast: flank, chase routers, hunt archers and engines', count: 40, files: 20, spacing: 2.4, depth: 3.2, speed: 9.5, hp: 14, atk: 4, def: 2, dmg: 4, reach: 2.3, cooldown: 1.2, morale: 60, mounted: true, charge: true, chargeMul: 1.5, look: 'cav',
+  lightcav: { key: 'lightcav', armour: 'none', name: 'Light cavalry', role: 'Fast: flank, chase routers, hunt archers and engines', count: 40, files: 20, spacing: 2.4, depth: 3.2, speed: 9.5, hp: 14, atk: 4, def: 2, dmg: 4, reach: 2.3, cooldown: 1.2, morale: 60, mounted: true, charge: true, chargeMul: 1.5, look: 'cav',
     kit: { horses: 1, spears: 1 } },
-  cav: { key: 'cav', name: 'Heavy cavalry', role: 'Charge into flanks and rear; avoid braced spears', count: 40, files: 20, spacing: 2.6, depth: 3.4, speed: 7.5, hp: 20, atk: 5, def: 4, dmg: 5, reach: 2.4, cooldown: 1.3, morale: 70, mounted: true, charge: true,
+  cav: { key: 'cav', armour: 'mail', name: 'Heavy cavalry', role: 'Charge into flanks and rear; avoid braced spears', count: 40, files: 20, spacing: 2.6, depth: 3.4, speed: 7.5, hp: 20, atk: 5, def: 4, dmg: 5, reach: 2.4, cooldown: 1.3, morale: 70, mounted: true, charge: true,
     kit: { horses: 1, mail: 1, swords: 1, shields: 1 } },
-  maa: { key: 'maa', name: 'Men-at-arms', role: 'Armoured foot: storm walls, anchor the line', count: 60, files: 15, spacing: 1.5, speed: 2.8, hp: 18, atk: 6, def: 6, dmg: 6, reach: 2.0, cooldown: 1.3, morale: 85, shield: true, look: 'sword',
+  maa: { key: 'maa', armour: 'mail', name: 'Men-at-arms', role: 'Armoured foot: storm walls, anchor the line', count: 60, files: 15, spacing: 1.5, speed: 2.8, hp: 18, atk: 6, def: 6, dmg: 6, reach: 2.0, cooldown: 1.3, morale: 85, shield: true, look: 'sword',
     kit: { mail: 1, swords: 1, shields: 1 } },
-  knight: { key: 'knight', name: 'Knights', role: 'Elite: the charge that breaks armies', count: 24, files: 12, spacing: 2.6, depth: 3.4, speed: 7.0, hp: 30, atk: 8, def: 7, dmg: 7, reach: 2.5, cooldown: 1.2, morale: 95, mounted: true, charge: true, chargeMul: 2.5, shield: true, look: 'cav',
+  knight: { key: 'knight', armour: 'plate', name: 'Knights', role: 'Elite: the charge that breaks armies', count: 24, files: 12, spacing: 2.6, depth: 3.4, speed: 7.0, hp: 30, atk: 8, def: 7, dmg: 7, reach: 2.5, cooldown: 1.2, morale: 95, mounted: true, charge: true, chargeMul: 2.5, shield: true, look: 'cav',
     kit: { horses: 1, armour: 1, lances: 1, swords: 1, shields: 1 } },
   // Villagers with spears and no armour: what a free village can turn out.
-  militia: { key: 'militia', name: 'Militia', role: 'Cheap spears; break easily', count: 40, files: 14, spacing: 1.6, speed: 3.2, hp: 10, atk: 3, def: 3, dmg: 3.5, reach: 2.3, cooldown: 1.4, morale: 45, braces: true,
+  militia: { key: 'militia', armour: 'none', name: 'Militia', role: 'Cheap spears; break easily', count: 40, files: 14, spacing: 1.6, speed: 3.2, hp: 10, atk: 3, def: 3, dmg: 3.5, reach: 2.3, cooldown: 1.4, morale: 45, braces: true,
     kit: { spears: 1 } },
-  bandit: { key: 'bandit', name: 'Bandits', role: 'Raiders', count: 20, files: 10, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 40 },
+  bandit: { key: 'bandit', armour: 'none', name: 'Bandits', role: 'Raiders', count: 20, files: 10, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 40 },
   // Hired and household troops: paid in gold, no villagers. Mercenaries lose heart quickly when a fight goes badly.
-  sellsword: { key: 'sellsword', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
-  hiredxbow: { key: 'hiredxbow', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
+  sellsword: { key: 'sellsword', armour: 'mail', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
+  hiredxbow: { key: 'hiredxbow', armour: 'leather', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
   // Norrhold, the north's own host for Part 2 (norrhold: true; not raised in the south).
   // Axemen with long two-handed axes and no shields, who break shield walls; javelin men
   // who throw a few heavy javelins at close range and then fight; and war dogs, fast and
   // savage, that unsettle men and run down the broken.
-  axeman: { key: 'axeman', name: 'Norrhold axemen', role: 'Long axes that break shield walls; no shields of their own', count: 60, files: 15, spacing: 1.7, speed: 3.3, hp: 17, atk: 6, def: 3, dmg: 7, reach: 2.1, cooldown: 1.4, morale: 80, shieldbreak: true, norrhold: true, look: 'sword',
+  axeman: { key: 'axeman', armour: 'mail', name: 'Norrhold axemen', role: 'Long axes that break shield walls; no shields of their own', count: 60, files: 15, spacing: 1.7, speed: 3.3, hp: 17, atk: 6, def: 3, dmg: 7, reach: 2.1, cooldown: 1.4, morale: 80, shieldbreak: true, norrhold: true, look: 'sword',
     kit: { axes: 1 } },
-  javelin: { key: 'javelin', name: 'Norrhold javelin men', role: 'A few heavy javelins at close range, then spears', count: 50, files: 17, spacing: 1.7, speed: 3.6, hp: 10, atk: 3, def: 2, dmg: 3.5, reach: 2.2, cooldown: 1.3, morale: 60, range: 38, reload: 3, arrowDmg: 8, pierce: 0.4, quiver: 4, javelin: true, norrhold: true, look: 'militia',
+  javelin: { key: 'javelin', armour: 'none', name: 'Norrhold javelin men', role: 'A few heavy javelins at close range, then spears', count: 50, files: 17, spacing: 1.7, speed: 3.6, hp: 10, atk: 3, def: 2, dmg: 3.5, reach: 2.2, cooldown: 1.3, morale: 60, range: 38, reload: 3, arrowDmg: 8, pierce: 0.4, quiver: 4, javelin: true, norrhold: true, look: 'militia',
     kit: { javelins: 4, spears: 1 } },
-  wardog: { key: 'wardog', name: 'War dogs', role: 'Fast and savage: unsettle men, run down the broken', count: 24, files: 12, spacing: 1.5, depth: 1.6, speed: 8, hp: 8, atk: 5, def: 1, dmg: 3, reach: 1.4, cooldown: 0.9, morale: 50, dog: true, norrhold: true, look: 'bandit',
+  wardog: { key: 'wardog', armour: 'none', name: 'War dogs', role: 'Fast and savage: unsettle men, run down the broken', count: 24, files: 12, spacing: 1.5, depth: 1.6, speed: 8, hp: 8, atk: 5, def: 1, dmg: 3, reach: 1.4, cooldown: 0.9, morale: 50, dog: true, norrhold: true, look: 'bandit',
     kit: { dogs: 1 } },
-  household: { key: 'household', name: 'Household guard', role: "The lord's own men: steady and well armed", count: 30, files: 15, spacing: 1.5, speed: 3.2, hp: 16, atk: 7, def: 5, dmg: 6, reach: 1.9, cooldown: 1.1, morale: 95, shield: true, retinue: true, gold: 5, look: 'maa' },
+  household: { key: 'household', armour: 'mail', name: 'Household guard', role: "The lord's own men: steady and well armed", count: 30, files: 15, spacing: 1.5, speed: 3.2, hp: 16, atk: 7, def: 5, dmg: 6, reach: 1.9, cooldown: 1.1, morale: 95, shield: true, retinue: true, gold: 5, look: 'maa' },
   // Siege engines: the regiment is its crew; the engine goes where they push it.
-  ladder: { key: 'ladder', name: 'Ladder men', role: 'Raise ladders against a wall, then climb', count: 12, files: 6, spacing: 1.7, speed: 2.9, hp: 9, atk: 3, def: 1, dmg: 3, reach: 1.8, cooldown: 1.3, morale: 45, look: 'militia',
+  ladder: { key: 'ladder', armour: 'none', name: 'Ladder men', role: 'Raise ladders against a wall, then climb', count: 12, files: 6, spacing: 1.7, speed: 2.9, hp: 9, atk: 3, def: 1, dmg: 3, reach: 1.8, cooldown: 1.3, morale: 45, look: 'militia',
     engine: { kind: 'ladder', per: 4, raise: 4 }, cost: { planks: 3 } },
-  ram: { key: 'ram', name: 'Battering ram', role: 'Breaks gates; the roof keeps off arrows', count: 10, files: 2, spacing: 2.8, depth: 1.1, engineLen: 0.6, speed: 1.6, hp: 10, atk: 2, def: 2, dmg: 3, reach: 1.8, cooldown: 1.4, morale: 55, look: 'militia',
+  ram: { key: 'ram', armour: 'none', name: 'Battering ram', role: 'Breaks gates; the roof keeps off arrows', count: 10, files: 2, spacing: 2.8, depth: 1.1, engineLen: 0.6, speed: 1.6, hp: 10, atk: 2, def: 2, dmg: 3, reach: 1.8, cooldown: 1.4, morale: 55, look: 'militia',
     engine: { kind: 'ram', hp: 700, dmg: 110, reload: 3.2, roof: 0.25 }, cost: { wood: 30, planks: 10, iron: 2 } },
-  mangonel: { key: 'mangonel', name: 'Mangonel', role: 'Throws stones at walls, towers and packed men', count: 8, files: 4, spacing: 1.7, engineLen: 3.5, speed: 1.3, hp: 9, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.4, morale: 45, look: 'militia',
+  mangonel: { key: 'mangonel', armour: 'none', name: 'Mangonel', role: 'Throws stones at walls, towers and packed men', count: 8, files: 4, spacing: 1.7, engineLen: 3.5, speed: 1.3, hp: 9, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.4, morale: 45, look: 'militia',
     engine: { kind: 'mangonel', hp: 320, range: 150, min: 25, reload: 9, dmg: 120, splash: 2.8, sdmg: 14, setup: 3, spread: 0.022 }, cost: { planks: 25, string: 6, iron: 2 } },
-  trebuchet: { key: 'trebuchet', name: 'Trebuchet', role: 'Long range; smashes stone walls; must set up', count: 12, files: 4, spacing: 1.7, engineLen: 6, speed: 0.9, hp: 9, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.4, morale: 45, look: 'militia',
+  trebuchet: { key: 'trebuchet', armour: 'none', name: 'Trebuchet', role: 'Long range; smashes stone walls; must set up', count: 12, files: 4, spacing: 1.7, engineLen: 6, speed: 0.9, hp: 9, atk: 2, def: 1, dmg: 3, reach: 1.6, cooldown: 1.4, morale: 45, look: 'militia',
     engine: { kind: 'trebuchet', hp: 480, range: 250, min: 60, reload: 15, dmg: 340, splash: 3.6, sdmg: 20, setup: 12, spread: 0.014 }, cost: { wood: 40, planks: 40, string: 10, iron: 6 } },
 };
+
+// Armour is worn by the regiment, apart from its type: the type sets the weapon, attack and
+// nerve; the armour sets protection. def is added to the type's defence in melee; arrows is
+// the share of arrows that still wound (bolts and javelins go through some of what is left);
+// pace and tire slow and weary the men who wear it. A type's numbers are for its usual armour
+// (armour on the type: what its kit holds, as economy.js baseArmour), so only a change from
+// that moves its melee, pace and wind. kit: the good each man wears out of the racks.
+export const ARMOUR = {
+  none:    { name: 'No armour', def: 0, arrows: 0.9,  pace: 1,    tire: 1,    kit: {} },
+  leather: { name: 'Leather',   def: 1, arrows: 0.75, pace: 1,    tire: 1.05, kit: { leather: 1 } },
+  mail:    { name: 'Mail',      def: 2, arrows: 0.55, pace: 0.95, tire: 1.15, kit: { mail: 1 } },
+  plate:   { name: 'Plate',     def: 4, arrows: 0.38, pace: 0.9,  tire: 1.3,  kit: { armour: 1 } },
+};
+export const ARMOURS = Object.keys(ARMOUR);
+// Shields: the types that carry one now (shield on the type) may go with or without.
+// In front they turn blows and most arrows; from the flank or rear they do nothing.
+export const canShield = key => !!TYPES[key]?.shield;
+
+// A regiment's armour and shield, read live so a refit tells at once (r.armour, r.shield;
+// missing means the type's usual). Its defence, arrow guard and the pace and wind it costs
+// are measured against the armour the type's numbers were set for.
+const wornBy = r => ARMOUR[r.armour] || ARMOUR[r.T.armour] || ARMOUR.none;
+const usual = T => ARMOUR[T.armour] || ARMOUR.none;
+export const hasShield = r => r.shield !== false && !!r.T.shield;
+export const defOf = r => r.T.def + wornBy(r).def - usual(r.T).def;
+export const arrowGuard = r => wornBy(r).arrows;
+const kitPace = r => wornBy(r).pace / usual(r.T).pace;
+const kitTire = r => wornBy(r).tire / usual(r.T).tire;
+
+// How much stronger (above 1) or weaker a regiment is for its armour and shield than its
+// type usually is, for fights nobody watches: about 8% a point of defence, 10% a shield.
+export function armourValue(key, armour, shield) {
+  const T = TYPES[key];
+  if (!T) return 1;
+  const A = ARMOUR[armour] || usual(T), base = usual(T);
+  const off = T.shield && shield === false ? 1 : 0;
+  return Math.max(0.5, 1 + (A.def - base.def) * 0.08 + (base.arrows - A.arrows) * 0.15 - off * 0.1);
+}
 
 // Which model each unit borrows until it has its own, in order of preference.
 export function lookChain(key) {
@@ -171,6 +209,7 @@ export class Battle {
     this.gItems = [];
     this.winner = null;
     this.losses = [0, 0];
+    this.lostKit = [{}, {}];   // the dead of each side by armour level, and their shields
     this.events = [];          // short messages for the HUD, e.g. a regiment routing
     this.homes = homes;
     this.disbandAtHome = disbandAtHome;
@@ -374,7 +413,7 @@ export class Battle {
   // A new regiment with its front centre at (x, z). `from` gives start positions,
   // e.g. the villagers who were just called up, who then walk into formation.
   // Counts can run well past the type's usual size; big regiments get a wider front.
-  addRegiment(side, key, x, z, angle, { count, name, from, xp = 0 } = {}) {
+  addRegiment(side, key, x, z, angle, { count, name, from, xp = 0, armour, shield } = {}) {
     const T = TYPES[key];
     count = Math.max(1, Math.round(count || T.count));
     const n = this.counts[side][key] = (this.counts[side][key] || 0) + 1;
@@ -390,6 +429,7 @@ export class Battle {
       ammo: T.range ? count * (T.quiver || 20) : 0, maxAmmo: T.range ? count * (T.quiver || 20) : 0,
       engine: T.engine ? { ...T.engine, hp: T.engine.hp || 0, maxHp: T.engine.hp || 0, cd: 2, ready: 0, ladders: [], raising: 0 } : null,
     };
+    this.setArmour(r, armour, shield);
     for (let i = 0; i < count; i++) {
       const s = this.makeSoldier(r, i, angle);
       const p = from?.[i] || this.slotPos(r, i);
@@ -1078,7 +1118,7 @@ export class Battle {
     if (L && !L.died && live(L.soldier)) return L.soldier;
     if (C && !C.died && live(C.soldier)) return C.soldier;
     const reg = this.regs.filter(r => r.side === side && this.usable(r) && !r.engine && !r.T.range && !r.posts)
-      .sort((a, b) => (b.T.atk + b.T.def + b.vet * 2) - (a.T.atk + a.T.def + a.vet * 2))[0];
+      .sort((a, b) => (b.T.atk + defOf(b) + b.vet * 2) - (a.T.atk + defOf(a) + a.vet * 2))[0];
     if (!reg) return null;
     const lvl = data?.level || 2;
     const s = this.makeSoldier(reg, -1, reg.angle);
@@ -1209,9 +1249,13 @@ export class Battle {
     return this.regs.filter(r => r.side === side && !r.T.engine).map(r => {
       const gained = r.fought && r.alive > 0 ? 0.5 + (won ? 0.5 : 0) + Math.min(1, r.kills / Math.max(1, r.initial)) : 0;
       const xp = Math.round((r.xp + gained) * 10) / 10;
-      return { reg: r, spec: r.spec, alive: r.alive, xp, gained, rank: vetRank(xp), promoted: vetRank(xp) > r.vet };
+      return { reg: r, spec: r.spec, alive: r.alive, xp, gained, rank: vetRank(xp), promoted: vetRank(xp) > r.vet, armour: r.armour, shield: r.shield };
     });
   }
+
+  // The armour the side's dead lay down in, for whoever holds the field to strip:
+  // { none, leather, mail, plate, shields } counts (levels with no dead left out).
+  lostArmour(side) { return { ...this.lostKit[side] }; }
 
   // A trait of the captain riding with this regiment (CAPTAIN_TRAITS).
   hasTrait(r, key) {
@@ -1417,7 +1461,7 @@ export class Battle {
         r.angle = turnToward(r.angle, want, dt * (T.mounted ? 1.6 : T.engine ? 0.5 : 1.0));
         // Wheel before marching off, and wait for stragglers.
         const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1)
-          * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.tiredPace(r);
+          * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.paceOf(r);
         const stepLen = Math.min(d, pace * dt);
         const nx = r.x + dx / d * stepLen, nz = r.z + dz / d * stepLen;
         // Never march the anchor into a wall; one already stuck in one (or an engine
@@ -1890,7 +1934,7 @@ export class Battle {
     const dx = tx - s.x, dz = tz - s.z, d = Math.hypot(dx, dz);
     if (d < 0.01) return;
     if (s.level === 0 && !s.climb) speed *= this.groundPace(s, dx / d, dz / d);
-    if (s.reg.fatigue) speed *= this.tiredPace(s.reg);
+    speed *= this.paceOf(s.reg);
     const stepLen = Math.min(d, speed * dt);
     s.x += dx / d * stepLen;
     s.z += dz / d * stepLen;
@@ -1922,11 +1966,18 @@ export class Battle {
     if (this.time - (r.lastShot ?? -99) < 2) gain += 0.004;
     if (r.engaged > 0 || this.time - (r.lastShot ?? -99) < 2) r.fought = true;
     if (gain === 0) r.fatigue = Math.max(0, r.fatigue - 0.012 * dt);
-    else r.fatigue = Math.min(1, r.fatigue + gain * dt * (1 - r.vet * 0.08) * (1 + this.hunger[r.side] * 0.8));
+    else r.fatigue = Math.min(1, r.fatigue + gain * dt * kitTire(r) * (1 - r.vet * 0.08) * (1 + this.hunger[r.side] * 0.8));
   }
 
-  // How much a regiment's tiredness slows it.
-  tiredPace(r) { return 1 - (r.fatigue || 0) * 0.3; }
+  // How much a regiment's tiredness and armour slow it.
+  paceOf(r) { return (1 - (r.fatigue || 0) * 0.3) * kitPace(r); }
+
+  // Put a regiment in an armour level (none, leather, mail, plate) and with or without shields;
+  // left out, it wears what its type usually does. Changing r.armour or r.shield later works too.
+  setArmour(r, armour, shield) {
+    r.armour = ARMOUR[armour] ? armour : r.T.armour || 'none';
+    r.shield = (shield ?? true) && canShield(r.T.key);
+  }
 
   vetLabel(r) { return r.vet ? VET_RANKS[r.vet] : ''; }
 
@@ -2028,7 +2079,7 @@ export class Battle {
     const wetA = this.river ? this.river.depthAt(s.x, s.z) : 0, wetD = this.river ? this.river.depthAt(t.x, t.z) : 0;
     const wood = Math.max(this.trees ? Math.max(this.woodAt(t.x, t.z), this.woodAt(s.x, s.z)) : 0, Math.max(wetA, wetD) * 0.4);
     let flank = tr.routing ? 0 : this.flankOf(s.x, s.z, t);
-    let chance = 0.42 + (A.atk - D.def) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
+    let chance = 0.42 + (A.atk - defOf(tr)) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
     // Tired arms strike slower and guard worse.
     chance += (tr.fatigue || 0) * 0.03 - (ar.fatigue || 0) * 0.06;
     // Old soldiers fight better, and better still with their lord in the field.
@@ -2044,7 +2095,7 @@ export class Battle {
     if (tr.routing) chance += 0.35;
     chance += [0, 0.15, 0.3][flank];
     if (D.mounted && A.vsMounted) chance += A.vsMounted;
-    if (D.shield && flank === 0) chance -= A.shieldbreak ? -0.05 : 0.05;   // long axes hook shields aside
+    if (hasShield(tr) && flank === 0) chance -= A.shieldbreak ? -0.05 : 0.05;   // long axes hook shields aside
     if (A.dog) { tr.morale -= 0.4; if (tr.routing) chance += 0.15; }
     // From the walkway, men strike down at climbers and those at the foot of the wall.
     if (s.level === 1 && (t.level !== 1 || t.climb > 0)) chance += 0.25;
@@ -2107,6 +2158,9 @@ export class Battle {
       return;
     }
     this.losses[r.side]++;
+    const lost = this.lostKit[r.side];
+    lost[r.armour] = (lost[r.armour] || 0) + 1;
+    if (hasShield(r)) lost.shields = (lost.shields || 0) + 1;
     if (by) by.kills++;
     const F = FORMATIONS[r.formation] || FORMATIONS.line;
     r.morale -= 60 / r.initial * F.morale * (1 - Math.min(0.3, this.captainBonus(r) * 0.03));
@@ -2302,9 +2356,10 @@ export class Battle {
         if (d < rad * rad && d < hd) { hd = d; hit = o; }
       });
       if (!hit) continue;
-      const D = hit.reg.T, pierce = a.pierce || 0;
-      let chance = 0.7 - D.def * 0.04 * (1 - pierce);
-      if (D.shield && !hit.reg.routing && this.flankOf(a.x0, a.z0, hit) === 0) chance *= 1 - 0.45 * (1 - pierce);
+      const pierce = a.pierce || 0, guard = arrowGuard(hit.reg);
+      // Armour stops a share of arrows; bolts and javelins punch through much of it.
+      let chance = 0.68 * (guard + (1 - guard) * pierce);
+      if (hasShield(hit.reg) && !hit.reg.routing && this.flankOf(a.x0, a.z0, hit) === 0) chance *= 1 - 0.45 * (1 - pierce);
       // Merlons cover men on a wall; a ram's roof covers its crew.
       if (hit.level === 1 && hit.perch) chance *= hit.perch.material === 'stone' ? 0.45 : 0.7;
       if (hit.reg.engine?.roof && !hit.reg.routing) chance *= hit.reg.engine.roof;

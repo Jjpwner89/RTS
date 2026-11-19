@@ -174,8 +174,9 @@ const ARMOUR_WEIGHT = { none: 1, leather: 1.1, mail: 1.22, plate: 1.38 };
 const BODY = ['shields', 'leather', 'mail', 'armour'];
 const fullKit = key => TYPES[key]?.kit || {};
 export const weaponKit = key => Object.fromEntries(Object.entries(fullKit(key)).filter(([g]) => !BODY.includes(g)));
-export const canShield = key => !!fullKit(key).shields;
-export const baseArmour = key => (fullKit(key).armour ? 'plate' : fullKit(key).mail ? 'mail' : 'none');
+// Hired and household men bring their own shields and armour (TYPES shield and armour).
+export const canShield = key => !!(fullKit(key).shields || TYPES[key]?.shield);
+export const baseArmour = key => TYPES[key]?.armour ?? (fullKit(key).armour ? 'plate' : fullKit(key).mail ? 'mail' : 'none');
 export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key), shield: u.shield ?? canShield(u.key ?? u.T?.key) });
 // What a regiment carries between the map and the field: its armour and its battle count
 // (r.battles, the short service record on its card).

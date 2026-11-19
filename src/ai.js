@@ -3,9 +3,14 @@
 // man the walls, answer each ladder and sally out against engines.
 // It thinks once a second, like a general sending runners rather than micromanaging.
 
+import { arrowGuard, hasShield } from './battle.js';
+
 const dist = (a, b) => Math.hypot(a.cx - b.cx, a.cz - b.cz);
 const nearest = (r, list) => list.reduce((best, o) => (!best || dist(r, o) < dist(r, best) ? o : best), null);
 const usable = r => !r.gone && !r.routing && !r.regrouping;
+// How much of a bow's (or bolt's) shooting would tell on a regiment: armour and shields
+// turn arrows, bolts go through some of that. Bows go for the soft targets; bolts care less.
+const exposed = (o, pierce) => (arrowGuard(o) + (1 - arrowGuard(o)) * pierce) * (hasShield(o) ? 1 - 0.3 * (1 - pierce) : 1);
 const centroid = list => ({ cx: list.reduce((n, r) => n + r.cx, 0) / list.length, cz: list.reduce((n, r) => n + r.cz, 0) / list.length });
 
 // hold: wait for the enemy to come within reach instead of marching out, as a garrison does.
@@ -94,8 +99,12 @@ function pickFight(battle, r, foes, standing) {
       battle.orderMove([r], h.x, h.z * 0.92, Math.atan2(-h.x, -h.z));
     }
     return;
-  } else if ((r.T.range && !(r.T.javelin && r.ammo < 1)) || r.engine?.range) {
+  } else if (r.engine?.range) {
     pick = nearest(r, reachable.filter(o => o.engaged === 0)) || nearest(r, reachable);
+  } else if (r.T.range && !(r.T.javelin && r.ammo < 1)) {
+    // Nearest, but worth walking a little further for men the arrows will hurt.
+    const free = reachable.filter(o => o.engaged === 0), list = free.length ? free : reachable, p = r.T.pierce || 0;
+    pick = list.reduce((best, o) => (!best || dist(r, o) / exposed(o, p) < dist(r, best) / exposed(best, p) ? o : best), null);
   } else if (r.T.charge) {
     // Horse rides down routers, then hunts archers and engines, then hits whoever is busiest from the side.
     const routers = foes.filter(o => o.routing && dist(r, o) < 90);
@@ -267,7 +276,7 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   let sent = 0;
   for (const r of foot) {
     if (r.posts || r.mine) continue;
-    if (ladderPieces.length && (r.T.key === 'maa' || r.T.key === 'sword' || r.T.key === 'sellsword' || r.T.key === 'household' || sent < 2)) {
+    if (ladderPieces.length && (r.T.key === 'maa' || r.T.key === 'sword' || r.T.key === 'sellsword' || r.T.key === 'household' || r.armour === 'mail' || r.armour === 'plate' || sent < 2)) {
       const l = ladders[sent % ladders.length];
       battle.orderAttackWall([r], l.piece, l.x, l.z);
       sent++;
