@@ -1,0 +1,870 @@
+{
+  "section": "ui",
+  "brief_revision": 3,
+  "mode": "built-in image_gen",
+  "status": "in_progress",
+  "assets": [
+    {
+      "id": "parchment-tile",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Paint a square opaque seamless material tile filling every pixel edge to edge. Plain parchment texture. Warm pale cream #f3e8c9 with subtle fibres, faint mottling, only a few very soft tiny stains. Absolutely even lighting and tone over entire tile. No burnt edges, no vignette, no darkening on sides. Seamlessly repeatable horizontally and vertically with no visible motif or pattern. Target export 512x512 pixels. Take 1: natural delicate hand-painted surface.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a3a115ee-8de4-44c6-a509-7099646a8568.png",
+      "output": "assets/art/wip/ui/parchment-tile-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Alternate retained."
+    },
+    {
+      "id": "parchment-tile",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Paint a square opaque seamless material tile filling every pixel edge to edge. Plain parchment texture. Warm pale cream #f3e8c9 with subtle fibres, faint mottling, only a few very soft tiny stains. Absolutely even lighting and tone over entire tile. No burnt edges, no vignette, no darkening on sides. Seamlessly repeatable horizontally and vertically with no visible motif or pattern. Target export 512x512 pixels. Take 2: choose especially restrained variation suitable behind small interface text.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-4a9e7fc8-0c16-4f0d-83bc-20a3c14b6115.png",
+      "output": "assets/art/wip/ui/parchment-tile-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/parchment-tile.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Restrained even surface selected for legibility behind interface text."
+    },
+    {
+      "id": "leather-tile",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Paint a square opaque seamless material tile filling every pixel edge to edge. Dark brown matte leather texture, colours #4b3220 to #2f1e12. Fine shallow grain and almost invisible tooling marks. No sewn border, seams, buttons, studs or decoration. Absolutely even lighting across tile; no vignette. Seamlessly repeatable both directions. Target export 512x512 pixels. Take 1: natural delicate hand-painted surface.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-dd06fa42-3048-4b92-90ff-1bf89865d609.png",
+      "output": "assets/art/wip/ui/leather-tile-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        512
+      ],
+      "review": "Alternate retained."
+    },
+    {
+      "id": "leather-tile",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Paint a square opaque seamless material tile filling every pixel edge to edge. Dark brown matte leather texture, colours #4b3220 to #2f1e12. Fine shallow grain and almost invisible tooling marks. No sewn border, seams, buttons, studs or decoration. Absolutely even lighting across tile; no vignette. Seamlessly repeatable both directions. Target export 512x512 pixels. Take 2: choose especially restrained variation suitable behind small interface text.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b9fefcb6-2489-4d56-a9c7-3d5ed512c348.png",
+      "output": "assets/art/wip/ui/leather-tile-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/leather-tile.png",
+      "size": [
+        512,
+        512
+      ],
+      "review": "Restrained even surface selected for legibility behind interface text."
+    },
+    {
+      "id": "cloth-tile",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Paint a square opaque seamless material tile filling every pixel edge to edge. House-blue dyed wool texture, colours #3a64b0 to #24447f. Fine small visible weave, matte and softly worn. No folds, seams, sewn edges, buttons, pattern or border. Absolutely even lighting across tile; no vignette. Seamlessly repeatable both directions. Target export 256x256 pixels. Take 1: natural delicate hand-painted surface.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c060c681-bc4d-4217-b0be-04d0cdfe4207.png",
+      "output": "assets/art/wip/ui/cloth-tile-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "review": "Alternate retained."
+    },
+    {
+      "id": "cloth-tile",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Paint a square opaque seamless material tile filling every pixel edge to edge. House-blue dyed wool texture, colours #3a64b0 to #24447f. Fine small visible weave, matte and softly worn. No folds, seams, sewn edges, buttons, pattern or border. Absolutely even lighting across tile; no vignette. Seamlessly repeatable both directions. Target export 256x256 pixels. Take 2: choose especially restrained variation suitable behind small interface text.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-9163ae7f-7707-4185-bb53-0ebfba291142.png",
+      "output": "assets/art/wip/ui/cloth-tile-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/cloth-tile.png",
+      "size": [
+        256,
+        256
+      ],
+      "review": "Restrained even surface selected for legibility behind interface text."
+    },
+    {
+      "id": "panel",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Square parchment panel, completely plain opaque parchment centre, very thin bronze rim with dark outer line. Slight edge wear. Tiny bronze corner pieces all inside outer 9% of width. Straight parallel edges, no decoration along edges. Fill square canvas nearly edge to edge; only tiny transparent margin. Export target 256x256 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-1eb2026b-51ab-42c4-b4c8-b74b6df7f080.png",
+      "output": "assets/art/wip/ui/panel-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        256
+      ],
+      "border": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "panel",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Square parchment panel, completely plain opaque parchment centre, very thin bronze rim with dark outer line. Slight edge wear. Tiny bronze corner pieces all inside outer 9% of width. Straight parallel edges, no decoration along edges. Fill square canvas nearly edge to edge; only tiny transparent margin. Export target 256x256 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-e03ee0f0-8731-4632-9c9e-ec5083ae2107.png",
+      "output": "assets/art/wip/ui/panel-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/panel.png",
+      "size": [
+        256,
+        256
+      ],
+      "border": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        23,
+        25,
+        1209,
+        1205
+      ]
+    },
+    {
+      "id": "bar",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. A VERY LONG THIN horizontal rectangular top bar, aspect ratio exactly 6.4 to 1. Dark leather opaque centre #3b271b, thin gilt line #d6aa60 just inside edge, restrained small bronze end caps. All metalwork within endmost 6% of width and outermost 20% of height. Completely plain middle, straight parallel edges. Isolated transparent canvas. No perspective. Export target 512x80 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-22334aa9-67b8-4c6c-8f81-4a99878693ad.png",
+      "output": "assets/art/wip/ui/bar-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        80
+      ],
+      "border": [
+        32,
+        16,
+        32,
+        16
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "bar",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. A VERY LONG THIN horizontal rectangular top bar, aspect ratio exactly 6.4 to 1. Dark leather opaque centre #3b271b, thin gilt line #d6aa60 just inside edge, restrained small bronze end caps. All metalwork within endmost 6% of width and outermost 20% of height. Completely plain middle, straight parallel edges. Isolated transparent canvas. No perspective. Export target 512x80 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f53509b4-afb9-4d92-89ca-06d8066f7614.png",
+      "output": "assets/art/wip/ui/bar-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/bar.png",
+      "size": [
+        512,
+        80
+      ],
+      "border": [
+        32,
+        16,
+        32,
+        16
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        9,
+        256,
+        2155,
+        208
+      ]
+    },
+    {
+      "id": "button",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single horizontal parchment ribbon button, exact width to height 3 to 1. Straight rectangular button with subtly clipped corners, tiny light top edge suggesting slightly raised parchment. Thin bronze-brown rim, no decorative curls, no rivets, no motifs. Centre plain pale parchment; NO text. Rim within outer 10% of width. Isolated transparent canvas, front-on. Export target 192x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-7d1f76c8-8245-47f6-86f1-d45e48e92c6d.png",
+      "output": "assets/art/wip/ui/button-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "button",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single horizontal parchment ribbon button, exact width to height 3 to 1. Straight rectangular button with subtly clipped corners, tiny light top edge suggesting slightly raised parchment. Thin bronze-brown rim, no decorative curls, no rivets, no motifs. Centre plain pale parchment; NO text. Rim within outer 10% of width. Isolated transparent canvas, front-on. Export target 192x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png",
+      "output": "assets/art/wip/ui/button-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/button.png",
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        55,
+        70,
+        2064,
+        577
+      ]
+    },
+    {
+      "id": "label",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single horizontal place-name label, exact width to height 3 to 1. Small flat pale parchment rectangular plate, extremely light thin brown rim and gently clipped corners. Absolutely plain opaque centre; elegant quiet unobtrusive. Rim within outer 8% of width. No decorations. Isolated transparent canvas, front-on. Export target 192x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-4610f033-0658-4d57-83bc-16d17127e6bc.png",
+      "output": "assets/art/wip/ui/label-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "label",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single horizontal place-name label, exact width to height 3 to 1. Small flat pale parchment rectangular plate, extremely light thin brown rim and gently clipped corners. Absolutely plain opaque centre; elegant quiet unobtrusive. Rim within outer 8% of width. No decorations. Isolated transparent canvas, front-on. Export target 192x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-8b61f4af-cd17-4ffe-ba2f-4b87850eaf54.png",
+      "output": "assets/art/wip/ui/label-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/label.png",
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        62,
+        107,
+        2046,
+        507
+      ]
+    },
+    {
+      "id": "tooltip",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One square small scrap of pale parchment with a soft lightly torn edge, opaque plain pale centre, NO bronze frame. Silhouette only subtly irregular. Edgewear contained within outer 12% of square. No holes, no folded corners, no writing. Isolated transparent canvas, front-on. Export target 128x128 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-4c832e2e-6a67-4292-b90e-400347c6ae44.png",
+      "output": "assets/art/wip/ui/tooltip-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/tooltip.png",
+      "size": [
+        128,
+        128
+      ],
+      "border": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        36,
+        43,
+        1179,
+        1173
+      ]
+    },
+    {
+      "id": "tooltip",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One square small scrap of pale parchment with a soft lightly torn edge, opaque plain pale centre, NO bronze frame. Silhouette only subtly irregular. Edgewear contained within outer 12% of square. No holes, no folded corners, no writing. Isolated transparent canvas, front-on. Export target 128x128 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-5220e281-9f83-4a11-866a-fa31c2388db4.png",
+      "output": "assets/art/wip/ui/tooltip-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        128,
+        128
+      ],
+      "border": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "divider",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One extremely thin long horizontal inked divider line. Aspect ratio 21.3 to 1. Dark brown ink with rust-red thin accent, tiny restrained curled flourish only at the far left and far right tips. Middle 80% a plain straight single line suitable to stretch sideways. Absolutely no solid panel or backdrop. Isolated on transparent canvas. Export target 512x24 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-d627c7e3-68ae-4465-a922-8671111b6573.png",
+      "output": "assets/art/wip/ui/divider-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        512,
+        24
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "divider",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One extremely thin long horizontal inked divider line. Aspect ratio 21.3 to 1. Dark brown ink with rust-red thin accent, tiny restrained curled flourish only at the far left and far right tips. Middle 80% a plain straight single line suitable to stretch sideways. Absolutely no solid panel or backdrop. Isolated on transparent canvas. Export target 512x24 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-8efa3df0-0ec6-4b98-abe2-eb3a208297fb.png",
+      "output": "assets/art/wip/ui/divider-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/divider.png",
+      "size": [
+        512,
+        24
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        32,
+        406,
+        1766,
+        38
+      ]
+    },
+    {
+      "id": "corner",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One L-shaped TOP LEFT bronze corner ornament, on transparent canvas. Flat front-on thin bronze strips along TOP and LEFT with a small restrained engraved leaf at their junction, modest medieval craftsmanship. Bottom right three quarters of square empty transparent. Clearly top-left orientation, no other corners, no square backdrop. Export target 64x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-b83f014b-6765-4573-b092-9fc31a21ae34.png",
+      "output": "assets/art/wip/ui/corner-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        64,
+        64
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "corner",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One L-shaped TOP LEFT bronze corner ornament, on transparent canvas. Flat front-on thin bronze strips along TOP and LEFT with a small restrained engraved leaf at their junction, modest medieval craftsmanship. Bottom right three quarters of square empty transparent. Clearly top-left orientation, no other corners, no square backdrop. Export target 64x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c8fc0bb9-3491-4c05-8c51-e1da53000492.png",
+      "output": "assets/art/wip/ui/corner-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/corner.png",
+      "size": [
+        64,
+        64
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        84,
+        83,
+        1085,
+        1087
+      ]
+    },
+    {
+      "id": "key",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single small square blank parchment keyboard-shortcut key cap with thin bronze rim. Slight bevel light top edge, rounded off corners, opaque pale parchment centre COMPLETELY BLANK. No symbol or letter. Rim inside outer quarter. Isolated transparent canvas, front-on. Export target 48x48 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c9c3eac4-34df-478e-acac-92fb1e6aee52.png",
+      "output": "assets/art/wip/ui/key-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        48,
+        48
+      ],
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "key",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single small square blank parchment keyboard-shortcut key cap with thin bronze rim. Slight bevel light top edge, rounded off corners, opaque pale parchment centre COMPLETELY BLANK. No symbol or letter. Rim inside outer quarter. Isolated transparent canvas, front-on. Export target 48x48 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-0fec2dd3-7334-4f89-b291-4f5da6e4a5c9.png",
+      "output": "assets/art/wip/ui/key-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/key.png",
+      "size": [
+        48,
+        48
+      ],
+      "border": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        172,
+        174,
+        906,
+        908
+      ]
+    },
+    {
+      "id": "portrait-frame",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single upright rectangular frame, width to height 4 to 5, for lord portrait. Very thin bronze rim with fine dark outline and understated small corner pieces. Completely transparent central window and transparent surrounding canvas. At bottom centre only, a small empty shield-shaped socket for heraldry projecting inward slightly. No portrait, no parchment inside the window. No other ornaments. Front-on. Export target 320x400 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-a68d61e0-0eab-4c01-9bd3-5402d535c6df.png",
+      "output": "assets/art/wip/ui/portrait-frame-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        320,
+        400
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "portrait-frame",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. Single upright rectangular frame, width to height 4 to 5, for lord portrait. Very thin bronze rim with fine dark outline and understated small corner pieces. Completely transparent central window and transparent surrounding canvas. At bottom centre only, a small empty shield-shaped socket for heraldry projecting inward slightly. No portrait, no parchment inside the window. No other ornaments. Front-on. Export target 320x400 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-1bba3a74-2338-46b5-9d77-a069821cd877.png",
+      "output": "assets/art/wip/ui/portrait-frame-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/portrait-frame.png",
+      "size": [
+        320,
+        400
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        73,
+        76,
+        977,
+        1279
+      ]
+    },
+    {
+      "id": "banner-frame",
+      "take": 1,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One horizontal parchment nameplate for beneath a portrait. Exact width to height 4 to 1. Pale opaque parchment centre, thin bronze-brown rim, gently clipped corners, subtle ends folded under. Completely blank. All small end treatment within endmost 7% of width; middle entirely plain. Isolated transparent canvas, front-on. Export target 256x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 1: lightly worn hand-crafted finish.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-fe3f618f-9221-4389-ad90-64a142758114.png",
+      "output": "assets/art/wip/ui/banner-frame-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        256,
+        64
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "banner-frame",
+      "take": 2,
+      "prompt": "RTS medieval parchment-and-ink interface asset matching the three attached game screenshots' existing warm colours. Ink-drawn and hand-coloured, warm matte lightly worn, simple confident brushwork. Parchment #f3e8c9 through #e6d4a6; bronze #b89559 with fine dark line #4a3018; ink #2b1d0e, rust #8d3b16. Never glossy. No wood, planks, wooden frames. No text, letters, numbers, symbols resembling writing, labels, logos, watermark. This is one finished game asset, not a showcase or mockup. One horizontal parchment nameplate for beneath a portrait. Exact width to height 4 to 1. Pale opaque parchment centre, thin bronze-brown rim, gently clipped corners, subtle ends folded under. Completely blank. All small end treatment within endmost 7% of width; middle entirely plain. Isolated transparent canvas, front-on. Export target 256x64 pixels; proportional design. Corners stay fixed, edges and centre stretch in a nine-slice interface so edges must be plain, all ornament confined to corners. One asset only. Take 2: especially clean restrained geometry with delicate thin rim.",
+      "references": [
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-world.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-village.jpg",
+        "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/refs/ui/now-battle.jpg"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-3d85bffd-c470-4c5b-b1a8-b8f9c4661211.png",
+      "output": "assets/art/wip/ui/banner-frame-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/banner-frame.png",
+      "size": [
+        256,
+        64
+      ],
+      "trim_transparent": true,
+      "review": "Selected for restrained geometry, plain stretchable centre, and clean silhouette.",
+      "export_crop": [
+        34,
+        188,
+        2103,
+        347
+      ]
+    },
+    {
+      "id": "button-hover",
+      "take": 1,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. HOVER state: parchment centre a little warmer and brighter, slightly brighter top edge. Keep bronze-brown rim. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 1 with clear visible state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-7e91cf24-6d09-4948-a00b-d8bc33c73100.png",
+      "output": "assets/art/wip/ui/button-hover-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "button-hover",
+      "take": 2,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. HOVER state: parchment centre a little warmer and brighter, slightly brighter top edge. Keep bronze-brown rim. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 2 with restrained state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-54892e79-9523-42fc-8768-a50577876546.png",
+      "output": "assets/art/wip/ui/button-hover-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/button-hover.png",
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Matching silhouette with clear state contrast.",
+      "export_crop": [
+        54,
+        71,
+        2064,
+        575
+      ]
+    },
+    {
+      "id": "button-pressed",
+      "take": 1,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. PRESSED state: parchment centre a little darker, upper inner edge subtly shaded so the button appears pushed in, no raised highlight. Keep bronze-brown rim. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 1 with clear visible state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-d1fe6fca-ce8b-49b8-be19-867d6c364c84.png",
+      "output": "assets/art/wip/ui/button-pressed-take-1.png",
+      "status": "selected",
+      "final": "assets/art/ui/button-pressed.png",
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Matching silhouette with clear state contrast.",
+      "export_crop": [
+        55,
+        70,
+        2062,
+        576
+      ]
+    },
+    {
+      "id": "button-pressed",
+      "take": 2,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. PRESSED state: parchment centre a little darker, upper inner edge subtly shaded so the button appears pushed in, no raised highlight. Keep bronze-brown rim. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 2 with restrained state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-1eaa54f1-d7e0-4b5f-988a-c9c002db02b2.png",
+      "output": "assets/art/wip/ui/button-pressed-take-2.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "button-on",
+      "take": 1,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. SELECTED state: replace parchment centre with blue wool cloth, colours #3a64b0 to #24447f, very subtle fine weave. Replace border with darker blue. Same silhouette and plain centre. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 1 with clear visible state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-f00e26af-bf8e-48cf-9034-b738493cb707.png",
+      "output": "assets/art/wip/ui/button-on-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "button-on",
+      "take": 2,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. SELECTED state: replace parchment centre with blue wool cloth, colours #3a64b0 to #24447f, very subtle fine weave. Replace border with darker blue. Same silhouette and plain centre. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 2 with restrained state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-40a7f11b-de5c-4192-980e-5de6196fe63d.png",
+      "output": "assets/art/wip/ui/button-on-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/button-on.png",
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Matching silhouette with clear state contrast.",
+      "export_crop": [
+        54,
+        70,
+        2067,
+        580
+      ]
+    },
+    {
+      "id": "button-disabled",
+      "take": 1,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. DISABLED state: faded, greyer low-saturation parchment centre and dull grey-brown rim; weak low-contrast lighting. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 1 with clear visible state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-82bb6fef-651e-460c-baed-4e90299ab4ea.png",
+      "output": "assets/art/wip/ui/button-disabled-take-1.png",
+      "status": "alternate",
+      "final": null,
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Alternate retained."
+    },
+    {
+      "id": "button-disabled",
+      "take": 2,
+      "prompt": "Edit the attached blank parchment game button into one matching button state. Preserve the exact overall shape, clipped corners, placement, transparent surroundings, and thin border geometry. Same medieval warm matte ink-and-handcolour finish. DISABLED state: faded, greyer low-saturation parchment centre and dull grey-brown rim; weak low-contrast lighting. No text, numbers, letters, ornaments, wood or logos. Plain centre suitable behind text. Horizontal 3:1 button, export target192x64 pixels. Take 2 with restrained state contrast.",
+      "references": [
+        "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-c566522d-1e6c-4c0e-8fde-da6d5cbf4bbd.png"
+      ],
+      "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-98d87878-6120-40e7-b50c-2776d64e69b7.png",
+      "output": "assets/art/wip/ui/button-disabled-take-2.png",
+      "status": "selected",
+      "final": "assets/art/ui/button-disabled.png",
+      "size": [
+        192,
+        64
+      ],
+      "border": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "trim_transparent": true,
+      "review": "Matching silhouette with clear state contrast.",
+      "export_crop": [
+        53,
+        70,
+        2070,
+        579
+      ]
+    }
+  ]
+}
