@@ -200,6 +200,14 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - **Deployment**: field battles and storming a fort open with time stopped and your ground lit gold; right-click sets regiments down at once anywhere on it, then Begin battle (Enter). `?deploy=0` skips it.
 - **Weather**: about 60% clear, 25% rain, 15% fog, the same for both sides. Rain: bows reach a fifth less and miss more, and heavy ground slows horse. Fog: no one sees past 70 m. `?weather=` picks one in the battle test.
 
+**Wish-list battles** (battles workstream), 2026-11-19:
+- **Veterans**: regiments carry `xp` and a rank (Green, Blooded, Seasoned, Veteran): one good battle bloods men, about three season them. Each rank hits a little better, holds longer and tires slower. Campaign armies keep it between battles.
+- **Your lord in person**: `setLord()` puts a lord (or a lady, with her own model) in the field. His army fights and holds a little better, more so near him; if he falls, every regiment is shaken.
+- **Sieges**: men on gates and towers pour boiling oil; foot dig mines (U) that bring a stretch down, and defenders who hear one counter-mine it; night (`?weather=night`) hides armies past 45 m and emboldens sallies; a beaten garrison asks for terms; a starving one (`setHunger`) breaks sooner. The siege AI digs and counter-mines too.
+- **Champion duels**: a challenge you can accept or refuse; lords, captains or a champion fight in the open while the armies watch, and the result shakes or lifts each army, or settles the battle.
+- **Norrhold's host** for Part 2: axemen who break shield walls, javelin men with four heavy javelins, and war dogs. About even with an equal southern host. `?enemy=norrhold`.
+- **For Realm**: `unwatched()` runs a fight under its captain or garrison in slices; captains earn traits in battle (steady under arrows, stubborn, reckless in the charge, a hard killer, quick to fall back, hated by a house) and keep a memory list.
+
 ## The full game (decided 2026-11-18)
 
 The creator answered the big design questions for building the full game in one long push. These answers lead; anything left open is Claude's call.

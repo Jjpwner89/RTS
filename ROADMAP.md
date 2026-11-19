@@ -88,7 +88,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 "Your attention is the scarce resource" needs a triage layer.
 
 - **Alerts ranked by how serious they are**, in one list (like Stellaris's outliner): sieges at the top, then raids, starving armies, revolts, finished buildings at the bottom.
-- **A choice when a fight starts away from you**: take command, leave it to the captain or garrison, or send help. Time slows while you decide.
+- **A choice when a fight starts away from you**: take command, leave it to the captain or garrison, or send help. Time slows while you decide. *(Battle side done: `unwatched()` in ai.js runs a fight under its captain or garrison.)*
 - Later: a small live view of a second fight in a corner of the screen.
 - **Built (2026-11-19):** the *Needs you* list in the map's bottom-left corner, worst first: a village of yours being fought in; enemy columns you can see marching on your places, with how far off they are; revolts; hungry villages and armies; wages owed; storming in progress; aggrieved vassals; and, last, armies of yours idle away from home. Click one to look at it. In a village, the World map button carries a count of the serious ones in the worst one's colour. When a village is attacked the warning (time stopped, as with every prompt) now also offers to send the nearest free army to its relief. Not yet: finished buildings, and a live corner view of a second fight.
 
@@ -97,7 +97,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 Lords and captains remember what happened, which is where the stories come from.
 
 - **Lords**: grudges for burned villages, sieges and broken truces; a lord who fled comes back for revenge; taunts drawn from real history ("You burned Wick. I have not forgotten").
-- **Captains**: traits earned in battles they survive (steady under arrows, reckless in the charge, hated by Varn).
+- **Captains**: traits earned in battles they survive (steady under arrows, reckless in the charge, hated by Varn). *(Battle side done: `captainReport()` gives traits and memory lines.)*
 - **Built so Claude can connect to it later**: each character's memory is a short readable list of events, so the Claude director (parked in DESIGN_NOTES) can read it and write lines, choices and events from it.
 
 ## 5. Terrain matters in battle (Battles)
@@ -120,22 +120,22 @@ Done 2026-11-19: high ground, woods, rivers and bridges, fatigue and arrows, dep
 All approved. Owners in brackets.
 
 **Built on what only this game has**
-- **Veterans come home** (Battles + Realm): levies who survive return with experience and make better levies next time. The dead lower the mood, and graves or a memorial stone appear (Art).
+- **Veterans come home** (Battles + Realm): levies who survive return with experience and make better levies next time. *(Battle side done: ranks from `xp`; the village side is Realm's.)* The dead lower the mood, and graves or a memorial stone appear (Art).
 - **The land remembers** (Realm + Art): battlefields leave cairns and ruins, and places gain names ("Hollin Ford, where Varn's host broke").
 - **A written chronicle** (Realm): the campaign told from its events, with named captains, lords and battles, readable as a book at the end. Feeds the Claude director later.
-- **Your lord in person** (Battles + Realm): a unit on the field and on the map. A village runs better while you are there, and battles you join get a bonus.
+- **Your lord in person** (Battles + Realm): a unit on the field and on the map. A village runs better while you are there, and battles you join get a bonus. *(Battle side done: `setLord()`.)*
 - **Knight your captains** (Realm): give a veteran captain a village and he becomes your vassal.
 
 **Sieges with grandeur**
-- **Starve them out** (Realm + Battles): blockade instead of storming, and the place's stores run down. Uses the existing food supply.
+- **Starve them out** (Realm + Battles): blockade instead of storming, and the place's stores run down. Uses the existing food supply. *(Battle side done: `setHunger()`.)*
 - **Burn the fields ahead of a siege** (Realm): raiding supply weakens the target first, so skirmishing early pays.
-- Tunnelling under walls, counter-tunnels, boiling oil and night sallies (Battles).
-- **Surrender terms** (Realm + Battles): a garrison yields with conditions (leave free, keep the village, pay ransom).
+- ~~Tunnelling under walls, counter-tunnels, boiling oil and night sallies (Battles).~~ Done 2026-11-19.
+- **Surrender terms** (Realm + Battles): a garrison yields with conditions (leave free, keep the village, pay ransom). *(Battle side done: `termsAllowed`, `onTerms`, `battle.surrendered`.)*
 - **Ransom** captured captains and lords (Realm).
 
 **Rivals and drama** (Realm, Battles for the duel)
 - Rivals with memory: grudges, escapes and revenge (section 4).
-- **Champion duels**: Dunmore challenges you to settle a battle with a duel.
+- **Champion duels**: Dunmore challenges you to settle a battle with a duel. *(Battle side done: `challenge()`; Realm decides when Dunmore calls one.)*
 - **Tournaments at Kingsbridge** for gold, renown and recruiting knights.
 - **Wyndham's schemes**: a gate opened from inside, a bribed captain, built on the spies in §1.
 
@@ -147,7 +147,7 @@ All approved. Owners in brackets.
 **Part 2** (Realm, Battles for units)
 - Refugees flee south and swell your villages, with their own mood problems.
 - Old rivals fight beside you as vassal armies you can call.
-- Norrhold gets its own original units and tactics: different weapons, war dogs, winter raids.
+- Norrhold gets its own original units and tactics: different weapons, war dogs, winter raids. *(Units done: axemen, javelin men, war dogs, and a Norrhold host; winter raids are Realm's.)*
 
 **Polish and longevity**
 - A builder for your house's arms and colours (Art).
