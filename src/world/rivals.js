@@ -311,7 +311,7 @@ function banditMind(w, h) {
     if (camp.raidCd > 0 || headcount(camp.garrison) < 30) continue;
     camp.raidCd = 170 + w.rand() * 130;
     const marks = w.pois.filter(p => p !== camp && p.kind !== 'camp' && p.kind !== 'crown'
-      && (p.owner !== 0 || (w.time > 200 && !(w.banditPeace > w.time))) && w.route(camp, p).length < 520);
+      && (p.owner !== 0 || (w.time > 200 && !(w.banditPeace > w.time) && !w.decrees?.on?.peace)) && w.route(camp, p).length < 520);
     if (!marks.length) continue;
     const mark = marks.sort((p, q) => w.defence(p) - w.defence(q))[Math.floor(w.rand() * Math.min(3, marks.length))];
     const units = takeUnits(camp.garrison, power(camp.garrison) * 0.6);

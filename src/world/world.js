@@ -19,6 +19,7 @@ import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision,
 import { govern } from './governor.js';
 import { tickEvents } from './events.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
+import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -449,7 +450,7 @@ export class World {
     };
     // Hired companies stationed here weigh on the village's mood.
     // ... and your lord in person lifts it while he is there.
-    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village'], () => [this.lordAt() === p ? LORD_HERE : 0, 'the lord is here']];
+    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village'], () => [this.lordAt() === p ? LORD_HERE : 0, 'the lord is here'], () => decreeMood(this)];
     town.onRebel = n => {
       if (p.owner !== 0) return;
       this.log(`${n} villagers of ${p.name} have risen in revolt!`, 1);
@@ -514,7 +515,7 @@ export class World {
   moveArmy(a, dt) {
     if (a.halted || !a.path.length) return;
     const to = a.path[0];
-    const d = dist(a, to), step = SPEED * dt * (a.retreating ? 1.1 : 1) * (this.winter ? 0.85 : 1);   // snow on the roads
+    const d = dist(a, to), step = SPEED * dt * (a.retreating ? 1.1 : 1) * (this.winter ? 0.85 : 1) * (a.side === 0 && decreed(this, 'roads') ? 1.2 : 1);   // snow on the roads; the king's roads
     a.heading = Math.atan2(to.x - a.x, to.z - a.z);
     if (d > step) { a.x += (to.x - a.x) / d * step; a.z += (to.z - a.z) / d * step; a.at = null; return; }
     a.x = to.x; a.z = to.z;
@@ -585,7 +586,7 @@ export class World {
       for (const b of t.buildings) {
         if (b.kind !== 'barracks' || b.state !== 'active') continue;
         for (const key of BEST) {
-          while (t.levyCheck(key, b).ok && t.villagers.filter(v => v.state !== 'soldier').length - t.levyCheck(key, b).n >= t.population / 2) t.raise(key, b);
+          while (t.levyCheck(key, b).ok && t.villagers.filter(v => v.state !== 'soldier').length - t.levyCheck(key, b).n >= t.population / (decreed(this, 'levy') ? 3 : 2)) t.raise(key, b);
         }
       }
       if (p === dest) continue;
@@ -603,7 +604,7 @@ export class World {
       const v = vassalOf(this, p);
       if (!v || p === dest || p.owner !== 0) continue;
       if (v.refusing) { this.log(`${v.name} sends nobody from ${p.name}.`, 1); continue; }
-      const units = takeUnits(p.garrison, power(p.garrison) * LEVIES[v.levy].share);
+      const units = takeUnits(p.garrison, power(p.garrison) * Math.min(0.9, LEVIES[v.levy].share * (decreed(this, 'levy') ? 1.5 : 1)));
       if (!units.length) continue;
       const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
       men += headcount(units);
@@ -1265,7 +1266,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
@@ -1522,7 +1523,7 @@ export class World {
   // send a share of theirs.
   collectTaxes(dt) {
     const me = FACTIONS[0];
-    for (const p of this.pois) if (p.owner === 0 && p.town && !p.town.hostile) me.gold += dt * p.town.population * p.town.taxRate * KINDS[p.kind].gold;
+    for (const p of this.pois) if (p.owner === 0 && p.town && !p.town.hostile) me.gold += dt * p.town.population * p.town.taxRate * KINDS[p.kind].gold * (decreed(this, 'tithe') ? 1.25 : 1);
     for (const h of FACTIONS) if (this.dip?.[h.index]?.vassal && h.alive) { const n = Math.min(h.gold, dt * 0.6); h.gold -= n; me.gold += n; }
   }
 

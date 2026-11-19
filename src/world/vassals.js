@@ -13,6 +13,7 @@
 // (w.faction) with a demand, and rise if you refuse it. A vassal may be imprisoned
 // (v.prison) and later pardoned, landless (v.landless) until you give him a village.
 import { worksPride } from './works.js';
+import { decreeOpinion, decreed } from './decrees.js';
 
 export const DUES = [
   { name: 'Light', share: 0.15, mood: 10 },
@@ -113,7 +114,7 @@ export function opinion(w, v) {
     if (left > 0) sum.set(m.text, (sum.get(m.text) || 0) + m.n * left);
   }
   for (const [text, n] of sum) add(n, text);
-  for (const [text, n] of worksPride(w)) add(n, text);
+  for (const [text, n] of [...worksPride(w), ...decreeOpinion(w)]) add(n, text);
   why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
   return { total: Math.max(-100, Math.min(100, why.reduce((n, [k]) => n + k, 0))), why };
 }
@@ -154,8 +155,8 @@ function tickFeuds(w, dt) {
       if (w.time - v.feudSince > 1500 && v.id < foe.id && w.rand() < dt / 600) { w.log(`${v.name} and ${foe.name} have tired of their feud.`); endFeud(w, v, foe); }
     }
   }
-  // One feud at a time, and a quiet spell after each.
-  if (vs.some(v => v.feud) || vs.length < 2 || w.time - Math.max(0, ...w.vassals.map(v => v.feudSince ?? -1e9)) < FEUD_EVERY) return;
+  // One feud at a time, and a quiet spell after each; none under the king's peace.
+  if (decreed(w, 'peace') || vs.some(v => v.feud) || vs.length < 2 || w.time - Math.max(0, ...w.vassals.map(v => v.feudSince ?? -1e9)) < FEUD_EVERY) return;
   for (const v of vs) {
     if (v.feud) break;
     const hot = TEMPERS[v.temper].want || TEMPERS[v.temper].honour ? 2 : 1;

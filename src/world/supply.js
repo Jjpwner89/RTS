@@ -258,7 +258,7 @@ export function moveWagon(w, wag, dt) {
 
 function moveCaravan(w, cart, dt) {
   const W = cart.wagon, to = W.to;
-  const d = Math.hypot(to.x - cart.x, to.z - cart.z), step = WAGON_SPEED * 0.8 * dt;
+  const d = Math.hypot(to.x - cart.x, to.z - cart.z), step = WAGON_SPEED * 0.8 * dt * (cart.side === 0 && w.decrees?.on?.roads ? 1.2 : 1);
   cart.heading = Math.atan2(to.x - cart.x, to.z - cart.z);
   if (d > Math.max(step, 6)) { cart.x += (to.x - cart.x) / d * step; cart.z += (to.z - cart.z) / d * step; return; }
   if (W.run) {

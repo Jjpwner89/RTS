@@ -19,6 +19,7 @@ import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
+import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { canSave, saveGame, readSave, loadGame, clearSave } from './world/save.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
@@ -664,7 +665,7 @@ function worldPanel() {
   const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}:${carts.map(c => c.id)}:${it.escort || ''}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}:${world.pois.filter(q => q.owner === 0 && q.town).length}:${it.vassal || ''}:${living(world).map(v => v.id).join('.')}`;
   if (key !== panelKey) {
     panelKey = key;
-    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div>`
+    if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div><div class="decrees" data-f="decrees"></div>`
       + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
@@ -730,6 +731,8 @@ function worldPanel() {
     const jail = prisoners(world);
     const prows = vrows + (jail.length ? `<h4>In your dungeon</h4>` + jail.map(v => `<div class="h"><i class="shield" style="background:${v.color}">${v.name.split(' ').slice(1).map(w => w[0]).join('')}</i><span>${v.name}<br><small>${TEMPERS[v.temper].name}</small></span><button data-act="pardon:${v.id}" title="Out, grateful and landless, until you give him a village">Pardon</button></div>`).join('') : '');
     if (vl && vl.dataset.html !== prows) { vl.dataset.html = prows; vl.innerHTML = prows; }
+    set('decrees', canDecree(world) ? '<h4>Royal decrees</h4>' + Object.entries(DECREES).map(([k, D]) => { const on = world.decrees?.on?.[k], c = decreeCheck(world, k);
+      return `<button data-act="decree:${k}" class="wide${on ? ' on' : ''}" ${c.ok ? '' : 'disabled'} title="${D.good} ${D.bad}${c.ok ? '' : `\n${c.why}`}">${ico(D.icon, on ? '#e8c45a' : undefined)} ${on ? 'In force: ' : 'Decree '}${D.name.toLowerCase()}</button>`; }).join('') : '');
   } else if (it.wagon?.trade) {
     set('men', it.side === 0 || it.visible ? `${it.wagon.gold} gold · ${FACTIONS[it.side]?.name || ''}` : 'A caravan');
     const guard = world.armies.find(o => o.escort === it.id && !o.gone);
@@ -889,6 +892,7 @@ $('wpanel').onclick = e => {
   if (act === 'banners') { world.callBanners(it && !it.units ? it : world.home); panelKey = null; }
   if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
+  if (act?.startsWith('decree:')) { const r = toggleDecree(world, act.slice(7)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('work:')) { const r = startWork(world, it, act.slice(5)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('run:')) { const r = sendRun(world, it, world.byId[act.slice(4)]); flash(r.ok ? `The wagon sets out: ${loadText(r.wagon.wagon)}.` : r.why, r.ok); }
   if (act?.startsWith('escort:')) { const c = world.armies.find(a => a.id === +act.slice(7)); if (!escort(world, it, c)) flash('That caravan is gone.'); panelKey = null; }
