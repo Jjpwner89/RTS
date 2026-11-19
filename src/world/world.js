@@ -42,10 +42,7 @@ function prebuild(town, kinds, rand) {
       const a = rand() * Math.PI * 2, r = 25 + rand() * 60;
       const x = Math.sin(a) * r, z = Math.cos(a) * r;
       if (!town.canPlace(kind, x, z).ok) continue;
-      const res = town.place(kind, x, z);
-      const b = res.building;
-      for (const [g, n] of Object.entries(b.B.cost)) town.stock[g] += n;
-      Object.assign(b, { state: 'active', progress: 1, status: b.B.jobs ? 'Waiting for workers' : '' });
+      town.place(kind, x, z, { ready: true });
       break;
     }
   }

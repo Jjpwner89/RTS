@@ -104,6 +104,7 @@ body.town #cards { left: 372px; }
 #info h4 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
 #info p { margin: 3px 0; }
 #info .status { color: var(--gold); }
+#info .store { font-size: 13px; font-variant-numeric: tabular-nums; }
 #info .note, #info .kit { color: var(--dim); font-size: 12px; }
 #info .kit { margin: 1px 0 6px; }
 #info .recipes { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
