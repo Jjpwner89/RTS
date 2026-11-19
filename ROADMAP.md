@@ -40,7 +40,7 @@ Rank today is only a title worked out from places held. Each rank should change 
 | Rank | New tools | New trouble |
 |---|---|---|
 | Lord | **Town templates** (below); grant a village to a vassal | Your first vassal's wants |
-| Count | Captains run armies you don't watch; call the banners from many villages to one muster | Vassal factions; rebellions in unhappy places |
+| Count | Captains run armies you don't watch; call the banners from many villages to one muster *(both built)* | Vassal factions; rebellions in unhappy places |
 | Duke | Bigger regiments; plan campaigns and sieges from the map | Coalitions of houses against a player who grows too strong |
 | King | Royal decrees: laws on levies, taxes and the crown's peace, each with a trade-off | Great vassals with claims; then Part 2 |
 
@@ -77,7 +77,7 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 ### Knights' hall (creator, 2026-11-19)
 
 - **Built:** from Count, with a keep of level 3 or more; finishing the first one is a milestone (herald, music). Men-at-arms and knights train there now, not in the barracks: only from **veterans** (villagers who fought as levies and came home), in batches of up to 6, for their kit, a fee in gold and minutes of drill each, up to 24 men per hall. They march out a little more seasoned than the veterans they were.
-- **Not yet:** rivals building halls and training elites by the same rules (they still raise them from their economy), and its own icon (it uses the barracks icon; asked of Art).
+- **Rivals by the same rules (2026-11-19):** a rival's grown military place (level 3, with barracks) saves its planks for a knights' hall, then adds a tanner, armourer and stable. Its hall trains men-at-arms (knights for Dunmore when there are horses and armour) from veterans of any of the house's garrisons, six at a time for kit, a fee and drill time, 24 at most; elites come from nowhere else. Fights nobody watches now teach their survivors as fought battles do. In a one-hour test each house had 3 to 6 elites, held back by iron for mail.
 
 ### Mercenary companies (creator, 2026-11-19)
 

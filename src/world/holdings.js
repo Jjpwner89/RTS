@@ -128,7 +128,7 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
     // (as in your villages, planks are kept back for building before they go into kit)
     const list = R.filter(r => !r.off && Object.keys(r.out).every(g => (s[g] || 0) < (r.keep ?? 400))
       && (r.above === undefined || Object.entries(r.in).every(([g, q]) => (s[g] || 0) >= r.above + q))
-      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < RESERVE.planks + r.in.planks));
+      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < RESERVE.planks + r.in.planks + (e.wantHall ? BUILDINGS.hall.cost.planks : 0)));
     if (!list.length) continue;
     for (const r of list) {
       let cycles = n * (BUILDINGS[k].jobs || 1) * work / r.time / list.length;
@@ -154,6 +154,14 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
 
 function nextBuild(e) {
   const s = e.stock, plan = PLANS[e.focus] || PLANS.farming;
+  // A grown military place raises a knights' hall (as yours need a strong keep: level 3)
+  // and trains elites there from its veterans (world.js trainHall). It saves the planks
+  // for it, and the hall may stand beyond the usual count of buildings.
+  e.wantHall = e.focus === 'military' && e.level >= 3 && !!e.buildings.barracks && !e.buildings.hall;
+  const can = k => Object.entries(BUILDINGS[k].cost).every(([g, q]) => (s[g] || 0) >= q);
+  if (e.wantHall && can('hall')) return 'hall';
+  // With a hall, the kit for its men: leather and mail, and horses.
+  if (e.buildings.hall) for (const k of ['tanner', 'armourer', 'stable']) if (!e.buildings[k] && can(k)) return k;
   if (builtCount(e) >= (e.maxBuilt ?? 40)) return null;
   if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
   if (e.pop >= housing(e) - 3 && housing(e) < (e.maxPop ?? 120)) return 'house';

@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town } from '../economy.js';
+import { Town, ELITE, HALL } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
@@ -325,7 +325,42 @@ export class World {
     if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * 0.4)))
       recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`);
     if (h && !h.bandit && !v) h.arms += kits(e);
+    if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainHall(p, e, h, dt);
     if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
+  }
+
+  // A rival's knights' hall, on your rules (economy.js ELITE, HALL): veterans of its
+  // garrison drill in batches for their kit and a fee, and march out as men-at-arms or
+  // knights (Dunmore's as knights when there are horses).
+  trainHall(p, e, h, dt) {
+    const T = e.training;
+    if (T) {
+      T.left -= dt;
+      if (T.left > 0) return;
+      e.training = null;
+      p.garrison.push({ ...unit(T.key, T.n, `${h.short} ${TYPES[T.key].name.toLowerCase()}`), xp: T.xp + 2, elite: true });
+      return;
+    }
+    const elites = p.garrison.filter(u => u.elite).reduce((n, u) => n + u.count, 0);
+    // Veterans come to the hall from any of the house's garrisons.
+    const held = this.pois.filter(q => q.owner === h.index && !q.town);
+    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && (u.xp || 0) >= HALL.veteran && !TYPES[u.key]?.engine && u.key !== 'sellsword' && u.key !== 'hiredxbow');
+    const room = HALL.cap - elites, have = vets.reduce((n, u) => n + u.count, 0);
+    if (room <= 0 || !have) return;
+    const kitN = k => Math.min(...Object.entries(TYPES[k].kit || {}).map(([g, q]) => Math.floor((e.stock[g] || 0) / q)));
+    const key = h.trait === 'hothead' && kitN('knight') >= 3 ? 'knight' : 'maa';
+    const n = Math.min(HALL.batch, room, have, kitN(key), Math.floor(h.gold / ELITE[key].fee));
+    if (n < 3) return;
+    for (const [g, q] of Object.entries(TYPES[key].kit || {})) e.stock[g] -= q * n;
+    h.gold -= ELITE[key].fee * n;
+    let left = n, xp = 0;
+    for (const u of vets.sort((x, y) => (y.xp || 0) - (x.xp || 0))) {
+      const k = Math.min(left, u.count);
+      u.count -= k; left -= k; xp = Math.max(xp, u.xp || 0);
+      if (!left) break;
+    }
+    for (const q of held) q.garrison = q.garrison.filter(u => u.count > 0);
+    e.training = { key, n, xp, left: ELITE[key].drill * n };
   }
 
   // A house raises men for its field army at its muster place, drawing them from whichever
@@ -614,8 +649,10 @@ export class World {
     const attackerWins = pa > pd;
     const ratio = Math.min(pa, pd) / Math.max(pa, pd, 1);
     const winLoss = 0.12 + 0.45 * ratio * ratio, loseLoss = 0.55 + 0.3 * ratio;
-    const cut = (units, f) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)) })).filter(u => u.count >= 3);
-    return { attackerWins, A: cut(A, attackerWins ? winLoss : loseLoss), D: cut(D, attackerWins ? loseLoss : winLoss) };
+    // Survivors learn as in a fought battle (battle.js veterans): half a step, a whole one for a win.
+    const cut = (units, f, won) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)), xp: Math.round(((u.xp || 0) + (won ? 1 : 0.5)) * 10) / 10 }))
+      .filter(u => u.count >= 3);
+    return { attackerWins, A: cut(A, attackerWins ? winLoss : loseLoss, attackerWins), D: cut(D, attackerWins ? loseLoss : winLoss, !attackerWins) };
   }
 
   defenceBonus(p) { return 1.2 * KINDS[p.kind].defence; }
@@ -1289,8 +1326,9 @@ function pickKind(h, r, time) {
     builder: ['spear', 'archer', 'spear', 'sword'],
     turtler: ['spear', has('crossbow') ? 'crossbow' : 'archer', 'archer', 'spear'],
     schemer: ['spear', 'archer', 'sword', 'spear'],
-    merchant: ['spear', has('crossbow') ? 'crossbow' : 'archer', has('maa') ? 'maa' : 'sword', 'sword'],
-    hothead: ['spear', 'cav', has('knight') && late ? 'knight' : 'cav', 'sword'],
+    // Men-at-arms and knights come only from a knights' hall, for every house (trainHall).
+    merchant: ['spear', has('crossbow') ? 'crossbow' : 'archer', 'sword', 'sword'],
+    hothead: ['spear', 'cav', 'cav', 'sword'],
   }[h.trait] || ['spear', 'archer', 'sword', 'spear'];
   const k = mix[Math.floor(r * mix.length)];
   return k === 'cav' && !late && h.trait !== 'hothead' && h.trait !== 'raider' ? 'spear' : k;
