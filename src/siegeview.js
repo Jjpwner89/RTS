@@ -119,8 +119,8 @@ const SHAPES = {
   'siege.ram': ram, 'siege.mangonel': mangonelBase, 'siege.mangonel.arm': mangonelArm, 'siege.trebuchet': trebuchetBase, 'siege.trebuchet.arm': trebuchetArm,
   'siege.ladder': ladder,
 };
-// Where each arm pivots on its engine. The built-in arms are made around their pivot; the baked
-// ones are modelled in place on the engine, so they are shifted back by the pivot to turn about it.
+// Where each arm pivots on its engine. Both the built-in and the baked arms are made around their
+// own pivot, so the arm's group sits at the pivot and turns about it.
 const ARM_AT = { mangonel: { y: 2.3, z: 0.4 }, trebuchet: { y: 7.2, z: 0 } };
 const BAKED_PIVOT = { mangonel: { y: 0.75, z: 1.27 }, trebuchet: { y: 6.71, z: 0.88 } };
 const ENGINE_BACK = { ram: 0, mangonel: 1.6, trebuchet: 3 };
@@ -281,7 +281,6 @@ export class SiegeView {
               const baked = !!buildingModel(`siege.${kind}.arm`), at = baked ? BAKED_PIVOT[kind] : ARM_AT[kind];
               arm = new THREE.Group();
               arm.position.set(0, at.y, at.z);
-              if (baked) m.position.set(0, -at.y, -at.z);
               arm.add(m);
               root.add(arm);
             }

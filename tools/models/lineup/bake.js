@@ -147,6 +147,13 @@ function crop(geo, keep) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
   return g;
 }
+// Knock a model down to a ragged stump: every point above a broken line (`cut`, varying along x and z) drops onto it.
+function stump(geo, cut, seed = 1) {
+  const g = geo.clone(), p = g.attributes.position;
+  const line = (x, z) => cut * (0.55 + 0.45 * Math.abs(Math.sin(Math.round(x * 0.9) * 12.9898 + Math.round(z * 0.9) * 78.233 + seed) * 43758.5453 % 1));
+  for (let i = 0; i < p.count; i++) p.setY(i, Math.min(p.getY(i), line(p.getX(i), p.getZ(i))));
+  return g;
+}
 const size = g => { g.computeBoundingBox(); return g.boundingBox.getSize(new THREE.Vector3()); };
 // Stretch to exactly [x, y, z] metres, centred on x and z, standing on y = 0.
 function fitBox(geo, [X, Y, Z]) {
@@ -416,13 +423,64 @@ async function stoneWall() {
   const body = fitBox(await rtsFlat('Wall_SecondAge'), [10, 5, 2.5]);
   return join([body, ...merlons(10, 5, -1.02, stone)]);
 }
-async function woodWall() {
-  const { wood } = await wallParts();
-  const stakes = fitBox(await rtsFlat('Wall_FirstAge'), [10, 4.5, 0.45]);
-  stakes.translate(0, 0, -0.52);
-  const deck = [block(10, 0.16, 1.05, wood.clone().multiplyScalar(0.85), 0, 3.34, 0.22)];
-  for (let x = -4.5; x <= 4.5; x += 3) deck.push(block(0.22, 3.34, 0.22, wood.clone().multiplyScalar(0.7), x, 0, 0.62));
-  return join([stakes, ...deck]);
+// A rough palisade: pointed stakes of uneven height, thickness and lean, lashed to a rail, with a plank fighting deck
+// behind at 3.5 m on posts and braces. `from`..`to` limits it along x (for the gate's two sides).
+function seeded(seed) { let r = seed; return () => (r = (r * 16807) % 2147483647) / 2147483647; }
+// `broken` snaps most of them off short, splintered rather than pointed.
+async function stakes(from, to, seed, { z = -0.5, base = 4.1, spread = 0.75, broken = false } = {}) {
+  const { wood } = await wallParts(), rand = seeded(seed), out = [];
+  const tones = [wood, wood.clone().multiplyScalar(0.78), wood.clone().multiplyScalar(0.62), wood.clone().lerp(lin('#9a8466'), 0.35)];
+  for (let x = from + 0.25; x < to - 0.1; x += 0.46 + rand() * 0.1) {
+    const r = 0.2 + rand() * 0.09, tone = tones[Math.floor(rand() * tones.length)];
+    const snapped = broken && rand() < 0.85, h = snapped ? 0.5 + rand() * 1.1 : base + rand() * spread;
+    const log = new THREE.CylinderGeometry(r * 0.92, r, h, 6); log.translate(0, h / 2, 0);
+    const tip = snapped ? new THREE.ConeGeometry(r * 0.9, 0.3, 3) : new THREE.ConeGeometry(r * 0.92, 0.45 + rand() * 0.25, 6);
+    tip.translate(0, h + (snapped ? 0.1 : 0.22), 0);
+    const g = join([solid(log, tone), solid(tip, tone.clone().multiplyScalar(0.92))]);
+    g.rotateZ((rand() - 0.5) * 0.09); g.rotateX((rand() - 0.5) * 0.07);
+    g.translate(x, -0.25, z + (rand() - 0.5) * 0.12);
+    out.push(g);
+  }
+  return out;
+}
+async function deck(from, to, { y = 3.5, z0 = -0.2, z1 = 0.75 } = {}) {
+  const { wood } = await wallParts(), plank = wood.clone().multiplyScalar(0.88), dark = wood.clone().multiplyScalar(0.6), out = [];
+  const w = z1 - z0, n = 4;
+  for (let i = 0; i < n; i++) out.push(block(to - from, 0.12, w / n - 0.03, i % 2 ? plank : plank.clone().multiplyScalar(0.93), (from + to) / 2, y - 0.12, z0 + w / n * (i + 0.5)));
+  out.push(block(to - from, 0.16, 0.14, dark, (from + to) / 2, 2.6, -0.3));   // the rail the stakes are lashed to
+  for (let x = from + 1; x < to; x += 2.6) {
+    out.push(block(0.2, y - 0.12, 0.2, dark, x, 0, z1 - 0.1));
+    out.push(block(0.12, 1.9, 0.12, dark, x, 1.2, (z0 + z1) / 2, { rx: 0.62 }));
+  }
+  return out;
+}
+async function woodWall(seed = 11) {
+  return join([...await stakes(-5, 5, seed), ...await deck(-5, 5)]);
+}
+// A timber tower to go with the palisade: corner logs, braces, a platform at 6.3 m behind a stake parapet, a shingle roof.
+async function woodTower(seed = 17) {
+  const { wood } = await wallParts(), dark = wood.clone().multiplyScalar(0.62), R = 3, top = 6.3, out = [];
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const log = new THREE.CylinderGeometry(0.26, 0.3, top + 3.2, 6); log.translate(x * (R - 0.35), (top + 3.2) / 2, z * (R - 0.35));
+    out.push(solid(log, dark));
+  }
+  // cross braces on each side, and a skirt of stakes round the bottom
+  for (const t of [0.72, -0.72]) for (const e of [-1, 1]) {
+    out.push(block(0.14, 6.6, 0.14, dark, 0, 3.1, e * (R - 0.35), { rz: t }));
+    out.push(block(0.14, 6.6, 0.14, dark, e * (R - 0.35), 3.1, 0, { rx: t }));
+  }
+  out.push(block(R * 2 + 0.3, 0.2, R * 2 + 0.3, wood.clone().multiplyScalar(0.85), 0, top - 0.2, 0));
+  for (let side = 0; side < 4; side++) {
+    const g = join(await stakes(-R, R, seed + side, { z: 0, base: 1.1, spread: 0.3 }));
+    g.translate(0, top, -R + 0.15); g.rotateY(side * Math.PI / 2);
+    out.push(g);
+    const skirt = join(await stakes(-R + 0.3, R - 0.3, seed + 9 + side, { z: 0, base: 2, spread: 0.6 }));
+    skirt.translate(0, 0, -R + 0.3); skirt.rotateY(side * Math.PI / 2);
+    out.push(skirt);
+  }
+  const roof = new THREE.ConeGeometry(R * 1.35, 2.6, 4); roof.rotateY(Math.PI / 4); roof.translate(0, top + 3.2 + 1.2, 0);
+  out.push(solid(roof, lin('#6d5a48')));
+  return join(out);
 }
 // a tower cut from the end of the pack's walled pair of towers
 async function towerFrom(name, dims) {
@@ -432,24 +490,41 @@ async function towerFrom(name, dims) {
   return fitBox(crop(g, x => x > cut), dims);
 }
 async function gate(kind) {
-  const { stone, stoneDark, wood, iron } = await wallParts();
+  const { stone, stoneDark, wood } = await wallParts();
   if (kind === 'stone') {
     const side = async x => { const g = fitBox(await rtsFlat('Wall_SecondAge'), [2.5, 5, 2.5]); g.translate(x, 0, 0); return g; };
     return join([await side(-3.75), await side(3.75),
       block(1, 6.2, 2.9, stoneDark, -2.9, 0, 0), block(1, 6.2, 2.9, stoneDark, 2.9, 0, 0),
       block(5, 1.1, 2.5, stone, 0, 3.9, 0), ...merlons(10, 5, -1.02, stone)]);
   }
-  const side = async x => { const g = fitBox(await rtsFlat('Wall_FirstAge'), [2.5, 4.5, 0.45]); g.translate(x, 0, -0.52); return g; };
-  const dark = wood.clone().multiplyScalar(0.7);
-  return join([await side(-3.75), await side(3.75),
-    block(0.45, 5.6, 0.45, dark, -2.7, 0, -0.52), block(0.45, 5.6, 0.45, dark, 2.7, 0, -0.52),
-    block(5.8, 0.4, 0.5, dark, 0, 4.9, -0.52), block(10, 0.16, 1.05, wood.clone().multiplyScalar(0.85), 0, 3.34, 0.22)]);
+  // the palisade either side, two tall gate posts and a beam, and the deck carried over the gateway
+  const dark = wood.clone().multiplyScalar(0.6);
+  const post = x => { const g = new THREE.CylinderGeometry(0.34, 0.38, 5.4, 6); g.translate(x, 2.7, -0.5); return solid(g, dark); };
+  return join([...await stakes(-5, -2.7, 23), ...await stakes(2.7, 5, 29), post(-2.65), post(2.65),
+    block(6.2, 0.4, 0.5, dark, 0, 4.9, -0.5), ...await deck(-5, 5)]);
 }
+// Door leaves fill the opening under the deck (wood, 3.3 m) or the lintel (stone, 3.8 m).
 async function door(kind) {
-  const { wood, iron } = await wallParts();
+  const { wood, iron } = await wallParts(), h = kind === 'stone' ? 3.8 : 3.3;
   const plank = wood.clone().multiplyScalar(kind === 'stone' ? 0.6 : 0.8);
-  const leaf = x => [block(2.45, 4.9, 0.22, plank, x, 0, 0), ...[0.8, 2.4, 4].map(y => block(2.3, 0.18, 0.26, iron, x, y, 0))];
+  const leaf = x => [block(2.45, h, 0.22, plank, x, 0, 0), ...[0.6, h / 2, h - 0.6].map(y => block(2.3, 0.18, 0.26, iron, x, y - 0.09, 0)),
+    block(0.14, h * 0.9, 0.26, plank.clone().multiplyScalar(0.8), x, h / 2, 0.02, { rz: x < 0 ? 0.5 : -0.5 })];
   return join([...leaf(-1.25), ...leaf(1.25)]);
+}
+// What is left of a fallen tower or gate: a stump and a spill of rubble.
+async function brokenTower(kind) {
+  const { stone, stoneDark, wood } = await wallParts();
+  if (kind === 'stone') return join([stump(crop(await towerFrom('WallTowers_SecondAge', [8, 11, 8]), (x, y) => y < 7), 3.6, 5), ...rubble(8, 8, stone, 13).slice(0, 18), ...rubble(7, 7, stoneDark, 19).slice(0, 10)]);
+  const out = [];
+  for (let side = 0; side < 4; side++) {
+    const g = join(await stakes(-2.7, 2.7, 26 + side, { z: 0, broken: true })); g.translate(0, 0, -2.7); g.rotateY(side * Math.PI / 2); out.push(g);
+  }
+  return join([...out, ...rubble(6, 6, wood.clone().multiplyScalar(0.7), 21).slice(0, 14)]);
+}
+async function brokenGate(kind) {
+  const { stone, stoneDark, wood } = await wallParts();
+  if (kind === 'wood') return join([...await stakes(-5, -2.4, 23, { broken: true }), ...await stakes(2.4, 5, 29, { broken: true }), ...rubble(10, 1.5, wood.clone().multiplyScalar(0.7), 31).slice(0, 18)]);
+  return join([stump(await gate(kind), 2.6, 9), ...rubble(10, kind === 'stone' ? 2.5 : 1.5, kind === 'stone' ? stone : wood.clone().multiplyScalar(0.7), 31).slice(0, 18)]);
 }
 const ENGINES = {};
 async function engines() {
@@ -469,10 +544,14 @@ function ladder() {
 Object.assign(MORE_BUILDINGS, {
   'wall.stone': stoneWall,
   'wall.wood': woodWall,
-  'wall.stone.broken': async () => { const { stone, stoneDark } = await wallParts(); return join([crop(await stoneWall(), (x, y) => y < 1.4), ...rubble(10, 2.5, stone, 3), ...rubble(9, 2.5, stoneDark, 7).slice(0, 12)]); },
-  'wall.wood.broken': async () => { const { wood } = await wallParts(); return join([crop(await woodWall(), (x, y) => y < 1.2), ...rubble(10, 1.5, wood.clone().multiplyScalar(0.75), 5).slice(0, 16)]); },
+  'wall.stone.broken': async () => { const { stone, stoneDark } = await wallParts(); return join([stump(await stoneWall(), 2.2, 3), ...rubble(10, 2.5, stone, 3), ...rubble(9, 2.5, stoneDark, 7).slice(0, 12)]); },
+  'wall.wood.broken': async () => { const { wood } = await wallParts(); return join([...await stakes(-5, 5, 11, { broken: true }), ...rubble(10, 1.5, wood.clone().multiplyScalar(0.75), 5).slice(0, 16)]); },
   'tower.stone': () => towerFrom('WallTowers_SecondAge', [8, 11, 8]),
-  'tower.wood': () => towerFrom('WallTowers_FirstAge', [6, 7.4, 6]),
+  'tower.wood': () => woodTower(),
+  'tower.stone.broken': () => brokenTower('stone'),
+  'tower.wood.broken': () => brokenTower('wood'),
+  'gate.stone.broken': () => brokenGate('stone'),
+  'gate.wood.broken': () => brokenGate('wood'),
   'gate.stone': () => gate('stone'),
   'gate.wood': () => gate('wood'),
   'gate.stone.door': () => door('stone'),
