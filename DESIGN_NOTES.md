@@ -123,6 +123,14 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - Bandit raids from 5:00, growing with each wave (archers from wave 3). Villagers flee to the keep. Raiders burn what they reach and leave after three fires or about 2½ minutes. If the keep falls, the game is lost.
 - The lord's retinue of 20 swordsmen costs no villagers. You can send it to work: the men become villagers and their 20 swords and shields go to the nearest barracks (or the keep), so a barracks can arm them again as a levy.
 
+**Sound** (`src/audio.js`, `assets/audio/`), 2026-11-19:
+- Free music and sound, all CC0 or CC-BY, about 17 MB. Every file's source, author and licence is in [assets/audio/CREDITS.md](assets/audio/CREDITS.md), shown with the Quaternius models on `credits.html` (linked from the menu, each page's help and the sound panel).
+- Music crossfades by mood: building (four tracks in turn), tense when raiders or an enemy are about, battle, siege (an assault on a keep), victory and defeat stingers, and the world map. Most tracks are RandomMind's CC0 medieval series; Kevin MacLeod's CC-BY tracks fill the gaps.
+- Effects are heard from the camera: quieter with distance and zoom, panned left and right. Clashes, bows and arrow hits come straight from the battle; war cries when a regiment closes, a scream when one routs; chopping, picking, hammering, crates and a finished-building chime from the village; horn and drums when raiders come or a levy is raised; fire when raiders burn a building. Beds for village, forest, wind, battle din, marching feet and fire are mixed by what is on screen.
+- At most 24 sounds at once, and a few of each kind; a louder sound replaces the quietest. Villages you are not watching stay silent.
+- 🔊 in the top bar: master, music and effects volume and mute, remembered in the browser. Sound starts on the first click.
+- Hooks in other files are one line each and marked `// audio`. `audio.status()` in the console shows what is playing.
+
 **Battle test** (`battle.html`), 2026-11-18:
 - 9 regiments a side (spears, swords, archers, cavalry), about 1,200 soldiers, with a keep and village at each side's end of the field.
 - Total War–style orders: box select, right-click to move or attack, right-drag to draw a front line. You can pause and still give orders.

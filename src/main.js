@@ -11,6 +11,7 @@ import { buildFort } from './walls.js';
 import { Controls } from './controls.js';
 import { Hud } from './hud.js';
 import { thinkAI } from './ai.js';
+import { audio } from './audio.js';
 import { makeCaptain } from './captains.js';
 import { rng } from './noise.js';
 
@@ -105,6 +106,7 @@ function frame(now) {
   view.update(controls.selection);
   siegeView.update(dt);
   hud.update(controls.selection, paused, speed);
+  audio.frame(camera, controls.cam, { battle, field: true, paused }); // audio
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }

@@ -3,6 +3,7 @@
 // No rendering here; view.js and siegeview.js draw whatever this state holds.
 import { rng } from './noise.js';
 import { HALF, HOMES } from './terrain.js';
+import { audio } from './audio.js';
 import { Walls, toSegment } from './walls.js';
 import { Nav } from './nav.js';
 
@@ -553,6 +554,7 @@ export class Battle {
   onWallBreak(s) {
     const what = s.kind === 'tower' ? 'tower' : s.gate ? 'gate' : 'wall';
     this.event(s.side, `${s.side === 0 ? 'Our' : 'The enemy'} ${what} has been broken!`);
+    audio.play('gate', s, this); // audio
     // Men on it come down with it.
     for (const o of this.soldiers) {
       if (!live(o) || o.perch !== s) continue;
@@ -853,6 +855,7 @@ export class Battle {
       if (!s || this.structGone(s) || E.cd > 0) return;
       E.cd = E.reload;
       E.swing = this.time;
+      audio.play('gate', s, this); // audio: the ram strikes
       if (this.hitStructure(s, E.dmg, 'ram')) { r.targetWall = null; this.event(r.side, `${this.label(r)} broke through!`); }
       return;
     }
@@ -932,6 +935,7 @@ export class Battle {
       this.impacts = this.impacts || [];
       this.impacts.push({ x: st.x1, z: st.z1, time: this.time, big: E.kind === 'trebuchet' });
       if (this.impacts.length > 40) this.impacts.shift();
+      audio.play('stone', { x: st.x1, z: st.z1 }, this); // audio
     }
     this.stones.length = w;
     for (const r of this.regs) {
@@ -1311,6 +1315,7 @@ export class Battle {
     if (this.rand() < Math.max(0.05, Math.min(0.95, chance))) {
       tr.lastHit = this.time;
       tr.morale -= [0, 0.3, 0.6][flank] * FD.morale;
+      audio.play('clash', s, this); // audio
       // Hacking at an engine's crew wrecks the engine too.
       if (tr.engine?.maxHp) tr.engine.hp -= dmg * 2;
       this.hurt(t, dmg, ar);
@@ -1378,6 +1383,7 @@ export class Battle {
     if (r.column) { r.column = false; }
     for (const s of r.soldiers) { s.target = null; s.down = null; }
     this.event(r.side, `${this.label(r)} are routing!`);
+    audio.play('rout', { x: r.cx, z: r.cz }, this); // audio
     for (const o of this.regs) {
       if (o === r || o.gone || o.routing) continue;
       const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
@@ -1498,6 +1504,7 @@ export class Battle {
       t: 0, T, h: 2 + d * (s.reg.T.pierce ? 0.08 : 0.16), dmg: s.reg.T.arrowDmg, pierce: s.reg.T.pierce || 0, side: s.reg.side,
       bolt: !!s.reg.T.pierce,
     });
+    audio.play('bow', s, this); // audio
   }
 
   updateArrows(dt) {
@@ -1520,6 +1527,7 @@ export class Battle {
       if (hit.reg.engine?.roof && !hit.reg.routing) chance *= hit.reg.engine.roof;
       if (this.rand() < chance) {
         hit.reg.morale -= 0.25;
+        audio.play('arrowhit', hit, this); // audio
         hit.reg.lastHit = this.time;
         this.hurt(hit, a.dmg);
       }

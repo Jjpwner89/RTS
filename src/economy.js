@@ -5,6 +5,7 @@
 // Goods are real and sit somewhere: in a woodcutter's yard, a workshop, the barracks,
 // a storehouse or the keep. Haulers carry them about in crates, so where things are
 // built matters. Workers who are stuck fetch or clear their own goods, more slowly.
+import { audio } from './audio.js';
 
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
@@ -320,6 +321,7 @@ export class Town {
     const d = this.door(t.to, v);
     if (!this.walk(v, d.x, d.z, dt)) return false;
     this.put(t.to, t.g, t.n);
+    audio.play('crate', t.to, this.battle); // audio
     t.to.incoming[t.g] -= t.n;
     v.load = null;
     v.carry = null;
@@ -455,6 +457,7 @@ export class Town {
     const r = this.battle.addRegiment(0, key, fx, fz, out, { count: men.length, from: men, name: `Levy ${KITS[key].name.toLowerCase()}` });
     r.levy = key;
     r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
+    audio.play('drums', barracks, this.battle); // audio: a levy raised
     this.event(`${men.length} villagers took up ${KITS[key].name.toLowerCase() === 'archers' ? 'bows' : 'arms'}.`);
     return { ok: true, reg: r };
   }
@@ -628,6 +631,7 @@ export class Town {
     v.phase += dt * 6;
     b.progress = Math.min(ready, b.progress + dt / b.B.build);
     b.status = 'Under construction';
+    audio.tick('hammer', b, dt, 1.5, this.battle); // audio
     if (b.progress >= 1 - 1e-6) {
       b.progress = 1;
       b.store = {};
@@ -640,6 +644,7 @@ export class Town {
       // Builders stay on as the first workers.
       for (const o of crew) if (b.B.jobs && b.workers.length < b.B.jobs) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
+      audio.play('built', b, this.battle); // audio
     }
   }
 
@@ -661,6 +666,7 @@ export class Town {
       t.timer -= dt;
       v.phase += dt * 5;
       b.status = 'Working';
+      audio.tick(g.node, v, dt, 1.2, this.battle); // audio: chopping or picking
       if (t.timer <= 0) { t.phase = 'back'; v.carry = Object.keys(g.out)[0]; }
     } else if (this.walk(v, b.x + Math.sin(b.angle) * (b.B.radius + 1), b.z + Math.cos(b.angle) * (b.B.radius + 1), dt)) {
       for (const [k, n] of Object.entries(g.out)) this.put(b, k, n);
@@ -694,6 +700,7 @@ export class Town {
     if (b.recipe) {
       b.timer -= dt;
       v.phase += dt * 4;
+      audio.tick('hammer', b, dt, 0.6, this.battle); // audio
       if (b.timer <= 0) {
         for (const [k, n] of Object.entries(b.recipe.out)) this.put(b, k, n);
         b.recipe = null;
@@ -794,6 +801,7 @@ export class Town {
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
       : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
+    audio.play('horn', null, this.battle); audio.play('drums', null, this.battle); // audio
   }
 
   updateAttacks(dt) {
@@ -838,6 +846,7 @@ export class Town {
     if (t === this.keep) {
       this.lost = true;
       this.event('The keep has fallen.', 1);
+      audio.play('gate', t, this.battle); // audio
       if (this.onFall) this.onFall(); else this.battle.winner = 1;
       return;
     }
@@ -849,6 +858,7 @@ export class Town {
     const lost = Object.values(t.store).reduce((n, k) => n + k, 0);
     t.store = {};
     this.stockCache = null;
+    audio.play('burn', t, this.battle); // audio
     if (this.hostile) this.event(`Your men have burned their ${t.B.name.toLowerCase()}.`);
     else this.event(`Raiders burned the ${t.B.name.toLowerCase()}${lost >= 1 ? ` and took ${Math.floor(lost)} goods` : ''}!`, 1);
   }

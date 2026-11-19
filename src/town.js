@@ -10,6 +10,7 @@ import { Town } from './economy.js';
 import { TownView } from './townview.js';
 import { TownHud } from './townhud.js';
 import { rng } from './noise.js';
+import { audio } from './audio.js';
 
 const params = new URLSearchParams(location.search);
 const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
@@ -79,6 +80,7 @@ function frame(now) {
   townView.showGhost(placing, hoverAt, placing && hoverAt && town.canPlace(placing, hoverAt.x, hoverAt.z).ok);
   hud.update(controls.selection, paused, speed);
   townHud.update(selected, [...controls.selection], placing);
+  audio.frame(camera, controls.cam, { battle, town, paused }); // audio
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }

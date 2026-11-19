@@ -167,6 +167,7 @@ export function play(name, pos = null, scope = null) {
   const S = SOUNDS[name];
   if (!S) return;
   if (scope && scope !== ear.scope) return;
+  if (pos && !Number.isFinite(pos.x)) pos = null;
   if (pos && !ear.on) return;
   const now = ctx.currentTime;
   if (now - (lastPlayed[name] ?? -9) < S.gap) return;
@@ -276,7 +277,7 @@ export function frame(camera, cam, scene = {}) {
     wasEngaged.set(r, r.engaged > 0);
   }
   const attackers = town?.attackers?.length > 0;
-  const assault = scene.siege || town?.attackers?.some(g => g.mode === 'assault');
+  const assault = scene.siege || town?.attackers?.some(g => g.mode === 'assault' || g.mode === 'siege');
   calmFor = fighting ? 0 : calmFor + dt;
 
   if (battle && battle.winner !== null && !announced.has(battle) && (scene.field || town)) {

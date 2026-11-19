@@ -18,6 +18,7 @@ import { actions as dipActions, act as dipAct, mood } from './world/diplomacy.js
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
+import { audio } from './audio.js';
 
 const params = new URLSearchParams(location.search);
 const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
@@ -37,7 +38,7 @@ const bundles = new Map();              // place → its drawn village, made on 
 const world = new World(seed, {
   watching: () => (mode === 'town' ? current.poi : null),
   ask: enc => { asks.push({ kind: 'encounter', enc }); },
-  townAttacked: p => { if (!(mode === 'town' && current.poi === p)) asks.push({ kind: 'alarm', poi: p }); },
+  townAttacked: p => { audio.play('horn'); if (!(mode === 'town' && current.poi === p)) asks.push({ kind: 'alarm', poi: p }); }, // audio: horn
   fell: p => {
     if (mode === 'town' && current.poi === p) showWorld();
     dropBundle(p);
@@ -56,8 +57,11 @@ const world = new World(seed, {
       else showResult('The attack has failed', `${p.name} holds. Your survivors fall back.`, 'Back to the map', () => { showWorld(); dropBundle(p); });
     } else dropBundle(p);
   },
-  ended: winner => showResult(winner === 0 ? 'You are crowned' : 'Defeat',
-    winner === 0 ? 'Kingsbridge is yours and the realm kneels. Long live the king.' : 'Your last village has fallen.', 'New campaign', () => location.reload()),
+  ended: winner => {
+    audio.setMood(winner === 0 ? 'victory' : 'defeat'); // audio
+    showResult(winner === 0 ? 'You are crowned' : 'Defeat',
+      winner === 0 ? 'Kingsbridge is yours and the realm kneels. Long live the king.' : 'Your last village has fallen.', 'New campaign', () => location.reload());
+  },
   herald: msg => herald(msg),
   offer: o => asks.push({ kind: 'offer', ...o }),
 });
@@ -519,6 +523,8 @@ function frame(now) {
   }
   topBar();
   worldLog();
+  audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events } // audio
+    : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events });
   stage.renderer.render(stage.current(), cam);
   requestAnimationFrame(frame);
 }
