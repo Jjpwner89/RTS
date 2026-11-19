@@ -88,9 +88,9 @@ From **Lord**, you no longer have to place every building by hand. You may keep 
 "Your attention is the scarce resource" needs a triage layer.
 
 - **Alerts ranked by how serious they are**, in one list (like Stellaris's outliner): sieges at the top, then raids, starving armies, revolts, finished buildings at the bottom.
-- **A choice when a fight starts away from you**: take command, leave it to the captain or garrison, or send help. Time slows while you decide. *(Battle side done: `unwatched()` in ai.js runs a fight under its captain or garrison.)*
+- **A choice when a fight starts away from you**: take command, leave it to the captain or garrison, or send help. Time slows while you decide. **Built (2026-11-19):** when two armies meet on the road you can *Leave it to the captain*: the battle is fought for real by both captains (ai.js `unwatched()`), three times as fast as the world, while you carry on. It heads the Needs you list with both sides' men standing; click it to take command where it stands. One such fight at a time; storming a place still goes into the place or auto-resolves.
 - Later: a small live view of a second fight in a corner of the screen.
-- **Built (2026-11-19):** the *Needs you* list in the map's bottom-left corner, worst first: a village of yours being fought in; enemy columns you can see marching on your places, with how far off they are; revolts; hungry villages and armies; wages owed; storming in progress; aggrieved vassals; and, last, armies of yours idle away from home. Click one to look at it. In a village, the World map button carries a count of the serious ones in the worst one's colour. When a village is attacked the warning (time stopped, as with every prompt) now also offers to send the nearest free army to its relief. Not yet: finished buildings, and a live corner view of a second fight.
+- **Built (2026-11-19):** the *Needs you* list in the map's bottom-left corner, worst first: a village of yours being fought in; enemy columns you can see marching on your places, with how far off they are; revolts; hungry villages and armies; wages owed; storming in progress; aggrieved vassals; and, last, armies of yours idle away from home. Click one to look at it. In a village, the World map button carries a count of the serious ones in the worst one's colour. When a village is attacked the warning (time stopped, as with every prompt) now also offers to send the nearest free army to its relief. Not yet: finished buildings, and a live corner view of the captain's fight.
 
 ## 4. Character memory (Realm; a hook for Claude)
 
@@ -130,12 +130,12 @@ All approved. Owners in brackets.
 - **Starve them out** (Realm + Battles): blockade instead of storming, and the place's stores run down. Uses the existing food supply. *(Battle side done: `setHunger()`.)*
 - **Burn the fields ahead of a siege** (Realm): raiding supply weakens the target first, so skirmishing early pays.
 - ~~Tunnelling under walls, counter-tunnels, boiling oil and night sallies (Battles).~~ Done 2026-11-19.
-- **Surrender terms** (Realm + Battles): a garrison yields with conditions (leave free, keep the village, pay ransom). *(Battle side done: `termsAllowed`, `onTerms`, `battle.surrendered`.)*
+- **Surrender terms** (Realm + Battles): a garrison yields with conditions (leave free, keep the village, pay ransom). **Built (2026-11-19) for storming:** a walled place you storm may ask for terms (sooner if it is hungry). Accept, and its garrison marches out under arms to its lord's nearest place, while you take the place whole, keeping eight in ten of its people instead of half. Not yet: ransom, keeping the village for a vassal, or your own garrisons yielding.
 - **Ransom** captured captains and lords (Realm).
 
 **Rivals and drama** (Realm, Battles for the duel)
 - Rivals with memory: grudges, escapes and revenge (section 4).
-- **Champion duels**: Dunmore challenges you to settle a battle with a duel. *(Battle side done: `challenge()`; Realm decides when Dunmore calls one.)*
+- **Champion duels**: Dunmore challenges you to settle a battle with a duel. **Built (2026-11-19):** Lord Hal Dunmore, a hothead, challenges in field battles: always when outnumbered (to settle the battle), otherwise one time in two (for honour). You answer in the field; a captain left in command takes up an honour duel but won't stake a battle he is winning.
 - **Tournaments at Kingsbridge** for gold, renown and recruiting knights.
 - **Wyndham's schemes**: a gate opened from inside, a bribed captain, built on the spies in §1.
 

@@ -9,7 +9,7 @@ import { Controls } from './controls.js';
 import { Hud } from './hud.js';
 import { TownView } from './townview.js';
 import { TownHud } from './townhud.js';
-import { thinkAI } from './ai.js';
+import { thinkAI, unwatched } from './ai.js';
 import { attachSiege } from './siegeui.js';
 import { SiegeView } from './siegeview.js';
 import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js';
@@ -255,7 +255,24 @@ function deploy(battle, side, units, cx, cz, angle) {
   horse.forEach((u, i) => put(u, (i % 2 ? -1 : 1) * (half + 30 + Math.floor(i / 2) * 50), 8));
 }
 
-function startField(enc) {
+// Lord Hal Dunmore, a hothead, calls out your champion when his host meets yours in the
+// open: always when he is outnumbered, and then to settle the battle; otherwise one time
+// in two, for honour.
+function hotheadChallenge(enc) {
+  const e = enc.enemy, H = e && FACTIONS[e.side];
+  if (!H?.alive || H.trait !== 'hothead') return null;
+  const odds = headcount(e.units) / Math.max(1, headcount(enc.army.units));
+  if (odds < 0.75) return { name: H.lord, level: 4, decides: true };
+  return world.rand() < 0.5 ? { name: H.lord, level: 4, decides: false } : null;
+}
+function issueChallenge(b) {
+  if (!b.challenge || b.battle.deploying || b.battle.time < 4) return;
+  const { decides, ...champion } = b.challenge;
+  b.challenge = null;
+  b.battle.challenge(1, champion, { decides });
+}
+
+function startField(enc, { watch = true } = {}) {
   const fseed = seed + 50000 + Math.floor(world.time * 7);
   const assault = enc.kind === 'assault';
   const keepAt = { x: 0, z: -150 };
@@ -290,11 +307,63 @@ function startField(enc) {
     focus: r => b.controls.focus([r]),
   };
   b.controls = new Controls(stage.camera, canvas, battle, view, heightAt, b.hooks);
+  b.controls.enabled = watch;
   Object.assign(b.controls.cam, { x: 0, z: 135, dist: 105, yaw: 0 });
   battle.step(0.001);
   battle.setWeather(pickWeather(fseed));   // clear, rain or fog (battlefield.js)
+  b.challenge = hotheadChallenge(enc);
+  b.title = assault ? `Battle for ${enc.poi.name}` : `Battle at ${enc.poi ? enc.poi.name : 'the road'}`;
+  if (!watch) return b;
   battle.startDeployment(0);        // place the army before the fight (battle.js)
-  $('field-title').textContent = assault ? `Battle for ${enc.poi.name}` : 'Battle on the road';
+  $('field-title').textContent = b.title;
+  setMode('field', b);
+  return b;
+}
+
+// ---- fights left to the captain ----
+// A battle on the road you don't watch is still fought for real, by both captains in
+// ai.js's unwatched(), three times as fast as the world goes. One at a time (the world
+// holds other meetings back meanwhile). You can take command of it at any moment.
+let away = null;   // { b, run }
+const standing = (battle, side) => battle.regs.filter(r => r.side === side && !r.gone && !r.routing).reduce((n, r) => n + r.alive, 0);
+
+function leaveToCaptain(enc) {
+  const b = startField(enc, { watch: false });
+  away = { b, run: unwatched(b.battle) };
+  world.log(`${enc.army.name} gives battle to ${enc.enemy.name}; its captain commands.`);
+}
+
+function stepAway(dt) {
+  if (!away) return;
+  const { b, run } = away, bt = b.battle;
+  issueChallenge(b);
+  // A captain won't stake a battle he is winning on one man; any other challenge he takes up.
+  if (bt.duelOffer?.decides && standing(bt, 0) > standing(bt, 1)) bt.refuseDuel();
+  // Battle time owed runs ahead of the world's; each run() slice may overshoot a little,
+  // and the next frames wait for the debt to catch up.
+  away.goal = (away.goal ?? bt.time) + dt * 3;
+  const t0 = performance.now();
+  let done = bt.winner !== null;
+  while (!done && bt.time < away.goal && performance.now() - t0 < 8) done = run.run(1);
+  if (done) finishAway();
+}
+
+function finishAway() {
+  const b = away.b, bt = b.battle;
+  away = null;
+  b.done = true;
+  const won = bt.winner !== null ? bt.winner === 0 : standing(bt, 0) > standing(bt, 1);
+  const where = b.enc.poi ? b.enc.poi.name : 'the road';
+  world.settle(b.enc, won, survivors(bt, 0), survivors(bt, 1));
+  flash(`${won ? 'Victory' : 'Defeat'} at ${where}: you lost ${bt.losses[0]}, they lost ${bt.losses[1]}.`, won);
+  stage.dispose(b.scene);
+}
+
+function takeCommand() {
+  if (!away) return;
+  const { b } = away;
+  away = null;
+  $('field-title').textContent = b.title;
   setMode('field', b);
 }
 
@@ -362,6 +431,7 @@ function nextAsk() {
       // A place is fought for in the place itself; armies on the road meet in the open.
       if (enc.kind === 'assault') { world.storm(enc); enterTown(enc.poi); } else startField(enc);
     }]);
+    if (enc.kind !== 'assault' && !away) buttons.push(['Leave it to the captain', () => leaveToCaptain(enc)]);
     buttons.push(['Auto-resolve', () => {
       const won = world.autoResolve(enc);
       flash(won ? `Victory at ${where}.` : `Defeat at ${where}.`, won);
@@ -706,6 +776,8 @@ function alertList() {
   const btn = $('to-world');
   btn.dataset.alerts = urgent.length || '';
   btn.style.setProperty('--alert', LEVEL_COLOR[urgent[0]?.level || 0] || 'transparent');
+  if (away) list.unshift({ level: 5, icon: 'battle', away: true,
+    text: `${away.b.title}: ${standing(away.b.battle, 0)} of yours against ${standing(away.b.battle, 1)}. Take command` });
   const shown = list.slice(0, 7), key = shown.map(a => a.level + a.text).join('|') + list.length;
   if (key === alertsKey) return;
   alertsKey = key;
@@ -713,10 +785,11 @@ function alertList() {
   const el = $('alerts');
   el.hidden = !shown.length;
   el.innerHTML = `<h4>Needs you${list.length > shown.length ? ` <small>and ${list.length - shown.length} more</small>` : ''}</h4>`
-    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level]}">${ico(a.icon)}<span>${a.text}</span></div>`).join('');
+    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at || a.away ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level]}">${ico(a.icon)}<span>${a.text}</span></div>`).join('');
 }
 $('alerts').onclick = e => {
   const a = shownAlerts[+e.target.closest('[data-alert]')?.dataset.alert];
+  if (a?.away) return takeCommand();
   if (!a?.at || a.at.gone) return;
   if (mode === 'town') showWorld();
   selected = a.at;
@@ -767,12 +840,14 @@ function frame(now) {
       if (mode === 'field') {
         const b = current;
         b.battle.step(h);
+        issueChallenge(b);
         b.aiClock -= h;
         if (b.aiClock <= 0) { b.aiClock = 1; thinkAI(b.battle, 1, { hold: b.assault }); }
         if (b.battle.winner !== null && !b.endAt) b.endAt = b.battle.time + 2.5;
         if (b.endAt && b.battle.time > b.endAt) { endField(b.battle.winner === 0); break; }
       } else {
         world.update(h);
+        stepAway(h);
         autosave();
       }
       left -= h;
@@ -818,12 +893,12 @@ function frame(now) {
 // saves at once. Continue on the menu (world.html?continue) picks it up.
 let savedAt = world.time;
 function autosave() {
-  if (world.time - savedAt < 120 || mode === 'field' || !canSave(world).ok) return;
+  if (world.time - savedAt < 120 || mode === 'field' || away || !canSave(world).ok) return;
   savedAt = world.time;
   if (saveGame(world).ok) flash('Saved.', true);
 }
 $('save').onclick = () => {
-  const c = canSave(world, { busy: mode === 'field' });
+  const c = canSave(world, { busy: mode === 'field' || !!away });
   if (!c.ok) { flash(`Can't save now: ${c.reason.toLowerCase()}.`); return; }
   const r = saveGame(world);
   savedAt = world.time;
@@ -835,4 +910,4 @@ setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);
 requestAnimationFrame(frame);
 
-window.game = { world, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, enterTown, showWorld, startField };
+window.game = { world, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };

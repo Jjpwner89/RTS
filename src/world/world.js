@@ -748,6 +748,17 @@ export class World {
     town.flagColor = H.color;
     town.holdKeep(defenders, came, { house: owner ?? 1 });
     town.addTroops(a.units, came, { stand: 100 });
+    // A beaten garrison may ask for terms (battle.js); a hungry place asks sooner. Yielding,
+    // its men march out under arms to their lord, and the place is yours whole: no more
+    // burning, and more of its people stay.
+    const b = town.battle;
+    b.termsAllowed = true;
+    if (p.eco?.hungry) b.setHunger(1, 0.5);
+    const yieldTo = b.acceptTerms.bind(b);
+    b.acceptTerms = () => {
+      if (b.terms?.side === 1 && town.hostile) town.hostile.yielded = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0).map(r => unit(r.T.key, r.alive, r.name));
+      yieldTo();
+    };
     this.removeArmy(a);
     this.log(`${a.name} is storming ${p.name}.`);
   }
@@ -766,12 +777,19 @@ export class World {
     const t = p.town, h = t.hostile, was = h.owner;
     note(this, was, 'tookPlace');
     this.takePlace(p, 0);
-    t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * 0.5))) });
+    t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * (h.yielded ? 0.8 : 0.5)))) });
     t.flagColor = null;
     p.eco = h.eco;
     this.plunder(p);
     p.eco = null;
     p.garrison = [];
+    // The village's own fighting goes on: no winner, no more terms.
+    Object.assign(t.battle, { winner: null, surrendered: null, terms: null, termsAllowed: false });
+    if (h.yielded) {
+      const men = h.yielded.filter(u => u.count >= 3);
+      if (was !== null && FACTIONS[was]?.alive && men.length) this.retreat(this.spawnArmy(was, men, p, `${FACTIONS[was].short} garrison`));
+      this.log(`${p.name} yields on terms; its garrison marches out under arms.`);
+    }
     this.log(`You have taken ${p.name}!`);
     this.hooks.stormEnded?.(p, true);
     this.hooks.captured(p, was);
@@ -785,7 +803,7 @@ export class World {
     const t = p.town, h = t.hostile, b = t.battle;
     const left = r => r.soldiers.filter(s => s.alive && !s.gone).length;
     const mine = b.regs.filter(r => r.side === 0 && !r.gone)
-      .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue })).filter(u => u.count >= 3);
+      .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite })).filter(u => u.count >= 3);
     const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => unit(r.T.key, left(r), r.name)).filter(u => u.count >= 3);
     const ruins = t.buildings.filter(o => o.state === 'ruined'), burned = ruins.length;
     p.mem = remember(t, 1, this.time);
@@ -883,7 +901,7 @@ export class World {
     const theirs = groups.flatMap(g => g.regs).filter(r => !r.disbanded && alive(r) > 0)
       .map(r => unit(r.T.key, alive(r), r.name));
     const ours = t.garrison().filter(r => alive(r) > 0)
-      .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue }));
+      .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite }));
     const pop = t.villagers.filter(v => v.state !== 'soldier').length;
     this.takePlace(p, side);
     p.mem = remember(t, 0, this.time);
