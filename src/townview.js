@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel } from './view.js';
+import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { BUILDINGS } from './economy.js';
 
@@ -148,7 +148,7 @@ export class TownView {
     scene.add(keep);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[0], side: THREE.DoubleSide }));
     flag.position.set(2, heightAt(0, 0) + keepTop(keepGeo) + 2.5, 0);
-    this.flag = flag;
+    this.flag = poleFor(flag, 4, 2.4);
     scene.add(flag);
 
     for (const kind of ['rock', 'ore']) {
@@ -200,13 +200,8 @@ export class TownView {
     for (const o of [this.ghostRange, this.territoryRing, this.selectRing]) { o.visible = false; scene.add(o); }
   }
 
-  // The town-centre line: level I for a hamlet, then II from 30 people, III from 60, IV from 100 and V from 150.
-  // A level the town sets itself (town.keepLevel) wins, so upgrades can cost gold later.
-  wantedKeepLevel() {
-    if (this.town.keepLevel) return this.town.keepLevel;
-    const n = this.town.population;
-    return n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
-  }
+  // The keep's level: see keepLevelOf.
+  wantedKeepLevel() { return keepLevelOf(this.town); }
 
   // Houses come in three styles, picked per building. Buildings with upgrade levels (b.level 2 or 3) have a model for
   // each; a level without one keeps the one below.
@@ -250,6 +245,8 @@ export class TownView {
 
   update(selected) {
     const town = this.town;
+    // While you storm a place its defenders wear their house's colour.
+    if (town.battle) town.battle.sideColors = town.hostile ? [SIDE_COLORS[0], town.hostile.color] : null;
     // A place being stormed flies its owner's colours until it is yours.
     const flag = town.flagColor || SIDE_COLORS[0];
     if (flag !== this.flagShown) { this.flagShown = flag; this.flag.material.color.set(flag); }

@@ -139,6 +139,21 @@ export function keepModel({ palisade = true, level = 2 } = {}) {
   return mergeGeometries(parts);
 }
 
+// A flag with its pole: the pole hangs from the flag's left edge down `drop` metres below it, into the roof.
+export function poleFor(flag, w, h, drop = 3) {
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.02, w * 0.02, h + drop + 0.4), new THREE.MeshLambertMaterial({ color: '#5a4030' }));
+  pole.position.set(-w / 2, (0.4 - drop) / 2, 0);
+  flag.add(pole);
+  return flag;
+}
+
+// A village keep's level, 1 to 5: the level the town sets (town.keepLevel), or else by population (30, 60, 100, 150).
+export function keepLevelOf(town) {
+  if (town.keepLevel) return Math.max(1, Math.min(5, town.keepLevel));
+  const n = town.population;
+  return n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
+}
+
 // The lord's seat on the world map: the wooden castle.
 // `level` 1 to 4: wood fort, wood castle, stone castle, fortress.
 export const castleModel = (level = 2) => buildingModel('castle.' + level) || buildingModel('castle') || keepModel();
@@ -173,7 +188,7 @@ function buildKeeps(scene, heightAt) {
     scene.add(k);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[side], side: THREE.DoubleSide }));
     flag.position.set(h.x + 2, y + keepTop(keep) + 2.5, h.z);
-    scene.add(flag);
+    scene.add(poleFor(flag, 4, 2.4));
     for (let i = 0; i < 9; i++) {
       const a = facing + Math.PI + (i - 4) * 0.42, r = 19 + (i % 2) * 4;
       const m = new THREE.Mesh(houses[(i * 7 + side) % 3], mat);
@@ -218,13 +233,13 @@ export function drawIcon(ctx, key, cx, cy, s) {
   ctx.restore();
 }
 
-function bannerTexture(side, key, selected) {
+function bannerTexture(colour, key, selected) {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 80;
   const ctx = c.getContext('2d');
   ctx.beginPath();
   ctx.moveTo(6, 6); ctx.lineTo(58, 6); ctx.lineTo(58, 50); ctx.lineTo(32, 74); ctx.lineTo(6, 50); ctx.closePath();
-  ctx.fillStyle = SIDE_COLORS[side];
+  ctx.fillStyle = colour;
   ctx.fill();
   ctx.lineWidth = selected ? 6 : 3;
   ctx.strokeStyle = selected ? '#ffd970' : 'rgba(20,16,12,0.85)';
@@ -281,7 +296,7 @@ export class BattleView {
       s.instance = m.list.length;
       m.list.push(s);
       // A little variation in each man's dye keeps the blocks from looking printed.
-      s.tint = this.base[s.reg.side].clone().multiplyScalar(0.85 + Math.random() * 0.3);
+      s.tint = new THREE.Color(this.sideColor(s.reg.side)).multiplyScalar(0.85 + Math.random() * 0.3);
       s.gearTint = new THREE.Color().setScalar(0.9 + Math.random() * 0.2);
       if (m.light) continue;   // detailed soldiers are handed out each frame instead
       m.cloth.setColorAt(s.instance, s.tint);
@@ -291,6 +306,9 @@ export class BattleView {
     }
     this.seenSoldiers = b.soldiers.length;
   }
+
+  // A side's colour: the battle can set its own (`battle.sideColors`), so a house's defenders wear the house colour.
+  sideColor(side) { return this.battle.sideColors?.[side] || SIDE_COLORS[side]; }
 
   // Baked soldiers get a full and a light pair; each frame, the ones near the camera go in the full pair.
   makeMeshes(key, capacity) {
@@ -335,7 +353,7 @@ export class BattleView {
 
   syncBanners() {
     for (const r of this.battle.regs.slice(this.banners.length)) {
-      const tex = [bannerTexture(r.side, r.T.key, false), bannerTexture(r.side, r.T.key, true)];
+      const tex = [bannerTexture(this.sideColor(r.side), r.T.key, false), bannerTexture(this.sideColor(r.side), r.T.key, true)];
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true }));
       sprite.scale.set(0.032, 0.04, 1);
       sprite.center.set(0.5, 0);

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
-import { part, box, keepModel, keepTop, castleModel, fortModel, houseModel, SKIN, WOOD } from '../view.js';
+import { part, box, keepModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD } from '../view.js';
 import { unitModel, buildingModel, HOUSE_STYLES } from '../models.js';
 import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
@@ -69,7 +69,7 @@ export class WorldView {
       const g = new THREE.Group();
       g.position.set(p.x, h(p.x, p.z) - 0.5, p.z);
       const flag = new THREE.Mesh(new THREE.PlaneGeometry(9, 5.5), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }));
-      g.add(flag);
+      g.add(poleFor(flag, 9, 5.5));
       this.scene.add(g);
       const o = { group: g, flag, owner: undefined, label: null, look: null, parts: null };
       this.places.set(p, o);
@@ -234,6 +234,11 @@ export class WorldView {
   // ---- places: each kind has its own look, and it grows with the place's level ----
 
   lookKey(p) {
+    // A place you run as a real village looks like that village, and grows as you build.
+    if (p.town) {
+      const t = p.town, built = t.buildings.filter(b => b.state === 'active');
+      return `town:${keepLevelOf(t)}:${built.length}:${built.reduce((n, b) => n + (b.level || 1), 0)}:${p.seen}`;
+    }
     const level = Math.max(1, Math.min(4, (p.visible ? p.eco?.level : p.known?.level) || p.known?.level || 1));
     return `${p.kind}:${p.seat !== undefined}:${level}:${p.seen}`;
   }
@@ -278,7 +283,21 @@ export class WorldView {
     };
     const out = (a, r) => [Math.sin(a) * r, Math.cos(a) * r];
     let centre;
-    switch (seat ? 'seat' : p.kind) {
+    if (p.town) {
+      // the village in miniature: its keep, and its buildings where they stand, drawn closer together
+      const t = p.town, k = 55 / (t.territory || 175);
+      centre = put(keep(keepLevelOf(t)), 0, 0, 0, 0.75);
+      for (const b of t.buildings) {
+        if (b.state !== 'active') continue;
+        const base = b.kind === 'house' ? `house.${(b.style || 0) % HOUSE_STYLES}` : b.kind;
+        let geo = null;
+        for (let l = b.level || 1; l > 1 && !geo; l--) geo = buildingModel(`${base}.${l}`);
+        geo ||= b.kind === 'house' ? houseModel(b.style || 0) : buildingModel(b.kind);
+        // pushed out past the keep, so nothing hides inside it
+        const a = Math.atan2(b.x, b.z), r = 20 + Math.hypot(b.x, b.z) * k;
+        put(geo, Math.sin(a) * r, Math.cos(a) * r, b.angle || 0, 0.6);
+      }
+    } else switch (seat ? 'seat' : p.kind) {
       case 'crown':
         centre = put(castleModel(4), 0, 0, 0, 1.2);
         put(buildingModel('market.3'), ...out(2.4, 30), 2.4);

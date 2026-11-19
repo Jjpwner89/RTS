@@ -94,10 +94,6 @@ const BUILDINGS = {
   bowyer: [[[rts('Archery_FirstAge_Level1')]], 7],
   weaponsmith: [[[mvp('Blacksmith')], [mvp('Cauldron'), 4, 2]], 7.5],
   barracks: [[[rts('Barracks_FirstAge_Level2')]], 11],
-  // the keep grows through the town centre's three levels; all share level III's scale
-  'keep.1': [[[rts('TownCenter_FirstAge_Level1')]], 24, 'TownCenter_FirstAge_Level3'],
-  'keep.2': [[[rts('TownCenter_FirstAge_Level2')]], 24, 'TownCenter_FirstAge_Level3'],
-  'keep.3': [[[rts('TownCenter_FirstAge_Level3')]], 24],
   castle: [[[rts('Wonder_FirstAge_Level3')]], 30],
 };
 
@@ -345,14 +341,15 @@ for (const k of ['knight', 'captain', 'lightcav', 'cav']) MORE_UNITS[k].heavy = 
 
 // ---- buildings with levels, and the new ones ----
 const MORE_BUILDINGS = {
-  // the first town centre reads as a fort: forts and army camps
-  fort: [[[rts('TownCenter_FirstAge_Level1')]], 24, 'TownCenter_FirstAge_Level3'],
-  // a village keep grows through the rest of the town-centre line
-  'keep.1': [[[rts('TownCenter_FirstAge_Level2')]], 24, 'TownCenter_FirstAge_Level3'],
-  'keep.2': [[[rts('TownCenter_FirstAge_Level3')]], 24],
-  'keep.3': [[[rts('TownCenter_SecondAge_Level1')]], 24, 'TownCenter_FirstAge_Level3'],
-  'keep.4': [[[rts('TownCenter_SecondAge_Level2')]], 24, 'TownCenter_FirstAge_Level3'],
-  'keep.5': [[[rts('TownCenter_SecondAge_Level3')]], 24, 'TownCenter_FirstAge_Level3'],
+  // forts and army camps: the smallest palisaded Wonder fort
+  fort: [[[rts('Wonder_FirstAge_Level1')]], 18],
+  // A village keep is a lord's hall that grows: timber tower-house, stone-and-timber hall, great hall between stone
+  // towers, then the stone castle and the fortress. (The town-centre models read as squares, not keeps.)
+  'keep.1': [[[rts('TowerHouse_FirstAge')]], 16],
+  'keep.2': [[[rts('TowerHouse_SecondAge')]], 18],
+  'keep.3': [[[rts('Barracks_SecondAge_Level3')]], 22],
+  'keep.4': [[[rts('Wonder_SecondAge_Level2')]], 26],
+  'keep.5': [[[rts('Wonder_SecondAge_Level3')]], 28],
   // the Wonder castles: wood fort, wood castle, stone castle, fortress
   'castle.1': [[[rts('Wonder_FirstAge_Level2')]], 30, 'Wonder_FirstAge_Level3'],
   'castle.2': [[[rts('Wonder_FirstAge_Level3')]], 30],
@@ -376,7 +373,8 @@ const MORE_BUILDINGS = {
 const LEVELS = {
   storehouse: ['Storage_FirstAge_Level2', 'Storage_FirstAge_Level3', 'Storage_SecondAge_Level2', 9],
   market: ['Market_FirstAge_Level2', 'Market_FirstAge_Level3', 'Market_SecondAge_Level2', 12],
-  barracks: ['Barracks_FirstAge_Level2', 'Barracks_FirstAge_Level3', 'Barracks_SecondAge_Level2', 11],
+  // (the stone-towered barracks is the level III keep, so the barracks stays timber)
+  barracks: ['Barracks_FirstAge_Level2', 'Barracks_FirstAge_Level3', 'Barracks_SecondAge_Level1', 11],
   bowyer: ['Archery_FirstAge_Level1', 'Archery_FirstAge_Level2', 'Archery_SecondAge_Level1', 7],
   watchtower: ['WatchTower_FirstAge_Level1', 'WatchTower_FirstAge_Level2', 'WatchTower_SecondAge_Level2', 4.5],
 };
