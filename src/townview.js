@@ -2,7 +2,8 @@
 // work, stone and ore deposits, and the ghost of a building being placed.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, houseModel } from './view.js';
+import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel } from './view.js';
+import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { BUILDINGS } from './economy.js';
 
 const TIMBER = '#8a6a48', SHINGLE = '#6d5a48', ROOF_RED = '#7a4a32';
@@ -55,7 +56,7 @@ const MODELS = {
     ...[-1, 0, 1].map(i => part(cyl(0.03, 0.03, 2.6, 4), WOOD, { x: -3 + i * 0.5, y: 1.3, z: 3.4, rx: 0.15 }))]),
 };
 
-// Two-toned peasants, built like the soldiers so they share a scale.
+// Two-toned peasants, built like the soldiers so they share a scale. The baked villager replaces them when loaded.
 function peasant() {
   const gear = mergeGeometries([
     part(box(0.17, 0.8, 0.18), DARK, { x: -0.12, y: 0.4 }),
@@ -116,20 +117,24 @@ function circle(radius, color, opacity) {
 export class TownView {
   constructor(scene, town, heightAt, rand) {
     Object.assign(this, { scene, town, heightAt });
-    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.55 });
-    this.ruinMat = new THREE.MeshLambertMaterial({ vertexColors: true, color: '#3a3430' });
+    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.55 });
+    this.ruinMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: '#3a3430' });
     this.ghostMat = new THREE.MeshBasicMaterial({ color: '#7fe08a', transparent: true, opacity: 0.45, depthWrite: false });
     this.geos = {};
     this.meshes = new Map();
     this.icons = {};
 
-    const keep = new THREE.Mesh(keepModel({ palisade: false }), this.mat);
+    // the keep grows through three levels with the village; see keepLevel()
+    this.keepLevel = this.wantedKeepLevel();
+    const keepGeo = keepModel({ palisade: false, level: this.keepLevel });
+    const keep = this.keep = new THREE.Mesh(keepGeo, this.mat);
     keep.position.set(0, heightAt(0, 0) - 0.5, 0);
     keep.castShadow = keep.receiveShadow = true;
     scene.add(keep);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[0], side: THREE.DoubleSide }));
-    flag.position.set(2, heightAt(0, 0) + 22.5, 0);
+    flag.position.set(2, heightAt(0, 0) + keepTop(keepGeo) + 2.5, 0);
+    this.flag = flag;
     scene.add(flag);
 
     for (const kind of ['rock', 'ore']) {
@@ -141,16 +146,26 @@ export class TownView {
       }
     }
 
-    const p = peasant();
+    // Villagers: a full and a light pair when the baked villager loaded, handed out by distance each frame.
+    const baked = unitModel('villager'), p = baked || peasant();
     this.people = {
       gear: new THREE.InstancedMesh(p.gear, this.mat, 600),
       cloth: new THREE.InstancedMesh(p.cloth, this.mat, 600),
       carry: new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, 0.45, 0.4), new THREE.MeshLambertMaterial(), 600),
     };
+    if (baked) {
+      this.people.gearLight = new THREE.InstancedMesh(baked.gearLight, this.mat, 600);
+      this.people.clothLight = new THREE.InstancedMesh(baked.clothLight, this.mat, 600);
+    }
+    // each villager keeps one dye for life
+    this.dyes = Array.from({ length: 600 }, (_, i) => new THREE.Color(DYES[i % DYES.length]).multiplyScalar(0.85 + rand() * 0.3));
+    this.skins = Array.from({ length: 600 }, () => new THREE.Color().setScalar(0.9 + rand() * 0.2));
     const c = new THREE.Color();
     for (let i = 0; i < 600; i++) {
-      this.people.cloth.setColorAt(i, c.set(DYES[i % DYES.length]).multiplyScalar(0.85 + rand() * 0.3));
-      this.people.gear.setColorAt(i, c.setScalar(0.9 + rand() * 0.2));
+      this.people.cloth.setColorAt(i, this.dyes[i]);
+      this.people.gear.setColorAt(i, this.skins[i]);
+      this.people.gearLight?.setColorAt(i, this.skins[i]);
+      this.people.clothLight?.setColorAt(i, this.dyes[i]);
       this.people.carry.setColorAt(i, c.set('#ffffff'));
     }
     for (const m of Object.values(this.people)) { m.frustumCulled = false; m.castShadow = true; m.count = 0; scene.add(m); }
@@ -164,7 +179,14 @@ export class TownView {
     for (const o of [this.ghostRange, this.territoryRing, this.selectRing]) { o.visible = false; scene.add(o); }
   }
 
-  geo(kind) { return this.geos[kind] || (this.geos[kind] = MODELS[kind]()); }
+  // Town centre level I for a hamlet, II from 30 people, III from 60.
+  wantedKeepLevel() { const n = this.town.population; return n >= 60 ? 3 : n >= 30 ? 2 : 1; }
+
+  // Houses come in three styles, picked per building; every other kind has one model.
+  geo(kind, style = 0) {
+    const key = kind === 'house' ? kind + (style % HOUSE_STYLES) : kind;
+    return this.geos[key] || (this.geos[key] = (kind === 'house' ? houseModel(style) : buildingModel(kind)) || MODELS[kind]());
+  }
 
   icon(b, warn) {
     const key = b.kind + (warn ? '!' : '');
@@ -199,6 +221,12 @@ export class TownView {
 
   update(selected) {
     const town = this.town;
+    const level = this.wantedKeepLevel();
+    if (level !== this.keepLevel) {
+      this.keepLevel = level;
+      this.keep.geometry = keepModel({ palisade: false, level });
+      this.flag.position.y = this.heightAt(0, 0) + keepTop(this.keep.geometry) + 2.5;
+    }
     for (const [b, o] of this.meshes) {
       if (!b.removed) continue;
       this.scene.remove(o.mesh, o.icon);
@@ -207,7 +235,8 @@ export class TownView {
     for (const b of town.buildings) {
       let o = this.meshes.get(b);
       if (!o) {
-        const mesh = new THREE.Mesh(this.geo(b.kind), this.siteMat);
+        b.style ??= Math.floor(this.town.rand ? this.town.rand() * HOUSE_STYLES : Math.random() * HOUSE_STYLES);
+        const mesh = new THREE.Mesh(this.geo(b.kind, b.style), this.siteMat);
         mesh.position.set(b.x, this.heightAt(b.x, b.z) - 0.1, b.z);
         mesh.rotation.y = b.angle;
         mesh.castShadow = mesh.receiveShadow = true;
@@ -240,18 +269,30 @@ export class TownView {
     }
 
     // Villagers: a gentle bob when walking, a working rhythm when at a task.
-    const d = this.dummy, P = this.people;
-    let n = 0, k = 0;
+    const d = this.dummy, P = this.people, cam = LOD.camera?.position, near2 = LOD.near * LOD.near;
+    let n = 0, nl = 0, k = 0;
     for (const v of town.villagers) {
-      if (v.hidden || v.state === 'soldier' || n >= 600) continue;
+      if (v.hidden || v.state === 'soldier' || n + nl >= 600) continue;
       const bob = Math.abs(Math.sin(v.phase)) * 0.1;
       d.position.set(v.x, v.y + bob, v.z);
       d.rotation.set(0, v.yaw, 0);
       d.scale.setScalar(1);
       d.updateMatrix();
-      P.gear.setMatrixAt(n, d.matrix);
-      P.cloth.setMatrixAt(n, d.matrix);
-      n++;
+      if (P.gearLight && cam && d.position.distanceToSquared(cam) > near2) {
+        const i = v.id % 600;
+        P.gearLight.setMatrixAt(nl, d.matrix);
+        P.clothLight.setMatrixAt(nl, d.matrix);
+        P.clothLight.setColorAt(nl, this.dyes[i]);
+        P.gearLight.setColorAt(nl, this.skins[i]);
+        nl++;
+      } else {
+        const i = v.id % 600;
+        P.gear.setMatrixAt(n, d.matrix);
+        P.cloth.setMatrixAt(n, d.matrix);
+        P.cloth.setColorAt(n, this.dyes[i]);
+        P.gear.setColorAt(n, this.skins[i]);
+        n++;
+      }
       if (v.carry) {
         d.position.set(v.x - Math.sin(v.yaw) * 0.35, v.y + bob + 1.45, v.z - Math.cos(v.yaw) * 0.35);
         d.updateMatrix();
@@ -261,9 +302,9 @@ export class TownView {
       }
     }
     P.gear.count = P.cloth.count = n;
+    if (P.gearLight) P.gearLight.count = P.clothLight.count = nl;
     P.carry.count = k;
-    for (const m of Object.values(P)) m.instanceMatrix.needsUpdate = true;
-    if (P.carry.instanceColor) P.carry.instanceColor.needsUpdate = true;
+    for (const m of Object.values(P)) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
   }
 
   buildingAt(p) {

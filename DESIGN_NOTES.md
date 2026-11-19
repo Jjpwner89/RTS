@@ -29,6 +29,8 @@ The one home for this game's goals, decisions and open questions. Working title:
 | Economy | **Simple, but with a few layers** from raw input to finished goods (see below). |
 | World map | **Real time with pause.** |
 | Reference | *Medieval Kingdom Wars* (grand strategy with castle building and real-time battles) is the closest existing game. |
+| Soldiers' look | **Quaternius modular people** with refitted knight helmets and shoulder pads, Quaternius weapons and fitted body armour: steel plate for spears and swords, mail for cavalry, leather for archers. Teams show on a surcoat over the armour, painted shields and archers' hoods. |
+| Buildings' look | **Quaternius Ultimate Fantasy RTS.** The keep is its town centre, growing through levels I–III with the village (30 and 60 people). The Wonder models are a separate castle line (fort → castle → stone castle → fortress); a lord's seat shows the wooden castle. Houses pick one of three styles at random. Workshops mix in the Quaternius Medieval Village Pack (sawmill, blacksmith), which can later serve as upgrades of the RTS buildings. Building list can change to fit good models, as long as gathering and the layered production chains stay. |
 
 ## How it plays (draft)
 
@@ -86,7 +88,7 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 
 - **Browser game, plain JavaScript, no build step.** It runs anywhere and is easy to share.
 - **three.js (WebGL) for 3D.** Soldiers are instanced: the battle test runs 4,700 soldiers with about 4.6 ms of simulation a tick.
-- **Models:** low-poly shapes built in code for now. Free CC0 packs (Kenney, Quaternius, KayKit) are an option later, and 3D can be pre-rendered to sprites if a 2D or isometric look wins.
+- **Models:** baked from free CC0 Quaternius packs into `assets/models.glb` (3.7 MB); the shapes built in code remain as a fallback if it fails to load. Each soldier has a light version of about 1,500 triangles (full ones are 11,000 to 17,500), and only soldiers near the camera are drawn in full; that ran 1,000 soldiers in about 13 ms a frame and 4,000 in about 19 ms on the creator's Mac. How they are made, and how to rebuild them, is in [tools/models/README.md](tools/models/README.md).
 - **2D art from Codex:** faction heraldry, event pictures, the world-map style and UI.
 - **The big technical question:** how to simulate POIs nobody is watching. They need to run cheaply and abstractly, then turn into the full simulation when you zoom in.
 
@@ -130,7 +132,7 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 
 ## Open questions for the creator
 
-None right now; new ones will come out of play.
+- **Archery range or barracks?** For now the bowyer uses the Fantasy RTS archery range and the barracks its barracks.
 
 ## Side project
 

@@ -1,0 +1,403 @@
+// Draws the battle: instanced low-poly soldiers, arrows, regiment banners and order outlines.
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { TYPES } from './battle.js';
+import { HOMES } from './terrain.js';
+
+export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
+
+// ---- soldier models, built from primitives facing +z ----
+
+export function part(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0 } = {}) {
+  geo = geo.index ? geo.toNonIndexed() : geo;
+  geo.rotateX(rx); geo.rotateY(ry); geo.rotateZ(rz);
+  geo.translate(x, y, z);
+  const c = new THREE.Color(color);
+  const n = geo.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+export const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+export const cyl = (r1, r2, h, s = 6) => new THREE.CylinderGeometry(r1, r2, h, s);
+
+export const SKIN = '#d6ad88', METAL = '#a3a8ad', DARK = '#3b3631', WOOD = '#7a5a3a', LEATHER = '#5e4632', HORSE = '#6b4a32';
+const CLOTH = '#ffffff';  // tinted per instance with the side's colour
+
+export function infantry(key) {
+  const gear = [
+    part(box(0.17, 0.8, 0.18), DARK, { x: -0.12, y: 0.4 }),
+    part(box(0.17, 0.8, 0.18), DARK, { x: 0.12, y: 0.4 }),
+    part(new THREE.SphereGeometry(0.15, 7, 5), SKIN, { y: 1.65 }),
+  ];
+  const cloth = [
+    part(box(0.5, 0.72, 0.3), CLOTH, { y: 1.15 }),
+    part(box(0.13, 0.6, 0.14), CLOTH, { x: -0.33, y: 1.15 }),
+    part(box(0.13, 0.6, 0.14), CLOTH, { x: 0.33, y: 1.15 }),
+  ];
+  if (key === 'archer' || key === 'bandit' || key === 'militia') {
+    cloth.push(part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), CLOTH, { y: 1.67 }));
+  }
+  if (key === 'archer') {
+    gear.push(part(box(0.04, 1.3, 0.05), WOOD, { x: -0.36, y: 1.25, z: 0.28 }));
+    gear.push(part(box(0.12, 0.5, 0.12), LEATHER, { x: 0.15, y: 1.35, z: -0.22, rx: 0.3 }));
+  } else if (key === 'bandit') {
+    gear.push(part(cyl(0.035, 0.035, 0.9, 4), WOOD, { x: 0.38, y: 1.3, z: 0.25, rx: 0.5 }));
+    gear.push(part(box(0.06, 0.22, 0.26), METAL, { x: 0.38, y: 1.68, z: 0.48, rx: 0.5 }));
+  } else if (key !== 'militia') {
+    gear.push(part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), METAL, { y: 1.68 }));
+  }
+  if (key === 'spear' || key === 'militia') {
+    gear.push(part(cyl(0.03, 0.03, 3.4, 4), WOOD, { x: 0.36, y: 1.7, z: 0.35, rx: 0.22 }));
+    gear.push(part(new THREE.ConeGeometry(0.06, 0.3, 4), METAL, { x: 0.36, y: 3.4, z: 0.73, rx: 0.22 }));
+  }
+  if (key === 'spear') {
+    cloth.push(part(box(0.55, 0.78, 0.06), CLOTH, { x: -0.3, y: 1.12, z: 0.26 }));
+  }
+  if (key === 'sword') {
+    gear.push(part(box(0.06, 0.85, 0.04), METAL, { x: 0.38, y: 1.3, z: 0.3, rx: 0.4 }));
+    cloth.push(part(cyl(0.33, 0.33, 0.05, 10), CLOTH, { x: -0.33, y: 1.15, z: 0.24, rx: Math.PI / 2 }));
+  }
+  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
+}
+
+export function cavalry() {
+  const gear = [
+    part(box(0.6, 0.7, 1.9), HORSE, { y: 1.3 }),
+    part(box(0.3, 0.85, 0.36), HORSE, { y: 1.8, z: 0.9, rx: 0.5 }),
+    part(box(0.26, 0.3, 0.62), HORSE, { y: 2.15, z: 1.2, rx: 0.2 }),
+    part(new THREE.SphereGeometry(0.15, 7, 5), SKIN, { y: 2.62 }),
+    part(new THREE.SphereGeometry(0.17, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), METAL, { y: 2.65 }),
+    part(cyl(0.035, 0.035, 3.8, 4), WOOD, { x: 0.36, y: 2.25, z: 0.9, rx: 1.25 }),
+    part(new THREE.ConeGeometry(0.07, 0.35, 4), METAL, { x: 0.36, y: 2.9, z: 2.75, rx: 1.25 }),
+  ];
+  for (const [x, z] of [[-0.2, 0.72], [0.2, 0.72], [-0.2, -0.72], [0.2, -0.72]]) {
+    gear.push(part(box(0.14, 1.0, 0.16), HORSE, { x, y: 0.5, z }));
+  }
+  const cloth = [
+    part(box(0.68, 0.42, 1.72), CLOTH, { y: 1.08 }),
+    part(box(0.46, 0.68, 0.3), CLOTH, { y: 2.12 }),
+    part(box(0.16, 0.6, 0.18), CLOTH, { x: -0.36, y: 1.75 }),
+    part(box(0.16, 0.6, 0.18), CLOTH, { x: 0.36, y: 1.75 }),
+  ];
+  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
+}
+
+// ---- each side's keep and the village around it ----
+
+export const STONE = '#9b968a', STONE_DARK = '#7d786d', THATCH = '#b8955a', PLASTER = '#d8ccb0';
+
+export function keepModel({ palisade = true } = {}) {
+  const parts = [
+    part(box(14, 16, 14), STONE, { y: 8 }),
+    part(box(2, 4, 0.6), DARK, { y: 2, z: 7.1 }),
+  ];
+  for (const [x, z] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) {
+    parts.push(part(cyl(2.6, 3, 20, 8), STONE_DARK, { x, y: 10, z }));
+    parts.push(part(new THREE.ConeGeometry(3.2, 4, 8), '#5f4a3a', { x, y: 22, z }));
+  }
+  for (let i = 0; i < 4; i++) {
+    for (let k = -2; k <= 2; k++) {
+      const along = k * 2.6;
+      const [x, z] = [[along, -7], [along, 7], [-7, along], [7, along]][i];
+      parts.push(part(box(1.2, 1.4, 1.2), STONE, { x, y: 16.7, z }));
+    }
+  }
+  // A ring of palisade stakes around keep and village.
+  for (let i = 0; palisade && i < 64; i++) {
+    const a = i / 64 * Math.PI * 2;
+    if (Math.cos(a) > 0.97) continue;   // a gate facing the field
+    parts.push(part(cyl(0.35, 0.35, 4, 5), WOOD, { x: Math.sin(a) * 30, y: 2, z: Math.cos(a) * 30 }));
+  }
+  parts.push(part(cyl(0.12, 0.12, 8, 4), WOOD, { y: 20 }));
+  return mergeGeometries(parts);
+}
+
+export function houseModel() {
+  return mergeGeometries([
+    part(box(4, 2.6, 5), PLASTER, { y: 1.3 }),
+    part(new THREE.ConeGeometry(3.6, 2.4, 4), THATCH, { y: 3.8, ry: Math.PI / 4 }),
+  ]);
+}
+
+function buildKeeps(scene, heightAt) {
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const keep = keepModel(), house = houseModel();
+  HOMES.forEach((h, side) => {
+    const y = heightAt(h.x, h.z);
+    const facing = side === 0 ? Math.PI : 0;
+    const k = new THREE.Mesh(keep, mat);
+    k.position.set(h.x, y - 0.5, h.z);
+    k.rotation.y = facing;
+    k.castShadow = k.receiveShadow = true;
+    scene.add(k);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[side], side: THREE.DoubleSide }));
+    flag.position.set(h.x + 2, y + 22.5, h.z);
+    scene.add(flag);
+    for (let i = 0; i < 9; i++) {
+      const a = facing + Math.PI + (i - 4) * 0.42, r = 19 + (i % 2) * 4;
+      const m = new THREE.Mesh(house, mat);
+      const x = h.x + Math.sin(a) * r, z = h.z + Math.cos(a) * r;
+      m.position.set(x, heightAt(x, z) - 0.2, z);
+      m.rotation.y = a;
+      m.castShadow = m.receiveShadow = true;
+      scene.add(m);
+    }
+  });
+}
+
+// ---- regiment icons, shared by banners and HUD cards ----
+
+export function drawIcon(ctx, key, cx, cy, s) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s / 32, s / 32);
+  ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (key === 'militia') {
+    ctx.moveTo(0, 14); ctx.lineTo(0, -8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(-4, -7); ctx.lineTo(4, -7); ctx.fill();
+  } else if (key === 'spear') {
+    ctx.moveTo(-8, 13); ctx.lineTo(-8, -9); ctx.moveTo(8, 13); ctx.lineTo(8, -9); ctx.stroke();
+    for (const x of [-8, 8]) { ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x - 4, -7); ctx.lineTo(x + 4, -7); ctx.fill(); }
+  } else if (key === 'sword') {
+    ctx.moveTo(-11, 11); ctx.lineTo(11, -11); ctx.moveTo(11, 11); ctx.lineTo(-11, -11);
+    ctx.moveTo(-11, 3); ctx.lineTo(-3, 11); ctx.moveTo(11, 3); ctx.lineTo(3, 11); ctx.stroke();
+  } else if (key === 'archer') {
+    ctx.arc(-4, 0, 13, -1.2, 1.2); ctx.moveTo(-4 + 13 * Math.cos(-1.2), 13 * Math.sin(-1.2));
+    ctx.lineTo(-4 + 13 * Math.cos(1.2), 13 * Math.sin(1.2)); ctx.moveTo(-12, 0); ctx.lineTo(14, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(10, -4); ctx.lineTo(10, 4); ctx.fill();
+  } else if (key === 'bandit') {
+    ctx.moveTo(-10, 13); ctx.lineTo(8, -9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, -15); ctx.quadraticCurveTo(16, -12, 14, 2); ctx.lineTo(4, -6); ctx.closePath(); ctx.fill();
+  } else if (key === 'cav') {
+    ctx.moveTo(-12, 12); ctx.lineTo(-6, -2); ctx.lineTo(-2, -12); ctx.lineTo(6, -8); ctx.lineTo(12, 0);
+    ctx.lineTo(8, 3); ctx.lineTo(2, -2); ctx.lineTo(4, 12); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function bannerTexture(side, key, selected) {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 80;
+  const ctx = c.getContext('2d');
+  ctx.beginPath();
+  ctx.moveTo(6, 6); ctx.lineTo(58, 6); ctx.lineTo(58, 50); ctx.lineTo(32, 74); ctx.lineTo(6, 50); ctx.closePath();
+  ctx.fillStyle = SIDE_COLORS[side];
+  ctx.fill();
+  ctx.lineWidth = selected ? 6 : 3;
+  ctx.strokeStyle = selected ? '#ffd970' : 'rgba(20,16,12,0.85)';
+  ctx.stroke();
+  drawIcon(ctx, key, 32, 34, 34);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// ---- the view ----
+
+export class BattleView {
+  // capacity: soldiers of each type to make room for, beyond those already on the field.
+  constructor(scene, battle, heightAt, { capacity = 0, keeps = true } = {}) {
+    this.scene = scene;
+    this.battle = battle;
+    this.heightAt = heightAt;
+    this.dummy = new THREE.Object3D();
+    this.dummy.rotation.order = 'YXZ';
+    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.tint = new THREE.Color();
+    this.base = SIDE_COLORS.map(c => new THREE.Color(c));
+    this.capacity = capacity;
+    this.meshes = {};
+    this.seenSoldiers = 0;
+    this.version = battle.version;
+    this.banners = [];
+    this.syncSoldiers();
+    this.buildArrows();
+    this.syncBanners();
+    if (keeps) buildKeeps(scene, heightAt);
+    this.outlines = new THREE.Group();
+    scene.add(this.outlines);
+    this.preview = [];
+  }
+
+  // One pair of instanced meshes per unit type, made the first time that type appears.
+  // Regiments raised later take the next free instances.
+  syncSoldiers() {
+    const b = this.battle;
+    if (this.version !== b.version) {
+      // The battle dropped soldiers: hand out the instances again from the start.
+      this.version = b.version;
+      this.seenSoldiers = 0;
+      for (const m of Object.values(this.meshes)) { m.list.length = 0; m.darkened.clear(); m.gear.count = m.cloth.count = 0; }
+    }
+    for (let i = this.seenSoldiers; i < b.soldiers.length; i++) {
+      const s = b.soldiers[i], key = s.reg.T.key;
+      let m = this.meshes[key];
+      if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => o.reg.T.key === key).length));
+      if (m.list.length >= m.gear.instanceMatrix.count) continue;   // out of room: not drawn
+      s.instance = m.list.length;
+      m.list.push(s);
+      // A little variation in each man's dye keeps the blocks from looking printed.
+      this.tint.copy(this.base[s.reg.side]).multiplyScalar(0.85 + Math.random() * 0.3);
+      m.cloth.setColorAt(s.instance, this.tint);
+      m.gear.setColorAt(s.instance, this.tint.setScalar(0.9 + Math.random() * 0.2));
+      m.cloth.count = m.gear.count = m.list.length;
+      m.cloth.instanceColor.needsUpdate = m.gear.instanceColor.needsUpdate = true;
+    }
+    this.seenSoldiers = b.soldiers.length;
+  }
+
+  makeMeshes(key, capacity) {
+    const model = key === 'cav' ? cavalry() : infantry(key);
+    const gear = new THREE.InstancedMesh(model.gear, this.mat, capacity);
+    const cloth = new THREE.InstancedMesh(model.cloth, this.mat, capacity);
+    for (const m of [gear, cloth]) {
+      m.setColorAt(0, this.tint.setScalar(1));
+      m.count = 0;
+      m.castShadow = true;
+      m.frustumCulled = false;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.scene.add(m);
+    }
+    return { gear, cloth, list: [], darkened: new Set() };
+  }
+
+  buildArrows() {
+    const geo = new THREE.BoxGeometry(0.05, 0.05, 1.1);
+    this.arrowMesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: '#2b2119' }), 4000);
+    this.arrowMesh.frustumCulled = false;
+    this.arrowMesh.count = 0;
+    this.scene.add(this.arrowMesh);
+  }
+
+  syncBanners() {
+    for (const r of this.battle.regs.slice(this.banners.length)) {
+      const tex = [bannerTexture(r.side, r.T.key, false), bannerTexture(r.side, r.T.key, true)];
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true }));
+      sprite.scale.set(0.032, 0.04, 1);
+      sprite.center.set(0.5, 0);
+      sprite.renderOrder = 10;
+      this.scene.add(sprite);
+      this.banners.push({ r, sprite, tex, selected: false });
+    }
+  }
+
+  bannerPos(r) {
+    return new THREE.Vector3(r.cx, this.heightAt(r.cx, r.cz) + (r.T.mounted ? 7 : 6), r.cz);
+  }
+
+  update(selection) {
+    const d = this.dummy, b = this.battle;
+    this.syncSoldiers();
+    this.syncBanners();
+    for (const key in this.meshes) {
+      const { gear, cloth, list, darkened } = this.meshes[key];
+      for (const s of list) {
+        if (!s.alive && s.fall >= 1 && darkened.has(s)) continue;   // corpses stay put
+        if (s.gone) {
+          d.position.set(0, -50, 0); d.scale.setScalar(0.001);
+        } else {
+          const walking = s.v > 0.4 && s.alive;
+          const bob = walking ? Math.abs(Math.sin(s.phase)) * (s.reg.T.mounted ? 0.18 : 0.1) : 0;
+          const fwd = s.lunge * 0.35;
+          d.position.set(s.x + Math.sin(s.yaw) * fwd, s.y + bob - s.fall * 0.15, s.z + Math.cos(s.yaw) * fwd);
+          d.rotation.set(-s.fall * Math.PI / 2 * (s.reg.T.mounted ? 0 : 1), s.yaw, s.reg.T.mounted ? s.fall * Math.PI / 2 : 0);
+          d.scale.setScalar(1);
+        }
+        d.updateMatrix();
+        gear.setMatrixAt(s.instance, d.matrix);
+        cloth.setMatrixAt(s.instance, d.matrix);
+        if (!s.alive && s.fall >= 1) {
+          const c = new THREE.Color();
+          cloth.getColorAt(s.instance, c); cloth.setColorAt(s.instance, c.multiplyScalar(0.55));
+          gear.getColorAt(s.instance, c); gear.setColorAt(s.instance, c.multiplyScalar(0.6));
+          cloth.instanceColor.needsUpdate = gear.instanceColor.needsUpdate = true;
+          darkened.add(s);
+        }
+      }
+      gear.instanceMatrix.needsUpdate = cloth.instanceMatrix.needsUpdate = true;
+    }
+
+    // Arrows fly a simple arc from bow to landing point.
+    const q = new THREE.Quaternion(), z = new THREE.Vector3(0, 0, 1), dir = new THREE.Vector3();
+    let n = 0;
+    for (const a of b.arrows) {
+      if (n >= 4000) break;
+      const t = a.t / a.T, t2 = Math.min(1, t + 0.02);
+      const px = (k) => [a.x0 + (a.x1 - a.x0) * k, a.y0 + (a.y1 - a.y0) * k + 4 * a.h * k * (1 - k), a.z0 + (a.z1 - a.z0) * k];
+      const p1 = px(t), p2 = px(t2);
+      dir.set(p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]).normalize();
+      q.setFromUnitVectors(z, dir);
+      d.position.set(...p1); d.quaternion.copy(q); d.scale.setScalar(1);
+      d.updateMatrix();
+      this.arrowMesh.setMatrixAt(n++, d.matrix);
+      d.rotation.set(0, 0, 0);
+    }
+    this.arrowMesh.count = n;
+    this.arrowMesh.instanceMatrix.needsUpdate = true;
+
+    for (const bn of this.banners) {
+      const r = bn.r;
+      bn.sprite.visible = !r.gone;
+      if (r.gone) continue;
+      bn.sprite.position.copy(this.bannerPos(r));
+      const sel = selection.has(r);
+      if (sel !== bn.selected) {
+        bn.selected = sel;
+        bn.sprite.material.map = bn.tex[sel ? 1 : 0];
+        bn.sprite.scale.set(sel ? 0.038 : 0.032, sel ? 0.0475 : 0.04, 1);
+      }
+      bn.sprite.material.opacity = r.routing ? 0.45 + 0.3 * Math.sin(b.time * 6) : 1;
+    }
+    this.drawOutlines(selection);
+  }
+
+  // Rectangles on the ground: where selected regiments stand, and where they are heading.
+  drawOutlines(selection) {
+    for (const o of this.outlines.children) { o.geometry.dispose(); o.material.dispose(); }
+    this.outlines.clear();
+    for (const r of selection) {
+      if (r.gone || r.routing) continue;
+      this.addRect(r, r.x, r.z, r.angle, r.files, r.side === 0 ? '#ffd970' : '#ff7a6a', 1);
+      if (r.dest && !r.targetReg) this.addRect(r, r.dest.x, r.dest.z, r.dest.angle, r.files, '#9fe6a0', 0.7);
+      if (r.targetReg && !r.targetReg.gone) this.addLine(r.cx, r.cz, r.targetReg.cx, r.targetReg.cz, '#ff5a4a');
+    }
+    for (const p of this.preview) this.addRect(p.r, p.x, p.z, p.angle, p.files, '#ffffff', 0.85);
+  }
+
+  addRect(r, x, z, angle, files, color, opacity) {
+    const T = r.T;
+    const f = Math.max(1, Math.min(files, r.alive));
+    const ranks = Math.ceil(r.alive / f);
+    const hw = (f - 1) / 2 * T.spacing + 1, back = (ranks - 1) * (T.depth || T.spacing) + 1;
+    const sin = Math.sin(angle), cos = Math.cos(angle);
+    const corners = [[-hw, 1], [hw, 1], [hw, -back], [-hw, -back]];
+    const pts = [];
+    for (let i = 0; i < 4; i++) {
+      const [ax, az] = corners[i], [bx, bz] = corners[(i + 1) % 4];
+      for (let k = 0; k < 8; k++) {
+        const lx = ax + (bx - ax) * k / 8, lz = az + (bz - az) * k / 8;
+        const wx = x + cos * lx + sin * lz, wz = z - sin * lx + cos * lz;
+        pts.push(new THREE.Vector3(wx, this.heightAt(wx, wz) + 0.35, wz));
+      }
+    }
+    const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthTest: false }));
+    line.renderOrder = 5;
+    this.outlines.add(line);
+  }
+
+  addLine(x0, z0, x1, z1, color) {
+    const pts = [];
+    for (let k = 0; k <= 16; k++) {
+      const x = x0 + (x1 - x0) * k / 16, z = z0 + (z1 - z0) * k / 16;
+      pts.push(new THREE.Vector3(x, this.heightAt(x, z) + 0.6, z));
+    }
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8, depthTest: false }));
+    line.renderOrder = 5;
+    this.outlines.add(line);
+  }
+}

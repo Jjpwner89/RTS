@@ -1,5 +1,6 @@
 // The shared 3D stage: renderer, sky, light and camera, sized to the window.
 import * as THREE from 'three';
+import { LOD } from './models.js';
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -8,6 +9,7 @@ export function createStage(canvas) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const camera = new THREE.PerspectiveCamera(45, 1, 1, 2000);
+  LOD.camera = camera;
   let scene, sun;
 
   // Each map has its own scene with its own sky and sun; switching maps swaps the scene.

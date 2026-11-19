@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
-import { part, box, keepModel, houseModel, SKIN, WOOD } from '../view.js';
+import { part, box, keepModel, keepTop, castleModel, houseModel, SKIN, WOOD } from '../view.js';
 import { ownerOf, FACTIONS, headcount } from './world.js';
 
 export const WORLD_HALF = 520;
@@ -44,25 +44,27 @@ export class WorldView {
     drawTrees(this.scene, h, trees);
     for (const r of world.roads) this.scene.add(this.road(r.a, r.b));
 
-    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.places = new Map();
-    const keep = keepModel(), house = houseModel();
+    // a lord's seat is a castle; a village has its keep
+    const keep = keepModel(), castle = castleModel(), houses = [0, 1, 2].map(houseModel);
     for (const p of world.pois) {
       const g = new THREE.Group();
-      const k = new THREE.Mesh(keep, this.mat);
-      k.scale.setScalar(p.seat ? 1.5 : 1.1);
+      const k = new THREE.Mesh(p.seat ? castle : keep, this.mat);
+      const scale = p.seat ? 1.3 : 1.1;
+      k.scale.setScalar(scale);
       g.add(k);
       const n = p.seat ? 8 : 5;
       for (let i = 0; i < n; i++) {
         const a = i / n * Math.PI * 2 + 0.4, r = 30 + (i % 2) * 8;
-        const m = new THREE.Mesh(house, this.mat);
+        const m = new THREE.Mesh(houses[i % 3], this.mat);
         m.position.set(Math.sin(a) * r, h(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r) - h(p.x, p.z) - 0.2, Math.cos(a) * r);
         m.rotation.y = a + Math.PI;
         m.scale.setScalar(1.6);
         g.add(m);
       }
       const flag = new THREE.Mesh(new THREE.PlaneGeometry(9, 5.5), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }));
-      flag.position.set(4.5, (p.seat ? 1.5 : 1.1) * 23 + 4, 0);
+      flag.position.set(4.5, scale * keepTop(k.geometry) + 4, 0);
       g.add(flag);
       g.position.set(p.x, h(p.x, p.z) - 0.5, p.z);
       g.traverse(o => { o.castShadow = o.receiveShadow = true; });

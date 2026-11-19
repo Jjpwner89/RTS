@@ -171,7 +171,7 @@ function startField(enc) {
   deploy(battle, 1, enc.defenders, 0, assault ? -95 : -95, 0);
   battle.checkWinner = true;
   if (assault) {
-    const keep = new THREE.Mesh(keepModel(), new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const keep = new THREE.Mesh(keepModel(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
     keep.position.set(keepAt.x, heightAt(keepAt.x, keepAt.z) - 0.5, keepAt.z);
     keep.castShadow = keep.receiveShadow = true;
     scene.add(keep);

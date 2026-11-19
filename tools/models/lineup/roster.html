@@ -1,0 +1,107 @@
+<meta charset="utf-8">
+<title>RTS Model Lineup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* One big field with every model under consideration, then a table of what each soldier set costs.
+   Dark on purpose, matching the art options page and the game's own HUD. */
+:root {
+  --bg: #15110d;
+  --panel: #211b15;
+  --edge: rgba(224, 194, 122, 0.28);
+  --ink: #efe6d2;
+  --dim: #b3a588;
+  --gold: #e9c467;
+  --display: "IM Fell English SC", "Iowan Old Style", Georgia, serif;
+  --body: "Alegreya Sans", "Gill Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+header { padding-top: 36px; display: grid; gap: 10px; }
+h1 { font-family: var(--display); font-weight: 400; letter-spacing: 0.02em; margin: 0; font-size: clamp(32px, 5vw, 50px); line-height: 1.05; color: var(--gold); text-wrap: balance; }
+.lede { max-width: 72ch; color: var(--dim); margin: 0; font-size: 17px; }
+.lede b { color: var(--ink); font-weight: 500; }
+#sections { display: flex; flex-wrap: wrap; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; background: var(--panel); width: fit-content; max-width: 100%; }
+#sections button { font: 500 14px/1 var(--body); color: var(--ink); background: transparent; border: 0; border-right: 1px solid var(--edge); padding: 10px 14px; cursor: pointer; }
+#sections button:last-child { border-right: 0; }
+#sections button:hover { background: rgba(255, 255, 255, 0.06); }
+#sections button.on { background: rgba(233, 196, 103, 0.2); color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.stage { position: relative; height: min(76vh, 760px); min-height: 420px; border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; background: #a9bccb; }
+#scene { width: 100%; height: 100%; display: block; touch-action: none; }
+#labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lab { position: absolute; left: 0; top: 0; white-space: nowrap; font: 500 13px/1.2 var(--body); color: #fff8e8; background: rgba(24, 20, 16, 0.78); padding: 3px 8px; border-radius: 5px; }
+.lab.col { font: 400 17px/1.1 var(--display); color: var(--gold); padding: 4px 10px; }
+.lab.row { font: 400 16px/1.1 var(--display); color: var(--gold); border-left: 3px solid var(--gold); }
+.lab.small { font: 500 11px/1.2 var(--mono); color: #f1e6cf; background: rgba(24, 20, 16, 0.6); padding: 2px 6px; }
+#progress { position: absolute; left: 12px; bottom: 12px; font: 500 12px/1 var(--mono); color: #fff; background: rgba(24, 20, 16, 0.8); padding: 7px 10px; border-radius: 5px; }
+#progress:empty { display: none; }
+#battleui { position: absolute; right: 12px; top: 12px; max-width: min(460px, calc(100% - 24px)); display: grid; gap: 8px; padding: 10px 12px; background: rgba(24, 20, 16, 0.86); border: 1px solid var(--edge); border-radius: 8px; font-size: 13px; }
+#battleui[hidden] { display: none; }
+#battleui .fps { font: 500 15px/1.2 var(--mono); color: var(--gold); }
+#battleui .opts { display: grid; gap: 6px; }
+#battleui .opts div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+#battleui .opts span { width: 64px; color: var(--dim); }
+#battleui button { font: 500 12px/1 var(--body); color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--edge); border-radius: 5px; padding: 6px 8px; cursor: pointer; }
+#battleui button.on { background: rgba(233, 196, 103, 0.22); color: var(--gold); border-color: var(--gold); }
+#battleui .tris { color: var(--dim); font-size: 12px; line-height: 1.4; }
+.hint { color: var(--dim); font-size: 14px; margin: 0; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--edge); border-radius: 10px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 860px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(224, 194, 122, 0.14); vertical-align: top; }
+th { font: 500 11px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+td.num { font: 400 13px/1.4 var(--mono); text-align: right; white-space: nowrap; }
+td.note { color: var(--dim); min-width: 320px; }
+tr:last-child td { border-bottom: 0; }
+h2 { font-family: var(--display); font-weight: 400; margin: 18px 0 0; font-size: 28px; }
+.credits { color: var(--dim); font-size: 14px; max-width: 90ch; }
+.credits a { color: var(--gold); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Every model under consideration</h1>
+    <p class="lede">One field with every option side by side at the same scale. <b>Soldiers stand in pairs, blue and red</b>, so you can judge how well each set shows its team. Drag to orbit, scroll to zoom, and use the buttons to jump between groups.</p>
+  </header>
+  <div id="sections" role="toolbar" aria-label="Jump to a group"></div>
+  <div class="stage">
+    <canvas id="scene" aria-label="3D lineup of the candidate models"></canvas>
+    <div id="labels"></div>
+    <div id="progress">Loading models…</div>
+    <div id="battleui" hidden>
+      <div class="fps">measuring…</div>
+      <div class="opts"></div>
+      <div class="tris"></div>
+    </div>
+  </div>
+  <p class="hint">≈ marks a stand-in: the pack has no building of that kind, so the nearest one fills in. The knight and the people rows wear swapped gear: helmets, shields, spears and bows from the Quaternius knight and weapons packs, hung on each figure's hands. The KayKit row gets the Quaternius spear, bow and lance in the same way.</p>
+  <p class="hint"><b>Regiments</b> shows both Quaternius sets in full blocks, blue facing red: 32 spearmen, 32 swordsmen, 21 archers and 10 riders a side, each block drawn with instancing, the way the battles would draw them. Body armour is grown over each figure's own torso, so it fits any body: steel plate for spears and swords, darker mail with sleeves for cavalry, a leather jerkin for archers.</p>
+  <p class="hint"><b>Battle test</b> puts the chosen Quaternius people on the field by the thousand, with a live frame rate. Each soldier also has a light version, simplified to about 1,500 triangles with its colours kept; "Full near camera" draws only the soldiers close to you in full detail. The other groups are hidden while it runs, so the number is honest. It shows 0 fps when the page is in a background tab.</p>
+  <p class="hint"><b>Economy chains</b> lays each pack out from gathering, to refining, to making, so you can see how many working buildings it really has. The game's building list can change to fit, as long as goods pass through a few steps. <b>Fantasy RTS, whole pack</b> shows all 129 models of that pack, every building at all six levels. Its "Wonder" is a castle that grows from a wooden fort to a stone fortress, and it is also in the castles group.</p>
+
+  <h2>Soldier sets compared</h2>
+  <div class="tablewrap" id="notes"></div>
+
+  <h2>Sources</h2>
+  <p class="credits">
+    <b>CC0 (free, no credit needed):</b> Quaternius knight, farm animals (horse), medieval weapons, modular men and women, Medieval Village Pack (sawmill, blacksmith, mill, stable), Medieval Village MegaKit and Ultimate Fantasy RTS (<a href="https://quaternius.com" target="_blank" rel="noopener">quaternius.com</a>); KayKit Adventurers and Medieval Hexagon (<a href="https://kaylousberg.com" target="_blank" rel="noopener">Kay Lousberg</a>); Kenney Castle Kit (<a href="https://kenney.nl" target="_blank" rel="noopener">kenney.nl</a>).
+    The Quaternius files came through GitHub mirrors of the free packs; the game copy would be fetched from Quaternius directly.
+  </p>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="roster.js"></script>

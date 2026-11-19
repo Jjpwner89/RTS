@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
 import { HOMES } from './terrain.js';
+import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 
 export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
 
@@ -88,7 +89,27 @@ function cavalry() {
 
 export const STONE = '#9b968a', STONE_DARK = '#7d786d', THATCH = '#b8955a', PLASTER = '#d8ccb0';
 
-export function keepModel({ palisade = true } = {}) {
+// Baked models carry only position and colour; give them the attributes the built shapes have, so the two merge.
+function asPart(geo) {
+  const g = geo.index ? geo.toNonIndexed() : geo.clone();
+  for (const a of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(a)) g.deleteAttribute(a);
+  if (!g.attributes.normal) g.computeVertexNormals();
+  return g;
+}
+const stripped = g => { for (const a of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(a)) g.deleteAttribute(a); return g; };
+
+// The keep is the Fantasy RTS town centre, at `level` 1 to 3; a village's keep grows as it does.
+export function keepModel({ palisade = true, level = 3 } = {}) {
+  const baked = buildingModel('keep.' + level);
+  if (baked) {
+    const parts = [asPart(baked)];
+    for (let i = 0; palisade && i < 64; i++) {
+      const a = i / 64 * Math.PI * 2;
+      if (Math.cos(a) > 0.97) continue;
+      parts.push(stripped(part(cyl(0.35, 0.35, 4, 5), WOOD, { x: Math.sin(a) * 30, y: 2, z: Math.cos(a) * 30 })));
+    }
+    return mergeGeometries(parts);
+  }
   const parts = [
     part(box(14, 16, 14), STONE, { y: 8 }),
     part(box(2, 4, 0.6), DARK, { y: 2, z: 7.1 }),
@@ -114,16 +135,27 @@ export function keepModel({ palisade = true } = {}) {
   return mergeGeometries(parts);
 }
 
-export function houseModel() {
+// The lord's seat on the world map: the wooden castle.
+export const castleModel = () => buildingModel('castle') || keepModel();
+// Houses come in three styles; `style` picks one.
+export function houseModel(style = 0) {
+  const baked = buildingModel('house.' + (style % HOUSE_STYLES));
+  if (baked) return baked;
   return mergeGeometries([
     part(box(4, 2.6, 5), PLASTER, { y: 1.3 }),
     part(new THREE.ConeGeometry(3.6, 2.4, 4), THATCH, { y: 3.8, ry: Math.PI / 4 }),
   ]);
 }
 
+// Height of the keep's roof, so its flag flies just above it.
+export function keepTop(geo) {
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  return geo.boundingBox.max.y;
+}
+
 function buildKeeps(scene, heightAt) {
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const keep = keepModel(), house = houseModel();
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const keep = keepModel(), houses = [0, 1, 2].map(houseModel);
   HOMES.forEach((h, side) => {
     const y = heightAt(h.x, h.z);
     const facing = side === 0 ? Math.PI : 0;
@@ -133,11 +165,11 @@ function buildKeeps(scene, heightAt) {
     k.castShadow = k.receiveShadow = true;
     scene.add(k);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(4, 2.4), new THREE.MeshLambertMaterial({ color: SIDE_COLORS[side], side: THREE.DoubleSide }));
-    flag.position.set(h.x + 2, y + 22.5, h.z);
+    flag.position.set(h.x + 2, y + keepTop(keep) + 2.5, h.z);
     scene.add(flag);
     for (let i = 0; i < 9; i++) {
       const a = facing + Math.PI + (i - 4) * 0.42, r = 19 + (i % 2) * 4;
-      const m = new THREE.Mesh(house, mat);
+      const m = new THREE.Mesh(houses[(i * 7 + side) % 3], mat);
       const x = h.x + Math.sin(a) * r, z = h.z + Math.cos(a) * r;
       m.position.set(x, heightAt(x, z) - 0.2, z);
       m.rotation.y = a;
@@ -205,8 +237,9 @@ export class BattleView {
     this.heightAt = heightAt;
     this.dummy = new THREE.Object3D();
     this.dummy.rotation.order = 'YXZ';
-    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.tint = new THREE.Color();
+    this.shade = new THREE.Color();
     this.base = SIDE_COLORS.map(c => new THREE.Color(c));
     this.capacity = capacity;
     this.meshes = {};
@@ -230,7 +263,7 @@ export class BattleView {
       // The battle dropped soldiers: hand out the instances again from the start.
       this.version = b.version;
       this.seenSoldiers = 0;
-      for (const m of Object.values(this.meshes)) { m.list.length = 0; m.darkened.clear(); m.gear.count = m.cloth.count = 0; }
+      for (const m of Object.values(this.meshes)) { m.list.length = 0; m.darkened.clear(); for (const x of m.all) x.count = 0; }
     }
     for (let i = this.seenSoldiers; i < b.soldiers.length; i++) {
       const s = b.soldiers[i], key = s.reg.T.key;
@@ -240,28 +273,46 @@ export class BattleView {
       s.instance = m.list.length;
       m.list.push(s);
       // A little variation in each man's dye keeps the blocks from looking printed.
-      this.tint.copy(this.base[s.reg.side]).multiplyScalar(0.85 + Math.random() * 0.3);
-      m.cloth.setColorAt(s.instance, this.tint);
-      m.gear.setColorAt(s.instance, this.tint.setScalar(0.9 + Math.random() * 0.2));
+      s.tint = this.base[s.reg.side].clone().multiplyScalar(0.85 + Math.random() * 0.3);
+      s.gearTint = new THREE.Color().setScalar(0.9 + Math.random() * 0.2);
+      if (m.light) continue;   // detailed soldiers are handed out each frame instead
+      m.cloth.setColorAt(s.instance, s.tint);
+      m.gear.setColorAt(s.instance, s.gearTint);
       m.cloth.count = m.gear.count = m.list.length;
       m.cloth.instanceColor.needsUpdate = m.gear.instanceColor.needsUpdate = true;
     }
     this.seenSoldiers = b.soldiers.length;
   }
 
+  // Baked soldiers get a full and a light pair; each frame, the ones near the camera go in the full pair.
   makeMeshes(key, capacity) {
-    const model = key === 'cav' ? cavalry() : infantry(key);
-    const gear = new THREE.InstancedMesh(model.gear, this.mat, capacity);
-    const cloth = new THREE.InstancedMesh(model.cloth, this.mat, capacity);
-    for (const m of [gear, cloth]) {
+    const baked = unitModel(key);
+    const model = baked || (key === 'cav' ? cavalry() : infantry(key));
+    const inst = geo => {
+      const m = new THREE.InstancedMesh(geo, this.mat, capacity);
       m.setColorAt(0, this.tint.setScalar(1));
       m.count = 0;
       m.castShadow = true;
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.scene.add(m);
-    }
-    return { gear, cloth, list: [], darkened: new Set() };
+      return m;
+    };
+    const m = { gear: inst(model.gear), cloth: inst(model.cloth), list: [], darkened: new Set() };
+    if (baked) m.light = { gear: inst(baked.gearLight), cloth: inst(baked.clothLight) };
+    m.all = [m.gear, m.cloth, ...(m.light ? [m.light.gear, m.light.cloth] : [])];
+    return m;
+  }
+
+  // Place one soldier in the full or the light pair, darkened once he lies dead.
+  drawDetailed(m, s, counts, cam) {
+    const near = !cam || this.dummy.position.distanceToSquared(cam) < LOD.near * LOD.near;
+    const pair = near ? m : m.light, i = near ? counts.full++ : counts.light++;
+    const dead = !s.alive && s.fall >= 1;
+    pair.gear.setMatrixAt(i, this.dummy.matrix);
+    pair.cloth.setMatrixAt(i, this.dummy.matrix);
+    pair.cloth.setColorAt(i, dead ? this.shade.copy(s.tint).multiplyScalar(0.55) : s.tint);
+    pair.gear.setColorAt(i, dead ? this.shade.copy(s.gearTint).multiplyScalar(0.6) : s.gearTint);
   }
 
   buildArrows() {
@@ -292,10 +343,13 @@ export class BattleView {
     const d = this.dummy, b = this.battle;
     this.syncSoldiers();
     this.syncBanners();
+    const cam = LOD.camera?.position;
     for (const key in this.meshes) {
-      const { gear, cloth, list, darkened } = this.meshes[key];
+      const m = this.meshes[key], { gear, cloth, list, darkened } = m;
+      const counts = { full: 0, light: 0 };
       for (const s of list) {
-        if (!s.alive && s.fall >= 1 && darkened.has(s)) continue;   // corpses stay put
+        if (m.light && s.gone) continue;
+        if (!m.light && !s.alive && s.fall >= 1 && darkened.has(s)) continue;   // corpses stay put
         if (s.gone) {
           d.position.set(0, -50, 0); d.scale.setScalar(0.001);
         } else {
@@ -307,6 +361,7 @@ export class BattleView {
           d.scale.setScalar(1);
         }
         d.updateMatrix();
+        if (m.light) { this.drawDetailed(m, s, counts, cam); continue; }
         gear.setMatrixAt(s.instance, d.matrix);
         cloth.setMatrixAt(s.instance, d.matrix);
         if (!s.alive && s.fall >= 1) {
@@ -317,7 +372,11 @@ export class BattleView {
           darkened.add(s);
         }
       }
-      gear.instanceMatrix.needsUpdate = cloth.instanceMatrix.needsUpdate = true;
+      if (m.light) {
+        gear.count = cloth.count = counts.full;
+        m.light.gear.count = m.light.cloth.count = counts.light;
+        for (const x of m.all) { x.instanceMatrix.needsUpdate = true; if (x.instanceColor) x.instanceColor.needsUpdate = true; }
+      } else gear.instanceMatrix.needsUpdate = cloth.instanceMatrix.needsUpdate = true;
     }
 
     // Arrows fly a simple arc from bow to landing point.
