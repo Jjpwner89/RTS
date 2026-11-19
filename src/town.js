@@ -41,8 +41,8 @@ const hooks = {
     if (!placing) return false;
     if (!g) return true;
     const res = town.place(placing, g.x, g.z);
+    // The same building stays in hand, to place several; right-click or Esc ends it.
     if (!res.ok) townHud.flash(res.reason);
-    else if (!e.shiftKey) placing = null;
     return true;
   },
   cancelPlacement: () => { if (!placing) return false; placing = null; return true; },

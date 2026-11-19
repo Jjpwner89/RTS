@@ -135,8 +135,8 @@ function townBundle(p) {
       if (town.hostile) { st.placing = null; return true; }
       if (!g) return true;
       const res = town.place(st.placing, g.x, g.z);
+      // The same building stays in hand, to place several; right-click or Esc ends it.
       if (!res.ok) townHud.flash(res.reason);
-      else if (!e.shiftKey) st.placing = null;
       return true;
     },
     cancelPlacement: () => { if (!st.placing) return false; st.placing = null; return true; },

@@ -12,6 +12,45 @@ const goldIco = () => ico('gold', '#e8c45a');
 const moodWord = m => m >= 80 ? 'Joyful' : m >= 62 ? 'Content' : m >= 45 ? 'Settled' : m >= 30 ? 'Uneasy' : m >= 18 ? 'Unhappy' : 'Miserable';
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+// Build hotkeys: B, then a letter. Each building takes the first letter of its name that
+// no earlier building has (C for carpenter, H for house), shown on its button.
+export const BUILD_KEYS = {};
+{
+  const taken = new Set();
+  for (const [k, B] of Object.entries(BUILDINGS)) {
+    const letter = [...B.name.toLowerCase().replace(/[^a-z]/g, ''), ...'abcdefghijklmnopqrstuvwxyz'].find(c => !taken.has(c));
+    taken.add(letter);
+    BUILD_KEYS[letter] = k;
+  }
+}
+const KEY_OF = Object.fromEntries(Object.entries(BUILD_KEYS).map(([c, k]) => [k, c]));
+// One listener for whichever village is on screen (the last to draw its panels). It runs
+// before the camera and battle keys, and takes the letter after B for itself.
+let active = null, armed = false;
+addEventListener('keydown', e => {
+  const hud = active;
+  if (!hud || hud.town.hostile || !hud.buildEl.getClientRects().length || e.metaKey || e.ctrlKey || e.altKey || e.target.tagName === 'INPUT') { armed = false; return; }
+  const key = e.key.toLowerCase();
+  if (!armed) {
+    if (key !== 'b' || e.repeat) return;
+    armed = true;
+    hud.buildEl.classList.add('armed');
+    hud.flash('Build: press a letter');
+  } else {
+    armed = false;
+    hud.buildEl.classList.remove('armed');
+    const kind = BUILD_KEYS[key];
+    if (kind) {
+      hud.tab = BUILDINGS[kind].group;
+      hud.hooks.startPlacing(kind);
+      hud.flash(`Placing: ${BUILDINGS[kind].name}`);
+    }
+    if (key === 'escape') hud.flash('');
+  }
+  e.stopImmediatePropagation();
+  e.preventDefault();
+}, true);
+
 export class TownHud {
   constructor(town, hooks) {
     this.town = town;
@@ -81,9 +120,9 @@ export class TownHud {
     const tabs = BUILD_GROUPS.map(g => `<button class="tab" data-tab="${g}">${g}</button>`).join('');
     const items = Object.entries(BUILDINGS).map(([k, B]) => `
       <button class="item" data-build="${k}" data-group="${B.group}" title="${B.desc}">
-        ${ico(B.icon)}<span>${B.name}</span><small>${listCost(B.cost)}</small>
+        ${ico(B.icon)}<span>${B.name}</span><small>${listCost(B.cost)}</small><kbd>${KEY_OF[k].toUpperCase()}</kbd>
       </button>`).join('');
-    this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="hint">Shift-click to place several · right-click or Esc to stop</div>`;
+    this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="hint">Click to place, and again for more · right-click or Esc to stop · <b>B</b> then a letter picks a building</div>`;
     this.buildEl.onclick = e => {
       const tab = e.target.closest('[data-tab]');
       if (tab) { this.tab = tab.dataset.tab; return; }
@@ -95,6 +134,7 @@ export class TownHud {
   }
 
   flash(text) {
+    if (!text) { this.toastEl.classList.remove('show'); return; }
     this.toastEl.textContent = text;
     this.toastEl.classList.add('show');
     clearTimeout(this.toastTimer);
@@ -103,6 +143,7 @@ export class TownHud {
 
   update(selected, regs, placing) {
     const t = this.town, s = t.stock;
+    active = this;
     if (t.hostile) { this.updateStorm(); this.updateInfo(selected, regs); return; }
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);

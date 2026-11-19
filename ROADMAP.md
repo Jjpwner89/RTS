@@ -26,8 +26,7 @@ Difficulty settings come later. Now the job is one fair base game.
 
 Small, high-value fixes to everyday play (creator, 2026-11-19); they can go in early.
 
-- **Keep placing**: after placing a building, the same building stays selected so you can place several (often five houses in a row). Right-click or Esc ends it.
-- **Hotkeys**: B opens the build menu, then a letter picks the building (C for carpenter, and so on) with its ghost ready to place. Each build button shows its letter.
+- Keep placing and the B-letter hotkeys are built (see DESIGN_NOTES).
 - **Neighbourhoods**: once you have levelled up a bit, place a block of buildings at once, such as a cluster of houses round a well. The small first step toward town templates (§2).
 - **Three kinds of cart on the roads**, all of which can be raided (enemy armies that meet a wagon take what it carries):
   - **Trade caravans** carry gold between market towns (the trade carts in §8).
