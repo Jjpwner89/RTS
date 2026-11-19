@@ -5,7 +5,7 @@
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
 import { FACTIONS, GRACE, power, headcount, takeUnits, dist, recruit } from './world.js';
-import { protectedFrom } from './diplomacy.js';
+import { protectedFrom, leagued } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
 
@@ -122,7 +122,7 @@ function thinkWars(w, h, B) {
   }
   const strength = i => w.strength(i);
   const ours = strength(h.index);
-  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && (i !== 0 || (w.time > GRACE && !protectedFrom(w, 0, h.index)))
+  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || (w.time > GRACE && !protectedFrom(w, 0, h.index)))
     && !(FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20))
     .map(i => ({ i, odds: ours / Math.max(1, strength(i)) }))
     .sort((a, b) => b.odds - a.odds);
@@ -146,6 +146,7 @@ function choosePlan(w, h, B) {
     // Free villages and bandit camps are easy pickings; enemy places are a war aim.
     let prize = p.kind === 'crown' ? 0.7 : p.seat !== undefined ? 0.8 : 1;
     if (h.invader && p.owner === 0) prize *= 0.6;   // the north comes for the king first
+    if (p.owner === 0 && leagued(w, h.index)) prize *= 0.7;   // a coalition is about you
     options.push({ p, staging: from.place, score: (def + from.length * 0.15) * prize });
   }
   if (!options.length) return null;

@@ -11,6 +11,13 @@ const BASE = { raider: -10, hothead: -5, schemer: 0, merchant: 10, builder: 10, 
 const TRUCE = 600;          // seconds after peace before either side may attack again
 const GIFT = 100;
 const DOWRY = 150;
+// Coalitions, after Europa Universalis: when you hold too much of the realm, the houses
+// that don't love you band together, make peace among themselves and come for you, and
+// fall apart again when the threat has passed.
+const LEAGUE_SHARE = 0.3;    // of the realm's places, held by you, that alarms them
+const LEAGUE_EASE = 0.22;    // ... and below which they feel safe again
+const LEAGUE_LONG = 2400;    // seconds a coalition holds together at most
+const LEAGUE_REST = 1800;    // and before another can form
 
 export function startDiplomacy(w) {
   w.dip = FACTIONS.map(h => ({ opinion: BASE[h.trait] ?? 0, gift: 0, truceUntil: 0, allied: false, married: false,
@@ -42,6 +49,7 @@ function target(w, h) {
   if (d.allied) t += 20;
   if (d.vassal) t += 10;
   if (w.atWar(0, h)) t -= 40;
+  if (w.coalition?.members.includes(h)) t -= 15;
   else if (bordering(w, h) && !d.allied && !d.married) t -= 10;
   t -= d.broken * 15;
   t += d.gift;
@@ -56,6 +64,7 @@ export function thinkDiplomacy(w, dt) {
   w.dipClock -= dt;
   if (w.dipClock > 0) return;
   w.dipClock = 10;
+  thinkCoalition(w);
   for (const H of FACTIONS) {
     const h = H.index;
     if (h === 0 || H.bandit || H.invader || !H.alive) continue;
@@ -74,6 +83,41 @@ export function thinkDiplomacy(w, dt) {
     d.offerCd -= 10;
     if (d.offerCd <= 0) { d.offerCd = 150 + w.rand() * 150; offerFrom(w, H, d); }
   }
+}
+
+const great = () => FACTIONS.filter(H => H.index !== 0 && !H.bandit && !H.invader && H.alive);
+function threat(w) {
+  const mine = w.pois.filter(p => p.owner === 0).length / w.pois.length;
+  const ratio = w.strength(0) / Math.max(1, ...great().map(H => w.strength(H.index)));
+  return { mine, ratio };
+}
+export const leagued = (w, h) => !!w.coalition?.members.includes(h);
+
+function thinkCoalition(w) {
+  const C = w.coalition;
+  if (C?.members.length) {
+    // A house that makes peace with you, or is broken, has left it.
+    C.members = C.members.filter(h => FACTIONS[h].alive && w.atWar(0, h));
+    const { mine, ratio } = threat(w);
+    const over = C.members.length < 2 ? 'has fallen apart' : mine < LEAGUE_EASE && ratio < 1.2 ? 'breaks up: you no longer frighten them' : w.time - C.since > LEAGUE_LONG ? 'has worn itself out' : null;
+    if (over) {
+      w.log(`The coalition against you ${over}.`, 1);
+      w.coalition = { members: [], since: C.since, rest: w.time + LEAGUE_REST };
+    }
+    return;
+  }
+  if (w.crowned || w.time < (C?.rest ?? 1200)) return;
+  const { mine, ratio } = threat(w);
+  if (mine < LEAGUE_SHARE && !(ratio > 1.8 && mine > 0.2)) return;
+  const join = great().filter(H => { const d = w.dip[H.index]; return !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25; });
+  if (join.length < 2) return;
+  const ids = join.map(H => H.index);
+  for (const a of ids) for (const b of ids) if (a < b) w.makePeace(a, b);
+  for (const h of ids) { w.dip[h].truceUntil = 0; w.declareWar(h, 0, true); }
+  w.coalition = { members: ids, since: w.time };
+  const names = join.map(H => H.name).join(', ');
+  w.log(`${names} have leagued together against you!`, 1);
+  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `You hold ${Math.round(mine * 100)}% of the realm, and the lords are afraid. ${names} have made peace among themselves and declared war on you together. It will fall apart if you give back enough, make peace one by one, or simply outlast it.` });
 }
 
 // The AI's own proposals, which you accept or turn down.

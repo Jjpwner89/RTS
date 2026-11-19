@@ -209,7 +209,7 @@ export class World {
   // An army of side `s` may attack place p: free villages and anyone at war with it.
   canAttack(s, p) { return p.owner !== s && (p.owner === null || this.atWar(s, p.owner)); }
 
-  declareWar(i, j) {
+  declareWar(i, j, quiet = false) {
     if (i === j || this.atWar(i, j)) return;
     this.wars.add(this.warKey(i, j));
     const a = FACTIONS[i], b = FACTIONS[j];
@@ -217,6 +217,7 @@ export class World {
     if (j === 0) {
       this.meet(i);
       const line = a.taunts?.[Math.floor(this.rand() * a.taunts.length)];
+      if (quiet) return;
       this.log(`${a.name} has declared war on you!`, 1);
       this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: line ? `“${line}”` : '' });
     } else if (i === 0) {

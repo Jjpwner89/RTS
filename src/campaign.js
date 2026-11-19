@@ -639,7 +639,7 @@ function worldPanel() {
       const met = world.knows(h.index), war = world.atWar(0, h.index);
       const n = world.pois.filter(p => p.seen && p.known?.owner === h.index).length;
       const d = world.dip[h.index];
-      const tie = d.vassal ? 'your vassal' : d.married ? 'married' : d.allied ? 'allied' : war ? 'at war' : 'peace';
+      const tie = d.vassal ? 'your vassal' : d.married ? 'married' : d.allied ? 'allied' : war ? (world.coalition?.members.includes(h.index) ? 'in the coalition' : 'at war') : 'peace';
       return `<div class="h${h.alive ? "" : " gone"}${met && h.alive ? ' pick' : ''}" data-house="${h.index}"><i style="background:${met ? h.color : "#8a8478"}"></i><span>${met ? `${h.lord}` : 'An unknown house'}<br><small>${met ? `${h.name} · ${mood(d.opinion).toLowerCase()}` : 'not yet met'}</small></span><small class="${war ? 'war' : ''}">${!h.alive ? 'broken' : tie}</small></div>`;
     }).join('') + (world.invader !== null ? (h => `<div class="h${h.alive ? '' : ' gone'}"><i style="background:${h.color}"></i><span>${h.lord}<br><small>${h.name} · no terms</small></span><small class="war">${h.alive ? 'at war' : 'broken'}</small></div>`)(FACTIONS[world.invader]) : '') + (unmet.length ? `<div class="h unmet"><i style="background:#8a8478"></i><span>${unmet.length === FACTIONS.slice(1, world.bandits).length ? `${unmet.length} great houses` : `${unmet.length} more house${unmet.length > 1 ? 's' : ''}`}<br><small>not yet met: explore to find their lands</small></span><small></small></div>` : '');
     if (list.dataset.html !== rows) { list.dataset.html = rows; list.innerHTML = rows; }

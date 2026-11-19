@@ -68,6 +68,7 @@ export function alerts(w) {
     else if (opinion(w, v).total <= -10) add(2, `${v.name} is resentful`, held, 'crown');
   }
 
+  if (w.coalition?.members.length) add(3, `${w.coalition.members.length} houses are leagued against you: ${w.coalition.members.map(h => FACTIONS[h].short).join(', ')}`, null, 'invader');
   if (w.faction?.members.length >= 2) add(3, `${w.faction.members.length} vassals have formed a faction against you`, null, 'warning');
 
   // Good to know: an army of yours standing idle away from home.

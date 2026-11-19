@@ -108,7 +108,7 @@ Done 2026-11-19: high ground, woods, rivers and bridges, fatigue and arrows, dep
 
 ## 6. Coalitions and rebellions (Realm)
 
-- Houses band together against a player who grows too strong, and fall out again when the threat passes.
+- Houses band together against a player who grows too strong, and fall out again when the threat passes. **Built 2026-11-19:** from 20 minutes in and until you are crowned, once you hold 30% of the realm's places (or 20% with nearly twice the strongest house's men), every house that isn't allied, married, your vassal or backing you, and doesn't like you much, makes peace with the others and declares war on you under one herald. Members dislike you more and aim their hosts at your places first. It breaks up when you fall under 22% and stop out-muscling them, when it shrinks to one house (each peace you make takes one out), or after 40 minutes; another can't form for 30 more.
 - Rebellions grow from low mood and from vassal factions (above). *Faction risings built 2026-11-19.*
 - **Peasant revolts** (done by Realm): rebels gather in the woods and come back as a raid. The creator wants to **see them gather and walk out of the village** before they come back.
 
