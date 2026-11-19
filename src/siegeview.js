@@ -183,7 +183,7 @@ export class SiegeView {
       let door = null;
       if (p.gate && p.state !== 'broken') { door = this.mesh(`gate.${p.material}.door`); if (door) root.add(door); }
       root.position.set(p.x, p.base, p.z);
-      const home = this.battle.homes[p.side];
+      const home = this.battle.fortHome(p.side);
       const out = W.outward(p, home);
       let yaw = p.angle - Math.PI / 2;
       // Local -z must point outward.

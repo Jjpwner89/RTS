@@ -74,13 +74,13 @@ function pickFight(battle, r, foes, standing) {
 
 // The inside of a side's walls, roughly: nearer its home than its nearest wall piece.
 function wallRadius(battle, side) {
-  const h = battle.homes[side];
+  const h = battle.fortHome(side);
   let near = Infinity;
   for (const p of battle.walls.pieces) if (p.side === side) near = Math.min(near, Math.hypot(p.x - h.x, p.z - h.z));
   return near;
 }
 const insideOf = (battle, side, x, z) => {
-  const h = battle.homes[side];
+  const h = battle.fortHome(side);
   return Math.hypot(x - h.x, z - h.z) < wallRadius(battle, side) - 3;
 };
 
@@ -91,7 +91,7 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   const W = battle.walls, enemy = 1 - side;
   const mine = (regs || battle.regs.filter(r => r.side === side)).filter(usable);
   if (!mine.length) return;
-  const home = battle.homes[enemy];
+  const home = battle.fortHome(enemy);
   const foes = battle.regs.filter(r => r.side === enemy && !r.gone);
   const standing = foes.filter(r => !r.routing && !r.regrouping);
   const army = centroid(mine);
@@ -132,10 +132,12 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
       const t = quietStretch(battle, enemy, army, pieces, gate);
       if (t) battle.orderAttackWall([r], t, t.x, t.z);
     } else if (E.range) {
-      if (r.targetWall && r.targetWall.state === 'up' && !r.targetWall.removed) continue;
+      if (r.targetWall && r.targetWall.state === 'up' && !r.targetWall.removed && !(gate && gate.hp < gate.maxHp * 0.5 && r.targetWall !== gate)) continue;
       // Towers that cover the breach first, then the breach itself.
+      // A gate already battered half down is the quickest way in.
+      const weakGate = gate && gate.hp < gate.maxHp * 0.5 ? gate : null;
       const cover = breach ? towers.filter(t => Math.hypot(t.x - breach.x, t.z - breach.z) < 40) : towers;
-      const t = (E.kind === 'mangonel' && cover.sort((a, b) => a.hp - b.hp)[0]) || breach || gate;
+      const t = weakGate || (E.kind === 'mangonel' && cover.sort((a, b) => a.hp - b.hp)[0]) || breach || gate;
       if (t) battle.orderAttackWall([r], t, t.x, t.z);
       else {
         const f = nearest(r, standing);
@@ -190,10 +192,15 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
     if (r.targetReg || r.targetWall) continue;
     if (dist(r, { cx: stage.x, cz: stage.z }) > 30 && !r.dest) battle.orderMove([r], stage.x, stage.z, stage.angle);
   }
-  // Long sieges with nothing working: hack at the gate.
+  // Long sieges with no ram or ladder at work: hack at the gate. Stone-throwers buy
+  // time but are slow, so they only make the men wait longer; a gate already
+  // battered half down is worth rushing at once.
   st.waited = (st.waited || 0) + 1;
-  const working = engines.some(r => r.engine.kind !== 'ladder') || ladders.length || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length);
-  if (!working && st.waited > 20 && gate) {
+  const working = engines.some(r => r.engine.kind === 'ram') || ladders.length
+    || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length && r.alive >= r.engine.per);
+  const throwing = engines.some(r => r.engine.range);
+  const weak = gate && gate.hp < gate.maxHp * 0.35;
+  if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20)))) {
     for (const r of foot) if (!r.posts && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
   }
   // Horse guards the engines against sallies, else waits.
@@ -227,7 +234,7 @@ export function thinkSiegeDefence(battle, side, { regs = null } = {}) {
   const mine = (regs || battle.regs.filter(r => r.side === side)).filter(usable);
   const foes = battle.regs.filter(r => r.side === enemy && usable(r));
   if (!mine.length || !foes.length) return;
-  const home = battle.homes[side];
+  const home = battle.fortHome(side);
   const st = battle.defenceAI = battle.defenceAI || {};
   const front = centroid(foes);
   const structs = W.structures().filter(s => s.side === side && s.state === 'up');

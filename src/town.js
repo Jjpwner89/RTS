@@ -11,6 +11,7 @@ import { TownView } from './townview.js';
 import { TownHud } from './townhud.js';
 import { rng } from './noise.js';
 import { audio } from './audio.js';
+import { attachSiege } from './siegeui.js';
 
 const params = new URLSearchParams(location.search);
 const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
@@ -55,6 +56,8 @@ const controls = new Controls(camera, canvas, battle, view, heightAt, hooks);
 Object.assign(controls.cam, { x: 0, z: 40, dist: 120 });
 const hud = new Hud(battle, hooks);
 const townHud = new TownHud(town, hooks);
+hooks.cancelOtherPlacing = () => { placing = null; };
+const siege = attachSiege({ hooks, controls }, { scene, town, heightAt, flash: t => townHud.flash(t) });
 document.getElementById('help-close').onclick = () => { document.getElementById('help').classList.remove('open'); paused = false; };
 
 let last = performance.now(), aiClock = 0;
@@ -81,10 +84,11 @@ function frame(now) {
   hud.update(controls.selection, paused, speed);
   townHud.update(selected, [...controls.selection], placing);
   audio.frame(camera, controls.cam, { battle, town, paused }); // audio
+  siege.update(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 battle.step(0.001);
 requestAnimationFrame(frame);
 
-window.game = { battle, town, view, townView, controls, seed };
+window.game = { battle, town, view, townView, controls, seed, siege };

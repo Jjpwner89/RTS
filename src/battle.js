@@ -140,6 +140,7 @@ export class Battle {
     this.structures = null;
     this.onRuin = null;
     this.buildingSide = 0;
+    this.masons = 1;           // crews raising wall sites (a village sets this from its people)
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale);
   }
 
@@ -176,7 +177,7 @@ export class Battle {
     };
     for (let i = 0; i < count; i++) {
       const s = this.makeSoldier(r, i, angle);
-      const p = from ? from[i] : this.slotPos(r, i);
+      const p = from?.[i] || this.slotPos(r, i);
       s.x = p.x + (this.rand() - 0.5) * 0.4;
       s.z = p.z + (this.rand() - 0.5) * 0.4;
       s.lx = s.x; s.lz = s.z;
@@ -298,6 +299,10 @@ export class Battle {
   // ---- orders ----
 
   usable(r) { return !r.gone && !r.routing && !r.regrouping; }
+
+  // The middle of a side's walls: where "inside" is. Usually its home, but a garrison
+  // that flees out of the far side of its town has a home apart from its walls.
+  fortHome(side) { return this.walls.centre[side] || this.homes[side]; }
 
   // Any new order takes a regiment off the walls and off whatever wall it was attacking.
   clearPosts(r) {
@@ -423,7 +428,7 @@ export class Battle {
   // Send regiments onto a stretch of wall (their own, or an enemy's by their ladders).
   // Each soldier takes a post along the walkway, spreading out from where you clicked.
   orderMan(regs, struct, x, z) {
-    const owner = struct.side, home = this.homes[owner];
+    const owner = struct.side, home = this.fortHome(owner);
     let start = struct;
     for (const r of regs) {
       if (!this.usable(r) || r.T.mounted || r.T.engine) continue;
@@ -483,7 +488,7 @@ export class Battle {
 
   // Where men step on and off a tower's stairs: at its inner foot, toward its owner's home.
   towerFoot(t, side) {
-    const h = this.homes[t.side], dx = h.x - t.x, dz = h.z - t.z, d = Math.hypot(dx, dz) || 1;
+    const h = this.fortHome(t.side), dx = h.x - t.x, dz = h.z - t.z, d = Math.hypot(dx, dz) || 1;
     return { x: t.x + dx / d * (t.M.towerR + 2), z: t.z + dz / d * (t.M.towerR + 2) };
   }
 
@@ -525,7 +530,7 @@ export class Battle {
 
   // A point on a structure's outer face for soldier k of n to stand and strike at.
   faceSpot(r, struct, k, n) {
-    const home = this.homes[struct.side];
+    const home = this.fortHome(struct.side);
     if (struct.wall && struct.kind === 'piece') {
       const out = this.walls.outward(struct, home);
       const w = struct.gate ? 0.5 : 0.8;
@@ -629,6 +634,7 @@ export class Battle {
   step(dt) {
     if (this.winner !== null) dt *= 0.3;
     this.time += dt;
+    if (this.walls.sites) this.walls.build(dt, this.masons);
     this.nav.sync();
     this.buildGrid();
     for (const r of this.regs) this.updateRegiment(r, dt);
@@ -808,7 +814,7 @@ export class Battle {
     // Rams, ladders and foot go to the outer face.
     let fx = p.x, fz = p.z, face = ang;
     if (s.wall && s.kind === 'piece') {
-      const out = this.walls.outward(s, this.homes[s.side]);
+      const out = this.walls.outward(s, this.fortHome(s.side));
       const off = s.M.thick / 2 + (E?.kind === 'ram' ? 0.6 : 2.2);
       fx = p.x + out.x * off; fz = p.z + out.z * off; face = Math.atan2(-out.x, -out.z);
     } else {
@@ -882,7 +888,7 @@ export class Battle {
   }
 
   raiseLadders(r, s) {
-    const E = r.engine, home = this.homes[s.side];
+    const E = r.engine, home = this.fortHome(s.side);
     const n = Math.max(1, Math.round(r.initial / E.per));
     const pt = r.wallPoint || { x: r.cx, z: r.cz };
     const h = toSegment(pt.x, pt.z, s.a.x, s.a.z, s.b.x, s.b.z);
@@ -971,7 +977,7 @@ export class Battle {
     // A gate is thrown open when attackers stand inside it and no defender is near.
     for (const p of W.pieces) {
       if (!p.gate || p.state !== 'up') continue;
-      const home = this.homes[p.side], out = W.outward(p, home);
+      const home = this.fortHome(p.side), out = W.outward(p, home);
       let inside = 0, owners = 0;
       this.forNear(p.x, p.z, 12, o => {
         if (o.level !== 0 || Math.hypot(o.x - p.x, o.z - p.z) > 12) return;
@@ -1200,6 +1206,18 @@ export class Battle {
       if (s.via) { tx = s.via.x; tz = s.via.z; }
     }
     this.moveToward(s, tx, tz, speed, dt);
+  }
+
+  // For anyone walking about who is not a soldier (villagers): the point to head for next on
+  // the way to (tx, tz), round the walls. Remembers its choice on the walker for a moment.
+  steerWalker(w, side, tx, tz, dt) {
+    if (!this.nav.any) return { x: tx, z: tz };
+    w.navCd = (w.navCd || 0) - dt;
+    if (w.navCd <= 0 || (w.navVia && Math.hypot(w.navVia.x - w.x, w.navVia.z - w.z) < 0.8)) {
+      w.navCd = 0.5;
+      w.navVia = this.nav.steer(side, w.x, w.z, tx, tz);
+    }
+    return w.navVia || { x: tx, z: tz };
   }
 
   // A soldier on the wall stays on its walkway; stepping off the end of a piece takes him onto the next.

@@ -10,6 +10,8 @@ import { Hud } from './hud.js';
 import { TownView } from './townview.js';
 import { TownHud } from './townhud.js';
 import { thinkAI } from './ai.js';
+import { attachSiege } from './siegeui.js';
+import { SiegeView } from './siegeview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { KINDS } from './world/realm.js';
@@ -136,6 +138,8 @@ function townBundle(p) {
   Object.assign(b.controls.cam, { x: 0, z: 40, dist: 120 });
   // Storming: start behind your own men, looking in at the keep.
   if (town.hostile) { const a = town.hostile.entry; Object.assign(b.controls.cam, { x: Math.sin(a) * 75, z: Math.cos(a) * 75, dist: 135, yaw: a }); }
+  b.hooks.cancelOtherPlacing = () => { st.placing = null; };
+  attachSiege(b, { scene, town, heightAt, flash: t => townHud.flash(t) });      // walls and engines (sets b.siege)
   bundles.set(p, b);
   return b;
 }
@@ -512,6 +516,7 @@ function frame(now) {
     b.controls.update(dt);
     stage.placeSun(b.controls.cam, b.heightAt);
     b.view.update(b.controls.selection);
+    if (b.siege) b.siege.update(dt); else (b.siegeView ||= new SiegeView(b.scene, b.battle, b.heightAt)).update(dt);
     hud.update(b.controls.selection, paused, speed);
     if (mode === 'town') {
       const st = b.st;

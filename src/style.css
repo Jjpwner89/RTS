@@ -199,14 +199,16 @@ body.campaign.mode-town #cards { left: 372px; }
 #orders button:disabled { opacity: 0.35; cursor: default; }
 body.town #orders { left: calc(50% + 186px); }
 #defences { position: fixed; bottom: 12px; left: 372px; width: 220px; background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 8px; display: none; }
-body.town #defences { display: block; }
+body.town #defences, body.campaign.mode-town #defences { display: block; }
+#defences[hidden] { display: none !important; }
 #defences h4 { margin: 0 0 6px; font-size: 12px; color: var(--dim); font-weight: 600; }
 #defences .items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
 #defences .items button { font-size: 11px; padding: 3px 4px; text-align: left; }
 #defences .items small { display: block; color: var(--dim); font-size: 10px; }
 #defences .sel { margin-top: 6px; font-size: 11px; }
 #defences .sel .row { display: flex; gap: 4px; margin-top: 4px; }
-body.town.has-defences #cards { left: 600px; }
+body.town #cards, body.campaign.mode-town #cards { left: 600px; }
+body.campaign.mode-town #orders { left: calc(50% + 300px); }
 
 /* Storming a place: the village panel shows the fight instead of the stores */
 #stock .storm { margin: 5px 0; font-size: 13px; }

@@ -7,6 +7,8 @@
 // built matters. Workers who are stuck fetch or clear their own goods, more slowly.
 import { audio } from './audio.js';
 
+import { thinkTownSiege } from './ai.js';
+
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
   stone: { name: 'Stone', icon: 'stone', color: '#bdb8ad' },
@@ -122,6 +124,9 @@ export class Town {
     this.raid = { next: 300, wave: 0 };
     this.attackers = [];
     this.lost = false;
+    // Siege engines can batter the village's buildings (battle.js); a fallen one is ruined here.
+    battle.structures = () => [this.keep, ...this.buildings];
+    battle.onRuin = t => this.ruin(t);
     this.placeDeposits();
     for (let i = 0; i < villagers; i++) {
       const a = this.rand() * Math.PI * 2;
@@ -367,6 +372,7 @@ export class Town {
     if (Math.hypot(x, z) < KEEP.radius + B.radius + 3) return { ok: false, reason: 'Too close to the keep' };
     for (const b of this.buildings) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
     for (const n of [...this.nodes.rock, ...this.nodes.ore]) if (dist(n, p) < B.radius + 6) return { ok: false, reason: 'Something is in the way' };
+    if (this.battle.walls.structureAt(x, z) || this.battle.walls.pieceAt(x, z, null, B.radius)) return { ok: false, reason: 'A wall is in the way' };
     const h = this.heightAt(x, z), r = B.radius;
     for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r]]) {
       if (Math.abs(this.heightAt(x + dx, z + dz) - h) > (r > 5 ? 3.5 : 2)) return { ok: false, reason: 'Ground too steep' };
@@ -517,8 +523,10 @@ export class Town {
   }
 
   walk(v, tx, tz, dt, speed = WALK) {
-    const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz);
-    if (d < 0.6) { v.v = 0; return true; }
+    if (Math.hypot(tx - v.x, tz - v.z) < 0.6) { v.v = 0; return true; }
+    // Round any walls, through the gates (battle.js).
+    ({ x: tx, z: tz } = this.battle.steerWalker(v, 0, tx, tz, dt));
+    const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz) || 0.01;
     const step = Math.min(d, speed * dt);
     v.x += dx / d * step; v.z += dz / d * step;
     v.y = this.heightAt(v.x, v.z);
@@ -877,6 +885,7 @@ export class Town {
   // Attackers fight soldiers who come near; otherwise they make for the nearest building.
   thinkAttackers() {
     const b = this.battle;
+    thinkTownSiege(this);      // ai.js: hosts that must get past walls
     const defenders = b.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];
     for (const g of this.attackers) {

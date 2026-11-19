@@ -45,10 +45,23 @@ export class Walls {
     this.version = 0;          // bumped whenever what blocks movement changes
     this.nextId = 1;
     this.onBreak = null;       // battle.js hears about pieces and towers that fall
+    this.centre = [null, null]; // the middle of each side's walls; battle.homes when unset
   }
 
   get any() { return this.pieces.length > 0 || this.nodes.some(n => n.tower); }
+  get sites() { return this.pieces.some(p => p.state === 'site') || this.nodes.some(n => n.tower?.state === 'site'); }
   changed() { this.version++; }
+
+  // A taken place: every wall of `from` becomes `to`'s as it stands, broken stretches
+  // included. Ladders come down, forced gates shut, and nobody keeps a post on them.
+  // Regiments still manning them should be released first (battle.clearPosts).
+  changeSide(from, to) {
+    for (const n of this.nodes) if (n.side === from) { n.side = to; if (n.tower) { n.tower.side = to; n.tower.claims.clear(); } }
+    for (const p of this.pieces) if (p.side === from) { p.side = to; p.forced = false; p.claims.clear(); }
+    if (this.centre[from]) { this.centre[to] = this.centre[from]; this.centre[from] = null; }
+    this.ladders = [];
+    this.changed();
+  }
 
   // ---- building ----
 
@@ -241,13 +254,14 @@ export class Walls {
     return true;
   }
 
-  // Building sites rise on their own at `rate` (1 = one builder's pace). Returns the pieces finished.
-  build(dt, rate = 1) {
+  // Building sites rise on their own: `crews` of masons work the oldest sites at once,
+  // a 10 m stretch of palisade taking one crew about 8 s and of stone 20 s. Returns what was finished.
+  build(dt, crews = 1) {
     const done = [];
-    for (const s of this.structures()) {
-      if (s.state !== 'site') continue;
-      const len = s.kind === 'tower' ? 8 : s.len;
-      s.progress = Math.min(1, s.progress + dt * rate * PIECE_MAX / (s.M.build * Math.max(4, len)) * (s.kind === 'tower' ? 0.6 : 1));
+    const sites = this.structures().filter(s => s.state === 'site').sort((a, b) => a.id - b.id).slice(0, Math.max(1, Math.round(crews)));
+    for (const s of sites) {
+      const len = s.kind === 'tower' ? 14 : Math.max(4, s.len);
+      s.progress = Math.min(1, s.progress + dt * PIECE_MAX / (s.M.build * len));
       s.hp = Math.max(s.hp, s.maxHp * s.progress);
       if (s.progress >= 1) { s.state = 'up'; s.hp = s.maxHp; done.push(s); }
     }
@@ -481,6 +495,7 @@ export class Walls {
 // A ring of walls around (cx, cz): `sides` straight runs with a tower at each corner
 // and a gate facing `gateAngle`. Used for forts in the battle test and for castles.
 export function buildFort(walls, side, cx, cz, radius, { material = 'stone', sides = 6, gateAngle = 0, towers = true } = {}) {
+  walls.centre[side] = { x: cx, z: cz };
   const corners = [];
   for (let i = 0; i < sides; i++) {
     const a = gateAngle + Math.PI / sides + i / sides * Math.PI * 2;
