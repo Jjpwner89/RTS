@@ -406,9 +406,15 @@ export class World {
     }
     if (!this.canAttack(a.side, p)) { if (a.side !== 0) this.retreat(a); return; }
     if (a.side === 0) { this.ask({ kind: 'assault', army: a, poi: p }); return; }
-    // An army of yours waiting outside meets them before they reach the village.
+    // An army of yours waiting outside one of your villages falls back into it and
+    // fights there; outside anyone else's, it meets them in the open.
     const guard = this.armies.find(o => o.side === 0 && o.at === p && !o.path.length && !o.halted);
-    if (guard && this.atWar(a.side, 0)) { this.ask({ kind: 'field', army: guard, enemy: a, poi: p, then: () => this.arrive(a, p, came) }); return; }
+    if (guard && p.owner === 0 && p.town) {
+      const other = p.links.find(q => q !== came) || p.links[0];
+      p.town.addTroops(guard.units, this.angle(p, other), { stand: 30 });
+      this.removeArmy(guard);
+      this.log(`${guard.name} falls back into ${p.name} to meet them.`);
+    } else if (guard && this.atWar(a.side, 0)) { this.ask({ kind: 'field', army: guard, enemy: a, poi: p, then: () => this.arrive(a, p, came) }); return; }
     if (p.owner === 0) this.attackTown(a, p, came);
     else if (a.mode === 'raid') this.autoRaid(a, p);
     else this.autoAssault(a, p);
