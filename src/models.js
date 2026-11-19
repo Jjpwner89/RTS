@@ -15,7 +15,12 @@ try {
     if (!o.isMesh) return;
     // colours are stored as bytes; widen them to floats so the models merge with shapes built in code
     const c = o.geometry.attributes.color;
-    if (c && !(c.array instanceof Float32Array)) o.geometry.setAttribute('color', new THREE.Float32BufferAttribute(Float32Array.from(c.array, v => c.normalized ? v / 255 : v), 3));
+    // (they arrive interleaved, padded to four bytes, so read them vertex by vertex)
+    if (c && !(c.array instanceof Float32Array)) {
+      const f = new Float32Array(c.count * 3);
+      for (let i = 0; i < c.count; i++) { f[i * 3] = c.getX(i); f[i * 3 + 1] = c.getY(i); f[i * 3 + 2] = c.getZ(i); }
+      o.geometry.setAttribute('color', new THREE.Float32BufferAttribute(f, 3));
+    }
     o.geometry.computeVertexNormals();
     geos[o.name] = o.geometry;
   });
