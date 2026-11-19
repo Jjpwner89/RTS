@@ -441,6 +441,7 @@ export class World {
     // A knights' hall wants the rank of Count, and its finishing is a moment.
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
     town.greatRule = () => cathedralRule(this);
+    town.levyMax = () => (['Duke', 'King'].includes(this.rank) ? 40 : 20);
     town.onMilestone = b => {
       if (p.owner !== 0) return;
       if (b?.kind === 'cathedral') return cathedralDone(this, p);
@@ -547,7 +548,13 @@ export class World {
     }
     if (p.owner === a.side) {
       if (a.side !== 0) { mergeInto(p.garrison, a.units); this.removeArmy(a); }
-      else if (p.town) this.enterTown(a, p, came);
+      else if (p.town) { a.gather = null; this.enterTown(a, p, came); }
+      else if (a.gather === p.id) {
+        // Called to gather here: the armies already waiting take it in.
+        a.gather = null;
+        const o = this.armies.find(x => x !== a && x.side === 0 && !x.gone && !x.wagon && x.at === p && !x.path.length && !x.halted);
+        if (o) this.join(o, a);
+      }
       return;
     }
     if (!this.canAttack(a.side, p)) { if (a.side !== 0) this.retreat(a); return; }
@@ -633,6 +640,19 @@ export class World {
     else if (!ca) assignCaptain(this, a);
     this.log(`${b.name} joins ${a.name}: ${headcount(a.units)} men.`);
     this.removeArmy(b);
+  }
+
+  // A duke plans campaigns from the map: every free army of yours marches to one place of
+  // yours and joins into one host there (in a village, they go inside, to march out as one).
+  gatherable(p) {
+    return this.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.halted && !a.retreating && !a.siege && !a.escort && a.at !== p && a.units.length);
+  }
+  gatherAt(p) {
+    if (!['Duke', 'King'].includes(this.rank) || p.owner !== 0) return 0;
+    let n = 0;
+    for (const a of this.gatherable(p)) if (this.order(a, p)) { a.gather = p.id; n++; }
+    if (n) this.log(`${n} ${n > 1 ? 'armies march' : 'army marches'} to gather at ${p.name}.`);
+    return n;
   }
 
   // Regiments leave a village of yours and become an army on the map.

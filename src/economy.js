@@ -667,7 +667,7 @@ export class Town {
     const kit = KITS[key].kit, have = g => Math.floor(barracks.store[g] || 0);
     const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(have(g) / n)));
     const free = this.villagers.filter(v => v.state !== 'soldier').length;
-    const n = Math.min(LEVY_MAX, byKit, free);
+    const n = Math.min(this.levyMax?.() || LEVY_MAX, byKit, free);   // a duke's levies come forty strong
     const short = Object.entries(kit).filter(([g, k]) => have(g) < k * LEVY_MIN)
       .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);
     const reason = byKit < LEVY_MIN ? `Needs ${short.join(' and ')}`
