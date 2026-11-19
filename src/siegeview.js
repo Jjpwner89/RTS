@@ -1,5 +1,5 @@
 // Draws the walls, towers, gates and ladders, siege engines and their stones, and the
-// ghost of a wall being placed. Each thing looks for its baked model first (buildingModel:
+// ghost of a wall being placed, and the siege's passing sights: boiling oil, mines and night torches. Each thing looks for its baked model first (buildingModel:
 // wall.stone, wall.wood, *.broken, tower.*, gate.* and gate.*.door, siege.ram,
 // siege.mangonel(.arm), siege.trebuchet(.arm), siege.ladder, siege.stone) and otherwise
 // uses the simple shapes below, built to the same sizes:
@@ -125,6 +125,28 @@ const ARM_AT = { mangonel: { y: 2.3, z: 0.4 }, trebuchet: { y: 7.2, z: 0 } };
 const BAKED_PIVOT = { mangonel: { y: 0.75, z: 1.27 }, trebuchet: { y: 6.71, z: 0.88 } };
 const ENGINE_BACK = { ram: 0, mangonel: 1.6, trebuchet: 3 };
 
+// A soft round glow for torchlight.
+function glowTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+// A sap's mouth: a dark pit, a timber frame over it, and the heap of spoil beside it (grown by scale).
+function sapPit() {
+  return mergeGeometries([
+    part(box(3, 0.1, 3.4), '#2a2018', { y: 0.03 }),
+    part(box(0.25, 2.1, 0.25), WOOD, { x: -1.2, y: 1.05, z: 1.4 }), part(box(0.25, 2.1, 0.25), WOOD, { x: 1.2, y: 1.05, z: 1.4 }),
+    part(box(2.9, 0.3, 0.3), '#6a4c30', { y: 2.15, z: 1.4 }),
+  ]);
+}
+function spoilHeap() {
+  const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setY(i, Math.max(0, p.getY(i)) * 0.55);
+  return mergeGeometries([part(g, '#6e5a40')]);
+}
+
 export class SiegeView {
   constructor(scene, battle, heightAt) {
     this.scene = scene;
@@ -152,6 +174,22 @@ export class SiegeView {
     scene.add(this.dust);
     this.dummy = new THREE.Object3D();
     this.dummy.rotation.order = 'YXZ';
+    // Boiling oil: a stream from the wall top, a dark splash on the ground, steam rising off it.
+    const fx = (geo, colour, n, opacity) => {
+      const m = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity, depthWrite: false }), n);
+      m.count = 0; m.frustumCulled = false; scene.add(m); return m;
+    };
+    this.oilStream = fx(new THREE.CylinderGeometry(0.1, 0.3, 1, 6), '#a8722a', 20, 0.7);
+    this.oilSplash = fx(new THREE.CylinderGeometry(1, 1, 0.12, 12), '#4a3418', 20, 0.75);
+    this.steam = fx(new THREE.IcosahedronGeometry(1, 1), '#e9e6de', 160, 0.3);
+    // Mines: each sap gets a pit, a timber frame and a spoil heap that grows as they dig.
+    this.mineViews = new Map();
+    // Torches on walls, gates and towers, lit only at night.
+    this.torchFlames = fx(new THREE.ConeGeometry(0.22, 0.75, 6), '#ffb347', 300, 0.95);
+    this.torchGlow = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: glowTexture(), size: 9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#ff9a3c' }));
+    this.torchGlow.frustumCulled = false;
+    scene.add(this.torchGlow);
+    this.torches = [];
   }
 
   geo(name) {
@@ -216,6 +254,105 @@ export class SiegeView {
     this.updateLadders();
     this.updateEngines();
     this.updateStones();
+    this.updateOil();
+    this.updateMines();
+    this.updateTorches();
+  }
+
+  updateOil() {
+    const b = this.battle, d = this.dummy;
+    let n = 0, s = 0;
+    for (const p of b.pours || []) {
+      const age = b.time - p.time;
+      if (age < 0 || age > 2.6 || n >= 20) continue;
+      // The stream falls from the nearest wall top for half a second.
+      if (p.top === undefined) {
+        let top = p.y + 6, bd = 14;
+        for (const w of b.walls.pieces) { const dd = Math.hypot(w.x - p.x, w.z - p.z); if (dd < bd) { bd = dd; top = w.base + w.M.height + (w.gate ? 1 : 0); } }
+        p.top = Math.max(top, p.y + 2);
+      }
+      const fall = Math.min(1, age / 0.25), pour = age < 0.6 ? 1 : 0;
+      d.rotation.set(0, 0, 0);
+      if (pour) {
+        const y0 = p.top, y1 = p.top - (p.top - p.y) * fall;
+        d.position.set(p.x, (y0 + y1) / 2, p.z); d.scale.set(1, Math.max(0.1, y0 - y1), 1); d.updateMatrix();
+        this.oilStream.setMatrixAt(n, d.matrix);
+      } else { d.scale.setScalar(0); d.updateMatrix(); this.oilStream.setMatrixAt(n, d.matrix); }
+      const spread = age < 0.25 ? 0 : Math.min(1, (age - 0.25) / 0.5) * 2.8 * (1 - Math.max(0, age - 2) / 0.6);
+      d.position.set(p.x, p.y + 0.08, p.z); d.scale.set(spread, 1, spread); d.updateMatrix();
+      this.oilSplash.setMatrixAt(n++, d.matrix);
+      for (let i = 0; i < 8 && s < 160; i++) {
+        const k = (age - 0.3 - i * 0.12);
+        if (k < 0) continue;
+        const a = i * 2.4 + p.x, r = 0.4 + i * 0.3;
+        d.position.set(p.x + Math.sin(a) * r, p.y + 0.6 + k * 2.6, p.z + Math.cos(a) * r);
+        d.scale.setScalar((0.25 + k * 0.8) * Math.max(0, 1 - k / 2));
+        d.updateMatrix();
+        this.steam.setMatrixAt(s++, d.matrix);
+      }
+    }
+    this.oilStream.count = this.oilSplash.count = n;
+    this.steam.count = s;
+    for (const m of [this.oilStream, this.oilSplash, this.steam]) m.instanceMatrix.needsUpdate = true;
+  }
+
+  updateMines() {
+    for (const m of this.battle.mines || []) {
+      let v = this.mineViews.get(m);
+      if (!v) {
+        const root = new THREE.Group(), y = this.heightAt(m.x, m.z);
+        const pit = new THREE.Mesh(this.geos.sapPit ||= sapPit(), this.mat);
+        const heap = new THREE.Mesh(this.geos.spoilHeap ||= spoilHeap(), this.mat);
+        pit.receiveShadow = heap.castShadow = heap.receiveShadow = true;
+        // The frame faces the wall; the spoil is thrown out to one side.
+        root.position.set(m.x, y, m.z);
+        root.rotation.y = Math.atan2(m.ix - m.x, m.iz - m.z);
+        heap.position.set(3, 0, -0.6);
+        root.add(pit, heap);
+        this.group.add(root);
+        v = { root, pit, heap };
+        this.mineViews.set(m, v);
+      }
+      const k = m.progress;
+      v.heap.scale.set(1 + k * 1.8, 0.8 + k * 1.8, 1 + k * 2.2);
+      // A lost mine caves in: the frame goes, the pit fills with the heap's spoil.
+      v.pit.visible = !m.lost;
+    }
+  }
+
+  // One torch over every standing wall piece, two at each gate, one on every tower.
+  placeTorches() {
+    const W = this.battle.walls, list = [];
+    for (const p of W.pieces) {
+      if (p.state !== 'up') continue;
+      const home = this.battle.fortHome(p.side), out = W.outward(p, home);
+      if (p.gate) for (const s of [-1, 1]) {
+        const ax = Math.sin(p.angle) * 3.7 * s, az = Math.cos(p.angle) * 3.7 * s;
+        list.push([p.x + ax + out.x * (p.M.thick / 2 + 0.6), p.base + p.M.walk * 0.75, p.z + az + out.z * (p.M.thick / 2 + 0.6)]);
+      }
+      else list.push([p.x - out.x * (p.M.thick / 2 - 0.2), p.base + p.M.height + 0.9, p.z - out.z * (p.M.thick / 2 - 0.2)]);
+    }
+    for (const n of W.nodes) if (n.tower?.state === 'up') list.push([n.tower.x, n.tower.base + MATERIALS[n.tower.material].towerTop + 1.6, n.tower.z]);
+    this.torches = list.slice(0, 300);
+    this.torchGlow.geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.torches.flat(), 3));
+    this.torchGlow.geometry.computeBoundingSphere();
+  }
+
+  updateTorches() {
+    const night = this.battle.weather === 'night';
+    this.torchGlow.visible = night;
+    if (!night) { this.torchFlames.count = 0; return; }
+    if (this.torchVersion !== this.battle.walls.version) { this.torchVersion = this.battle.walls.version; this.placeTorches(); }
+    const d = this.dummy, t = this.battle.time;
+    d.rotation.set(0, 0, 0);
+    this.torches.forEach(([x, y, z], i) => {
+      d.position.set(x, y, z);
+      d.scale.set(1, 0.8 + 0.35 * Math.abs(Math.sin(t * 9 + i * 1.3)), 1);
+      d.updateMatrix();
+      this.torchFlames.setMatrixAt(i, d.matrix);
+    });
+    this.torchFlames.count = this.torches.length;
+    this.torchFlames.instanceMatrix.needsUpdate = true;
   }
 
   // Doors swing up for their own men, and stay open once forced.
