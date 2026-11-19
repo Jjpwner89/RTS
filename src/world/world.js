@@ -664,6 +664,17 @@ export class World {
     this.retreat(enc.army);
   }
 
+  // The land remembers: a cairn where a field battle was fought (worldview draws them,
+  // world.cairns), and the nearest place takes its name from the first one fought by it:
+  // "Hollin Ford, where Varn's host broke".
+  remember(at, loser, near) {
+    const host = loser.replace(/^The /, 'the ');
+    (this.cairns ||= []).push({ x: Math.round(at.x), z: Math.round(at.z), at: Math.round(this.time), text: `Here ${host} broke` });
+    if (this.cairns.length > 60) this.cairns.shift();
+    const p = this.pois.find(q => q.name === near);
+    if (p && !p.epithet) p.epithet = `where ${host} broke`;
+  }
+
   // Half the armour and shields of the men who fell (before minus after) go to the
   // winner's nearest place: into the keep of a village you run, or a rival's stores. That
   // is how your next levy comes to wear Stonemere's mail.
@@ -734,7 +745,9 @@ export class World {
       note(this, e.side, won ? 'wonField' : 'lostField');
       if (won) grudge(this, e.side, 'beaten', enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name);
       const cap = this.captains.find(c => c.id === a.captain && c.alive), field = enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name;
-      this.chron(won ? `${cap ? `Captain ${cap.name}` : 'Your army'} beat ${e.name} near ${field}.` : `${e.name} beat ${cap ? `Captain ${cap.name}` : 'your army'} near ${field}.`);
+      const them = e.name.replace(/^The /, 'the ');
+      this.chron(won ? `${cap ? `Captain ${cap.name}` : 'Your army'} beat ${them} near ${field}.` : `${e.name} beat ${cap ? `Captain ${cap.name}` : 'your army'} near ${field}.`);
+      this.remember(a, won ? e.name : 'your army', field);
       if (won) {
         this.log(`${e.name} was beaten at ${was}.`);
         this.retreat(e);
