@@ -29,7 +29,7 @@ export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
 const SPEED = 6;        // world units a second along a road
 const MEET = 14;        // opposing armies this close fight
-export const GRACE = 720;      // rival houses leave your villages alone for the first twelve minutes
+export const GRACE = 1200;     // rival houses leave your villages, and the free ones beside them, alone for twenty minutes
 const SIGHT = { place: 250, army: 190 };
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);

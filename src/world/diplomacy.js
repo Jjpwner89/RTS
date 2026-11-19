@@ -118,6 +118,8 @@ export function actions(w, h) {
   const list = [];
   if (war) {
     list.push({ id: 'peace', label: 'Offer peace', ok: true });
+    const price = peacePrice(w, h);
+    list.push({ id: 'buypeace', label: `Buy peace (${price} gold)`, ok: gold >= price, why: `Needs ${price} gold` });
     list.push({ id: 'vassal', label: 'Demand they bend the knee', ok: ratio > 2.5 || !H.seat || H.seat.owner !== h, why: 'They are not beaten enough' });
   } else {
     list.push({ id: 'gift', label: `Send a gift (${GIFT} gold)`, ok: gold >= GIFT, why: `Needs ${GIFT} gold` });
@@ -128,6 +130,11 @@ export function actions(w, h) {
     list.push({ id: 'war', label: truce ? 'Declare war (breaks the truce)' : d.allied || d.married ? 'Declare war (betrays them)' : 'Declare war', ok: true, warn: true });
   }
   return list;
+}
+
+// What a house at war asks to go home: more the stronger it is.
+export function peacePrice(w, h) {
+  return Math.min(1000, Math.max(150, Math.round((150 + w.strength(h) * 0.25) / 50) * 50));
 }
 
 function canBack(w, h) {
@@ -148,6 +155,16 @@ export function act(w, h, id, theirs = false) {
     d.truceUntil = w.time + TRUCE;
     d.score = 0;
     return yes(`Peace with ${H.name}. Neither side may attack for ten minutes.`);
+  }
+  if (id === 'buypeace') {
+    const price = peacePrice(w, h);
+    if (me.gold < price) return no(`You need ${price} gold.`);
+    me.gold -= price;
+    H.gold += price;
+    w.makePeace(0, h);
+    d.truceUntil = w.time + TRUCE;
+    d.score = 0;
+    return yes(`You paid ${H.name} ${price} gold for peace. Neither side may attack for ten minutes.`);
   }
   if (id === 'vassal') {
     w.makePeace(0, h);

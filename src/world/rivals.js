@@ -141,6 +141,8 @@ function choosePlan(w, h, B) {
   for (const p of w.pois) {
     if (!w.canAttack(h.index, p)) continue;
     if (p.owner === 0 && w.time < GRACE) continue;
+    // the free villages around your start are yours to win first
+    if (p.owner === null && w.time < GRACE && w.byId.ashford && dist(p, w.byId.ashford) < 260) continue;
     const from = nearestOwn(w, h, p);
     if (!from.place || from.length > 900) continue;
     const def = w.defence(p);
