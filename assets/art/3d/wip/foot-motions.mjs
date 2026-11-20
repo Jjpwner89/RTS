@@ -7,7 +7,12 @@ const TAU=Math.PI*2, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 // a with its component along f removed: a grip axis square to the hand.
 // Keyed arm: keys are [time, upper-arm direction, forearm direction, weapon direction]; directions
 // blend between keys and Human.aimFk finds a natural forearm roll and wrist bend for each frame.
-function keyed(h,s,keys,u,opts){let i=1;while(i<keys.length-1&&u>keys[i][0])i++;const a=keys[i-1],b=keys[i],w=curve(u,[[a[0],0],[b[0],1]]);return h.aimFk(s,mix(a[1],b[1],w),mix(a[2],b[2],w),mix(a[3],b[3],w),opts);}
+// Weapon direction from forward to back through upright overhead, never straight through the
+// body: a plain blend between near-opposite directions collapses and snaps the wrist.
+const overhead=(a,b,w)=>w<.5?mix(a,[-.15,1,.1],2*w):mix([-.15,1,.1],b,2*w-1);
+// Three-point path: a at w=0, m at w=.5, b at w=1.
+const via=(w,a,m,b)=>w<.5?mix(a,m,2*w):mix(m,b,2*w-1);
+export function keyed(h,s,keys,u,opts){let i=1;while(i<keys.length-1&&u>keys[i][0])i++;const a=keys[i-1],b=keys[i],w=curve(u,[[a[0],0],[b[0],1]]);return h.aimFk(s,mix(a[1],b[1],w),mix(a[2],b[2],w),mix(a[3],b[3],w),opts);}
 const perp=(a,f)=>{const x=V(a),y=V(f).normalize();return x.addScaledVector(y,-x.dot(y)).normalize().toArray();};
 export const SPEAR_DIAG=40, SWORD_DIAG=20, TOOL_DIAG=25;
 const GRIP=[0,.135,-.035];
@@ -100,7 +105,7 @@ export function footMotions(h){
   // while the right fetches and lays the bolt.
   const AIM_L=[[0,-.71,.71],[-.48,.26,.84],[0,0,1]],STOCK_L=[[-.13,-.97,-.22],[0,-.71,.71],[0,-.995,.1]],
    STRING0_L=[[0,-.87,.5],[-.22,-.97,.13],[-1,0,.05]],STRING1_L=[[.35,-.71,.61],[-.25,-.87,.43],[-1,0,.05]],STEADY_L=[[-.13,-.97,.22],[0,-.97,.26],[0,-.995,.1]];
-  keyed(h,'L',[[0,...AIM_L],[.06,...AIM_L],[.15,...STOCK_L],[.20,...STRING0_L],[.47,...STRING1_L],[.53,...STEADY_L],[.67,...STEADY_L],[.73,...STOCK_L],[.84,...AIM_L],[1,...AIM_L]],u,{diag:20});
+  keyed(h,'L',[[0,...AIM_L],[.06,...AIM_L],[.12,...STOCK_L],[.21,...STRING0_L],[.47,...STRING1_L],[.53,...STEADY_L],[.67,...STEADY_L],[.73,...STOCK_L],[.84,...AIM_L],[1,...AIM_L]],u,{diag:20});
  },{...weapon('Wrist.R',30,{crossbow:{held:{barrel:[0,0,1],bow:[1,0,0],space:'model',at:'right grip'},grounded:CROSSBOW_GROUND,blendToGround:[.18,.45],blendToHeld:[2.10,2.52]}}),events:[{time:.5,event:'nose-down'},{time:.57,event:'foot-in-stirrup'},{time:1.35,event:'string-spanned'},{time:1.86,event:'bolt-laid'},{time:2.80,event:'shoot'}]}],
  ['Shield_Block',18,false,(t,u)=>{
   // Shield arm comes up and braces: forearm forward, so the shield (normal = hand's long axis) faces the blow.
@@ -144,8 +149,9 @@ export function footMotions(h){
   const lift=curve(u,[[0,0],[.35,1],[.46,1],[.64,0],[.76,0],[1,0]]);ready(.68+.13*lift,.04,32-26*lift,-5+8*lift);h.legs([.20,.02275,.12],[-.20,.02275,-.12]);
   // Right hand nearer the axe head, left at the end of the haft; the haft runs in line with the
   // forearms at the strike and back over the right shoulder at the top of the lift.
-  const g=h.aimFk('R',mix([0,-.5,.87],[-.75,-.5,.43],lift),mix([0,-.71,.71],[.22,.97,-.13],lift),mix([0,-.5,1],[-.1,.5,-1],lift),{diag:TOOL_DIAG});
-  const ax=g.axis.clone().normalize();h.arm('L',g.grip.clone().addScaledVector(ax,-.18),ax,at('L',mix([.05,-.28,.12],[.28,.0,.18],lift)),{diag:TOOL_DIAG,elbowSearch:.12});
+  const g=h.aimFk('R',mix([0,-.5,.87],[-.75,-.5,.43],lift),mix([0,-.71,.71],[.22,.97,-.13],lift),overhead([0,-.5,1],[-.1,.5,-1],lift),{diag:TOOL_DIAG});
+  // Left hand at the end of the haft, keyed strike -> mid-lift -> top so its elbow never flips.
+  h.aimFk('L',via(lift,[.43,-.87,.25],[0,-.87,.5],[0,0,1]),via(lift,[-.75,-.5,.43],[-.43,.5,.75],[-.87,.5,0]),g.axis.clone().normalize().toArray(),{diag:TOOL_DIAG});
  },{...weapon('Wrist.R',TOOL_DIAG,{offhand:-.18}),events:[{time:.9,event:'axe-contact'}]}],
  ['Hoe',54,true,(t,u)=>{
   // Bent over the hoe; the blade bites forward and is drawn back toward the feet.
@@ -157,8 +163,8 @@ export function footMotions(h){
  },{...weapon('Wrist.R',SPEAR_DIAG,{offhand:.22}),events:[{time:1.2,event:'pull-soil'}]}],
  ['Mine',48,true,(t,u)=>{
   let lift=curve(u,[[0,0],[.34,1],[.45,1],[.64,0],[.81,0],[1,0]]);ready(.73+.08*lift,.04,26-22*lift,-9+16*lift);h.legs([.19,.02275,.08],[-.19,.02275,-.14]);
-  const g=h.aimFk('R',mix([0,-.71,.71],[-.75,-.5,.43],lift),mix([0,-.71,.71],[.22,.97,-.13],lift),mix([0,-.2,1],[-.1,.6,-1],lift),{diag:TOOL_DIAG});
-  const ax=g.axis.clone().normalize();h.arm('L',g.grip.clone().addScaledVector(ax,-.17),ax,at('L',mix([.05,-.28,.12],[.28,.0,.18],lift)),{diag:TOOL_DIAG,elbowSearch:.12});
+  const g=h.aimFk('R',mix([0,-.71,.71],[-.75,-.5,.43],lift),mix([0,-.71,.71],[.22,.97,-.13],lift),overhead([0,-.2,1],[-.1,.6,-1],lift),{diag:TOOL_DIAG});
+  h.aimFk('L',via(lift,[.22,-.97,-.13],[.13,-.97,.22],[0,-.26,.97]),via(lift,[-.75,-.5,.43],[-.43,.5,.75],[-.61,.71,.35]),g.axis.clone().normalize().toArray(),{diag:TOOL_DIAG});
  },{...weapon('Wrist.R',TOOL_DIAG,{offhand:-.17}),events:[{time:1.0333333333,event:'pick-contact'}]}],
  ['Carry',42,true,(t,u)=>{
   walk(u,true);r.turn('Torso',[0,0,1],-7);h.hand('R',[-.30,1.52,.22],null,null,.35);h.hand('L',[.22,1.02,.06+.08*Math.sin(TAU*u)],null,[0,-1,0],.7);

@@ -1,5 +1,6 @@
 import {V,curve} from './rig-tools.mjs';
 import {horseRig,horsePose} from './horse-motions.mjs';
+import {keyed,weapon,SPEAR_DIAG,SWORD_DIAG} from './foot-motions.mjs';
 horseRig.sample('Armature|Idle',0);
 const referenceSeat=V([0,1.185,-.0666]),seatLocal=horseRig.by.Body.worldToLocal(referenceSeat.clone());
 export function riderMotions(h){
@@ -18,14 +19,22 @@ export function riderMotions(h){
  ['Ride_Idle',90,true,(t,u)=>seated('Idle',u),{horseClip:'Idle',seatHeight:1.185}],
  ['Ride_Trot',30,true,(t,u)=>seated('Trot',u),{horseClip:'Trot',phase:0,seatHeight:1.185}],
  ['Ride_Gallop',20,true,(t,u)=>seated('Gallop',u),{horseClip:'Gallop',phase:0,seatHeight:1.185}],
+ // Couch and Slash (Claude, 2026-11-20): the sword arm is keyed by upper-arm and forearm
+ // directions plus the wanted weapon direction, and Human.aimFk keeps the wrist natural.
  ['Ride_Couch',30,false,(t,u)=>{
+  // Lance carried angled up at rest, then lowered and couched: upper arm tucked to the side,
+  // forearm forward, the point over the horse's neck a little to the left.
   seated('Idle',0,true);const k=curve(u,[[0,0],[.15,0],[.70,1],[1,1]]);r.turn('Torso',[1,0,0],14*k);r.turn('Head',[1,0,0],-7*k);
-  h.hand('R',[-.22,1.40+.10*k,.10],[0,1-k, k],null);
- },{hold:true,horseClip:'Idle',upperBodyOverlay:'Ride_Gallop',events:[{time:.7,event:'lance-couched'}]}],
+  keyed(h,'R',[[0,[-.26,-.97,0],[.43,-.5,.75],[0,.87,.5]],[1,[-.25,-.95,.15],[0,-.26,.97],[.15,.05,1]]],k,{diag:SPEAR_DIAG});
+ },{hold:true,horseClip:'Idle',upperBodyOverlay:'Ride_Gallop',...weapon('Wrist.R',SPEAR_DIAG,{lengthBehindGrip:.9}),events:[{time:.7,event:'lance-couched'}]}],
  ['Ride_Slash',27,false,(t,u)=>{
+  // Sword ready point-up, raised back over the right shoulder, cut forward and down to the
+  // right side, then back to ready.
   seated('Idle',0,true);const up=curve(u,[[0,0],[.30,1],[.42,1],[.69,0],[1,0]]),cut=curve(u,[[0,0],[.43,0],[.69,1],[1,0]]);
   r.turn('Torso',[0,1,0],-20*up+24*cut);r.turn('Torso',[1,0,0],8*cut);
-  h.hand('R',[-.25-.10*cut,1.42+.39*up-.13*cut,.12+.15*cut],[0,.65*up+.2,1],null);
- },{horseClip:'Idle',events:[{time:.60,event:'sword-contact'}]}]
+  const READY=[[0,-.97,-.26],[0,-.5,.87],[0,.7,1]],RAISED=[[-.75,-.5,.43],[.13,.97,-.22],[-.2,.2,-1]],CUT=[[-.43,-.5,.75],[-.43,-.5,.75],[-.3,-.3,1]],
+   OVER=[[-.6,.2,.75],[-.2,.7,.68],[-.3,1,.2]];
+  keyed(h,'R',[[0,...READY],[.30,...RAISED],[.42,...RAISED],[.55,...OVER],[.69,...CUT],[1,...READY]],u,{diag:SWORD_DIAG});
+ },{horseClip:'Idle',...weapon('Wrist.R',SWORD_DIAG),events:[{time:.60,event:'sword-contact'}]}]
  ];
 }

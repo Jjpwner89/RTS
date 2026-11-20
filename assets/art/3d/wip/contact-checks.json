@@ -43,7 +43,7 @@
     },
     {
       "name": "Chop",
-      "maxGripError": 9.448609297915397e-8
+      "maxGripError": 0
     },
     {
       "name": "Hoe",
@@ -51,7 +51,7 @@
     },
     {
       "name": "Mine",
-      "maxGripError": 1.5260747047271508e-7
+      "maxGripError": 0
     },
     {
       "name": "Carry",
@@ -71,11 +71,11 @@
     },
     {
       "name": "Ride_Couch",
-      "maxGripError": 9.271017979292374e-8
+      "maxGripError": 4.8594446012783476e-8
     },
     {
       "name": "Ride_Slash",
-      "maxGripError": 7.514355857371908e-8
+      "maxGripError": 4.8594446012783476e-8
     }
   ]
 }

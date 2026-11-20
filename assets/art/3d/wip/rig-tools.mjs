@@ -210,6 +210,7 @@ const PRONATE=-1,FLEX=-1;
 // natural ranges for the closest match (staying near the previous frame), then poses the arm.
 // The miss in degrees is reported as aimError: a large miss means the arm needs re-posing.
 export const RANGE={roll:[-80,80],flex:[-50,50],dev:[-30,15]};
+const STEP=(process.env.FK_STEP||"30,25,20").split(",").map(Number);
 Human.prototype.aimFk=function(s,up,fore,want,{diag=0,open=0,prefer=null}={}){
  const r=this.r,m=s==='R'?1:-1,i=n=>r.nodes.indexOf(r.by[n]),w=V(want).normalize();
  this.fk(s,up,fore,{diag});
@@ -221,6 +222,9 @@ Human.prototype.aimFk=function(s,up,fore,want,{diag=0,open=0,prefer=null}={}){
  let best=prev?clamp(prev):[0,0,0],bc=cost(best);
  if(!prev)for(let a=-80;a<=80;a+=20)for(let b=-40;b<=40;b+=20)for(let c=-30;c<=15;c+=15){const p=[a,b,c],k=cost(p);if(k<bc){bc=k;best=p;}}
  for(let step=16;step>.2;step/=2){let moved=true;while(moved){moved=false;for(let k=0;k<3;k++)for(const d of [-step,step]){const p=best.slice();p[k]+=d;const q=clamp(p),c=cost(q);if(c<bc-1e-9){bc=c;best=q;moved=true;}}}}
+ // A forearm cannot spin from one end of its range to the other between frames: limit the
+ // per-frame change so the twist stays continuous, even if the aim lags for a few frames.
+ if(prev&&!prefer)best=best.map((v,k)=>Math.max(prev[k]-STEP[k],Math.min(prev[k]+STEP[k],v)));
  (r.fkPrev||={})[s]=best;
  const out=this.fk(s,up,fore,{roll:best[0],flex:best[1],dev:best[2],diag,open});
  out.aimError=Math.acos(Math.max(-1,Math.min(1,out.axis.clone().normalize().dot(w))))*180/Math.PI;out.joints=best;

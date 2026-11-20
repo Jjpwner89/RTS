@@ -1,7 +1,7 @@
 [
   {
     "file": "clips-foot.glb",
-    "bytes": 3239796,
+    "bytes": 3240920,
     "joints": 62,
     "checks": "passed",
     "khronos": {
@@ -15,14 +15,14 @@
         "duration": 0.800000011920929,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 26.28562973669557
+        "maxFrameRotationDegrees": 19.01354688568006
       },
       {
         "name": "Spear_Brace",
         "duration": 1.2000000476837158,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 8.411492385106811
+        "maxFrameRotationDegrees": 15.637203986826188
       },
       {
         "name": "March_Upright",
@@ -43,28 +43,28 @@
         "duration": 3,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 50.15969722625397
+        "maxFrameRotationDegrees": 39.827547868753314
       },
       {
         "name": "Shield_Block",
         "duration": 0.6000000238418579,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 23.755889891333045
+        "maxFrameRotationDegrees": 16.371892120289814
       },
       {
         "name": "Shield_Wall",
         "duration": 2,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 0.4554078183825432
+        "maxFrameRotationDegrees": 0.3142767104032685
       },
       {
         "name": "Javelin_Throw",
         "duration": 1,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 62.245458974157586
+        "maxFrameRotationDegrees": 51.604460093110795
       },
       {
         "name": "Rout",
@@ -78,28 +78,28 @@
         "duration": 1.5,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 40.31978126220176
+        "maxFrameRotationDegrees": 46.59704097259742
       },
       {
         "name": "Chop",
         "duration": 1.399999976158142,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 31.79146464111814
+        "maxFrameRotationDegrees": 53.00463552527166
       },
       {
         "name": "Hoe",
         "duration": 1.7999999523162842,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 15.916208671476682
+        "maxFrameRotationDegrees": 35.171512949150326
       },
       {
         "name": "Mine",
         "duration": 1.600000023841858,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 24.623257862202344
+        "maxFrameRotationDegrees": 47.37967657709559
       },
       {
         "name": "Carry",
@@ -112,7 +112,7 @@
   },
   {
     "file": "clips-riders.glb",
-    "bytes": 1848920,
+    "bytes": 1849096,
     "joints": 62,
     "checks": "passed",
     "khronos": {
@@ -147,14 +147,14 @@
         "duration": 1,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 28.94103196862422
+        "maxFrameRotationDegrees": 14.978121594991872
       },
       {
         "name": "Ride_Slash",
         "duration": 0.8999999761581421,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 38.59630496300279
+        "maxFrameRotationDegrees": 40.98478196688674
       }
     ]
   },

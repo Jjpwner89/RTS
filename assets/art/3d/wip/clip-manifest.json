@@ -1,5 +1,5 @@
 {
-  "status": "Authored and validated; ready for in-game Art review",
+  "status": "Reworked by Claude 2026-11-20. See ../INTEGRATION.txt for which clips the creator has approved. Not yet wired into the game.",
   "source": "Male_Adventurer.source.glb",
   "sources": [
     {
@@ -439,6 +439,20 @@
       "hold": true,
       "horseClip": "Idle",
       "upperBodyOverlay": "Ride_Gallop",
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.766,
+          0.6428,
+          0
+        ],
+        "lengthBehindGrip": 0.9
+      },
       "events": [
         {
           "time": 0.7,
@@ -451,6 +465,19 @@
       "duration": 0.9,
       "loop": false,
       "horseClip": "Idle",
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.9397,
+          0.342,
+          0
+        ]
+      },
       "events": [
         {
           "time": 0.6,
