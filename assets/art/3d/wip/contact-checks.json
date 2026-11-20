@@ -35,7 +35,7 @@
     },
     {
       "name": "Rout",
-      "maxGripError": 8.994500043623157e-8
+      "maxGripError": 0
     },
     {
       "name": "Cheer",
@@ -55,7 +55,7 @@
     },
     {
       "name": "Carry",
-      "maxGripError": 8.369702107564192e-8
+      "maxGripError": 7.341107358247697e-8
     },
     {
       "name": "Ride_Idle",

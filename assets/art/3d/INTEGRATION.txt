@@ -13,8 +13,11 @@ Approved by the creator in the review page, 2026-11-20 ("these look great",
 Reworked after that review, not yet seen by the creator:
   Ride_Couch (lance couched under the arm) and Ride_Slash (sabre raised over
   the right shoulder, cut forward and out to the right).
+  Rout (arms now pump like a run; Codex's arms were flung wide, palms up)
+  and Carry (free left arm swings with a neutral wrist; the sack hold is
+  Codex's). Legs, body and head in both are Codex's.
 Codex's versions, unchanged; Claude checked them by eye and found nothing wrong:
-  Rout, Carry, Ride_Idle, Ride_Trot, Ride_Gallop, Gallop, Rear, Trot.
+  Ride_Idle, Ride_Trot, Ride_Gallop, Gallop, Rear, Trot.
 NOT DONE: the clips are not wired into the game yet. That is the next step,
 and it belongs to whichever session owns units and rendering.
 

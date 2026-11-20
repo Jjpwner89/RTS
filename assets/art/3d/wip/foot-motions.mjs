@@ -135,7 +135,10 @@ export function footMotions(h){
  },{...weapon('Wrist.R',30),events:[{time:.6333333333,event:'release-javelin'}]}],
  ['Rout',22,true,(t,u)=>{
   walk(u,false,true);r.turn('Neck',[0,1,0],-32);r.turn('Head',[0,1,0],-32+8*Math.sin(TAU*u));
-  h.hand('R',[-.23,1.00,.08+.25*Math.sin(TAU*u)],null,[0,-1,0],1);h.hand('L',[.24,1.04,.08-.25*Math.sin(TAU*u)],null,[0,-1,0],1);
+  // Running arm pump: elbows bent near 90 degrees, palms in, wrists straight, hands loose.
+  const sw=Math.sin(TAU*u);
+  const pump=(s,k)=>h.fk(s,mix([-.12,-.8,-.75],[-.12,-.97,.6],k).map((v,i)=>i?v:s==='R'?v:-v),mix([-.05,-.6,.8],[-.05,.5,.86],k).map((v,i)=>i?v:s==='R'?v:-v),{open:.5});
+  pump('R',(1+sw)/2);pump('L',(1-sw)/2);
  },{equipment:'none'}],
  ['Cheer',45,false,(t,u)=>{
   // The sword hand goes straight up into the sky; the blade points up and a little back.
@@ -167,7 +170,9 @@ export function footMotions(h){
   h.aimFk('L',via(lift,[.22,-.97,-.13],[.13,-.97,.22],[0,-.26,.97]),via(lift,[-.75,-.5,.43],[-.43,.5,.75],[-.61,.71,.35]),g.axis.clone().normalize().toArray(),{diag:TOOL_DIAG});
  },{...weapon('Wrist.R',TOOL_DIAG,{offhand:-.17}),events:[{time:1.0333333333,event:'pick-contact'}]}],
  ['Carry',42,true,(t,u)=>{
-  walk(u,true);r.turn('Torso',[0,0,1],-7);h.hand('R',[-.30,1.52,.22],null,null,.35);h.hand('L',[.22,1.02,.06+.08*Math.sin(TAU*u)],null,[0,-1,0],.7);
+  walk(u,true);r.turn('Torso',[0,0,1],-7);h.hand('R',[-.30,1.52,.22],null,null,.35);
+  // Free arm swings loosely, palm in, wrist straight.
+  const sw=Math.sin(TAU*u);h.fk('L',[.08,-1,.18*sw],[.05,-.75,.35+.2*sw],{open:.7});
  },{equipment:'sack on right shoulder'}]
  ];
 }
