@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { pickGround, HALF } from './terrain.js';
 import { FORMATIONS } from './battle.js';
 
+// Shift, or Cmd / Ctrl, adds to the selection (or takes a regiment back out of it).
+const adding = e => e.shiftKey || e.metaKey || (e.ctrlKey && !/Mac/.test(navigator.platform));
+
 export class Controls {
   constructor(camera, dom, battle, view, heightAt, hooks) {
     Object.assign(this, { camera, dom, battle, view, heightAt, hooks });
@@ -181,6 +184,11 @@ export class Controls {
     return near && near.reg;
   }
 
+  onScreen(v) {
+    const p = this.toScreen(v), rect = this.dom.getBoundingClientRect();
+    return !p.behind && p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
+  }
+
   setSelection(regs, add = false) {
     if (!add) this.selection.clear();
     for (const r of regs) if (r.side === 0 && !r.gone) this.selection.add(r);
@@ -245,18 +253,26 @@ export class Controls {
       if (d.moved) {
         const x0 = Math.min(d.x, e.clientX), x1 = Math.max(d.x, e.clientX);
         const y0 = Math.min(d.y, e.clientY), y1 = Math.max(d.y, e.clientY);
+        // A regiment is caught if its banner or any of its men are inside the box, not only
+        // its middle: a long line needs only part of it boxed.
+        const inBox = v => { const p = this.toScreen(v); return !p.behind && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1; };
+        const v = new THREE.Vector3();
         const inside = this.battle.regs.filter(r => {
           if (r.side !== 0 || r.gone) return false;
-          const p = this.toScreen(new THREE.Vector3(r.cx, this.heightAt(r.cx, r.cz), r.cz));
-          return !p.behind && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
+          if (inBox(this.view.bannerPos(r)) || inBox(v.set(r.cx, this.heightAt(r.cx, r.cz), r.cz))) return true;
+          return r.soldiers.some(s => s.alive && !s.gone && inBox(v.set(s.x, s.y ?? this.heightAt(s.x, s.z), s.z)));
         });
-        this.setSelection(inside, e.shiftKey);
+        this.setSelection(inside, adding(e));
       } else {
         if (this.hooks.place?.(this.groundAt(e.clientX, e.clientY), e)) return;
         const r = this.regAt(e.clientX, e.clientY);
         if (!r && this.hooks.pickBuilding?.(this.groundAt(e.clientX, e.clientY))) { this.setSelection([]); return; }
-        if (r && r.side === 0 && e.shiftKey && this.selection.has(r)) { this.selection.delete(r); this.hooks.selectionChanged(); }
-        else this.setSelection(r && r.side === 0 ? [r] : [], e.shiftKey);
+        // A second click on the same regiment straight after: all of its kind in view.
+        const now = performance.now(), again = r && r === this.lastClick?.r && now - this.lastClick.t < 350;
+        this.lastClick = { r, t: now };
+        if (again && r.side === 0) { this.setSelection(this.battle.regs.filter(o => o.side === 0 && !o.gone && o.T.key === r.T.key && !this.toScreen(this.view.bannerPos(o)).behind && this.onScreen(this.view.bannerPos(o))), adding(e)); return; }
+        if (r && r.side === 0 && adding(e) && this.selection.has(r)) { this.selection.delete(r); this.hooks.selectionChanged(this.selection); }
+        else this.setSelection(r && r.side === 0 ? [r] : [], adding(e));
       }
     }
     if (d.kind === 'order') {

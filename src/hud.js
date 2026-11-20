@@ -159,7 +159,7 @@ export class Hud {
       <span class="state"></span>
       <span class="kit">${kitBadge(r)}</span>`);
     el.title = `${r.T.role || ''}\n${kitWords(r)}`;
-    el.onclick = e => this.hooks.selectCard(r, e.shiftKey);
+    el.onclick = e => this.hooks.selectCard(r, e.shiftKey || e.metaKey || e.ctrlKey);
     el.ondblclick = () => this.hooks.focus(r);
     this.cardsEl.append(el);
     return { r, el, strength: el.querySelector('.strength i'), morale: el.querySelector('.morale i'), state: el.querySelector('.state'), kit: el.querySelector('.kit'), worn: '' };

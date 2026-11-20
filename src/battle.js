@@ -674,6 +674,10 @@ export class Battle {
     }
     // Keep the regiments in their current left-to-right order relative to the new facing.
     regs.sort((a, b) => ((a.cx - x) * cos - (a.cz - z) * sin) - ((b.cx - x) * cos - (b.cz - z) * sin));
+    // Over a river, the line keeps to the bank its middle stands on (or the army does, if
+    // its middle is in the water); see keepDry.
+    const R = this.river, mid = R && Math.abs(R.across(x, z)) > R.half + 1 ? { x, z } : regs.length && { x: regs.reduce((n, r) => n + r.cx, 0) / regs.length, z: regs.reduce((n, r) => n + r.cz, 0) / regs.length };
+    const bank = R ? R.bank(mid.x, mid.z) : 0;
     const widths = regs.map(r => (Math.min(r.files, r.alive) - 1) * r.T.spacing + 2);
     const span = widths.reduce((a, b) => a + b, 0) + gap * (regs.length - 1);
     let lx = -span / 2;
@@ -681,12 +685,35 @@ export class Battle {
       const off = lx + widths[i] / 2;
       lx += widths[i] + gap;
       r.dest = { x: x + cos * off, z: z - sin * off, angle };
+      if (R && !r.T.engine) this.keepDry(r, bank);
       r.targetReg = null;
       r.viaCd = 0;
       this.reform(r);
       if (this.deploying?.side === r.side) this.placeNow(r);
     });
     if (this.deploying) this.updateSight();
+  }
+
+  // A regiment's place in a line that strays over a river: if any of its block would stand
+  // in the water or across it, it steps back (or forward), square to the line, onto dry
+  // ground on the line's own bank. A long line drawn along a winding river then bends
+  // with the bank instead of sending a few regiments wading, or over a bridge in column.
+  keepDry(r, bank) {
+    const R = this.river, d = r.dest, T = r.T;
+    const files = Math.max(1, Math.min(r.files, r.alive)), w = (files - 1) * T.spacing / 2 + 1.5;
+    const back = (Math.ceil(r.alive / files) - 1) * (T.depth || T.spacing) + 1.5;
+    const sin = Math.sin(d.angle), cos = Math.cos(d.angle);
+    const dry = (x, z) => [[-w, 1.5], [w, 1.5], [-w, -back], [w, -back], [0, -back / 2]].every(([lx, lz]) => {
+      const px = x + cos * lx + sin * lz, pz = z - sin * lx + cos * lz;
+      return R.bank(px, pz) === bank && Math.abs(R.across(px, pz)) > R.half + 2;
+    });
+    if (dry(d.x, d.z)) return;
+    for (let k = 2; k <= 120; k += 2) {
+      for (const s of [1, -1]) {
+        const nx = d.x + sin * k * s, nz = d.z + cos * k * s;
+        if (dry(nx, nz)) { d.x = nx; d.z = nz; return; }
+      }
+    }
   }
 
   // Slots are assigned against the destination so each soldier walks to the nearest place.
@@ -1480,7 +1507,11 @@ export class Battle {
           r.via = (this.nav.any ? this.nav.steer(r.side, r.x, r.z, tx, tz) : null) || (this.river ? this.riverWay(r, tx, tz) : null);
           // A narrow column through gates and round walls, and over a river until clear of it;
           // three abreast to fit a bridge.
-          const col = !!r.via || (r.column && r.lag > 3) || (!!this.river && Math.abs(this.river.across(r.x, r.z)) < this.river.half + 12);
+          // Past the water it opens out at once (only a gate's crush keeps it narrow longer), and a
+          // line moving along its own bank stays a line.
+          const R = this.river, ac = R ? Math.abs(R.across(r.x, r.z)) : 1e9;
+          const crossing = ac < R?.half + 2 || (ac < R?.half + 12 && R.bank(r.x, r.z) !== R.bank(r.dest.x, r.dest.z));
+          const col = !!r.via || (r.column && r.lag > 3 && this.nav.any) || crossing;
           const narrow = col && this.river && this.bridgeNear(r.x, r.z, this.river.half + 20) ? 3 : null;
           if ((col !== r.column || narrow !== (r.narrow || null)) && !T.engine) { r.column = col; r.narrow = narrow; this.assignSlots(r); }
         }
@@ -1492,11 +1523,24 @@ export class Battle {
       const dx = tx - r.x, dz = tz - r.z, d = Math.hypot(dx, dz);
       const left = Math.hypot(r.dest.x - r.x, r.dest.z - r.z);
       if (d > 0.4) {
-        const want = left > 12 || r.via ? Math.atan2(dx, dz) : r.dest.angle;
-        const turn = Math.abs(angleDiff(want, r.angle));
+        // A short shift of a line that will face the same way at the end: the men step
+        // across (or back) in formation, a little slower, rather than wheeling to march off
+        // and wheeling back again on arrival.
+        const shuffle = left < 40 && !r.via && !r.targetReg && !r.targetWall && !r.column && Math.abs(angleDiff(r.dest.angle, r.angle)) < 0.6;
+        const want = shuffle ? r.dest.angle : left > 12 || r.via ? Math.atan2(dx, dz) : r.dest.angle;
+        let turn = Math.abs(angleDiff(want, r.angle));
+        // Foot ordered back the way they face about-face where they stand, rather than
+        // wheeling the whole block round: the rear rank becomes the front.
+        if (turn > 2.2 && !T.mounted && !T.engine && !r.column && r.formation !== 'square') {
+          const files = Math.max(1, Math.min(r.files, r.alive)), D = (Math.ceil(r.alive / files) - 1) * (T.depth || T.spacing) * F.depth;
+          r.x -= Math.sin(r.angle) * D; r.z -= Math.cos(r.angle) * D;
+          r.angle = want; turn = 0;
+          this.assignSlots(r);
+        }
         r.angle = turnToward(r.angle, want, dt * (T.mounted ? 1.6 : T.engine ? 0.5 : 1.0));
         // Wheel before marching off, and wait for stragglers.
-        const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1)
+        const sideways = shuffle ? Math.abs(angleDiff(Math.atan2(dx, dz), r.angle)) : 0;
+        const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1) * (sideways > 2 ? 0.6 : sideways > 0.6 ? 0.75 : 1)
           * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.paceOf(r);
         const stepLen = Math.min(d, pace * dt);
         const nx = r.x + dx / d * stepLen, nz = r.z + dz / d * stepLen;
