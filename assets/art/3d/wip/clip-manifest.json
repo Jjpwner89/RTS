@@ -132,11 +132,17 @@
           0.135,
           -0.035
         ],
-        "barrelAxis": [
+        "barrelDirection": [
           0,
+          0,
+          1
+        ],
+        "bowDirection": [
           1,
+          0,
           0
-        ]
+        ],
+        "orientationSpace": "model"
       },
       "equipmentGrounded": [
         0.4,

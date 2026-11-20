@@ -41,7 +41,7 @@ export function footMotions(h){
   if(u>.48&&u<.73){const reach=Math.sin(Math.PI*(u-.48)/.25);R=mix(R,[-.22,.85,.0],reach);}
   const dir=mix([0,0,1],[0,-1,.1],bend);
   const gripAxis=[0,dir[2],-dir[1]];h.hand('R',R,gripAxis,[0,0,1]);h.hand('L',L,gripAxis,[0,0,1]);
- },{weapon:{bone:'Wrist.R',grip:[0,.135,-.035],barrelAxis:[0,1,0]},equipmentGrounded:[.4,2.4],events:[{time:.4,event:'foot-in-stirrup'},{time:1.2,event:'string-spanned'},{time:2.1,event:'bolt-laid'},{time:2.8,event:'shoot'}]}],
+ },{weapon:{bone:'Wrist.R',grip:[0,.135,-.035],barrelDirection:[0,0,1],bowDirection:[1,0,0],orientationSpace:'model'},equipmentGrounded:[.4,2.4],events:[{time:.4,event:'foot-in-stirrup'},{time:1.2,event:'string-spanned'},{time:2.1,event:'bolt-laid'},{time:2.8,event:'shoot'}]}],
  ['Shield_Block',18,false,(t,u)=>{
   const k=curve(u,[[0,0],[.38,1],[.64,1],[1,0]]);ready(.81-.05*k,.02+.035*k,3+13*k,-6);
   h.hand('L',mix([.20,1.02,.22],[.10,1.36,.35],k),[1,0,0],[0,0,1]);
@@ -65,7 +65,8 @@ export function footMotions(h){
    if(relax<1)names.forEach((n,i)=>r.by[n].quaternion.slerp(held[i],1-relax));
    r.update();
   }
-  h.hand('L',[.25,1.10,.24-.22*drive],null,[0,-1,0],.7,V([.7,1.0,.5]));
+  const leftShoulder=r.pos('UpperArm.L');
+  h.hand('L',leftShoulder.clone().add(V([.07,-.51,.04])).toArray(),null,[0,-1,0],.7,leftShoulder.clone().add(V([.05,-.4,0])));
  },{events:[{time:.6333333333,event:'release-javelin'}]}],
  ['Rout',22,true,(t,u)=>{
   walk(u,false,true);r.turn('Neck',[0,1,0],-32);r.turn('Head',[0,1,0],-32+8*Math.sin(TAU*u));
@@ -73,7 +74,8 @@ export function footMotions(h){
  },{equipment:'none'}],
  ['Cheer',45,false,(t,u)=>{
   const k=curve(u,[[0,0],[.26,1],[.48,.9],[.64,1],[1,0]]);ready(.83+.018*k,.02,-6*k,0);
-  const raised=mix([-.23,1.10,.15],[-.26,1.64,.16],k);raised[0]-=.18*Math.sin(Math.PI*k);h.hand('R',raised,[-.45,1,.08],[0,0,1],0,V([-.7,1.4,-.6]));h.hand('L',mix([.22,1.02,.12],[.30,1.52,.20],k),null,[0,0,1],.6);
+  r.turn('Shoulder.R',[0,0,1],-45*k);
+  const raised=[-.23,1.10+.74*k,.16];h.hand('R',raised,[0,1,0],[0,0,1],0,V([-.5,1.55,-.2]));h.hand('L',mix([.22,1.02,.12],[.30,1.52,.20],k),null,[0,0,1],.6);
   r.turn('Head',[1,0,0],-10*k);
  },{}],
  ['Chop',42,true,(t,u)=>{

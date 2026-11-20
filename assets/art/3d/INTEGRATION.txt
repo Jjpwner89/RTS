@@ -53,8 +53,13 @@ head. For a review prop built along +X, rotate it pi radians about local Y
 before attaching to Wrist.R. Spears, swords, javelins, axes, hoes, picks and
 lances use Wrist.R. Bow and shield use Wrist.L.
 For the reference shield, its outward normal is wrist-local +Y and its
-face sits 0.08 m beyond the grip. The crossbow barrel runs along wrist-
-local +Y; its handle crosses the palm on local X.
+face sits 0.08 m beyond the grip. The crossbow's vertical handle crosses
+the palm on local X. Its stock orientation is authored in model space,
+separate from wrist roll: in the ready/loaded pose the barrel faces +Z
+and the bow spans +X, level from side to side. Follow those model-space
+directions from the clip's weapon metadata while keeping its grip at
+Wrist.R. Interpolate to the grounded nose-down orientation described below.
+Do not inherit hand roll as crossbow roll.
 Three.js sanitizes Wrist.R to WristR at load time; raw GLB names keep dots.
 
 Spear_Thrust uses a second grip 0.29 m along the shaft. Reference spear:
@@ -115,15 +120,22 @@ Includes sampled mesh ground bounds. Hoof/shoe edge contact is within
 2.3 cm of the ground on these low-poly meshes.
 wip/contact-checks.json: authored grip target residuals. Equipment contact
 is within 1.3 cm; the released javelin hand has up to 3.4 cm target error
-while settling into its relaxed pose. Spear off-hand error is below 9 mm.
+while settling into its relaxed pose. Spear off-hand error is below 3 mm.
 wip/hand-validation.json: all 19 human clips keep the right finger poses
 on the arc between the original closed grip and relaxed source hand,
 without a second curl. Right wrist bend is below 75 degrees throughout
-and below 25 degrees in Spear_Thrust. Both spear clips have zero sampled
+and below 65 degrees in Spear_Thrust. Both spear clips have zero sampled
 torso intersections on the male and female source geometry at 30 Hz.
 The clearance check covers the full 2.6 m shaft with nine rays across its
 18 mm radius against triangles weighted to the torso bones.
 Run with THREE_MODULE set: node wip/validate-hands.mjs.
+
+The pose checks enforce a low thrust elbow; its measured forearm angle
+to the spear is 29–40 degrees. They also check a low left elbow beside
+the body in the javelin throw and the cheering sword hand's vertical rise
+from 1.10 m to 1.84 m. The browser check verifies the crossbow bow stays level across
+the whole loading cycle and that the loaded barrel points forward.
+wip/reviews/pose-revision.png shows these four revised poses.
 
 The hand correction removes the doubled right-finger curl, places
 pronation in the forearm, and solves the wrist and elbow together. Empty

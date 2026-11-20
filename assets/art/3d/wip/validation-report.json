@@ -1,7 +1,7 @@
 [
   {
     "file": "clips-foot.glb",
-    "bytes": 3239740,
+    "bytes": 3239796,
     "joints": 62,
     "checks": "passed",
     "khronos": {
@@ -15,7 +15,7 @@
         "duration": 0.800000011920929,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 20.650839419542727
+        "maxFrameRotationDegrees": 25.18839241381737
       },
       {
         "name": "Spear_Brace",
@@ -78,7 +78,7 @@
         "duration": 1.5,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 31.963298208590455
+        "maxFrameRotationDegrees": 40.31978126220176
       },
       {
         "name": "Chop",

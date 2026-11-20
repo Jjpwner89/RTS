@@ -3,8 +3,8 @@
     {
       "clip": "Spear_Thrust",
       "frames": 25,
-      "maxRightWristBend": 24.73248635319958,
-      "maxRightWristRotation": 24.804176754367052,
+      "maxRightWristBend": 64.58023515291087,
+      "maxRightWristRotation": 66.36306552991425,
       "maxFingerArcError": 1.5600045677466312e-7
     },
     {
@@ -66,8 +66,8 @@
     {
       "clip": "Cheer",
       "frames": 46,
-      "maxRightWristBend": 52.75967328337433,
-      "maxRightWristRotation": 52.802336732789016,
+      "maxRightWristBend": 70.89153516647129,
+      "maxRightWristRotation": 71.06981049096916,
       "maxFingerArcError": 1.5600045677466312e-7
     },
     {
@@ -134,6 +134,26 @@
       "maxFingerArcError": 1.5600045677466312e-7
     }
   ],
+  "poseChecks": [
+    {
+      "clip": "Spear_Thrust",
+      "minElbowDrop": 0.14361071293477612,
+      "minBackwardDistance": 0.18101253770895392,
+      "minForearmAngle": 28.69926041403573,
+      "maxForearmAngle": 39.704421530198026
+    },
+    {
+      "clip": "Javelin_Throw",
+      "minLeftElbowDrop": 0.16308021601746092,
+      "maxElbowSideDistance": 0.007852137534589104
+    },
+    {
+      "clip": "Cheer",
+      "peakGripHeight": 1.8398003785075565,
+      "maxHorizontalDrift": 9.890900649043755e-8,
+      "minSwordUp": 0.9999998968790862
+    }
+  ],
   "spearClearance": [
     {
       "source": "male",
@@ -142,7 +162,7 @@
       "shaftRadius": 0.018,
       "torsoIntersections": 0,
       "hitFrames": [],
-      "maxOffhandError": 0.008983474008006753
+      "maxOffhandError": 0.0026872278936330997
     },
     {
       "source": "male",
@@ -160,7 +180,7 @@
       "shaftRadius": 0.018,
       "torsoIntersections": 0,
       "hitFrames": [],
-      "maxOffhandError": 0.008983474008006753
+      "maxOffhandError": 0.0026872278936330997
     },
     {
       "source": "female",

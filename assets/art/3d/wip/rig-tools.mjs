@@ -53,7 +53,7 @@ export class Human{
  legs(left=[.15,.02275,.15],right=[-.15,.02275,-.12],poles=null){for(let [s,p]of [['L',left],['R',right]]){let target=V(p);this.r.setPos('Foot.'+s,target);this.r.setQ('Foot.'+s,this.footQ[s]);let pole=poles?.[s]||V([p[0],.5,1]);this.r.limb('UpperLeg.'+s,'LowerLeg.'+s,null,target,pole,this.legLen[s]);this.r.setPos('PT.'+s,pole);}}
  // Grip axes follow the mirrored hands: right -X, left +X.
  // Solve palm roll and elbow together; pronation belongs in the forearm.
- hand(s,centre,axis=[0,0,1],down=[0,-1,0],open=0,pole=null){
+ hand(s,centre,axis=[0,0,1],down=[0,-1,0],open=0,pole=null,options={}){
  const r=this.r,offset=V([0,.135,-.035]);
  const blendFingers=()=>{
   if(open)for(let i=0;i<r.nodes.length;i++){
@@ -75,6 +75,8 @@ export class Human{
  // Minimise wrist bend while preserving contact and a continuous elbow path.
  const evaluate=angle=>{
   const q=Q().setFromAxisAngle(x,angle).multiply(pref),y=V([0,1,0]).applyQuaternion(q),target=C.clone().sub(V([0,.135,-.035]).applyQuaternion(q)),D=target.clone().sub(A),length=D.length(),d=Math.max(Math.abs(l1-l2)+.00001,Math.min(l1+l2-.00001,length)),dir=D.normalize(),natural=P.clone().sub(A);natural.addScaledVector(dir,-natural.dot(dir)).normalize();const bend=y.clone().negate().addScaledVector(dir,y.dot(dir));bend.addScaledVector(natural,.25).normalize();
+  // The thrust explicitly keeps the elbow down, even when a straighter wrist would raise it.
+  if(options.elbowPole)bend.copy(natural);
   const along=(l1*l1-l2*l2+d*d)/(2*d),height=Math.sqrt(Math.max(0,l1*l1-along*along)),B=A.clone().addScaledVector(dir,along).addScaledVector(bend,height),fore=target.clone().sub(B).normalize(),flex=Math.acos(Math.max(-1,Math.min(1,y.dot(fore)))),reach=Math.max(0,length-l1-l2,Math.abs(l1-l2)-length);
   return {q,target,flex,reach,angle,bend,score:flex*flex+2500*reach*reach+.35*(1-bend.dot(natural))+.001*(1-Math.cos(angle))+(r.handElbows?.[s]?40*B.distanceToSquared(r.handElbows[s]):0)};
  };

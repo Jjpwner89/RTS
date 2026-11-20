@@ -370,5 +370,11 @@
       "meshSamples": 6,
       "minMeshY": -0.009641863793761859
     }
-  ]
+  ],
+  "equipmentChecks": {
+    "clip": "Crossbow_Span",
+    "frames": 91,
+    "maxBowVerticalSpan": 4.440892098500626e-16,
+    "minLoadedForwardDot": 1
+  }
 }

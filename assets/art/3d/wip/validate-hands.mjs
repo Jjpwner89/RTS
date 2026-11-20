@@ -49,6 +49,39 @@ const sources=[['male',source]];
 const female=process.env.FEMALE_SOURCE||'/tmp/rts-medieval-clips/Female_Medieval.glb';
 if(fs.existsSync(female))sources.push(['female',readGLB(female)]);
 const pack=readGLB(path.join(dir,'../clips-foot.glb')),animated=new Rig(pack);
+const poseReports=[];
+for(const name of ['Spear_Thrust','Javelin_Throw','Cheer']){
+ const clip=pack.j.animations.find(c=>c.name===name),frames=Math.round(pack.j.accessors[clip.samplers[0].input].max[0]*30);
+ const values=[];
+ for(let f=0;f<=frames;f++){
+  animated.sample(name,f/30);
+  if(name==='Spear_Thrust'){
+   const shoulder=animated.pos('UpperArm.R'),elbow=animated.pos('LowerArm.R'),wrist=animated.pos('Wrist.R'),axis=V([-1,0,0]).applyQuaternion(animated.quat('Wrist.R')),fore=wrist.clone().sub(elbow);
+   values.push({elbowDrop:shoulder.y-elbow.y,backwardDistance:fore.dot(axis),forearmAngle:fore.angleTo(axis)*180/Math.PI});
+  }else if(name==='Javelin_Throw'){
+   const shoulder=animated.pos('UpperArm.L'),elbow=animated.pos('LowerArm.L');
+   values.push({elbowDrop:shoulder.y-elbow.y,sideDistance:Math.abs(elbow.x-shoulder.x)});
+  }else{
+   const q=animated.quat('Wrist.R'),grip=animated.pos('Wrist.R').add(V([0,.135,-.035]).applyQuaternion(q));
+   values.push({height:grip.y,horizontalDrift:Math.hypot(grip.x+.23,grip.z-.16),swordUp:V([-1,0,0]).applyQuaternion(q).y});
+  }
+ }
+ const minimum=key=>Math.min(...values.map(v=>v[key])),maximum=key=>Math.max(...values.map(v=>v[key]));
+ if(name==='Spear_Thrust'){
+  const report={clip:name,minElbowDrop:minimum('elbowDrop'),minBackwardDistance:minimum('backwardDistance'),minForearmAngle:minimum('forearmAngle'),maxForearmAngle:maximum('forearmAngle')};
+  if(report.minElbowDrop<.10||report.minBackwardDistance<.12||report.minForearmAngle<15||report.maxForearmAngle>50)throw Error('Thrust elbow must stay low with the forearm facing back along the spear');
+  poseReports.push(report);
+ }else if(name==='Javelin_Throw'){
+  const report={clip:name,minLeftElbowDrop:minimum('elbowDrop'),maxElbowSideDistance:maximum('sideDistance')};
+  if(report.minLeftElbowDrop<.13||report.maxElbowSideDistance>.10)throw Error('Javelin left elbow must remain low beside the body');
+  poseReports.push(report);
+ }else{
+  const report={clip:name,peakGripHeight:maximum('height'),maxHorizontalDrift:maximum('horizontalDrift'),minSwordUp:minimum('swordUp')};
+  if(report.peakGripHeight<1.83||report.maxHorizontalDrift>.002||report.minSwordUp<.999)throw Error('Cheer must raise the sword hand straight overhead');
+  poseReports.push(report);
+ }
+}
+
 for(const [name,src] of sources){
  const rig=new Rig(src),meshes=torsoMeshes(src,rig);
  for(const clip of ['Spear_Thrust','Spear_Brace']){
@@ -81,7 +114,7 @@ for(const [name,src] of sources){
   collisionReports.push({source:name,clip,frames:frames+1,shaftRadius:.018,torsoIntersections:hits,hitFrames,maxOffhandError});
  }
 }
-const result={handChecks:reports,spearClearance:collisionReports};
+const result={handChecks:reports,poseChecks:poseReports,spearClearance:collisionReports};
 fs.writeFileSync(path.join(dir,'hand-validation.json'),JSON.stringify(result,null,2)+'\n');
-console.log(JSON.stringify({humanClips:reports.length,maxWristBend:Math.max(...reports.map(r=>r.maxRightWristBend)),spearClearance:collisionReports},null,2));
+console.log(JSON.stringify({humanClips:reports.length,poseChecks:poseReports,maxWristBend:Math.max(...reports.map(r=>r.maxRightWristBend)),spearClearance:collisionReports},null,2));
 if(collisionReports.some(r=>r.torsoIntersections||r.maxOffhandError>.02))throw Error('Spear intersects the torso or misses the off hand; see hand-validation.json');

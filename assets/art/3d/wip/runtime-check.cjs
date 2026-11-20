@@ -26,8 +26,21 @@ const server=http.createServer((req,res)=>{let p=req.url==='/validation-female.g
  }
  return reports;
  });
- fs.writeFileSync(path.join(__dirname,'runtime-validation.json'),JSON.stringify({errors,results:result},null,2)+'\n');
+ const equipmentChecks=await p.evaluate(async()=>{
+  const T=await import('three');review.choose('Crossbow_Span');review.pause();
+  let maxBowVerticalSpan=0,minLoadedForwardDot=1;
+  for(let frame=0;frame<=90;frame++){
+   review.setTime(frame/30);
+   const crossbow=review.scene.getObjectByName('ReviewCrossbow'),bow=crossbow.children.find(n=>n.geometry?.type==='BoxGeometry');
+   const left=bow.localToWorld(new T.Vector3(0,-.3,0)),right=bow.localToWorld(new T.Vector3(0,.3,0));
+   maxBowVerticalSpan=Math.max(maxBowVerticalSpan,Math.abs(left.y-right.y));
+   if(frame/30>=2.55){const forward=crossbow.localToWorld(new T.Vector3(1,0,0)).sub(crossbow.localToWorld(new T.Vector3())).normalize();minLoadedForwardDot=Math.min(minLoadedForwardDot,forward.z);}
+  }
+  if(maxBowVerticalSpan>1e-5||minLoadedForwardDot<.999)throw Error('Crossbow bow must be horizontal and its loaded stock must face forward');
+  return {clip:'Crossbow_Span',frames:91,maxBowVerticalSpan,minLoadedForwardDot};
+ });
+ fs.writeFileSync(path.join(__dirname,'runtime-validation.json'),JSON.stringify({errors,results:result,equipmentChecks},null,2)+'\n');
  if(errors.length||result.some(r=>r.missingTargets.length||r.maxJointPositionDifference>1e-5))throw Error('Runtime compatibility failed; see report');
- console.log(JSON.stringify({errors,clips:22,originalRigApplications:result.length,worstRetargetDifference:Math.max(...result.map(r=>r.maxJointPositionDifference)),groundBounds:result.filter(r=>r.minMeshY!==null).map(r=>[r.clip,+r.minMeshY.toFixed(4)])}));
+ console.log(JSON.stringify({errors,equipmentChecks,clips:22,originalRigApplications:result.length,worstRetargetDifference:Math.max(...result.map(r=>r.maxJointPositionDifference)),groundBounds:result.filter(r=>r.minMeshY!==null).map(r=>[r.clip,+r.minMeshY.toFixed(4)])}));
  }catch(e){console.error(e);process.exitCode=1;}finally{await browser?.close();server.close();}
 });
