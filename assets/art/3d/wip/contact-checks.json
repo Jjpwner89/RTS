@@ -3,7 +3,7 @@
   "handTargetErrors": [
     {
       "name": "Spear_Thrust",
-      "maxGripError": 0.0026872357200054607
+      "maxGripError": 0.004041228569088937
     },
     {
       "name": "Spear_Brace",

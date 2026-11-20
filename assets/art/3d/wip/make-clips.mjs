@@ -11,9 +11,10 @@ const human=new Human(src),r=human.r;
 function spear(t,u){
  human.reset();let thrust=curve(u,[[0,0],[.20,-.04],[.44,1],[.55,1],[.86,0],[1,0]]),step=curve(u,[[0,0],[.12,0],[.34,1],[.65,1],[1,0]]);
  human.body(.79-.035*thrust,.015+.10*thrust,5+8*thrust,-12+18*thrust);
- human.legs([.145,.02275+.055*Math.sin(Math.PI*step),.12+.13*step],[-.16,.02275,-.19]);
- const rear=[-.20,1.43+.01*thrust,.24+.18*thrust],axis=V([.65,.05,1]).normalize(),front=V(rear).addScaledVector(axis,.29).toArray();
- human.hand('R',rear,axis.toArray(),[0,1,0],0,V([-.45,.9,-.1]),{elbowPole:true});human.hand('L',front,axis.toArray());
+ human.legs([.145,.02275+.055*Math.sin(Math.PI*step),.12+.13*step],[-.17,.02275,-.19]);
+ // Begin at Spear_Brace's hand positions, then move both grips forward and up.
+ const rear=[-.20,1.08+.13*thrust,.24+.20*thrust],axis=V([.65,.15,1]).normalize(),front=V(rear).addScaledVector(axis,.29).toArray();
+ human.hand('R',rear,axis.toArray(),null,0,r.pos('UpperArm.R').add(V([.15,-1,-.1])),{elbowPole:true});human.hand('L',front,axis.toArray(),null);
 }
 const clips=[makeClip(r,'Spear_Thrust',24,false,spear,{events:[{time:10/30,event:'thrust'},{time:24/30,event:'guard'}],weapon:{bone:'Wrist.R',grip:[0,.135,-.035],axis:[-1,0,0],offhandSeparation:.29}})];
 const metrics=[{name:'Spear_Thrust',maxGripError:human.maxGripError}];
