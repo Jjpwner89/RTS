@@ -128,7 +128,7 @@ const NORRHOLD = [
   ['wardog', -120, -6], ['wardog', 120, -6], ['lightcav', -160, -20], ['lightcav', 160, -20],
 ];
 
-const CELL = 4, GSPAN = HALF + 60, GN = Math.ceil(GSPAN * 2 / CELL), COLUMN = 6, CLIMB = { tower: 2, gate: 2, ladder: 3.5 }, POUR_REACH = 3.9;
+const CELL = 4, GSPAN = HALF + 60, GN = Math.ceil(GSPAN * 2 / CELL), CLIMB = { tower: 2, gate: 2, ladder: 3.5 }, POUR_REACH = 3.9;
 const ORDINAL = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 
 export const angleDiff = (a, b) => {
@@ -489,14 +489,14 @@ export class Battle {
     const T = r.T, F = FORMATIONS[r.formation] || FORMATIONS.line;
     const sp = T.spacing * F.spacing, dp = (T.depth || T.spacing) * F.depth;
     let lx, lz, face = 0;
-    if (r.formation === 'square' && !r.column) {
+    if (r.formation === 'square') {
       const ring = this.ringSlot(r, k, sp);
       lx = ring.x; lz = ring.z; face = ring.a;
-    } else if (r.formation === 'wedge' && !r.column) {
+    } else if (r.formation === 'wedge') {
       const i = Math.floor(Math.sqrt(k)), j = k - i * i;
       lx = (j - i) * sp * 0.75; lz = -i * dp;
     } else {
-      const files = Math.max(1, Math.min(r.column ? Math.min(r.files, r.narrow || COLUMN) : r.files, r.alive));
+      const files = Math.max(1, Math.min(r.files, r.alive));
       const rank = Math.floor(k / files), f = k % files;
       const lastRank = Math.floor((r.alive - 1) / files);
       const inRank = rank === lastRank ? r.alive - rank * files : files;
@@ -543,12 +543,184 @@ export class Battle {
       s._l = dx * cos - dz * sin;
     }
     list.sort((a, b) => b._f - a._f);
-    const files = Math.max(1, Math.min(r.column ? Math.min(r.files, r.narrow || COLUMN) : r.files, list.length));
+    const files = Math.max(1, Math.min(r.files, list.length));
     for (let i = 0; i < list.length; i += files) {
       const rank = list.slice(i, i + files).sort((a, b) => a._l - b._l);
       rank.forEach((s, j) => { s.slot = i + j; });
     }
     r.alive = list.length;
+  }
+
+  // ---- squeezing through a gap ----
+  //
+  // A regiment marching through a gate, breach or bridge narrower than its front keeps its
+  // formation. Only the men who meet the gap change step: the files that fit walk straight
+  // through, and the outer files fall in behind them, rank by rank, the middle men first.
+  // Past the gap each man goes back to his own place, so the block fills out again from
+  // the front. A pinch is { key, x, z, ux, uz (the way through), tx, tz (across), len, half }.
+
+  // Finds the gap the regiment is passing, if one is too narrow for it, and lines up its men.
+  pinchFor(r) {
+    const old = r.pinch;
+    // Men still on their way through keep the gap they started at.
+    if (old && r.soldiers.some(s => live(s) && !s.captain && s.pinchOf === old && s.pPassed !== old && this.pinchU(old, this.slotPos(r, s.slot)) > -old.len)) {
+      this.pinchLanes(r, old);
+      return;
+    }
+    const P = this.findPinch(r);
+    r.pinch = P && this.pinchLanes(r, P) ? P : null;
+  }
+
+  pinchU(P, p) { return (p.x - P.x) * P.ux + (p.z - P.z) * P.uz; }
+  pinchAt(P, u, v) { return { x: P.x + P.ux * u + P.tx * v, z: P.z + P.uz * u + P.tz * v }; }
+
+  findPinch(r) {
+    const A = { x: r.x, z: r.z }, C = { x: r.cx, z: r.cz }, D = r.dest, V = r.via;
+    let best = null, bd = Infinity;
+    // Which way a stretch of the march goes through a frame's line, if it does so within `w` of its middle.
+    const through = (c, ux, uz, tx, tz, w) => {
+      for (const [P, Q] of [[C, A], [A, V], [A, D]]) {
+        if (!P || !Q) continue;
+        const uP = (P.x - c.x) * ux + (P.z - c.z) * uz, uQ = (Q.x - c.x) * ux + (Q.z - c.z) * uz;
+        if ((uP < 0) === (uQ < 0)) continue;
+        const vP = (P.x - c.x) * tx + (P.z - c.z) * tz, vQ = (Q.x - c.x) * tx + (Q.z - c.z) * tz;
+        if (Math.abs(vP + (vQ - vP) * uP / (uP - uQ)) < w) return uQ > uP ? 1 : -1;
+      }
+      return 0;
+    };
+    if (this.nav.any) {
+      for (const p of this.walls.pieces) {
+        if (!(p.state === 'broken' || (p.gate && p.state === 'up' && (p.side === r.side || p.forced)))) continue;
+        const len = Math.hypot(p.b.x - p.a.x, p.b.z - p.a.z) || 1, tx = (p.b.x - p.a.x) / len, tz = (p.b.z - p.a.z) / len;
+        const ux = -tz, uz = tx, c = { x: p.x, z: p.z };
+        const uA = (A.x - c.x) * ux + (A.z - c.z) * uz, vA = (A.x - c.x) * tx + (A.z - c.z) * tz;
+        if (Math.abs(uA) > 30 || Math.abs(vA) > len / 2 + 25 || Math.abs(uA) >= bd) continue;
+        const dir = through(c, ux, uz, tx, tz, len / 2 + 3);
+        if (!dir) continue;
+        // How wide the way through really is: walk the wall's line out from the middle till it is blocked.
+        let lo = 0, hi = 0;
+        while (lo < len / 2 + 3 && !this.nav.blockedAt(r.side, c.x - tx * (lo + 0.25), c.z - tz * (lo + 0.25))) lo += 0.25;
+        while (hi < len / 2 + 3 && !this.nav.blockedAt(r.side, c.x + tx * (hi + 0.25), c.z + tz * (hi + 0.25))) hi += 0.25;
+        const mid = (hi - lo) / 2;
+        bd = Math.abs(uA);
+        best = { key: p, x: c.x + tx * mid, z: c.z + tz * mid, ux: ux * dir, uz: uz * dir, tx: tx * dir, tz: tz * dir,
+          len: p.M.thick / 2 + 1.8, half: Math.max(0.3, (lo + hi) / 2 - 0.6) };
+      }
+    }
+    const R = this.river;
+    if (R && !best) {
+      for (const c of R.crossings()) {
+        if (Math.abs(A.x - c.x) > c.ref.half + 10) continue;
+        const z = R.zAt(c.x), k = Math.sqrt(1 + R.slope(c.x) ** 2), tx = 1 / k, tz = R.slope(c.x) / k;
+        const ux = -tz, uz = tx, at = { x: c.x, z };
+        if (Math.abs(R.across(A.x, A.z)) > R.half + 30) continue;
+        const dir = through(at, ux, uz, tx, tz, c.ref.half + 4);
+        if (!dir || Math.abs(A.x - c.x) >= bd) continue;
+        bd = Math.abs(A.x - c.x);
+        best = { key: c.ref, x: c.x, z, ux: ux * dir, uz: uz * dir, tx: tx * dir, tz: tz * dir, len: R.half + 3, half: c.ref.half - 1.2 };
+      }
+    }
+    return best;
+  }
+
+  // Shares the men out among the lanes the gap has room for, each lane in the order they go
+  // through: front rank first, and within a rank the men nearest the middle. False if the
+  // whole front fits anyway.
+  pinchLanes(r, P) {
+    const T = r.T, F = FORMATIONS[r.formation] || FORMATIONS.line, sp = T.spacing * F.spacing;
+    const G = Math.max(1, Math.floor(2 * P.half / sp) + 1), sin = Math.sin(r.angle), cos = Math.cos(r.angle);
+    const flip = cos * P.tx - sin * P.tz < 0 ? -1 : 1;
+    const list = r.soldiers.filter(s => live(s) && !s.captain);
+    let wide = 0;
+    for (const s of list) {
+      const q = this.slotPos(r, s.slot), dx = q.x - r.x, dz = q.z - r.z;
+      s._l = dx * cos - dz * sin;
+      s._f = dx * sin + dz * cos;
+      wide = Math.max(wide, Math.abs(s._l));
+    }
+    if (wide <= P.half + 0.1 && P !== r.pinch) return false;
+    const lanes = Array.from({ length: G }, () => []);
+    for (const s of list) {
+      const j = Math.max(0, Math.min(G - 1, Math.round(s._l / sp + (G - 1) / 2)));
+      s.pinchOf = P;
+      s.pPos = (G === 1 ? 0 : Math.max(-P.half, Math.min(P.half, (j - (G - 1) / 2) * sp))) * flip;
+      s.pL = s._l * flip;                       // his file, across the gap
+      s.pRank = Math.round(-s._f * 2);          // his rank, by how far back it stands
+      s._k = s.pRank * 100 + Math.abs(s._l);
+      lanes[j].push(s);
+    }
+    for (const l of lanes) l.sort((a, b) => a._k - b._k);
+    P.lanes = lanes;
+    P.share = Math.min(1, G / Math.max(1, Math.min(r.files, list.length)));
+    return true;
+  }
+
+  // Each frame: which ranks still wait before the gap, and how many men of his own rank wait
+  // ahead of each man in his lane.
+  queuePinch(r) {
+    const P = r.pinch, waiting = new Set();
+    let left = 0;
+    for (const lane of P.lanes) for (const s of lane) {
+      s.pIn = false;
+      if (!live(s) || s.pPassed === P) continue;
+      const u = this.pinchU(P, s);
+      if (u >= P.len) { s.pPassed = P; continue; }
+      // Bound through: his place is in or past the gap.
+      if (this.pinchU(P, this.slotPos(r, s.slot)) <= -P.len) continue;
+      s.pIn = true;
+      left++;
+      s.pWaiting = u < -P.len + 0.3 && !s.target;
+      if (s.pWaiting) waiting.add(s.pRank);
+    }
+    const ranks = [...waiting].sort((a, b) => a - b);
+    for (const lane of P.lanes) {
+      const seen = new Map();
+      for (const s of lane) {
+        if (!s.pIn) continue;
+        s.pWait = Math.max(0, ranks.indexOf(s.pRank));
+        s.pAhead = seen.get(s.pRank) || 0;
+        if (s.pWaiting) seen.set(s.pRank, s.pAhead + 1);
+      }
+    }
+    P.left = left;
+    if (!left && this.pinchU(P, { x: r.cx, z: r.cz }) > 0) r.pinch = null;
+  }
+
+  // The front walks on past the gap only as fast as men come through it to fill out behind.
+  pinchPace(r) {
+    const P = r.pinch;
+    return P.left && this.pinchU(P, r) > P.len ? Math.max(0.25, P.share) : 1;
+  }
+
+  // Where a man bound through the gap heads. The ranks behind stand in their files, a rank's
+  // depth back from it for each rank still waiting in front. The front rank closes in on its
+  // lanes as its turn comes, the men nearest the middle first, and each in turn walks
+  // straight through. Once through he steps out to the side, along the far face of the wall
+  // or the far bank, until his place has come clear of the gap; then he goes to it.
+  pinchGoal(s, slot) {
+    const P = s.reg.pinch;
+    if (s.pinchOf !== P) return null;
+    if (s.pPassed === P) {
+      const su = this.pinchU(P, slot);
+      if (su <= -P.len || su >= P.len + 1.5) return null;
+      const p = this.pinchAt(P, P.len + 1.5, (slot.x - P.x) * P.tx + (slot.z - P.z) * P.tz);
+      return { x: p.x, z: p.z, perch: null, face: slot.face };
+    }
+    if (!s.pIn) return null;
+    const u = this.pinchU(P, s), v = (s.x - P.x) * P.tx + (s.z - P.z) * P.tz;
+    const dp = (s.reg.T.depth || s.reg.T.spacing) * (FORMATIONS[s.reg.formation] || FORMATIONS.line).depth;
+    const front = s.pWait === 0;
+    if (u > -P.len + 0.3 || (front && s.pAhead === 0 && u > -P.len - 1.5 && Math.abs(v - s.pPos) < 0.6)) {
+      const p = this.pinchAt(P, P.len + 1.5, s.pPos);
+      return { x: p.x, z: p.z, perch: null };
+    }
+    // He starts closing in early enough to be there when his turn comes.
+    const K = Math.max(1, Math.abs(s.pL - s.pPos) / (dp * 1.5));
+    const lat = front ? s.pPos + (s.pL - s.pPos) * Math.min(1, s.pAhead / K) : s.pL;
+    // Up to his rank's place, but no stepping back to it.
+    const at = Math.min(-P.len, Math.max(u, -P.len - s.pWait * dp));
+    const p = this.pinchAt(P, at, lat);
+    return { x: p.x, z: p.z, perch: null, face: Math.atan2(P.ux, P.uz) };
   }
 
   // ---- orders ----
@@ -631,7 +803,7 @@ export class Battle {
   placeNow(r) {
     const D = this.deploying, d = r.dest;
     r.x = d.x; r.z = d.z; r.angle = d.angle;
-    r.dest = null; r.via = null; r.column = false;
+    r.dest = null; r.via = null; r.pinch = null;
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const s of r.soldiers) {
       if (!live(s) || s.captain) continue;
@@ -1374,7 +1546,7 @@ export class Battle {
     this.nav.sync();
     this.buildGrid();
     for (const r of this.regs) this.updateRegiment(r, dt);
-    for (const r of this.regs) { r.engaged = 0; r._lagSum = 0; r._lagN = 0; }
+    for (const r of this.regs) { r.engaged = 0; r._lagSum = 0; r._lagN = 0; if (r.pinch) this.queuePinch(r); }
     for (const s of this.soldiers) if (live(s)) this.updateSoldier(s, dt);
     else if (!s.alive && s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5);
     this.separate();
@@ -1499,21 +1671,15 @@ export class Battle {
       r.z += (r.cz - r.z) * k;
     } else if (r.dest) {
       let tx = r.dest.x, tz = r.dest.z;
-      // Round the walls: steer for the next point on the way, marching in a narrow column.
+      // Round the walls: steer for the next point on the way. The regiment keeps its
+      // formation; at a gate, breach or bridge too narrow for it, only the files that don't
+      // fit squeeze in behind the others (see pinchFor).
       if (this.nav.any || this.river) {
         r.viaCd -= dt;
         if (r.viaCd <= 0) {
           r.viaCd = 0.5;
           r.via = (this.nav.any ? this.nav.steer(r.side, r.x, r.z, tx, tz) : null) || (this.river ? this.riverWay(r, tx, tz) : null);
-          // A narrow column through gates and round walls, and over a river until clear of it;
-          // three abreast to fit a bridge.
-          // Past the water it opens out at once (only a gate's crush keeps it narrow longer), and a
-          // line moving along its own bank stays a line.
-          const R = this.river, ac = R ? Math.abs(R.across(r.x, r.z)) : 1e9;
-          const crossing = ac < R?.half + 2 || (ac < R?.half + 12 && R.bank(r.x, r.z) !== R.bank(r.dest.x, r.dest.z));
-          const col = !!r.via || (r.column && r.lag > 3 && this.nav.any) || crossing;
-          const narrow = col && this.river && this.bridgeNear(r.x, r.z, this.river.half + 20) ? 3 : null;
-          if ((col !== r.column || narrow !== (r.narrow || null)) && !T.engine) { r.column = col; r.narrow = narrow; this.assignSlots(r); }
+          if (!T.engine) this.pinchFor(r);
         }
         if (r.via) {
           tx = r.via.x; tz = r.via.z;
@@ -1526,12 +1692,12 @@ export class Battle {
         // A short shift of a line that will face the same way at the end: the men step
         // across (or back) in formation, a little slower, rather than wheeling to march off
         // and wheeling back again on arrival.
-        const shuffle = left < 40 && !r.via && !r.targetReg && !r.targetWall && !r.column && Math.abs(angleDiff(r.dest.angle, r.angle)) < 0.6;
+        const shuffle = left < 40 && !r.via && !r.pinch && !r.targetReg && !r.targetWall && Math.abs(angleDiff(r.dest.angle, r.angle)) < 0.6;
         const want = shuffle ? r.dest.angle : left > 12 || r.via ? Math.atan2(dx, dz) : r.dest.angle;
         let turn = Math.abs(angleDiff(want, r.angle));
         // Foot ordered back the way they face about-face where they stand, rather than
         // wheeling the whole block round: the rear rank becomes the front.
-        if (turn > 2.2 && !T.mounted && !T.engine && !r.column && r.formation !== 'square') {
+        if (turn > 2.2 && !T.mounted && !T.engine && !r.pinch && r.formation !== 'square') {
           const files = Math.max(1, Math.min(r.files, r.alive)), D = (Math.ceil(r.alive / files) - 1) * (T.depth || T.spacing) * F.depth;
           r.x -= Math.sin(r.angle) * D; r.z -= Math.cos(r.angle) * D;
           r.angle = want; turn = 0;
@@ -1541,6 +1707,7 @@ export class Battle {
         // Wheel before marching off, and wait for stragglers.
         const sideways = shuffle ? Math.abs(angleDiff(Math.atan2(dx, dz), r.angle)) : 0;
         const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1) * (sideways > 2 ? 0.6 : sideways > 0.6 ? 0.75 : 1)
+          * (r.pinch ? this.pinchPace(r) : 1)
           * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.paceOf(r);
         const stepLen = Math.min(d, pace * dt);
         const nx = r.x + dx / d * stepLen, nz = r.z + dz / d * stepLen;
@@ -1557,7 +1724,6 @@ export class Battle {
         r.angle = turnToward(r.angle, r.dest.angle, dt * 1.2);
         if (!r.targetReg && !r.targetWall && Math.abs(angleDiff(r.angle, r.dest.angle)) < 0.01) {
           r.dest = null;
-          if (r.column) { r.column = false; this.assignSlots(r); }
         }
       }
     }
@@ -1795,7 +1961,7 @@ export class Battle {
       return { x: p.x, z: p.z, perch: null, strike: r.targetWall };
     }
     const p = this.slotPos(r, s.slot);
-    return { x: p.x, z: p.z, perch: null, face: p.face };
+    return (r.pinch && this.pinchGoal(s, p)) || { x: p.x, z: p.z, perch: null, face: p.face };
   }
 
   updateSoldier(s, dt) {
@@ -2286,7 +2452,7 @@ export class Battle {
     r.targetReg = null;
     r.morale = 0;
     this.clearPosts(r);
-    if (r.column) { r.column = false; }
+    r.pinch = null;
     for (const s of r.soldiers) { s.target = null; s.down = null; }
     this.event(r.side, `${this.label(r)} are routing!`);
     audio.play('rout', { x: r.cx, z: r.cz }, this); // audio

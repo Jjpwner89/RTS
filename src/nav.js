@@ -47,11 +47,13 @@ export class Nav {
       if (p.state !== 'up') continue;
       const r = p.M.thick / 2 + 0.7;
       grow(p.a.x, p.a.z, r + CELL); grow(p.b.x, p.b.z, r + CELL);
-      // A gate's door is the middle half: open to its owner, shut to everyone else.
+      // A gate's door is the middle half: open to its owner, shut to everyone else. The
+      // posts either side stop at the door's edge, so their rounded ends don't close it.
+      const e = r / (Math.hypot(p.b.x - p.a.x, p.b.z - p.a.z) || 1);
       for (let side = 0; side < 2; side++) {
         if (p.gate && (side === p.side || p.forced)) {
-          this.capsule(side, p, 0, 0.25, r);
-          this.capsule(side, p, 0.75, 1, r);
+          this.capsule(side, p, 0, Math.max(0, 0.25 - e), r);
+          this.capsule(side, p, Math.min(1, 0.75 + e), 1, r);
         } else this.capsule(side, p, 0, 1, r);
       }
     }
