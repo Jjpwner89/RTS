@@ -44,12 +44,41 @@ const SOUNDS = {
   gate:     { files: ['sfx/gate'], vol: 0.9, gap: 1, cap: 1 },
   stone:    { files: ['sfx/stone1', 'sfx/stone2'], vol: 0.8, gap: 0.3, cap: 3, pitch: 0.08 },
   burn:     { files: ['sfx/burn'], vol: 0.7, gap: 1, cap: 2 },
+  // Sieges and the newer battle: oil, mines, bridges, duels, lords, terms, dogs, axes, javelins.
+  oil:      { files: ['sfx/oil'], vol: 0.8, gap: 0.8, cap: 2 },
+  dig:      { files: ['sfx/dig1', 'sfx/dig2'], vol: 0.5, gap: 0.5, cap: 2, pitch: 0.1 },
+  collapse: { files: ['sfx/collapse'], vol: 1, gap: 2, cap: 1 },
+  bridgefall: { files: ['sfx/bridgefall'], vol: 0.9, gap: 2, cap: 1 },
+  dog:      { files: ['sfx/dog1', 'sfx/dog2', 'sfx/dog3'], vol: 0.55, gap: 0.35, cap: 3, pitch: 0.08 },
+  javelin:  { files: ['sfx/javelin1', 'sfx/javelin2'], vol: 0.45, gap: 0.15, cap: 3, pitch: 0.1 },
+  axeshield: { files: ['sfx/axeshield1', 'sfx/axeshield2'], vol: 0.5, gap: 0.08, cap: 4, pitch: 0.12 },
+  neigh:    { files: ['sfx/neigh1', 'sfx/neigh2'], vol: 0.6, gap: 3, cap: 1, pitch: 0.05 },
+  cheer:    { files: ['sfx/cheer1', 'sfx/cheer2'], vol: 0.8, gap: 3, cap: 1 },
+  gasp:     { files: ['sfx/gasp'], vol: 0.7, gap: 3, cap: 1 },
+  parley:   { files: ['sfx/parley'], vol: 0.8, gap: 4, cap: 1 },
+  fanfare:  { files: ['sfx/fanfare'], vol: 0.7, gap: 4, cap: 1 },
+  // The realm: news, money, writs and crowds.
+  coins:    { files: ['ui/coins1', 'ui/coins2'], vol: 0.55, gap: 0.4, cap: 1, pitch: 0.05 },
+  scroll:   { files: ['ui/scroll1', 'ui/scroll2'], vol: 0.6, gap: 0.6, cap: 1 },
+  seal:     { files: ['ui/seal'], vol: 0.7, gap: 0.6, cap: 1 },
+  quill:    { files: ['ui/quill'], vol: 0.6, gap: 1, cap: 1 },
+  bells:    { files: ['sfx/bells'], vol: 0.7, gap: 6, cap: 1 },
+  feast:    { files: ['sfx/feast'], vol: 0.6, gap: 6, cap: 1 },
+  mob:      { files: ['sfx/mob1', 'sfx/mob2'], vol: 0.7, gap: 4, cap: 1 },
+  boom:     { files: ['sfx/boom'], vol: 0.85, gap: 3, cap: 1 },
+  cart:     { files: ['sfx/cart'], vol: 0.5, gap: 4, cap: 1 },
 };
+// The same blow sounds different from a dog or a Norrhold axe, and a javelin is no arrow.
+const VARIANT = { clash: { wardog: 'dog', axeman: 'axeshield' }, bow: { javelin: 'javelin' } };
 // Gathering sounds by the resource worked, so economy.js can pass the node kind.
 const ALIAS = { tree: 'chop', rock: 'pick', ore: 'pick' };
 // Looping beds, mixed by what is on screen.
-const BEDS = { village: 'amb/village', forest: 'amb/forest', wind: 'amb/wind', din: 'amb/din', march: 'amb/march', fire: 'amb/fire' };
+const BEDS = { village: 'amb/village', forest: 'amb/forest', wind: 'amb/wind', din: 'amb/din', march: 'amb/march', fire: 'amb/fire',
+  gallop: 'amb/gallop', mail: 'amb/mail', wade: 'amb/wade', rain: 'amb/rain', fog: 'amb/fog', night: 'amb/night', blizzard: 'amb/blizzard' };
+// How much a regiment's armour clinks on the march.
+const CLINK = { none: 0, leather: 0.2, mail: 0.7, plate: 1 };
 
+const UI = new Set(['click', 'notify', 'alert']);
 const MAX_VOICES = 24;
 const FADE = 2.5;               // seconds of music crossfade
 const KEY = 'rts.audio';
@@ -164,6 +193,7 @@ function hear(pos) {
 export function play(name, pos = null, scope = null) {
   if (!ctx || settings.muted) return;
   name = ALIAS[name] || name;
+  name = VARIANT[name]?.[pos?.reg?.T?.key] || name;
   const S = SOUNDS[name];
   if (!S) return;
   if (scope && scope !== ear.scope) return;
@@ -181,6 +211,7 @@ export function play(name, pos = null, scope = null) {
   if (same.length >= (S.cap || 4) && !steal(same, level)) return;
   if (voices.length >= MAX_VOICES && !steal(voices, level)) return;
   lastPlayed[name] = now;
+  if (!pos && !UI.has(name)) lastNews = now;
   const src = ctx.createBufferSource();
   src.buffer = buf;
   if (S.pitch) src.playbackRate.value = 1 + (Math.random() * 2 - 1) * S.pitch;
@@ -241,7 +272,7 @@ function setBed(name, level) {
 const announced = new WeakSet();     // battles whose victory or defeat has been played
 const wasEngaged = new WeakMap();
 const burnedAt = new WeakMap();    // building → when it was first seen burned
-let calmFor = 0, fightMood = null, lastNow = 0, seenLog = new WeakMap();
+let calmFor = 0, fightMood = null, lastNow = 0, seenLog = new WeakMap(), lastNews = -9;
 
 // camera: the three.js camera; cam: the controls' { x, z, dist, yaw }. ctx: what is on
 // screen: { map: true } for the world map, { battle, town } for a village, { battle,
@@ -250,30 +281,39 @@ export function frame(camera, cam, scene = {}) {
   const now = performance.now() / 1000, dt = Math.min(0.2, now - (lastNow || now));
   lastNow = now;
   if (cam) Object.assign(ear, { x: cam.x, z: cam.z, dist: cam.dist, rx: Math.cos(cam.yaw || 0), rz: -Math.sin(cam.yaw || 0) });
-  const { battle = null, town = null, map = false, paused = false, log = null } = scene;
+  const { battle = null, town = null, map = false, paused = false, log = null, world = null } = scene;
   ear.scope = battle;
   ear.on = !map;
   if (log) chimeLog(log);
   if (!ctx) {
     mood = map ? 'map' : town ? 'build' : 'tense';
+    if (battle) battleNews(battle, dt);   // keep track, so the click that starts sound can still sound the horn
     return;
   }
+  const winter = !!world?.winter;
   if (map) {
     setMood('map');
-    for (const n in BEDS) setBed(n, n === 'wind' ? 0.25 : 0);
+    for (const n in BEDS) setBed(n, n === 'wind' ? (winter ? 0.1 : 0.25) : n === 'blizzard' ? (winter ? 0.3 : 0) : 0);
     return;
   }
+  if (battle) battleNews(battle, dt);
 
   // How much fighting and marching the camera can hear.
-  let din = 0, march = 0, fighting = false;
+  let din = 0, march = 0, gallop = 0, mail = 0, wade = 0, fighting = false;
   for (const r of battle ? battle.regs : []) {
     if (r.gone) continue;
-    const at = { x: r.cx, z: r.cz };
+    const at = { x: r.cx, z: r.cz }, heard = hear(at).level;
     if (r.engaged > 0) {
       fighting = true;
-      din += Math.min(r.engaged, 60) * hear(at).level;
-      if (!wasEngaged.get(r) && !r.T.range && !r.routing) play('warcry', at, battle);
-    } else if (r.dest || r.routing) march += r.alive * hear(at).level;
+      din += Math.min(r.engaged, 60) * heard;
+      if (!wasEngaged.get(r) && !r.T.range && !r.routing && r.T.key !== 'wardog') play('warcry', at, battle);
+    } else if (r.dest || r.routing) {
+      const n = r.alive * heard;
+      if (r.T.mounted) gallop += n; else march += n;
+      mail += n * (CLINK[r.armour || r.T.armour] || 0);
+      if (battle.waterAt?.(r.cx, r.cz) > 0) wade += n;
+    }
+    if (r.T.key === 'wardog' && (r.dest || r.engaged > 0)) tick('dog', at, dt, 1.5, battle);
     wasEngaged.set(r, r.engaged > 0);
   }
   const attackers = town?.attackers?.length > 0;
@@ -292,23 +332,69 @@ export function frame(camera, cam, scene = {}) {
   const q = paused ? 0 : 1;
   setBed('din', q * Math.min(0.9, din / 50));
   setBed('march', q * Math.min(0.6, march / 150));
-  const near = Math.min(1, 140 / Math.max(60, ear.dist));
-  setBed('village', town ? (attackers ? 0.15 : 0.4) * near : 0);
-  setBed('forest', town ? 0.3 : 0.12);
-  setBed('wind', town ? 0.08 + 0.15 * (1 - near) : 0.3);
+  setBed('gallop', q * Math.min(0.7, gallop / 60));
+  setBed('mail', q * Math.min(0.5, mail / 120));
+  setBed('wade', q * Math.min(0.7, wade / 60));
+  // Weather and the hour: rain, fog and night hush the birds; winter brings its wind.
+  const sky = battle?.weather || 'clear', near = Math.min(1, 140 / Math.max(60, ear.dist));
+  const hush = sky === 'clear' ? 1 : 0.35;
+  setBed('rain', sky === 'rain' ? 0.5 : 0);
+  setBed('fog', sky === 'fog' ? 0.35 : 0);
+  setBed('night', sky === 'night' ? 0.45 : 0);
+  setBed('blizzard', winter ? (town ? 0.15 : 0.3) : 0);
+  setBed('village', town ? (attackers ? 0.15 : 0.4) * near * (sky === 'night' ? 0.3 : 1) : 0);
+  setBed('forest', (town ? 0.3 : 0.12) * hush * (winter ? 0.3 : 1));
+  setBed('wind', (town ? 0.08 + 0.15 * (1 - near) : 0.3) * (winter ? 0.5 : 1));
   let fires = 0;
   for (const b of town?.buildings || []) {
     if (b.state !== 'ruined') continue;
     if (!burnedAt.has(b)) burnedAt.set(b, now);
     if (now - burnedAt.get(b) < 60) fires += hear(b).level;
   }
+  for (const b of battle?.river?.bridges || []) if (b.burning > 0) fires += hear(b).level;
   setBed('fire', Math.min(0.6, fires * 0.5));
 }
 
-// A chime for new lines in the world log: good news or bad.
+// What changed in a battle since the last frame, heard from its state: oil poured, mines
+// dug, fired or broken into, a challenge, a duel and its end, a lord riding in or falling,
+// a garrison asking terms, the deployment ending, a bridge burned down.
+const news = new WeakMap();
+function battleNews(b, dt) {
+  let M = news.get(b);
+  if (!M) news.set(b, M = { pour: b.time, mines: new Map(), lords: [null, null], fallen: [false, false],
+    offer: b.duelOffer, duel: b.duel, terms: b.terms, deploying: !!b.deploying, bridges: new Set() });
+  for (const p of b.pours || []) if (p.time > M.pour) { M.pour = p.time; play('oil', p, b); }
+  for (const m of b.mines || []) {
+    const was = M.mines.get(m) ?? { progress: m.progress, end: m.done || m.lost };
+    if (!was.end && m.progress > was.progress) play('dig', m, b);
+    if (!was.end && (m.done || m.lost)) { was.end = true; play('collapse', m.done ? m.piece : { x: m.ix, z: m.iz }, b); }
+    was.progress = m.progress;
+    M.mines.set(m, was);
+  }
+  if (b.duelOffer && b.duelOffer !== M.offer) play('parley', null, b);
+  M.offer = b.duelOffer;
+  if (b.duel && b.duel !== M.duel) { M.duel = b.duel; M.duelOver = false; play('gasp', b.duel, b); }
+  if (b.duel?.over && !M.duelOver) { M.duelOver = true; play('cheer', b.duel, b); }
+  for (const side of [0, 1]) {
+    const L = b.lords?.[side];
+    if (L && L !== M.lords[side]) { play('fanfare', L.soldier, b); play('neigh', L.soldier, b); }
+    if (L?.died && !M.fallen[side]) play('gasp', L.soldier, b);
+    M.lords[side] = L;
+    M.fallen[side] = !!L?.died;
+  }
+  if (b.terms && b.terms !== M.terms) play('parley', null, b);
+  M.terms = b.terms;
+  if (M.deploying && !b.deploying) { play('horn', null, b); play('drums', null, b); }
+  M.deploying = !!b.deploying;
+  for (const br of b.river?.bridges || []) if (br.state === 'burnt' && !M.bridges.has(br)) { M.bridges.add(br); play('bridgefall', br, b); }
+}
+
+// A chime for new lines in the world log: good news or bad. News that just made its own
+// sound (coins, bells, a war drum) needs no chime as well.
 function chimeLog(log) {
   const seen = seenLog.get(log) ?? log.length;
-  for (let i = seen; i < log.length; i++) play(log[i].side === 0 ? 'notify' : 'alert');
+  const quiet = ctx && ctx.currentTime - lastNews < 0.5;
+  for (let i = seen; i < log.length; i++) if (!quiet) play(log[i].side === 0 ? 'notify' : 'alert');
   seenLog.set(log, log.length);
 }
 
