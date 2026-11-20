@@ -5,11 +5,17 @@
 const mine = w => w.pois.filter(p => p.owner === 0);
 const towns = w => mine(w).filter(p => p.town).map(p => p.town);
 const has = (w, kind) => towns(w).some(t => t.buildings.some(b => b.kind === kind && b.state === 'active'));
+// The opening tells you when you are safe (creator, 2026-11-20): while every great house is
+// still settling its own lands, nobody will march on you.
+import { FACTIONS } from './world.js';
+import { stageOf } from './rivals.js';
+const calm = w => FACTIONS.filter(h => h.index && h.alive && !h.bandit && !h.invader).every(h => stageOf(h) === 0)
+  ? ' The great houses are all still settling their own lands: nobody will march on you yet.' : ' Some great house is reaching beyond its own lands now: keep men at home.';
 
 export const GOALS = [
   { text: 'Go to Ashford: double-click it on the map.', tip: 'M brings you back here.', done: (w, s) => s.visited },
-  { text: 'Put the people to work: build a woodcutter and a farm.', tip: 'Build menu, bottom left of the village.', done: w => has(w, 'woodcutter') && has(w, 'farm') },
-  { text: 'Grow Ashford to 30 people.', tip: 'Houses make room; full larders and low taxes draw families.', done: w => towns(w).some(t => t.population >= 30) },
+  { text: 'Feed your people: build a woodcutter and a farm.', tip: w => `Food comes first: the larder lasts a few minutes, game near the village runs out, and a farm's first crop takes time to come in. A hunter's lodge feeds them meanwhile. Wood is short: choose between woodcutters, houses and farms.${calm(w)}`, done: w => has(w, 'woodcutter') && has(w, 'farm') },
+  { text: 'Grow Ashford to 30 people.', tip: w => `Newcomers come for spare food, a good mood and the village's name (a well, a market, a chapel, safe roads); houses only make room, and their hearths burn wood.${calm(w)}`, done: w => towns(w).some(t => t.population >= 30) },
   { text: 'Arm them: build a barracks and raise men.', tip: 'Weapons must be hauled to the barracks first. Gold hires sellswords at the keep.', done: w => has(w, 'barracks') && (w.armies.some(a => a.side === 0 && !a.wagon) || towns(w).some(t => t.battle.regs.some(r => r.side === 0 && r.levy && !r.gone))) },
   { text: 'March out and take a free village.', tip: 'Muster from the map, then right-click a village to march there.', done: w => mine(w).length >= 2 },
   { text: 'Become a count: hold five places.', tip: 'Rival houses will notice you now. Keep men at home, make friends, or build walls.', done: w => mine(w).length >= 5 },

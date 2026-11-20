@@ -4,6 +4,10 @@ What to build next, agreed with the creator on 2026-11-19 after a review of the 
 
 Each item names the workstream that owns it (see *Workstreams* in DESIGN_NOTES.md). Work runs roughly in the order below; **balance comes first**.
 
+## 0. The early economy as a budgeting puzzle — built 2026-11-20
+
+All 14 items are in; see "The early economy as a budget" in DESIGN_NOTES. Left for others: Art dresses the paved roads (townview) and paints the settler events (assets/art/events/refugees, masons, foresters).
+
 ## 1. Balance the base game first (Realm)
 
 Difficulty settings come later. Now the job is one fair base game.

@@ -82,7 +82,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options', 'decrees', 'elitePay'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options', 'decrees', 'elitePay', 'settlerClock', 'lastSettlers'];
 
 function pack(w) {
   const enc = encoder(w);
@@ -108,7 +108,7 @@ function packTown(t) {
     kind: t.kind,
     keep: { store: t.keep.store, hp: t.keep.hp },
     buildings: t.buildings.map(b => ({ kind: b.kind, x: b.x, z: b.z, state: b.state, progress: b.progress, level: b.level || 1, style: b.style,
-      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null })),
+      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null, staff: b.staff ?? null, ripeAt: b.ripeAt ?? null })),
     people: t.villagers.filter(v => v.state !== 'soldier').length,
     vets: t.villagers.filter(v => v.state !== 'soldier' && v.xp).map(v => v.xp),
     regiments: t.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing).map(r => ({
@@ -116,9 +116,12 @@ function packTown(t) {
       xp: r.xp || 0, elite: !!r.elite, hall: r.hall || null, armour: r.armour ?? null, shield: r.shield ?? null, battles: r.battles || 0,
     })).filter(r => r.count > 0),
     felled: t.trees.spots.filter(s => !s.standing).map(s => s.i),
+    deposits: [...t.nodes.rock, ...t.nodes.ore].map(n => n.left),
+    roads: t.roads,
     walls: { nodes, pieces, centre: W.centre[0] },
     state: { taxes: t.taxes, mood: t.mood, grief: t.grief, governor: t.governor, hungry: t.hungry, time: t.time, territory: t.territory,
-      nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, feastAt: t.feastAt, feastUntil: t.feastUntil, masonsUntil: t.masonsUntil, flagColor: t.flagColor, misery: t.misery, rebelCool: t.rebelCool },
+      nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, feastAt: t.feastAt, feastUntil: t.feastUntil, masonsUntil: t.masonsUntil, flagColor: t.flagColor, misery: t.misery, rebelCool: t.rebelCool,
+      settling: t.settling, game: t.game, cold: t.cold, lastRaid: t.lastRaid },
   };
 }
 
@@ -130,11 +133,20 @@ function unpackTown(w, p, s) {
   t.keep.store = { ...s.keep.store };
   t.keep.hp = s.keep.hp;
   for (const i of s.felled) { const spot = t.trees.spots[i]; if (spot?.standing) t.trees.fell(spot); }
+  for (const r of s.roads || []) { t.roads.push(r); t.pave(r); }
+  t.roadsVersion++;
+  // What is left in each outcrop and deposit (saved before they ran out: all of it).
+  (s.deposits || []).forEach((left, i) => {
+    const n = [...t.nodes.rock, ...t.nodes.ore][i];
+    if (n && left !== null && left !== undefined) { n.left = left; if (left <= 0) n.standing = false; }
+  });
   for (const b of s.buildings) {
     const r = t.place(b.kind, b.x, b.z, { ready: true });
     const nb = r.building;
     if (!nb) continue;
     Object.assign(nb, { state: b.state, progress: b.progress, level: b.level, style: b.style, off: new Set(b.off), paused: b.paused, store: { ...b.store }, hp: b.hp, status: b.status || '', training: b.training || null, policy: b.policy || undefined });
+    if (b.staff !== null && b.staff !== undefined) nb.staff = b.staff;
+    if (b.ripeAt) nb.ripeAt = b.ripeAt;
   }
   for (let i = 0; i < s.people; i++) {
     const a = t.rand() * Math.PI * 2;

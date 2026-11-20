@@ -2,6 +2,8 @@
 // full village game; meetings on the road and attacks on other places become field
 // battles you fight (or auto-resolve). URL option: ?seed=123 for a fixed map.
 import { createStage } from './stage.js';
+import { TownLabels } from './townlabels.js';
+import { RoadView, placeRoad } from './roadview.js';
 import { makeHeight, drawGround, plantTrees, drawTrees, HOMES } from './terrain.js';
 import { Battle, TYPES } from './battle.js';
 import { BattleView, keepModel } from './view.js';
@@ -25,7 +27,7 @@ import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.j
 import { canSave, saveGame, readSave, loadGame, clearSave } from './world/save.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
-const ghostKind = k => k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
+const ghostKind = k => k === 'road' ? null : k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, prisoners, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
@@ -47,6 +49,7 @@ const seed = loaded ? loaded.seed : +params.get('seed') || Math.floor(Math.rando
 
 const canvas = document.getElementById('view');
 const stage = createStage(canvas);
+const labels = new TownLabels(canvas);
 const $ = id => document.getElementById(id);
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -144,8 +147,8 @@ function townBundle(p, look = null) {
   drawCover(scene, heightAt, p.seed, { land, trees, avoid: (x, z) => Math.hypot(x, z) < 16 });
   const view = new BattleView(scene, town.battle, heightAt, { capacity: 400, keeps: false });
   const townView = new TownView(scene, town, heightAt, rng(p.seed + 11));
-  const st = { placing: null, hoverAt: null, selected: null };
-  const b = { kind: 'town', poi: p, town, scene, view, townView, st, heightAt, look: !!look,
+  const st = { placing: null, hoverAt: null, selected: null, roadFrom: null };
+  const b = { kind: 'town', poi: p, town, scene, view, townView, roadView: new RoadView(scene, town, heightAt), st, heightAt, look: !!look,
     title: look ? `${p.name} · ${town.readOnly.name}'s village` : null };
   b.hooks = {
     togglePause: () => { paused = !paused; },
@@ -153,7 +156,7 @@ function townBundle(p, look = null) {
     selectionChanged: sel => { if (sel && sel.size) st.selected = null; },
     selectCard: (r, add) => b.controls.setSelection([r], add),
     focus: r => b.controls.focus([r]),
-    startPlacing: kind => { if (look) return; st.placing = kind; st.selected = null; b.controls.setSelection([]); },
+    startPlacing: kind => { if (look) return; st.placing = kind; st.roadFrom = null; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
     templates: () => world.rank !== 'Reeve',
     companies: () => (world.companies || []).map(c => {
@@ -170,13 +173,14 @@ function townBundle(p, look = null) {
       if (!st.placing) return false;
       if (town.hostile) { st.placing = null; return true; }
       if (!g) return true;
+      if (st.placing === 'road') { placeRoad(town, st, g, e, townHud); return true; }
       const res = st.placing.startsWith('tpl:') ? town.placeTemplate(st.placing.slice(4), g.x, g.z) : town.place(st.placing, g.x, g.z);
       if (res.ok && res.of) townHud.flash(res.placed < res.of ? `Laid out ${res.placed} of ${res.of}: no room for the rest` : 'Laid out');
       // The same building stays in hand, to place several; right-click or Esc ends it.
       if (!res.ok) townHud.flash(res.reason);
       return true;
     },
-    cancelPlacement: () => { if (!st.placing) return false; st.placing = null; return true; },
+    cancelPlacement: () => { if (!st.placing) return false; if (st.roadFrom) { st.roadFrom = null; return true; } st.placing = null; return true; },
     hover: g => { st.hoverAt = g; },
     pickBuilding: g => { st.selected = g ? townView.buildingAt(g) : null; return !!st.selected; },
     deselect: () => { st.selected = null; b.controls.setSelection([]); },
@@ -229,13 +233,13 @@ function goals() {
     const next = GOALS[world.goals];
     world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.${next ? ` Next: ${next.text[0].toLowerCase()}${next.text.slice(1)}` : ''}`);
   }
-  const key = world.goals + ':' + world.part;
+  const key = world.goals + ':' + world.part + ':' + FACTIONS.some(h => h.index && h.ai?.stage);
   if (goalsShown === key) return;
   goalsShown = key;
   const el = $('goals');
   el.hidden = world.goals >= GOALS.length || world.part === 2;
   el.innerHTML = `<h4>Goals <small>${world.goals} of ${GOALS.length} · click for ${el.classList.contains('folded') ? 'all' : 'less'}</small></h4>` + GOALS.map((g, i) =>
-    `<div class="${i < world.goals ? 'done' : i === world.goals ? 'now' : 'later'}">${i < world.goals ? '✓' : i === world.goals ? '▸' : '·'} ${g.text}${i === world.goals && g.tip ? `<small>${g.tip}</small>` : ''}</div>`).join('');
+    `<div class="${i < world.goals ? 'done' : i === world.goals ? 'now' : 'later'}">${i < world.goals ? '✓' : i === world.goals ? '▸' : '·'} ${g.text}${i === world.goals && g.tip ? `<small>${typeof g.tip === 'function' ? g.tip(world) : g.tip}</small>` : ''}</div>`).join('');
 }
 
 function setMode(m, b) {
@@ -1114,8 +1118,11 @@ function frame(now) {
       const ghost = ghostKind(st.placing);
       b.townView.showGhost(ghost, st.hoverAt, ghost && st.hoverAt && b.town.canPlace(ghost, st.hoverAt.x, st.hoverAt.z, { free: ghost !== st.placing }).ok);
       townHud.update(st.selected, [...b.controls.selection], st.placing);
-    }
+      b.roadView.update({ from: st.placing === 'road' ? st.roadFrom : null, at: st.hoverAt });
+      labels.update(b.town, stage.camera, { hoverAt: st.hoverAt, placing: st.placing === 'road' ? 'road' : ghost, roadFrom: st.roadFrom });
+    } else labels.hide();
   }
+  if (mode === 'world') labels.hide();
   topBar();
   goals();
   alertList();

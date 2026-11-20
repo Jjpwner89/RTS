@@ -236,6 +236,8 @@ export class World {
     startHouseMinds(this);
     startDiplomacy(this);
     this.updateVision();
+    // The opening says you are safe for now (creator, 2026-11-20).
+    this.log('The great houses are all still settling their own lands: nobody will march on you for a while. See to your people first: food, wood and homes.');
   }
 
   log(text, side = 0) { this.events.push({ time: this.time, side, text }); }

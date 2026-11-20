@@ -281,8 +281,59 @@ function camp(w, p) {
     .sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0] || null;
 }
 
+// ---- settlers asking to stay ----
+// (creator, 2026-11-20) Now and then a group turns up at one of your villages and asks to
+// stay: you decide whether you can feed them. They come as working adults, and some bring
+// something with them. Their own clock, sooner and more often than the other events.
+const SETTLE_FIRST = 300, SETTLE_EVERY = [360, 540];
+const GROUPS = {
+  refugees: { n: [5, 8], title: p => `Homeless families at ${p.name}`, bring: {},
+    text: (p, n) => `${n} people whose village burned in a quarrel between lords have walked to ${p.name} with nothing but a cart and a cow. They ask for a roof and work.` },
+  masons: { n: [3, 4], title: p => `Masons on the road to ${p.name}`, bring: { stone: 25 },
+    text: (p, n) => `${n} masons, out of work since the abbey they built was finished, stop at ${p.name} with a cartload of dressed stone. They would settle, if there is bread.` },
+  foresters: { n: [3, 4], title: p => `Foresters at ${p.name}`, bring: { wood: 30 },
+    text: (p, n) => `${n} foresters, turned out of the king's chase, come to ${p.name} hauling a sledge of seasoned timber. They ask to settle and work the woods.` },
+};
+
+function settlerEvent(w, p, id) {
+  const G = GROUPS[id], t = p.town;
+  const n = G.n[0] + Math.floor(w.rand() * (G.n[1] - G.n[0] + 1));
+  const meals = Math.floor(food(t)), room = t.housing - t.population;
+  const brings = Object.entries(G.bring).map(([g, q]) => `${q} ${g}`).join(', ');
+  const take = k => () => {
+    for (let i = 0; i < k; i++) { const a = t.rand() * Math.PI * 2; const v = t.addVillager(Math.sin(a) * 30, Math.cos(a) * 30); v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 }; }
+    for (const [g, q] of Object.entries(G.bring)) t.put(t.keep, g, q);
+    return `${k} newcomers settle at ${p.name}${brings ? `, with ${brings}` : ''}.`;
+  };
+  const choices = [
+    { label: `Take them in (${n} people${brings ? `, ${brings}` : ''})`, ok: room >= n, run: take(n) },
+    ...(id === 'refugees' ? [{ label: `Take the strongest (${Math.ceil(n / 2)} people)`, ok: room >= Math.ceil(n / 2), run: () => { spell(t, -3, 'families split at the gate', 300); return take(Math.ceil(n / 2))(); } }] : []),
+    { label: 'Send them on their way', run: () => `The ${id} go on down the road.` },
+  ];
+  const ev = { id: `settlers-${id}`, image: `assets/art/events/${id}.png`, title: G.title(p),
+    text: `${G.text(p, n)} ${p.name} has ${meals} meals in store for ${t.population} people${room < n ? `, and room for only ${Math.max(0, room)} more: build houses first` : ''}.`, at: p,
+    choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
+  if (w.hooks.choice) w.hooks.choice(ev);
+  else ev.choices.at(-1).run();
+  return ev;
+}
+
+function tickSettlers(w, dt) {
+  w.settlerClock = (w.settlerClock ?? SETTLE_FIRST) - dt;
+  if (w.settlerClock > 0) return;
+  w.settlerClock = SETTLE_EVERY[0] + w.rand() * (SETTLE_EVERY[1] - SETTLE_EVERY[0]);
+  const places = w.pois.filter(p => p.owner === 0 && p.town && !p.town.underAttack && !p.town.hostile && !p.town.revolt && !p.town.readOnly);
+  if (!places.length) return;
+  const p = places[Math.floor(w.rand() * places.length)];
+  const ids = Object.keys(GROUPS).filter(k => k !== w.lastSettlers);
+  const id = ids[Math.floor(w.rand() * ids.length)];
+  w.lastSettlers = id;
+  settlerEvent(w, p, id);
+}
+
 export function tickEvents(w, dt) {
   tickPlaces(w, dt);
+  tickSettlers(w, dt);
   w.eventClock = (w.eventClock ?? FIRST) - dt;
   if (w.eventClock > 0) return;
   w.eventClock = EVERY[0] + w.rand() * (EVERY[1] - EVERY[0]);

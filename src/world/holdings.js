@@ -4,13 +4,12 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit } from '../economy.js';
+import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate } from '../economy.js';
 import { TYPES } from '../battle.js';
 
 const EFF = 0.4;            // share of a hard-driven village's output a steward gets
 const EAT = 1 / 60;         // food per person per second, as in your villages
-const ARRIVE = 1 / 30;      // a family every thirty seconds while there is room and food: a steward's
-                            // village is middling content, never as eager as one you look after
+const STEWARD_MOOD = 52;    // a steward's village is middling content, never as eager as one you look after
 const WORKING = 0.7;        // share of people who work; the rest are young, old or idle
 const BUILD_EVERY = 40;     // seconds between new buildings
 const KEEP_HOUSING = 12;
@@ -94,6 +93,7 @@ const GOOD_HOARD = { food: 40, wood: 40, stone: 30, ore: 20, iron: 10, planks: 2
   string: 10, flax: 15, feathers: 20, hides: 10, leather: 6, flour: 10, bread: 20 };
 
 function add(e, k) { e.buildings[k] = (e.buildings[k] || 0) + 1; }
+const B_count = (e, k) => e.buildings[k] || 0;
 function outputs(k) {
   const B = BUILDINGS[k];
   if (B?.gather) return Object.keys(B.gather.out);
@@ -113,11 +113,15 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
   for (const [k, n] of Object.entries(B)) jobs += (BUILDINGS[k]?.jobs || 0) * n;
   const share = jobs ? Math.min(1, e.pop * WORKING / jobs) : 0;
   const work = dt * EFF * share * pace;
-  // Gatherers.
+  // Gatherers. Hunters thin the game round the place, which breeds back slowly, as in yours.
   for (const [k, n] of Object.entries(B)) {
     const G = BUILDINGS[k]?.gather;
     if (!G) continue;
-    const rate = n * BUILDINGS[k].jobs * work / G.time;
+    let rate = n * BUILDINGS[k].jobs * work / G.time;
+    if (G.game) {
+      e.game = Math.max(0, Math.min(1, (e.game ?? 1) + dt * GAME.regrow - rate * GAME.take / (6 * n)));
+      rate *= Math.min(1, e.game / GAME.take);
+    }
     for (const [g, q] of Object.entries(G.out)) s[g] = (s[g] || 0) + q * rate;
   }
   // Workshops take turns at whatever they can make that the place still wants.
@@ -139,12 +143,21 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
       if (r.gold) gold += r.gold * cycles;
     }
   }
-  // Eating: bread first. Hungry places lose people; fed ones with room gain them.
+  // Eating: bread first. Hungry places lose people.
   let need = e.pop * EAT * dt;
   for (const g of ['bread', 'food']) { const k = Math.min(need, s[g] || 0); s[g] = (s[g] || 0) - k; need -= k; }
   e.hungry = need > 0.01;
+  // Hearths burn wood, a little for each house.
+  const fire = ((B.house || 0) + 1) * FIREWOOD / 60 * dt;
+  e.cold = (s.wood || 0) < fire;
+  s.wood = Math.max(0, (s.wood || 0) - fire);
+  // Newcomers on your villages' rules: spare food, mood and the place's name; houses only make room.
   if (e.hungry) e.pop = Math.max(6, e.pop - dt / 60);
-  else if (e.pop < housing(e)) e.pop = Math.min(housing(e), e.pop + dt * ARRIVE);
+  else if (e.pop < housing(e)) {
+    const name = ['monastery', 'market', 'well'].reduce((n, k) => n + (B[k] ? REPUTE[k] : 0), 1 + (e.cold ? REPUTE.cold : 0));
+    const larder = ((s.food || 0) + (s.bread || 0)) / Math.max(1, e.pop);
+    e.pop = Math.min(housing(e), e.pop + dt / 60 * settleRate(larder, STEWARD_MOOD, name));
+  }
   // Building: one thing at a time, from its own goods.
   e.buildCd -= dt;
   if (e.buildCd <= 0) { e.buildCd = BUILD_EVERY; build(e); }
@@ -164,6 +177,7 @@ function nextBuild(e) {
   if (e.buildings.hall) for (const k of ['tanner', 'armourer', 'stable']) if (!e.buildings[k] && can(k)) return k;
   if (builtCount(e) >= (e.maxBuilt ?? 40)) return null;
   if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
+  if (e.cold && (B_count(e, 'woodcutter') < 1 + (e.buildings.house || 0) / 8)) return 'woodcutter';
   if (e.pop >= housing(e) - 3 && housing(e) < (e.maxPop ?? 120)) return 'house';
   if (e.planAt < plan.length) return plan[e.planAt];
   if ((s.wood || 0) < 40) return 'woodcutter';

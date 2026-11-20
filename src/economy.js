@@ -53,21 +53,22 @@ export const GOOD_GROUPS = [
 export const RESERVE = { wood: 20, planks: 25 };
 export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
-    desc: 'Room for 6 more villagers.' },
+    desc: 'Room for 6 more villagers, and a hearth that burns a little wood. Newcomers come for food, a good mood and the village\'s name.' },
   storehouse: { name: 'Storehouse', icon: 'storehouse', group: 'Village', cost: { wood: 15 }, radius: 4.5, build: 12, jobs: 3, hp: 150,
     haul: true, storage: true, desc: 'Holds any goods. Its three haulers carry goods between the buildings around it.' },
   woodcutter: { name: 'Woodcutter', icon: 'woodcutter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 3, hp: 120,
-    gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 3 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
+    gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 2 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
   quarry: { name: 'Quarry', icon: 'quarry', group: 'Gather', cost: { wood: 12 }, radius: 3.5, build: 12, jobs: 2, hp: 120,
     gather: { node: 'rock', range: 35, need: 1, time: 8, out: { stone: 2 } }, desc: 'Cuts stone from a grey outcrop. Build it close to one.' },
   mine: { name: 'Mine', icon: 'mine', group: 'Gather', cost: { wood: 15, stone: 5 }, radius: 3.5, build: 15, jobs: 2, hp: 150,
     gather: { node: 'ore', range: 30, need: 1, time: 9, out: { ore: 2 } }, desc: 'Digs iron ore from a rust-red deposit. Build it close to one.' },
   hunter: { name: "Hunter's lodge", icon: 'hunter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 2, hp: 120,
-    gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 3, feathers: 2, hides: 1 } }, desc: 'Hunts in the woods for food, feathers and hides.' },
+    gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 3, feathers: 2, hides: 1 }, game: true },
+    desc: 'Hunts in the woods for food, feathers and hides. The game near the village runs out and breeds back slowly.' },
   farm: { name: 'Farm', icon: 'farm', group: 'Gather', cost: { wood: 12 }, radius: 9, build: 12, jobs: 2, hp: 100,
-    gather: { node: 'field', time: 7, out: { food: 4 } }, desc: 'Grows grain on its own field. Needs open ground.' },
+    gather: { node: 'field', time: 10, out: { food: 3 }, ripen: 150 }, desc: 'Grows grain on its own field. Needs open ground. The first crop takes a while to come in.' },
   flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
-    gather: { node: 'field', time: 8, out: { flax: 2 } }, desc: 'Grows flax for bowstring.' },
+    gather: { node: 'field', time: 8, out: { flax: 2 }, ripen: 120 }, desc: 'Grows flax for bowstring. The first crop takes a while to come in.' },
   carpenter: { name: 'Carpenter', icon: 'carpenter', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 60 }],
     desc: 'Saws wood into planks, and planks into shields.' },
@@ -116,12 +117,36 @@ export const BUILDINGS = {
   hall: { name: "Knights' hall", icon: 'hall', group: 'Military', cost: { planks: 40, stone: 60 }, radius: 7, build: 45, hp: 400, hall: true,
     desc: "Trains veterans into men-at-arms and knights: slow, costly and worth it. From the rank of Count, in a village whose keep is level 3." },
 };
-// Building upgrades: gold and goods, once the village is big enough. Each level works
-// faster, houses hold more and stores keep more haulers.
+// Building upgrades (creator, 2026-11-20): an upgraded building is simply better. Each
+// level adds as many work places again as the first, and works a little faster, so one
+// level 2 woodcutter out-produces two at level 1; stores keep one more hauler a level.
+// The catch is the cost: level 2 in stone and planks, level 3 in gold and iron. Houses
+// don't level up.
 export const UPGRADES = [null, null,
-  { gold: 40, cost: { planks: 10, stone: 10 }, pop: 30 },
-  { gold: 120, cost: { planks: 20, stone: 30 }, pop: 60 }];
-export const SPEED = [1, 1, 1.35, 1.7];
+  { gold: 0, cost: { stone: 15, planks: 10 } },
+  { gold: 100, cost: { iron: 10, planks: 10 } }];
+export const SPEED = [1, 1, 1.15, 1.3];
+// The opening (creator, 2026-11-20): enough for a few early choices between woodcutters,
+// houses and farms, not all of them, and food for a while.
+export const START_STOCK = { wood: 60, stone: 12, food: 60 };
+// Game in the woods: each 40 m patch has its own. A hunt takes a share of it, and a patch
+// breeds back over about twenty-five minutes; one hunted out yields nothing meanwhile.
+export const GAME = { cell: 40, take: 0.12, regrow: 1 / 1500 };
+// Hearths: wood each house (and the keep) burns a minute.
+export const FIREWOOD = 1.5;
+// Newcomers a minute at best, before food, mood and the village's name.
+const SETTLE = 1.2;
+// Newcomers a minute: the larder (meals a head), the mood and the village's name.
+export function settleRate(larder, mood, name) {
+  const food = larder < 1 ? 0 : Math.min(1, (larder - 1) / 3);
+  return SETTLE * food * (0.4 + Math.max(0, Math.min(1.2, (mood - 30) / 50))) * Math.max(0.3, Math.min(2, name));
+}
+// Paved roads (creator, 2026-11-20): stone laid between two points; anyone walking on
+// one goes half as fast again, so stone matters early and the layout is part of the puzzle.
+export const ROAD = { width: 3, perStone: 3, max: 40, speed: 1.5 };
+const RCELL = 2, RSPAN = 240, RN = Math.ceil(RSPAN * 2 / RCELL);
+// What draws settlers besides food and mood: a name for comfort and safety.
+export const REPUTE = { monastery: 0.4, market: 0.25, well: 0.15, safe: 0.2, raided: -0.4, cold: -0.3 };
 // Tax rates: gold collected for each villager, and what the village thinks of it.
 export const TAXES = [
   { name: 'No taxes', gold: 0, mood: 12 }, { name: 'Low taxes', gold: 0.5, mood: 6 }, { name: 'Fair taxes', gold: 1, mood: 0 },
@@ -248,6 +273,12 @@ const holdOf = g => HOLD * (BULK[g] || 1);
 const ARMS = GOOD_GROUPS[2][1];
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+// Distance from p to the segment a-b.
+const segDist = (p, a, b) => {
+  const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / l2));
+  return Math.hypot(p.x - a.x - dx * t, p.z - a.z - dz * t);
+};
 const gone = b => b.removed || b.state === 'ruined';
 const compass = p => ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(((Math.atan2(p.x, -p.z) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8];
 const listCost = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(', ');
@@ -265,7 +296,7 @@ export class Town {
     this.rand = rand;
     const keepB = kind === 'castle' || kind === 'crown' ? { ...KEEP, name: 'Castle', hp: 2400 } : KEEP;
     this.keep = { kind: 'keep', B: keepB, x: 0, z: 0, angle: 0, hp: keepB.hp, state: 'active', workers: [], status: '',
-      store: { ...(stock || { wood: 140, stone: 40, food: 80, planks: 20 }) }, incoming: {}, reserved: {} };
+      store: { ...(stock || START_STOCK) }, incoming: {}, reserved: {} };
     this.stockCache = null;
     this.buildings = [];
     this.villagers = [];
@@ -275,6 +306,13 @@ export class Town {
     this.time = 0;
     this.nextMeal = 30;
     this.nextArrival = 20;
+    this.settling = 0;          // progress toward the next newcomer
+    this.game = {};             // game left in each patch of woods: "i,j" -> { v, t }
+    this.cold = false;
+    this.lastRaid = -1e9;
+    this.roads = [];
+    this.roadsVersion = 0;
+    this.paved = new Uint8Array(RN * RN);
     this.hungry = false;
     // Gold goes to the lord's purse: the realm's treasury on the world map, the village's own here.
     this.purse = { gold: 0 };
@@ -313,6 +351,9 @@ export class Town {
       for (let k = 0, tries = 0; k < n && tries < 400; tries++) {
         const a = this.rand() * Math.PI * 2, r = min + this.rand() * (max - min);
         const p = { kind, x: Math.sin(a) * r, z: Math.cos(a) * r };
+        // Rich or poor, and worked out in the end (creator, 2026-11-20).
+        p.rich = this.rand() < (this.kind === 'mine' ? 0.6 : 0.35);
+        p.full = p.left = kind === 'rock' ? (p.rich ? 500 : 220) : (p.rich ? 320 : 140);
         if ([...this.nodes.rock, ...this.nodes.ore].some(o => dist(o, p) < 40)) continue;
         for (const t of this.nodes.tree) if (t.standing && dist(t, p) < 9) this.trees.fell(t);
         this.nodes[kind].push(p);
@@ -332,8 +373,15 @@ export class Town {
   }
 
   get housing() { return KEEP.housing + KEEP_RAISE.slice(0, this.keepBought || 0).reduce((n, K) => n + K.housing, 0) + this.buildings.filter(b => b.state === 'active' && b.B.housing).reduce((n, b) => n + b.B.housing + 3 * ((b.level || 1) - 1), 0); }
-  // Workers a building takes: stores keep one more hauler for each level.
-  jobs(b) { return (b.B.jobs || 0) + (b.B.haul ? (b.level || 1) - 1 : 0); }
+  // Work places a building has: as many again for each level, and stores one more hauler.
+  jobs(b) { return b.B.haul ? (b.B.jobs || 0) + (b.level || 1) - 1 : (b.B.jobs || 0) * (b.level || 1); }
+  // How many of them you want filled (the staffing control); all of them unless you say.
+  staffed(b) { return Math.min(this.jobs(b), b.staff ?? Infinity); }
+  setStaff(b, n) {
+    b.staff = Math.max(0, Math.min(this.jobs(b), n));
+    if (b.staff >= this.jobs(b)) delete b.staff;
+    while (b.workers.length > this.staffed(b)) this.release(b.workers[b.workers.length - 1]);
+  }
   speed(b) { return SPEED[b.level || 1]; }
   get population() { return this.villagers.length; }
   // Villagers at work, and those of them standing in the levies (still counted as people).
@@ -966,9 +1014,8 @@ export class Town {
 
   upgradeCheck(b) {
     const U = UPGRADES[(b.level || 1) + 1];
-    if (!U || b.state !== 'active' || b.B.hall || b.B.great) return { ok: false, reason: 'Fully upgraded', done: true };
-    if (this.population < U.pop) return { ok: false, reason: `Needs a village of ${U.pop} people` };
-    if (this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
+    if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.kind === 'house') return { ok: false, reason: 'Fully upgraded', done: true };
+    if (U.gold && this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
     if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
     return { ok: true, U };
   }
@@ -979,7 +1026,7 @@ export class Town {
     this.purse.gold -= check.U.gold;
     this.spend(check.U.cost);
     b.level = (b.level || 1) + 1;
-    this.event(`The ${b.B.name.toLowerCase()} is now level ${b.level}.`);
+    this.event(`The ${b.B.name.toLowerCase()} is now level ${b.level}${b.B.jobs && !b.B.haul ? `: work for ${this.jobs(b)}` : ''}.`);
     return { ok: true };
   }
 
@@ -1018,6 +1065,7 @@ export class Town {
       add(this.time < (this.feastUntil || 0) ? FEAST.mood : 0, 'a feast');
       add(KEEP_RAISE.slice(0, this.keepBought || 0).reduce((n, K) => n + K.mood, 0), 'a great keep');
       add(this.underAttack ? -10 : 0, 'under attack');
+      add(this.cold ? -12 : 0, 'cold hearths');
       this.moodWhy = why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
       this.moodWant = Math.max(0, Math.min(100, 50 + why.reduce((n, [k]) => n + k, 0)));
     }
@@ -1122,7 +1170,7 @@ export class Town {
     // Round any walls, through the gates (battle.js).
     ({ x: tx, z: tz } = this.battle.steerWalker(v, 0, tx, tz, dt));
     const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz) || 0.01;
-    const step = Math.min(d, speed * dt);
+    const step = Math.min(d, speed * dt * (this.onRoad(v.x, v.z) ? ROAD.speed : 1));
     v.x += dx / d * step; v.z += dz / d * step;
     v.y = this.heightAt(v.x, v.z);
     v.yaw = Math.atan2(dx, dz);
@@ -1209,7 +1257,7 @@ export class Town {
     }
     if (best) { best.builders.push(v); v.state = 'build'; v.job = null; v.site = best; return; }
     for (const b of [this.keep, ...this.buildings]) {
-      if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= this.jobs(b)) continue;
+      if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= this.staffed(b)) continue;
       const d = dist(v, b);
       if (d < bd) { bd = d; best = b; }
     }
@@ -1247,11 +1295,12 @@ export class Town {
       this.stockCache = null;
       b.state = 'active';
       b.status = b.B.jobs ? 'Waiting for workers' : '';
+      if (b.B.gather?.ripen) b.ripeAt = this.time + b.B.gather.ripen;
       const crew = b.builders;
       b.builders = [];
       for (const o of crew) { o.state = 'idle'; o.site = null; }
       // Builders stay on as the first workers.
-      for (const o of crew) if (b.B.jobs && b.workers.length < this.jobs(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
+      for (const o of crew) if (b.B.jobs && b.workers.length < this.staffed(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
       this.onBuilt?.(b);
       audio.play('built', b, this.battle); // audio
@@ -1267,11 +1316,19 @@ export class Town {
       if (!this.selfHaul(v, dt)) b.status = 'Yard full: needs haulers';
       return;
     }
+    // A new field: the first crop has to come in before there is anything to cut.
+    if (b.ripeAt > this.time) {
+      b.status = `First crop coming in: ${Math.ceil((b.ripeAt - this.time) / 60 * 2) / 2} min`;
+      if (!v.task) v.task = { phase: 'tend', spot: this.pickSpot(b) };
+      if (v.task.spot && this.walk(v, v.task.spot.x, v.task.spot.z, dt * 0.5)) v.phase += dt * 2;
+      return;
+    }
+    if (v.task?.phase === 'tend') v.task = null;
     if (!v.task) v.task = { phase: 'out' };
     const t = v.task;
     if (t.phase === 'out') {
       if (!t.spot) t.spot = this.pickSpot(b);
-      if (!t.spot) { b.status = 'Nothing left to gather'; return; }
+      if (!t.spot) { b.status = g.game ? 'Game hunted out: it breeds back slowly' : g.node === 'tree' ? 'No trees left in reach' : 'Deposit worked out'; return; }
       if (this.walk(v, t.spot.x, t.spot.z, dt)) { t.phase = 'gather'; t.timer = g.time / this.speed(b); }
     } else if (t.phase === 'gather') {
       t.timer -= dt;
@@ -1280,10 +1337,97 @@ export class Town {
       audio.tick(g.node, v, dt, 1.2, this.battle); // audio: chopping or picking
       if (t.timer <= 0) { t.phase = 'back'; v.carry = Object.keys(g.out)[0]; }
     } else if (this.walk(v, b.x + Math.sin(b.angle) * (b.B.radius + 1), b.z + Math.cos(b.angle) * (b.B.radius + 1), dt)) {
-      for (const [k, n] of Object.entries(g.out)) this.put(b, k, n);
+      // A hunt takes from the game of its patch; a deposit gives what it has left.
+      let k = 1;
+      if (g.game) k = this.huntAt(t.spot) ? 1 : 0;
+      const n0 = t.spot.node;
+      if (n0?.left !== undefined) {
+        const q = Object.values(g.out)[0];
+        k = Math.min(1, n0.left / q);
+        n0.left = Math.max(0, n0.left - q);
+        if (n0.left <= 0 && n0.standing !== false) {
+          n0.standing = false;
+          this.event(`${n0.kind === 'rock' ? 'A stone outcrop' : 'An ore deposit'} to the ${compass(n0)} is worked out.`, 1);
+        }
+      }
+      if (k > 0) for (const [g2, n] of Object.entries(g.out)) this.put(b, g2, n * k);
       v.carry = null;
       v.task = null;
     }
+  }
+
+  // ---- paved roads ----
+  roadCost(a, b) { return Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / ROAD.perStone)); }
+  roadCheck(a, b) {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len < 2) return { ok: false, reason: 'Too short' };
+    if (len > ROAD.max) return { ok: false, reason: `At most ${ROAD.max} m at a time` };
+    if (Math.hypot(a.x, a.z) > this.territory || Math.hypot(b.x, b.z) > this.territory) return { ok: false, reason: 'Outside your land' };
+    for (const o of this.buildings) {
+      if (o.state === 'ruined') continue;
+      const h = segDist(o, a, b);
+      if (h < o.B.radius - 0.5) return { ok: false, reason: `The ${o.B.name.toLowerCase()} is in the way` };
+    }
+    const stone = this.roadCost(a, b);
+    if (this.free('stone') < stone) return { ok: false, reason: `Needs ${stone} stone`, stone };
+    return { ok: true, stone, len };
+  }
+  layRoad(a, b) {
+    const c = this.roadCheck(a, b);
+    if (!c.ok) return c;
+    this.spend({ stone: c.stone });
+    this.roads.push({ a: { x: a.x, z: a.z }, b: { x: b.x, z: b.z } });
+    this.pave(this.roads.at(-1));
+    this.roadsVersion++;
+    return c;
+  }
+  pave(r) {
+    const w = ROAD.width / 2 + 0.4;
+    const x0 = Math.min(r.a.x, r.b.x) - w, x1 = Math.max(r.a.x, r.b.x) + w, z0 = Math.min(r.a.z, r.b.z) - w, z1 = Math.max(r.a.z, r.b.z) + w;
+    for (let cz = Math.floor((z0 + RSPAN) / RCELL); cz <= Math.floor((z1 + RSPAN) / RCELL); cz++) {
+      for (let cx = Math.floor((x0 + RSPAN) / RCELL); cx <= Math.floor((x1 + RSPAN) / RCELL); cx++) {
+        if (cx < 0 || cz < 0 || cx >= RN || cz >= RN) continue;
+        if (segDist({ x: (cx + 0.5) * RCELL - RSPAN, z: (cz + 0.5) * RCELL - RSPAN }, r.a, r.b) <= w) this.paved[cz * RN + cx] = 1;
+      }
+    }
+  }
+  onRoad(x, z) {
+    if (!this.roads.length) return false;
+    const cx = Math.floor((x + RSPAN) / RCELL), cz = Math.floor((z + RSPAN) / RCELL);
+    return cx >= 0 && cz >= 0 && cx < RN && cz < RN && this.paved[cz * RN + cx] === 1;
+  }
+  // Lifts the road nearest p (within a few metres): half its stone comes back.
+  liftRoad(p) {
+    const r = this.roads.find(o => segDist(p, o.a, o.b) < ROAD.width);
+    if (!r) return false;
+    this.roads = this.roads.filter(o => o !== r);
+    this.put(this.keep, 'stone', Math.floor(this.roadCost(r.a, r.b) / 2));
+    this.paved.fill(0);
+    for (const o of this.roads) this.pave(o);
+    this.roadsVersion++;
+    return true;
+  }
+
+  // ---- game in the woods ----
+  gameCell(p) { return `${Math.floor(p.x / GAME.cell)},${Math.floor(p.z / GAME.cell)}`; }
+  gameAt(p) {
+    const c = this.game[this.gameCell(p)];
+    return c ? Math.min(1, c.v + (this.time - c.t) * GAME.regrow) : 1;
+  }
+  // One hunt in the patch at p: true if there was game to take.
+  huntAt(p) {
+    const v = this.gameAt(p);
+    if (v < GAME.take) return false;
+    this.game[this.gameCell(p)] = { v: v - GAME.take, t: this.time };
+    return true;
+  }
+  // How much game is left in reach of a hunter's lodge, 0 to 1.
+  gameNear(b) {
+    const cells = new Set(this.nodes.tree.filter(n => n.standing && dist(n, b) < b.B.gather.range).map(n => this.gameCell(n)));
+    if (!cells.size) return 0;
+    let sum = 0;
+    for (const k of cells) { const [i, j] = k.split(',').map(Number); sum += this.gameAt({ x: (i + 0.5) * GAME.cell, z: (j + 0.5) * GAME.cell }); }
+    return sum / cells.size;
   }
 
   pickSpot(b) {
@@ -1292,24 +1436,27 @@ export class Town {
       const a = this.rand() * Math.PI * 2, r = this.rand() * (b.B.radius - 2);
       return { x: b.x + Math.sin(a) * r, z: b.z + Math.cos(a) * r };
     }
-    // A random choice among the closest few, so workers spread out.
-    const near = this.nodes[g.node].filter(n => (n.standing ?? true) && dist(n, b) < g.range)
+    // A random choice among the closest few, so workers spread out. Hunters go where
+    // there is still game.
+    const near = this.nodes[g.node].filter(n => (n.standing ?? true) && dist(n, b) < g.range && (!g.game || this.gameAt(n) >= GAME.take))
       .sort((p, q) => dist(p, b) - dist(q, b)).slice(0, 6);
     if (!near.length) return null;
     const n = near[Math.floor(this.rand() * near.length)];
     const a = this.rand() * Math.PI * 2, off = g.node === 'tree' ? 1.6 : 4.5;
-    return { x: n.x + Math.sin(a) * off, z: n.z + Math.cos(a) * off };
+    return { x: n.x + Math.sin(a) * off, z: n.z + Math.cos(a) * off, node: n.left !== undefined ? n : null };
   }
 
   doCraft(v, dt) {
     const b = v.job;
     if (v.task?.kind === 'haul') { this.doHaul(v, dt); return; }
     const door = this.door(b, v);
+    v.atDoor = false;
     if (!this.walk(v, door.x, door.z, dt)) return;
+    v.atDoor = true;
     v.yaw = b.angle + Math.PI;
-    if (b.workers[0] !== v) return;           // one craftsman sets the pace
+    if (b.workers[0] !== v) return;           // one craftsman sets the pace; each other hand at the door adds to it
     if (b.recipe) {
-      b.timer -= dt;
+      b.timer -= dt * b.workers.filter(o => o.atDoor && o.job === b).length;
       v.phase += dt * 4;
       audio.tick('hammer', b, dt, 0.6, this.battle); // audio
       if (b.timer <= 0) {
@@ -1364,6 +1511,36 @@ export class Town {
     return busy ? `${busy} carrying goods` : 'Haulers waiting for work';
   }
 
+  // Houses with a hearth, and the keep's.
+  get hearths() { return 1 + this.buildings.filter(b => b.state === 'active' && b.B.housing).length; }
+  // Meals in the stores for each person.
+  get larder() {
+    const meals = this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0);
+    return meals / Math.max(1, this.population);
+  }
+
+  // The village's name: what draws settlers besides food and mood. [[n, why]], summed.
+  repute() {
+    const why = [];
+    for (const k of ['monastery', 'market', 'well']) if (this.buildings.some(b => b.kind === k && b.state === 'active')) why.push([REPUTE[k], BUILDINGS[k].name.toLowerCase()]);
+    if (this.time - this.lastRaid < 300) why.push([REPUTE.raided, 'raided of late']);
+    else if (this.time > 600 && this.time - this.lastRaid > 600) why.push([REPUTE.safe, 'safe roads']);
+    if (this.cold) why.push([REPUTE.cold, 'cold hearths']);
+    return why;
+  }
+
+  // How fast newcomers come (a minute) and why: none while hungry, under attack or full.
+  settlers() {
+    const larder = this.hungry ? 0 : this.larder;
+    const food = larder < 1 ? 0 : Math.min(1, (larder - 1) / 3);
+    const mood = Math.max(0, Math.min(1.2, (this.mood - 30) / 50));
+    const why = this.repute(), name = Math.max(0.3, Math.min(2, 1 + why.reduce((n, [k]) => n + k, 0)));
+    const room = this.population < this.housing && !this.underAttack;
+    const rate = room ? settleRate(larder, this.mood, name) : 0;
+    const block = this.population >= this.housing ? 'no room: build houses' : this.underAttack ? 'under attack' : !food ? 'not enough food to spare' : '';
+    return { rate, room, food, mood, name, why, block };
+  }
+
   // Meals, newcomers and the dead.
   updatePeople(dt) {
     if (this.villagers.some(v => v.dead)) this.villagers = this.villagers.filter(v => !v.dead);
@@ -1381,20 +1558,27 @@ export class Town {
         if (n > 0) { this.put(b, g, -n); need -= n; }
       }
       if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
+      // Hearths: each house, and the keep, burns a little wood.
+      const fire = this.hearths * FIREWOOD / 2;
+      const wood = stores.reduce((n, b) => n + (b.store.wood || 0), 0);
+      const wasCold = this.cold;
+      this.cold = wood < fire;
+      this.spend({ wood: Math.min(fire, wood) });
+      if (this.cold && !wasCold) this.event('The hearths are going cold: the village needs firewood.', 1);
     }
     this.updateMood(dt);
     this.updateHalls(dt);
     this.updateRevolt(dt);
-    this.nextArrival -= dt;
-    if (this.nextArrival <= 0) {
-      // A happy village draws newcomers faster; a sullen one draws nobody.
-      this.nextArrival = this.mood >= 75 ? 11 : 18;
-      if (!this.hungry && this.mood >= 35 && this.population < this.housing && !this.underAttack) {
-        const a = this.rand() * Math.PI * 2;
-        const v = this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120);
-        v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
-        this.event('A new family has settled in the village.');
-      }
+    // Newcomers, drawn by spare food, a good mood and the village's name; houses only
+    // set how many can live here. They come as working adults.
+    const draw = this.settlers();
+    this.settling = draw.room ? (this.settling || 0) + draw.rate / 60 * dt : 0;
+    if (this.settling >= 1) {
+      this.settling -= 1;
+      const a = this.rand() * Math.PI * 2;
+      const v = this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120);
+      v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
+      this.event('A newcomer has settled in the village.');
     }
     this.keep.status = this.keep.workers.length ? this.haulStatus(this.keep) : 'No haulers';
     if (this.keep.hp < this.keep.B.hp && !this.nearestEnemy(this.keep, 50)) this.keep.hp = Math.min(this.keep.B.hp, this.keep.hp + dt * 5);
@@ -1419,6 +1603,7 @@ export class Town {
       return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
+    this.lastRaid = this.time;
     this.lastRegs = regs;
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
       : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
