@@ -29,7 +29,7 @@ Every sound in the game is free: CC0 (public domain) or CC-BY (free with credit)
 
 ## Sound effects and ambience
 
-Credit for the CC-BY sounds: "Regular Arrow Shot" by brendan89 (CC BY 3.0) and "MedievalCombatLoop" by Yap_Audio_Production (CC BY 4.0), both on Freesound. The rest are CC0.
+Credit for the CC-BY sounds: "Regular Arrow Shot" by brendan89 (CC BY 3.0), "MedievalCombatLoop" by Yap_Audio_Production (CC BY 4.0) and "Shield Bash Impact" by Hybrid_V (CC BY 4.0), all on Freesound. The rest are CC0.
 
 | File | Original | Author | Licence | Source | Changes |
 |---|---|---|---|---|---|
@@ -80,3 +80,43 @@ Credit for the CC-BY sounds: "Regular Arrow Shot" by brendan89 (CC BY 3.0) and "
 | `amb/fire.mp3` | Fire Burning Loop | midimagician | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/midimagician/sounds/249418/) | looped |
 | `amb/march.mp3` | Footsteps_6_Dirt_shoe.wav | monte32 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/monte32/sounds/353799/) | layered into a marching loop |
 | `amb/march.mp3` | Hiking Boot Footsteps on Grass | Fission9 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Fission9/sounds/521587/) | layered into a marching loop |
+| `sfx/oil.mp3` | Water Poured onto a Burning Fireplace – Hissing Steam and Sizzling Embers | bassimat | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/bassimat/sounds/870180/) | trimmed; layered with the scream below |
+| `sfx/oil.mp3` | Wounded man scream | joseppujol | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/joseppujol/sounds/221544/) | layered under the pour above |
+| `sfx/dig1.mp3` | Shovel_dirt.wav | dr19 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/dr19/sounds/353907/) | one scoop cut out |
+| `sfx/dig2.mp3` | New Recording dig.m4a | operative311 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/operative311/sounds/703165/) | one scoop cut out |
+| `sfx/collapse.mp3` | Bricks/Stones/Rocks/Gravel Falling | iwanPlays | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/iwanPlays/sounds/567249/) |  |
+| `sfx/bridgefall.mp3` | Bridge Collapse.wav | Wdomino | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Wdomino/sounds/508546/) | trimmed; layered with the splash below |
+| `sfx/bridgefall.mp3` | Big Water Splash | qubodup | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/qubodup/sounds/442773/) | layered at the end of the fall above |
+| `sfx/dog1.mp3` | Animal Dog Bark And Growl 01.wav | abhisheky948 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/abhisheky948/sounds/625501/) | trimmed |
+| `sfx/dog2.mp3` | Angry Dog | CmdRobot | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/CmdRobot/sounds/439535/) | one bark cut out |
+| `sfx/dog3.mp3` | R01-15-Lots of Dogs Barking.wav | craigsmith | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/craigsmith/sounds/479620/) | a 3 s section |
+| `sfx/javelin1.mp3` | Whoosh - Bamboo 113cm stick - OS ST 1 | Sadiquecat | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Sadiquecat/sounds/855754/) | trimmed |
+| `sfx/javelin2.mp3` | Stick - Whoosh 8 | Sadiquecat | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Sadiquecat/sounds/802466/) |  |
+| `sfx/axeshield1.mp3` | Shield Bash Impact | Hybrid_V | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | [source](https://freesound.org/people/Hybrid_V/sounds/319590/) |  |
+| `sfx/axeshield2.mp3` | 35 wooden cracks/hits/destructions | qubodup (from Independent.nu Ljudbank) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://opengameart.org/content/35-wooden-crackshitsdestructions) | trimmed |
+| `sfx/neigh1.mp3` | horse neigh shortened.wav | shadoWisp | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/shadoWisp/sounds/269571/) |  |
+| `sfx/neigh2.mp3` | Horse neigh | felix.blume | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/felix.blume/sounds/385947/) | the neigh cut out |
+| `sfx/cheer1.mp3` | S12-03 Small group men cheering; encouraging.wav | craigsmith | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/craigsmith/sounds/675103/) | trimmed |
+| `sfx/cheer2.mp3` | R08-07-Men Cheering at Event.wav | craigsmith | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/craigsmith/sounds/480793/) | trimmed |
+| `sfx/gasp.mp3` | Crowd gasp.wav | deleted_user_2104797 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/deleted_user_2104797/sounds/324895/) | one gasp cut out |
+| `sfx/parley.mp3` | war horn.wav | adharca | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/adharca/sounds/539956/) |  |
+| `sfx/fanfare.mp3` | WinBrass.wav | Fupicat | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Fupicat/sounds/521639/) | trimmed |
+| `sfx/bells.mp3` | All bells ringing at Notre-Dame in Paris | Mxsmanic | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Mxsmanic/sounds/139109/) | a 9 s section |
+| `sfx/feast.mp3` | G28-20-Raucous Unruly Indoor Crowd.wav | craigsmith | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/craigsmith/sounds/438380/) | a 6 s section |
+| `sfx/mob1.mp3` | angry mob loop.aiff | bevibeldesign | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/bevibeldesign/sounds/316640/) | trimmed |
+| `sfx/mob2.mp3` | Crowd/Mob/Riot Noise (Voices Only) - 14 people, 2 minutes HENRY VI | FillMat | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/FillMat/sounds/384401/) | a 5 s section |
+| `sfx/boom.mp3` | Alfaia Hit | Sassaby | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Sassaby/sounds/509528/) | trimmed |
+| `sfx/cart.mp3` | horse with old cart.wav | bruno.auzet | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/bruno.auzet/sounds/538438/) | a 6 s section |
+| `ui/coins1.mp3` | 50 RPG sound effects (Kenney RPG Audio) | Kenney | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://opengameart.org/content/50-rpg-sound-effects) |  |
+| `ui/coins2.mp3` | Coin Bag Jangling Shake.wav | ralph.whitehead | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/ralph.whitehead/sounds/565700/) |  |
+| `ui/scroll1.mp3` | Unrolling Scroll.wav | spookymodem | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/spookymodem/sounds/202107/) | trimmed |
+| `ui/scroll2.mp3` | Parchment - Unroll | Vrymaa | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Vrymaa/sounds/753282/) | one unroll cut out |
+| `ui/seal.mp3` | Wax seal | Cerise_Virtuelle | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Cerise_Virtuelle/sounds/759526/) | trimmed |
+| `ui/quill.mp3` | Quill and Parchment.WAV | Nickh69 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Nickh69/sounds/507864/) | a 2 s section |
+| `amb/gallop.mp3` | Maxheadroom's Galloping Horse (39 sec. loop) | Podsburgh | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Podsburgh/sounds/274898/) | looped |
+| `amb/mail.mp3` | Footstep Armor - Knight | Vrymaa | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Vrymaa/sounds/770065/) | looped |
+| `amb/wade.mp3` | Wading in Shallow Water.wav | ryansitz | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/ryansitz/sounds/342932/) | looped |
+| `amb/rain.mp3` | R30-25a-Steady Heavy Rain.wav | craigsmith | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/craigsmith/sounds/486272/) | looped |
+| `amb/fog.mp3` | air tone village night very quiet light breeze distant something | kyles | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/kyles/sounds/637147/) | looped |
+| `amb/night.mp3` | CricketsandTawnyOwl.wav | raoul_slayer | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/raoul_slayer/sounds/203598/) | looped |
+| `amb/blizzard.mp3` | Wind - Binaural tempest | Vrymaa | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Vrymaa/sounds/770263/) | looped |
