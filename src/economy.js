@@ -6,6 +6,7 @@
 // a storehouse or the keep. Haulers carry them about in crates, so where things are
 // built matters. Workers who are stuck fetch or clear their own goods, more slowly.
 import { audio } from './audio.js';
+import { RoadNet } from './roadnet.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
 import { TYPES, vetRank, VET_RANKS } from './battle.js';
@@ -1167,6 +1168,12 @@ export class Town {
 
   walk(v, tx, tz, dt, speed = WALK) {
     if (Math.hypot(tx - v.x, tz - v.z) < 0.6) { v.v = 0; return true; }
+    // By road, when that is quicker: onto it, along it, off it (roadnet.js).
+    const r = this.roads.length && this.roadWay(v, tx, tz);
+    if (r) {
+      if (r.i < r.pts.length && Math.hypot(r.pts[r.i].x - v.x, r.pts[r.i].z - v.z) < 0.8) r.i++;
+      if (r.i < r.pts.length) ({ x: tx, z: tz } = r.pts[r.i]);
+    }
     // Round any walls, through the gates (battle.js).
     ({ x: tx, z: tz } = this.battle.steerWalker(v, 0, tx, tz, dt));
     const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz) || 0.01;
@@ -1177,6 +1184,15 @@ export class Town {
     v.v = speed;
     v.phase += step * 2.2;
     return false;
+  }
+
+  // The walker's way to (tx, tz), planned once a leg: again only when the goal moves a few
+  // metres or a road is laid or lifted.
+  roadWay(v, tx, tz) {
+    const r = v.roadWay;
+    if (r && r.ver === this.roadsVersion && Math.abs(r.tx - tx) + Math.abs(r.tz - tz) < 3) return r;
+    if (this.roadNetVer !== this.roadsVersion) { this.roadNet = new RoadNet(this.roads); this.roadNetVer = this.roadsVersion; }
+    return v.roadWay = { ver: this.roadsVersion, tx, tz, i: 0, pts: this.roadNet.plan(v, { x: tx, z: tz }) || [] };
   }
 
   updateVillager(v, dt) {
