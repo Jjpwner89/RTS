@@ -212,15 +212,27 @@ export function outfitKit(key, n, fit) {
 export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 'maa', 'lightcav', 'cav', 'knight']
   .map(k => [k, { name: TYPES[k].name, kit: weaponKit(k) }]));
 // Elite men come only from a knights' hall, trained from veterans: a few at a time, for
-// their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most.
+// their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most. On
+// the campaign they draw pay every minute (gold per man; world/treasury.js).
 export const ELITE = {
-  maa: { fee: 8, drill: 45 },
-  knight: { fee: 20, drill: 75 },
+  maa: { fee: 8, drill: 45, pay: 0.6 },
+  knight: { fee: 20, drill: 75, pay: 1.5 },
 };
 export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least experience (Blooded)
-// The keep grows with the village and never shrinks back (keepPeak) when levies march out.
+// The keep grows with the village to level 3 and never shrinks back (keepPeak) when levies
+// march out. Levels 4 and 5 are raised for gold and stone (KEEP_RAISE, keepBought), once the
+// village has the people; each gives homes and lifts the mood.
 const byPeople = n => n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
-const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : Math.max(t.keepPeak || 1, byPeople(t.population));
+export const keepCap = t => 3 + (t.keepBought || 0);
+const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : Math.min(keepCap(t), Math.max(t.keepPeak || 1, byPeople(t.population)));
+export const KEEP_RAISE = [
+  { name: 'great keep', pop: 100, gold: 500, cost: { stone: 80, planks: 30 }, housing: 10, mood: 4 },
+  { name: 'castle keep', pop: 150, gold: 1200, cost: { stone: 160, planks: 40, iron: 10 }, housing: 10, mood: 4 },
+];
+// A feast: gold for a spell of good feeling, the cure for a village near revolt.
+export const FEAST = { perHead: 2, least: 60, mood: 15, secs: 300, again: 600 };
+// Masons hired for gold: twice the crews on the walls, and damaged walls mended, for a while.
+export const MASONS = { gold: 80, secs: 180, mend: 0.01 };
 export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuchet']
   .map(k => [k, { name: TYPES[k].name, cost: TYPES[k].cost, crew: TYPES[k].count }]));
 
@@ -319,7 +331,7 @@ export class Town {
     return v;
   }
 
-  get housing() { return KEEP.housing + this.buildings.filter(b => b.state === 'active' && b.B.housing).reduce((n, b) => n + b.B.housing + 3 * ((b.level || 1) - 1), 0); }
+  get housing() { return KEEP.housing + KEEP_RAISE.slice(0, this.keepBought || 0).reduce((n, K) => n + K.housing, 0) + this.buildings.filter(b => b.state === 'active' && b.B.housing).reduce((n, b) => n + b.B.housing + 3 * ((b.level || 1) - 1), 0); }
   // Workers a building takes: stores keep one more hauler for each level.
   jobs(b) { return (b.B.jobs || 0) + (b.B.haul ? (b.level || 1) - 1 : 0); }
   speed(b) { return SPEED[b.level || 1]; }
@@ -874,6 +886,64 @@ export class Town {
     return { ok: true, reg: r };
   }
 
+  // ---- gold for the village ----
+
+  feastPrice() { return Math.max(FEAST.least, Math.round(this.population * FEAST.perHead)); }
+  feastCheck() {
+    if (this.time < (this.feastUntil || 0)) return { ok: false, reason: 'The feast is on' };
+    if (this.time < (this.feastAt ?? -Infinity) + FEAST.again) return { ok: false, reason: `Another feast in ${Math.ceil(((this.feastAt + FEAST.again) - this.time) / 60)} min` };
+    const g = this.feastPrice();
+    return this.purse.gold >= g ? { ok: true, gold: g } : { ok: false, reason: `Needs ${g} gold` };
+  }
+  feast() {
+    const c = this.feastCheck();
+    if (!c.ok) return c;
+    this.purse.gold -= c.gold;
+    this.feastAt = this.time;
+    this.feastUntil = this.time + FEAST.secs;
+    this.moodClock = 0;
+    this.event(`A feast for the whole village: roast meat, ale and music by the keep.`);
+    return { ok: true };
+  }
+
+  // The next keep level to raise for gold, and whether it can be raised now.
+  keepRaiseCheck() {
+    const K = KEEP_RAISE[this.keepBought || 0];
+    if (!K || this.keepLevel) return { ok: false, reason: 'The keep is as great as it gets', done: true };
+    if (this.population < K.pop) return { ok: false, reason: `Needs a village of ${K.pop} people`, K };
+    if (this.purse.gold < K.gold) return { ok: false, reason: `Needs ${K.gold} gold`, K };
+    if (!this.canAfford(K.cost)) return { ok: false, reason: `Needs ${listCost(K.cost)}`, K };
+    return { ok: true, K };
+  }
+  raiseKeep() {
+    const c = this.keepRaiseCheck();
+    if (!c.ok) return c;
+    this.purse.gold -= c.K.gold;
+    this.spend(c.K.cost);
+    this.keepBought = (this.keepBought || 0) + 1;
+    this.moodClock = 0;
+    this.event(`The masons have raised a ${c.K.name}. It houses ${c.K.housing} more, and the village is proud of it.`);
+    return { ok: true };
+  }
+
+  masonsCheck() {
+    if (this.time < (this.masonsUntil || 0)) return { ok: false, reason: `Hired: ${Math.ceil((this.masonsUntil - this.time) / 60)} min left` };
+    return this.purse.gold >= MASONS.gold ? { ok: true } : { ok: false, reason: `Needs ${MASONS.gold} gold` };
+  }
+  hireMasons() {
+    const c = this.masonsCheck();
+    if (!c.ok) return c;
+    this.purse.gold -= MASONS.gold;
+    this.masonsUntil = this.time + MASONS.secs;
+    this.event('Hired masons have come to work on the walls.');
+    return { ok: true };
+  }
+  // Hired masons mend damaged walls and towers that stand, away from any fighting.
+  mendWalls(dt) {
+    if (!(this.time < (this.masonsUntil || 0)) || this.underAttack) return;
+    for (const s of this.battle.walls.structures()) if (s.state === 'up' && s.hp < s.maxHp) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * MASONS.mend * dt);
+  }
+
   hireCheck(key) {
     const H = HIRES.find(h => h.key === key);
     return this.purse.gold >= H.gold ? { ok: true } : { ok: false, reason: `Needs ${H.gold} gold (have ${Math.floor(this.purse.gold)})` };
@@ -944,6 +1014,8 @@ export class Town {
       add(this.population >= this.housing ? -5 : 0, 'crowded homes');
       add(-Math.round(Math.min(35, this.grief)), 'mourning the dead');
       for (const f of this.moodHooks || []) add(...f());
+      add(this.time < (this.feastUntil || 0) ? FEAST.mood : 0, 'a feast');
+      add(KEEP_RAISE.slice(0, this.keepBought || 0).reduce((n, K) => n + K.mood, 0), 'a great keep');
       add(this.underAttack ? -10 : 0, 'under attack');
       this.moodWhy = why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
       this.moodWant = Math.max(0, Math.min(100, 50 + why.reduce((n, [k]) => n + k, 0)));
@@ -1024,6 +1096,9 @@ export class Town {
     // A place you are storming is only a battlefield until it is yours.
     if (this.hostile) { this.updateAttacks(dt); this.updateBurning(dt); return; }
     this.keepPeak = Math.max(this.keepPeak || 1, byPeople(this.population));
+    // Masons: more hands as the village grows, twice as many while hired ones are here.
+    this.battle.masons = (1 + Math.floor(this.population / 15)) * (this.time < (this.masonsUntil || 0) ? 2 : 1);
+    this.mendWalls(dt);
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.updatePeople(dt);

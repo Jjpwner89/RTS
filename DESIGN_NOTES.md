@@ -259,9 +259,9 @@ The tools grow with the rank: regiments get bigger, levies can be called from ma
 | Tone | Grounded medieval, stylised look, no magic. |
 | Sieges | Stronghold style: free-placed walls, towers and gates; ladders, rams, catapults and trebuchets; defenders fight from the walls. The pack's first keep model reads as a fort, not your main keep. |
 | Supply | Simple: armies carry **food**. Wagons bring more from your villages; starving armies desert. Wounded men recover with food and rest. |
-| Money | Gold from taxes and markets. Most things cost goods; gold comes in for upgrades, mercenaries and retinues. |
+| Money | Gold from taxes and markets. Most things cost goods; gold comes in for upgrades, mercenaries, retinues, elite pay, market goods, feasts, great keeps, stone walls and masons, and diplomacy. Nothing buys power directly (no buying men from free villages, faster building or bribed garrisons). |
 | Mood | Each village has a mood from food variety, housing, taxes and war losses; mood drives growth. |
-| Rivals | Real factions on the same rules, simulated cheaply when unwatched. About six named lords with traits and taunts (builder, raider, turtler, schemer…). |
+| Rivals | Real factions on the same rules (taxes included), simulated cheaply when unwatched. About six named lords with traits and taunts (builder, raider, turtler, schemer…). Stronger than you at the start, then three stages: Settling, Expanding, Contending (see below). |
 | Diplomacy | War, truce, peace, alliance, tribute, vassals and **marriage alliances**. |
 | Threats | Bandit camps early, rebellions when mood is low, the invasion at the end. |
 | Fog of war | Yes, on the world map and in towns. Scouts and watchtowers reveal. |
@@ -315,3 +315,28 @@ A simpler, high-level strategy game in the vein of War of Dots or Line Battle: a
 - A place's name label on the map can be clicked and right-clicked like the place. A drag whose mouseup is swallowed no longer leaves the map following the mouse.
 - The Storm prompt warns when the place is walled and the army brings no ladders, ram or engines.
 - In a storm, ladders, rams and engines ordered onto an enemy wall go for the wall, even with its defenders standing on it.
+
+## Rivals' pace and gold (decided 2026-11-19)
+
+The creator: rivals start stronger than you but take a slow road to conquest, and grow more aggressive until they play to win from where they stand; you close the gap, then get attacked. Gold should matter, but nothing should buy power outright.
+
+- **Start**: each house begins with about 80–95 men against your 20 (seats 52, other places about 20; down from 120–145). A settling house keeps a quarter fewer men at home and at most about 50 in the field.
+- **Stages** (rivals.js `STAGES`, `climb`), per house, never going back:
+  - **Settling** (to about minute 20): builds up, clears outlaw camps, takes one free village next door (within a short march), declares no wars, and hires no companies. If already at war with you it only raids.
+  - **Expanding** (to about minute 40): free villages further out, one every fifteen minutes or so; one war at a time, on the weakest neighbour; an enemy's place only where it is weakly held (a quarter of the house's strength), never a seat or Kingsbridge. Elsewhere it skirmishes with raiders.
+  - **Contending** (from about minute 40): the old full behaviour, plus it goes for whoever leads the realm (you or a house), pushes for Kingsbridge, and only contending houses join a coalition against you.
+- **Pace**: Dunmore and Varn move up a quarter sooner, Carrow and Stonemere 30% later. The title page's Rivals option scales the stages (Gentle 1.35×, Fierce 0.7×) and no longer changes how often houses raid or how big their hosts are.
+- **Your growth moves them up**: after the first six minutes, a house whose strength you reach three quarters of moves to Expanding, and one you match moves to Contending. A fast player draws the fight sooner; a slow one gets more time but falls behind.
+- **Rival tax**: rivals tax as you do at fair taxes (0.012 gold a person a second; merchants 1.5×), and the northern host too. The 0.004 rate is gone.
+- **Gold sinks** (all on the campaign):
+  - **Elite pay** (treasury.js): men-at-arms 0.6 gold a man a minute, knights 1.5, wherever they stand, for you and the rivals alike. Unpaid for 45 s they grumble; after 150 s a company stands down every 30 s, the smallest first. A rival house drills any of its men in its hall (not only veterans) once it is expanding and has 600 gold, and its hall holds 24 elites for every two places it holds.
+  - **Market goods** (treasury.js `WARES`): a market town you hold or are at peace with sells 10 iron (80), 5 horses (150), 40 grain (60), 5 mail (160) or 5 swords (70). Each lot you buy there raises its price by 15%, settling back about 9% of the base a minute. A cart takes the goods to your nearest village and can be robbed. Rival houses buy there too, for their own stores, at the going price.
+  - **Feasts** (economy.js `FEAST`): 2 gold a villager (at least 60) for +15 mood for five minutes, once every ten minutes.
+  - **Great keeps** (economy.js `KEEP_RAISE`): the keep grows to level 3 with the village; level 4 (100 people, 500 gold, 80 stone, 30 planks) and 5 (150 people, 1,200 gold, 160 stone, 40 planks, 10 iron) are raised for gold, each with homes for 10 and +4 mood. Older saves keep the keeps they had; a captured place keeps its lord's.
+  - **Stone walls cost gold** (walls.js `WALL_COSTS`): 10 gold a stretch, 30 a tower, 15 a gate, for the masons. **Hired masons** (80 gold, three minutes; Defences panel) double the crews and mend damaged walls and towers while no one is fighting.
+  - **Diplomacy**: a marriage dowry grows with the house's strength (150 plus half its strength, to the nearest 50), and goes to the bride's house. A coalition can be bought off whole for three quarters of what buying peace from each member would cost, with the usual truce.
+- **Seed-7 check (scripted runs, rival attacks resolved automatically)**:
+  - Start: each house 81–95 men (strength 98–138) against your 20 (54).
+  - A passive player (only the governor in Ashford): 14 of 34 places still free or outlaw-held at minute 30 (the old playtest had 6 by minute 37). Houses reach Expanding at 15–30 minutes and Contending at 37–60; the first war on you came at minute 40–51 and the first host at 55. Rival treasuries stood at 3–7k by minute 60 (the merchant house 13.5k), each house's elites drawing 22–28 gold a minute.
+  - A fast scripted player (a free village every seven minutes from minute 6, with 20 men each): you pass every house by minute 20, so they move up early (Expanding from minute 10, Contending by 20–30), and Varn declared war at minute 16. With a village every four minutes, every house was at war with you by minute 40 and hosts marched on your places from minute 50.
+  - Still open: rival gold still builds up slowly (taxes at your rate outrun what they spend), and in the fast run the houses mostly skirmished you rather than send hosts until you held a large share of the realm.

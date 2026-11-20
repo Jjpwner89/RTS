@@ -82,7 +82,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options', 'decrees'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options', 'decrees', 'elitePay'];
 
 function pack(w) {
   const enc = encoder(w);
@@ -118,13 +118,15 @@ function packTown(t) {
     felled: t.trees.spots.filter(s => !s.standing).map(s => s.i),
     walls: { nodes, pieces, centre: W.centre[0] },
     state: { taxes: t.taxes, mood: t.mood, grief: t.grief, governor: t.governor, hungry: t.hungry, time: t.time, territory: t.territory,
-      nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, keepPeak: t.keepPeak, flagColor: t.flagColor, misery: t.misery, rebelCool: t.rebelCool },
+      nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, feastAt: t.feastAt, feastUntil: t.feastUntil, masonsUntil: t.masonsUntil, flagColor: t.flagColor, misery: t.misery, rebelCool: t.rebelCool },
   };
 }
 
 function unpackTown(w, p, s) {
   const t = w.makeTown(p, { kind: s.kind, villagers: 0, retinue: false, stock: {} });
   Object.assign(t, s.state);
+  // Saved before keeps were raised for gold: a keep past level 3 stays as it was.
+  if (s.state.keepBought === undefined) t.keepBought = Math.max(0, (s.state.keepPeak || 1) - 3);
   t.keep.store = { ...s.keep.store };
   t.keep.hp = s.keep.hp;
   for (const i of s.felled) { const spot = t.trees.spots[i]; if (spot?.standing) t.trees.fell(spot); }

@@ -11,10 +11,11 @@ export const MATERIALS = {
   stone: { name: 'Stone wall', thick: 2.5, height: 6, walk: 5, towerR: 4, towerTop: 9.4, towerPosts: 12, hp: 2400, towerHp: 3600, gateHp: 1100, melee: 0.04, build: 20 },
 };
 
-// What each thing costs, in goods. A wall's cost is for a full 10 m piece; shorter ones cost less.
+// What each thing costs, in goods (and gold for stone: masons' wages). A wall's cost is for
+// a full 10 m piece; shorter ones cost less.
 export const WALL_COSTS = {
   wood: { wall: { wood: 8 }, tower: { wood: 20 }, gate: { wood: 15 } },
-  stone: { wall: { stone: 20 }, tower: { stone: 40, wood: 10 }, gate: { stone: 25, wood: 15 } },
+  stone: { wall: { stone: 20, gold: 10 }, tower: { stone: 40, wood: 10, gold: 30 }, gate: { stone: 25, wood: 15, gold: 15 } },
 };
 
 export const PIECE_MAX = 10, PIECE_MIN = 4, GATE_MIN = 6, SNAP = 3.5, POST_GAP = 1.3;

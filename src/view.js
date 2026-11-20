@@ -158,7 +158,9 @@ export function poleFor(flag, w, h, drop = 3) {
 export function keepLevelOf(town) {
   if (town.keepLevel) return Math.max(1, Math.min(5, town.keepLevel));
   const n = town.population;
-  return (town.keepPeak = Math.max(town.keepPeak || 1, n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1));
+  town.keepPeak = Math.max(town.keepPeak || 1, n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1);
+  // past level 3 only as far as the keep has been raised for gold (economy.js KEEP_RAISE)
+  return Math.min(3 + (town.keepBought || 0), town.keepPeak);
 }
 
 // The lord's seat on the world map: the wooden castle.

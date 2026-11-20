@@ -1,6 +1,14 @@
 // The rival houses' minds. Each lord has a bent (raider, builder, turtler, schemer,
 // merchant, hothead) that sets how soon they go to war and how they fight one.
 //
+// Every house climbs three stages (STAGES): Settling, when it builds up, clears outlaws and
+// takes the free villages next door; Expanding, when it reaches further out, raids its
+// weakest neighbour and strikes where a place is weakly held; and Contending, when it plays
+// to win from where it stands: it goes for the leader, joins coalitions, besieges seats and
+// pushes for Kingsbridge. A house moves up with time (sooner for hot-blooded lords, later
+// for builders and turtlers, and by the campaign's Rivals option), or early once you close
+// the gap on it.
+//
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
@@ -8,6 +16,14 @@ import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit
 import { protectedFrom, leagued, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
+
+export const STAGES = ['Settling', 'Expanding', 'Contending'];
+const STAGE_AT = [1200, 2400];        // seconds into the campaign, before pace
+const PACE = { hothead: 0.75, raider: 0.75, schemer: 1, merchant: 1, builder: 1.3, turtler: 1.3 };
+const CATCH = [0.75, 1];              // your strength against theirs that moves them up early
+const CATCH_FROM = 360;               // but not in the first six minutes
+const NEXT_DOOR = 420;                // a settling house reaches only this far by road
+export const stageOf = h => (h.invader ? 2 : h.ai?.stage ?? 0);
 
 const BENT = {
   raider:   { probe: 100, raidCd: 55,  war: 1.3, need: 1.4 },
@@ -21,19 +37,42 @@ const BENT = {
 // The north: a fresh host comes through the gate every few minutes while they hold it,
 // each bigger than the last and sized against your own strength.
 const TIDE = { first: 100, every: 200 };
-// A house's temper, sharpened or softened by the campaign's rival aggression (not the north's).
-function bent(w, h) {
-  const B = BENT[h.trait] || BENT.schemer, f = h.invader ? 1 : fierceness(w).f;
-  return f === 1 ? B : { probe: B.probe / f, raidCd: B.raidCd / f, war: B.war * f, need: B.need / Math.sqrt(f) };
+const bent = h => BENT[h.trait] || BENT.schemer;
+
+// Moves a house up a stage when its time comes, or once you are nearly as strong as it is.
+// It never goes back down.
+function climb(w, h) {
+  const ai = h.ai;
+  if (h.invader) { ai.stage = 2; return; }
+  const k = (PACE[h.trait] ?? 1) * fierceness(w).stage;
+  let s = w.time >= STAGE_AT[1] * k ? 2 : w.time >= STAGE_AT[0] * k ? 1 : 0;
+  if (w.time > CATCH_FROM) {
+    const ratio = w.strength(0) / Math.max(1, w.strength(h.index));
+    if (ratio >= CATCH[1]) s = 2;
+    else if (ratio >= CATCH[0]) s = Math.max(s, 1);
+  }
+  // A campaign saved before the stages: the house takes its stage quietly.
+  if (ai.stage === undefined) { ai.stage = s; return; }
+  if (s <= ai.stage) return;
+  ai.stage = s;
+  ai.stageAt = w.time;
+  if (!w.knows(h.index)) return;
+  if (s === 1) w.log(`${h.name} is reaching beyond its own lands. Its lord has an eye on the free villages further out, and on weak neighbours.`, 2);
+  else {
+    w.log(`${h.lord} means to win the realm. ${h.name} will go for whoever leads, and for Kingsbridge.`, 1);
+    w.hooks.herald?.({ house: h, title: `${h.name} reaches for the crown`, text: `${h.lord} has stopped building and started conquering. From now on ${h.name} goes for whoever leads the realm, joins any league against them, and pushes for Kingsbridge.` });
+  }
 }
 const THINK = 8;
+const SETTLED_RESERVE = 50;           // men a settling house keeps in the field at most
+const GROW = [1500, 900, 240];        // seconds a house rests after taking a free village, by stage
 
 export function startHouseMinds(w) {
   for (const h of FACTIONS) startMind(w, h);
 }
 
 export function startMind(w, h) {
-  h.ai = { think: 20 + h.index * 3, plan: null, cool: h.invader ? 20 : 60, raidCd: h.invader ? 40 : 120 + w.rand() * 80, warClock: 240 + w.rand() * 240, warsSince: {}, tide: TIDE.first, wave: 0 };
+  h.ai = { stage: h.invader ? 2 : 0, think: 20 + h.index * 3, plan: null, cool: h.invader ? 20 : 60, raidCd: h.invader ? 40 : 120 + w.rand() * 80, warClock: 240 + w.rand() * 240, warsSince: {}, tide: TIDE.first, wave: 0 };
 }
 
 export function thinkHouses(w, dt) {
@@ -64,17 +103,20 @@ function nearestOwn(w, h, target) {
 function houseMind(w, h) {
   const mine = held(w, h);
   if (!mine.length) return;
-  const B = bent(w, h), ai = h.ai, plan = ai.plan;
+  const B = bent(h), ai = h.ai, plan = ai.plan;
   ai.cool -= THINK;
+  climb(w, h);
+  const stage = stageOf(h);
   if (!h.seat || h.seat.owner !== h.index) h.seat = mine[0];
   const muster = plan?.staging?.owner === h.index ? plan.staging : h.seat;
 
   // Raise men for the field at the muster place, while the people can spare them.
-  if (h.arms >= 6) w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)));
+  // A settling house keeps a modest field reserve; later it raises all it can.
+  if (h.arms >= 6 && (stage > 0 || spareAt(w, muster) < SETTLED_RESERVE)) w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)));
 
   // A rich lord at war hires a mercenary company rather than sit on his gold, and pays
-  // its wages from then on (companies.js).
-  if (!h.bandit && w.time > (ai.hiredAt ?? -Infinity) + 300 && rivalHire(w, h, muster)) ai.hiredAt = w.time;
+  // its wages from then on (companies.js). Not while the house is still settling.
+  if (!h.bandit && stage > 0 && w.time > (ai.hiredAt ?? -Infinity) + 300 && rivalHire(w, h, muster)) ai.hiredAt = w.time;
 
   // Send men beyond what each place keeps at home to the muster place.
   for (const p of mine) {
@@ -86,17 +128,18 @@ function houseMind(w, h) {
     if (!w.order(col, muster)) { w.removeArmy(col); for (const u of extra) p.garrison.push(u); }
   }
 
-  thinkWars(w, h, B);
+  thinkWars(w, h, B, stage);
 
   // Drop a plan whose target is ours now, or no longer an enemy.
   if (plan && (plan.target.owner === h.index || !w.canAttack(h.index, plan.target))) {
     if (plan.host && !plan.host.gone && plan.host.side === h.index && !plan.host.retreating) w.retreat(plan.host);
+    // A free village taken: the house settles it before reaching for the next.
+    ai.cool = plan.free && plan.target.owner === h.index ? GROW[stage] * (0.8 + w.rand() * 0.4) : 40;
     ai.plan = null;
-    ai.cool = 40;
     return;
   }
   if (!ai.plan) {
-    if (ai.cool <= 0) ai.plan = choosePlan(w, h, B);
+    if (ai.cool <= 0) ai.plan = choosePlan(w, h, B, stage);
     return;
   }
   runPlan(w, h, B, ai.plan);
@@ -104,7 +147,7 @@ function houseMind(w, h) {
 
 // Go to war with a neighbour now and then, more often for hot-blooded lords. Wars
 // between rivals burn out after a while; wars with you last until diplomacy ends them.
-function thinkWars(w, h, B) {
+function thinkWars(w, h, B, stage) {
   const ai = h.ai;
   if (h.invader) return;   // at war with everyone, always
   ai.warClock -= THINK;
@@ -116,7 +159,9 @@ function thinkWars(w, h, B) {
   }
   if (ai.warClock > 0) return;
   ai.warClock = (260 + w.rand() * 220) / B.war;
-  if (enemies.length >= (B.war > 1.2 ? 2 : 1)) return;
+  // A settling house makes no wars; an expanding one one at a time.
+  if (stage === 0) return;
+  if (enemies.length >= (stage === 1 ? 1 : B.war > 1.2 ? 2 : 1)) return;
   // Neighbours: houses holding a place within a short march of one of ours.
   const mine = held(w, h);
   const near = new Map();
@@ -126,11 +171,12 @@ function thinkWars(w, h, B) {
     if (d < 420) near.set(p.owner, Math.min(near.get(p.owner) ?? Infinity, d));
   }
   const strength = i => w.strength(i);
-  const ours = strength(h.index);
-  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || (w.time > grace(w) && !protectedFrom(w, 0, h.index)))
+  const ours = strength(h.index), lead = leader(w, h);
+  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || !protectedFrom(w, 0, h.index))
     && !(FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20))
-    // A lord with a grudge against you fancies his chances more than he should.
-    .map(i => ({ i, odds: ours / Math.max(1, strength(i)) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) }))
+    // A lord with a grudge against you fancies his chances more than he should; a
+    // contending one goes for whoever leads.
+    .map(i => ({ i, odds: ours / Math.max(1, strength(i)) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) * (stage === 2 && i === lead ? 1.6 : 1) }))
     .sort((a, b) => b.odds - a.odds);
   const pick = choices[0];
   if (pick && pick.odds * B.war > 0.9 && w.rand() < 0.7) {
@@ -139,28 +185,52 @@ function thinkWars(w, h, B) {
   }
 }
 
-function choosePlan(w, h, B) {
-  const options = [];
+// The strongest side in the realm other than this house: you, or another house.
+function leader(w, h) {
+  let best = null, bs = -1;
+  for (const o of FACTIONS) {
+    if (o === h || !o.alive || o.bandit || o.invader) continue;
+    const s = w.strength(o.index);
+    if (s > bs) { bs = s; best = o.index; }
+  }
+  return best;
+}
+
+// What a house goes for next. Settling: free villages next door and outlaw camps, and only
+// raids on an enemy. Expanding: free villages further out, and an enemy's place only where
+// it is weakly held. Contending: anything, the leader's places and Kingsbridge first.
+function choosePlan(w, h, B, stage) {
+  const options = [], ours = w.strength(h.index), lead = stage === 2 ? leader(w, h) : null;
+  let skirmish = null;
   for (const p of w.pois) {
     if (!w.canAttack(h.index, p)) continue;
-    if (p.owner === 0 && w.time < grace(w)) continue;
+    const enemy = p.owner !== null && p.owner !== w.bandits;
+    if (p.owner === 0 && stage === 0) { if (!protectedFrom(w, 0, h.index)) skirmish ??= p; continue; }
     // the free villages around your start are yours to win first
     if (p.owner === null && w.time < grace(w) && w.byId.ashford && dist(p, w.byId.ashford) < 260) continue;
     const from = nearestOwn(w, h, p);
-    if (!from.place || from.length > 900) continue;
+    if (!from.place || from.length > (stage === 0 && p.owner === null ? NEXT_DOOR : 900)) continue;
     const def = w.defence(p);
+    if (enemy && stage === 0) { if (!skirmish || from.length < 600) skirmish = p; continue; }
+    if (enemy && stage === 1 && (def > ours * 0.25 || p.seat !== undefined || p.kind === 'crown')) { skirmish ??= p; continue; }
     // Free villages and bandit camps are easy pickings; enemy places are a war aim.
-    let prize = p.kind === 'crown' ? 0.7 : p.seat !== undefined ? 0.8 : 1;
+    let prize = p.kind === 'crown' ? (stage === 2 ? 0.45 : 0.7) : p.seat !== undefined ? 0.8 : 1;
+    if (lead !== null && p.owner === lead) prize *= 0.7;   // the leader's lands
     if (h.invader && p.owner === 0) prize *= 0.6;   // the north comes for the king first
     if (p.owner === 0 && leagued(w, h.index)) prize *= 0.7;   // a coalition is about you
     if (p.owner === 0 && wantsBack(w, h, p)) prize *= 0.6;    // and a lord wants back what you took
     options.push({ p, staging: from.place, score: (def + from.length * 0.15) * prize });
   }
-  if (!options.length) return null;
+  // Nothing to take: a house at war with a place it can't yet take only skirmishes there.
+  if (!options.length) {
+    if (!skirmish) return null;
+    const from = nearestOwn(w, h, skirmish);
+    return from.place ? { target: skirmish, staging: from.place, phase: 'probe', t: B.probe, waited: 0, host: null, raids: 0, skirmish: true } : null;
+  }
   options.sort((a, b) => a.score - b.score);
   const o = options[0];
   const war = o.p.owner !== null && o.p.owner !== w.bandits;
-  return { target: o.p, staging: o.staging, phase: war ? 'probe' : 'muster', t: war ? B.probe : 0, waited: 0, host: null, raids: 0 };
+  return { target: o.p, staging: o.staging, phase: war ? 'probe' : 'muster', t: war ? B.probe : 0, waited: 0, host: null, raids: 0, free: o.p.owner === null };
 }
 
 function runPlan(w, h, B, plan) {
@@ -173,6 +243,8 @@ function runPlan(w, h, B, plan) {
       sendRaid(w, h, plan);
     }
     if (plan.t <= 0) {
+      // A skirmish ends with its raids: the house thinks again.
+      if (plan.skirmish) { ai.plan = null; ai.cool = 60; return; }
       plan.phase = 'muster';
       plan.staging = nearestOwn(w, h, T).place || h.seat;
       if (T.owner === 0) {

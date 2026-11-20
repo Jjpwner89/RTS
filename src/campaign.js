@@ -19,6 +19,8 @@ import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
+import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
+import { stageOf } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { canSave, saveGame, readSave, loadGame, clearSave } from './world/save.js';
 import { KINDS } from './world/realm.js';
@@ -706,6 +708,17 @@ function worksBox(p) {
     + open.map(o => `<button data-act="work:${o.key}" class="wide" ${o.ok ? '' : 'disabled'} title="${o.ok ? o.W.about : `${o.why}. ${o.W.about}`}">${ico(o.W.icon, '#e8c45a')} ${o.W.name}${o.br ? ` above ${p.name}` : ''} (${o.W.gold} gold)</button>`).join('');
 }
 
+// A market town's wares (treasury.js): a lot of each at today's price, carted to your
+// nearest village. The price rises with every lot you buy and settles back slowly.
+function marketBox(p) {
+  if (!isMarket(p) || !p.seen) return '';
+  const rows = Object.entries(WARES).map(([g, W]) => {
+    const c = buyCheck(world, p, g), price = priceAt(p, g);
+    return `<button data-act="buy:${g}" class="wide" ${c.ok ? '' : 'disabled'} title="${c.ok ? (c.to === p ? 'Straight into the stores' : `A cart takes them to ${c.to.name}; raiders can rob it`) : c.why}">${ico(g)} ${W.lot} ${W.name} · ${price} gold${c.ok || !c.to ? '' : `<small>${c.why}</small>`}</button>`;
+  }).join('');
+  return `<h4>Buy at the market</h4>${rows}`;
+}
+
 let panelKey = null;
 function worldPanel() {
   const el = $('wpanel'), it = selected;
@@ -731,7 +744,7 @@ function worldPanel() {
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide">Join with ${o.name} (${headcount(o.units)})</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
-    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div>`
+    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
         + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
@@ -758,7 +771,8 @@ function worldPanel() {
     set('rank', world.crowned ? (world.part === 2 ? 'King of the realm · the north is at war with you' : 'King of the realm') : `${world.rank} of ${world.home.owner === 0 ? world.home.name : 'nowhere'}`);
     set('realm', `${held.length} of ${world.pois.length} places held · ${men} soldiers`);
     const backing = FACTIONS.filter(h => world.dip[h.index]?.backs && h.alive).length;
-    set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
+    const pay = elitePay(world, 0);
+    set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${pay ? ` · your elite men draw ${Math.round(pay)} a minute` : ''}${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
     const list = el.querySelector('[data-f="houses"]');
     // Houses you have not met share one line; you learn who they are by finding their lands.
     const unmet = FACTIONS.slice(1, world.bandits).filter(h => !world.knows(h.index) && h.alive && !world.atWar(0, h.index));
@@ -829,6 +843,7 @@ function worldPanel() {
     const whoText = !it.seen ? 'Unexplored' : who === null ? (it.free ? `Held free of you by ${it.free}, who rose against you` : 'Free folk with their own militia') : lord ? `Yours, held for you by <b style="color:${lord.color}">${lord.name}</b>` : who === 0 ? 'Yours' : `Held by ${FACTIONS[who].name}${world.atWar(0, who) ? ' (at war with you)' : ''}`;
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     set('works', worksBox(it));
+    set('market', marketBox(it));
     if (it.owner === 0) { const n = world.gatherable(it).length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); const gb = el.querySelector('[data-f="gather"]'); if (gb) gb.disabled = !n; }
     if (it.town) {
       const can = world.canGrant(it);
@@ -881,6 +896,8 @@ function intelText(p) {
 }
 
 // A rival lord: what they think of you, and what you can put to them.
+// What a house is about (rivals.js STAGES), as the realm would put it.
+const AMBITION = ['Settling its own lands', 'Reaching beyond its lands, and eyeing weak neighbours', 'Playing to win the realm'];
 function housePanel(el, h) {
   const d = world.dip[h.index], list = dipActions(world, h.index);
   const key = `h${h.index}:${list.map(a => a.id + a.ok).join()}:${d.married}${d.allied}${d.vassal}${d.backs}`;
@@ -899,7 +916,7 @@ function housePanel(el, h) {
   const held = grudgeLines(world, h).slice(0, 3);
   set('grudges', held.length ? `Holds against you: ${held.join('; ')}.` : '');
   const n = world.pois.filter(p => p.owner === h.index).length;
-  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}`);
+  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}<br><small>${AMBITION[stageOf(h)]}</small>`);
 }
 
 $('wpanel').onclick = e => {
@@ -951,6 +968,7 @@ $('wpanel').onclick = e => {
   if (act === 'gather' && it && !it.units) { const n = world.gatherAt(it); flash(n ? `${n} ${n > 1 ? 'armies are' : 'army is'} on the way to ${it.name}.` : 'No army of yours is free to come.', !!n); }
   if (act?.startsWith('decree:')) { const r = toggleDecree(world, act.slice(7)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('work:')) { const r = startWork(world, it, act.slice(5)); if (!r.ok) flash(r.why); }
+  if (act?.startsWith('buy:') && it) { const r = buy(world, it, act.slice(4)); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('run:')) { const r = sendRun(world, it, world.byId[act.slice(4)]); flash(r.ok ? `The wagon sets out: ${loadText(r.wagon.wagon)}.` : r.why, r.ok); }
   if (act?.startsWith('escort:')) { const c = world.armies.find(a => a.id === +act.slice(7)); if (!escort(world, it, c)) flash('That caravan is gone.'); panelKey = null; }
   if (act === 'wagon' && it.units && !it.wagon && !it.gone) { if (!sendWagon(world, it)) flash('No village has food to spare.'); }

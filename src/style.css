@@ -255,6 +255,8 @@ body.town #defences, body.campaign.mode-town #defences { display: block; }
 #defences .items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
 #defences .items button { font-size: 11px; padding: 3px 4px; text-align: left; }
 #defences .items small { display: block; color: var(--dim); font-size: 10px; }
+#defences .masons { width: 100%; margin-top: 4px; font-size: 11px; padding: 3px 4px; text-align: left; }
+#defences .masons small { float: right; color: var(--dim); font-size: 10px; }
 #defences .sel { margin-top: 6px; font-size: 11px; }
 #defences .sel .row { display: flex; gap: 4px; margin-top: 4px; }
 body.town.has-defences #cards, body.campaign.mode-town.has-defences #cards { left: 600px; }

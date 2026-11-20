@@ -1,7 +1,7 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, gearOf } from './economy.js';
+import { ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, gearOf, FEAST, KEEP_RAISE } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
@@ -207,6 +207,8 @@ export class TownHud {
         const c = this.hooks.companies().find(o => o.id === +el.dataset.act.slice(3));
         el.querySelector('small').textContent = c ? `${c.status} · ${c.wage} gold a minute` : '';
       }
+      if (el.dataset.act === 'feast') { const c = this.town.feastCheck(); el.querySelector('small').textContent = c.ok ? `${c.gold} gold: the mood +${FEAST.mood} for ${FEAST.secs / 60} minutes` : c.reason; }
+      if (el.dataset.act === 'keepraise') { const c = this.town.keepRaiseCheck(); el.hidden = !!c.done; if (c.K) el.querySelector('small').textContent = c.ok ? `${c.K.gold} gold + ${listCost(c.K.cost)}: homes for ${c.K.housing}, the mood +${c.K.mood}` : c.reason; }
       if (el.dataset.act === 'pause') el.textContent = selected.paused ? 'Resume work' : 'Pause work';
       if (el.dataset.act.startsWith('recipe:')) {
         const off = selected.off.has(+el.dataset.act.slice(7));
@@ -230,6 +232,9 @@ export class TownHud {
         `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`,
         `<h4>The village's mood</h4><p class="note" data-f="mood"></p>`,
         `<button data-act="governor" class="wide"><span data-f="gov"></span><small>builds houses, farms and the like while you are away</small></button>`,
+        `<h4>Spend gold</h4>`,
+        `<button data-act="feast" class="wide"><span>Hold a feast</span><small></small></button>`,
+        `<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`,
         `<h4>Hire men</h4><p class="note">Paid in gold from your treasury. They cost no villagers.</p>`,
         ...HIRES.filter(h => !this.hooks.companies || h.key === 'household').map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}</span><small></small></button>`));
       // Mercenary companies (on the campaign map): a price to hire, then wages every minute.
@@ -255,7 +260,7 @@ export class TownHud {
       for (const [k, E] of Object.entries(ENGINES)) rows.push(`<button data-act="engine:${k}" class="wide"><span>${E.name} · ${E.crew} crew</span><small></small></button><p class="kit">needs ${this.goodsList(E.cost)} in this workshop</p>`);
     }
     if (b.B.hall && b.state === 'active') {
-      rows.push(`<h4>Train elite men</h4><p class="note">Only veterans may train: villagers who fought as levies and came home (${this.town.veterans().length} in the village). A few at a time, for their kit, a fee and minutes of drill each. The hall keeps ${HALL.cap} men at most.</p>`);
+      rows.push(`<h4>Train elite men</h4><p class="note">Only veterans may train: villagers who fought as levies and came home (${this.town.veterans().length} in the village). A few at a time, for their kit, a fee and minutes of drill each. The hall keeps ${HALL.cap} men at most.${this.hooks.companies ? ` On campaign they draw pay from your treasury: ${ELITE.maa.pay} gold a minute for a man-at-arms, ${ELITE.knight.pay} for a knight.` : ''}</p>`);
       for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${Math.round(E.drill / 60 * 10) / 10} min of drill</p>`);
     }
     if (b.kind === 'barracks' && b.state === 'active') {
@@ -284,7 +289,7 @@ export class TownHud {
     const co = this.hooks.companyOf?.(r);
     if (co) rows.push(`<p class="note">A mercenary company under ${co.captain}. Wages: ${co.wage} gold a minute, from your treasury.${co.unpaid ? ' <b class="bad">They are owed pay.</b>' : ''}</p>`,
       `<button data-act="dismiss" class="wide"><span>Dismiss them</span><small>they leave your service; no refund</small></button>`);
-    else if (r.elite) rows.push(`<p class="note">Trained in your knights' hall from veterans. Slow to replace: losing them hurts.</p>`,
+    else if (r.elite) rows.push(`<p class="note">Trained in your knights' hall from veterans. Slow to replace: losing them hurts.${this.hooks.companies ? ` Pay: ${Math.round(r.alive * (ELITE[r.T.key]?.pay ?? ELITE.maa.pay) * 10) / 10} gold a minute.` : ''}</p>`,
       `<button data-act="disband" class="wide"><span>Stand them down</span><small>they go home to work; their kit goes back to the racks</small></button>`);
     else if (r.levy) rows.push(`<button data-act="disband" class="wide"><span>Disband</span><small>send them home to work</small></button>`);
     else if (r.retinue) rows.push(`<p class="note">Your own household troops. They cost no villagers.</p>`,
@@ -299,6 +304,7 @@ export class TownHud {
     if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.peopleText()} · ${b.status.toLowerCase()}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
+    if (f === 'keepraise') { const K = KEEP_RAISE[this.town.keepBought || 0]; return K ? `Raise a ${K.name}` : ''; }
     if (f === 'gov') return this.town.governor === false ? 'Governor: off' : 'Governor: on';
     if (f === 'workers') return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} / ${this.town.jobs(b)}`;
     if (f === 'mood') return `${moodWord(this.town.mood)} (${Math.round(this.town.mood)}): ${this.town.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join(', ') || 'nothing much either way'}. A happy village grows faster and pays more tax; a miserable one loses families.`;
@@ -324,6 +330,8 @@ export class TownHud {
     if (act.startsWith('hire:')) { const c = t.hireCheck(act.slice(5)); return [c.ok, c.reason]; }
     if (act.startsWith('train:')) { const c = t.trainCheck(act.slice(6), this.selected); return [c.ok, c.reason]; }
     if (act.startsWith('co:')) { const c = this.hooks.companies().find(o => o.id === +act.slice(3)); return [!!c?.ok, c?.why]; }
+    if (act === 'feast') { const c = t.feastCheck(); return [c.ok, c.reason]; }
+    if (act === 'keepraise') { const c = t.keepRaiseCheck(); return [c.ok, c.reason]; }
     return [true];
   }
 
@@ -343,6 +351,8 @@ export class TownHud {
     if (act === 'refit') { const r = t.refit(this.reg); if (!r.ok) this.flash(r.reason); }
     if (act === 'upgrade') { const r = t.upgrade(this.selected); if (!r.ok) this.flash(r.reason); }
     if (act === 'governor') t.governor = t.governor === false;
+    if (act === 'feast') { const r = t.feast(); if (!r.ok) this.flash(r.reason); }
+    if (act === 'keepraise') { const r = t.raiseKeep(); if (!r.ok) this.flash(r.reason); }
     if (act.startsWith('engine:') || act.startsWith('hire:')) {
       const res = act.startsWith('engine:') ? t.buildEngine(act.slice(7), this.selected) : t.hire(act.slice(5));
       if (!res.ok) this.flash(res.reason);

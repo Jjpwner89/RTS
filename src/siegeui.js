@@ -5,7 +5,7 @@
 import { WALL_COSTS, MATERIALS } from './walls.js';
 import { SiegeView } from './siegeview.js';
 import { drawDeployZone } from './fieldview.js';
-import { GOODS } from './economy.js';
+import { GOODS, MASONS } from './economy.js';
 
 const costText = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g]?.name.toLowerCase() || g}`).join(', ');
 
@@ -17,10 +17,12 @@ const TOOLS = [
   { key: 'gate', name: 'Gate', cost: WALL_COSTS.wood.gate, tip: 'Click a stretch of wall. Opens for your people, shut to the enemy until rammed or forced.' },
 ];
 
-// Takes goods from the keep first, then the storehouses, then wherever they lie.
+// Takes goods from the keep first, then the storehouses, then wherever they lie; gold
+// from the purse.
 export function payGoods(town, cost) {
   const holders = [town.keep, ...town.stores().filter(b => b !== town.keep), ...town.holders()];
   for (const [g, n] of Object.entries(cost)) {
+    if (g === 'gold') { town.purse.gold -= n; continue; }
     let left = n;
     for (const b of holders) {
       if (left <= 0) break;
@@ -35,7 +37,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
   if (!battle.trees && town.trees) battle.setWoods(town.trees);   // the village's woods hide men too
   const view = new SiegeView(scene, battle, heightAt);
   const ui = { tool: null, drag: null, hover: null, selected: null, view };
-  const afford = cost => town.canAfford(cost);
+  const afford = cost => { const { gold = 0, ...goods } = cost; return town.purse.gold >= gold && town.canAfford(goods); };
   // Walls keep clear of the keep, buildings and deposits, and stay on your land.
   const avoid = (x, z, r) => {
     if (Math.hypot(x, z) > town.territory) return true;
@@ -55,6 +57,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
   selKey = null;
   el.innerHTML = `<h4>Defences</h4><div class="items">${TOOLS.map(t => `
     <button data-tool="${t.key}" title="${t.tip}">${t.name}<small>${costText(t.cost)}${t.per || ''}</small></button>`).join('')}</div>
+    <button data-act="masons" class="masons" title="For ${Math.round(MASONS.secs / 60)} minutes: twice the crews on new and broken walls, and damaged walls and towers mended while no one is fighting">Hire masons<small>${MASONS.gold} gold</small></button>
     <div class="sel" hidden></div>`;
   selEl = el.querySelector('.sel');
   el.onclick = e => {
@@ -68,6 +71,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
       b.controls.setSelection([]);
       return;
     }
+    if (btn.dataset.act === 'masons') { const r = town.hireMasons(); if (!r.ok) flash(r.reason); return; }
     const s = ui.selected;
     if (!s) return;
     if (btn.dataset.act === 'repair') {
@@ -79,7 +83,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
       // Half the cost back for a standing stretch, all of it for one not yet begun.
       const cost = s.kind === 'tower' ? WALL_COSTS[s.material].tower : W.pieceCost(s);
       const back = s.state === 'up' ? 0.5 : s.state === 'site' ? 1 - s.progress : 0;
-      for (const [g, n] of Object.entries(cost)) if (Math.floor(n * back) > 0) town.put(town.keep, g, Math.floor(n * back));
+      for (const [g, n] of Object.entries(cost)) if (Math.floor(n * back) > 0) { if (g === 'gold') town.purse.gold += Math.floor(n * back); else town.put(town.keep, g, Math.floor(n * back)); }
       W.demolish(s);
       ui.selected = null;
     }
@@ -164,8 +168,8 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
       const t = TOOLS.find(o => o.key === btn.dataset.tool);
       btn.disabled = !afford(t.cost);
     }
-    // Masons: more hands as the village grows.
-    battle.masons = 1 + Math.floor(town.population / 15);
+    const mb = el.querySelector('[data-act="masons"]');
+    if (mb) { const c = town.masonsCheck(); mb.disabled = !c.ok; const txt = c.ok ? `${MASONS.gold} gold` : c.reason; if (mb.lastChild.textContent !== txt) mb.lastChild.textContent = txt; }
     showSelected();
     let plan = null;
     if (ui.tool?.startsWith('wall:') && ui.drag) {

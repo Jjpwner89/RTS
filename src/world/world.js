@@ -18,6 +18,7 @@ import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { govern } from './governor.js';
 import { tickEvents } from './events.js';
+import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
@@ -44,11 +45,14 @@ const KNIGHT_LEVEL = 3;       // a captain of this level may be knighted with a 
 const LADIES = new Set(['Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel']);
 const SIEGE_MEAL = 160;       // seconds a unit of food feeds one mouth in a besieged place
 const STARVE = 150;           // seconds of hunger before a besieged place yields
-export const GRACE = 1200;     // rival houses leave your villages, and the free ones beside them, alone for twenty minutes
-// Rival aggression (a campaign option): how much sooner they raid, probe and make war.
-export const AGGRESSION = { gentle: { name: 'Gentle', f: 0.65, grace: 1.5 }, normal: { name: 'Normal', f: 1, grace: 1 }, fierce: { name: 'Fierce', f: 1.4, grace: 0.6 } };
+export const GRACE = 1200;     // rival houses leave the free villages beside yours alone for twenty minutes
+// Rival aggression (a campaign option): how soon the houses move up their stages (rivals.js
+// STAGES), not how strong they are.
+export const AGGRESSION = { gentle: { name: 'Gentle', stage: 1.35 }, normal: { name: 'Normal', stage: 1 }, fierce: { name: 'Fierce', stage: 0.7 } };
 export const fierceness = w => AGGRESSION[w.options?.aggression] || AGGRESSION.normal;
-export const grace = w => GRACE * fierceness(w).grace;
+export const grace = w => GRACE * fierceness(w).stage;
+// Gold a person pays a second at fair taxes, yours and the rivals' alike (merchants 1.5×).
+export const TAX = 0.012;
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
 // their halls.
@@ -113,6 +117,8 @@ function grownLevels(town, e) {
   }
   const byPop = e.pop >= 150 ? 5 : e.pop >= 100 ? 4 : e.pop >= 60 ? 3 : e.pop >= 30 ? 2 : 1;
   town.keepPeak = Math.max(town.keepPeak || 1, byPop);
+  // the great keep its lord paid for comes with the place (economy.js KEEP_RAISE)
+  town.keepBought = Math.max(town.keepBought || 0, byPop - 3);
   if (town.keepLevel) town.keepLevel = Math.max(town.keepLevel, byPop);
 }
 
@@ -144,7 +150,7 @@ function remember(t, side, time) {
   });
   const pieces = W.pieces.filter(p => p.side === side && p.state !== 'site' && idx.has(p.a) && idx.has(p.b))
     .map(p => ({ a: idx.get(p.a), b: idx.get(p.b), material: p.material, gate: p.gate, broken: p.state === 'broken' }));
-  return { at: time, keepLevel: t.keepLevel, keepPeak: t.keepPeak, centre: W.centre[side],
+  return { at: time, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, centre: W.centre[side],
     buildings: t.buildings.filter(b => b.state === 'active').map(b => ({ kind: b.kind, x: b.x, z: b.z, level: b.level || 1 })), nodes, pieces };
 }
 
@@ -156,6 +162,7 @@ function rebuild(town, mem, side, mended) {
   }
   if (mem.keepLevel) town.keepLevel = mem.keepLevel;
   if (mem.keepPeak) town.keepPeak = mem.keepPeak;
+  if (mem.keepBought) town.keepBought = mem.keepBought;
   if (!mem.pieces.length && !mem.nodes.some(n => n.tower)) return false;
   const W = town.battle.walls;
   const nodes = mem.nodes.map(n => W.node(n.x, n.z, side, { snap: false }));
@@ -308,15 +315,15 @@ export class World {
     else {
       const h = FACTIONS[p.owner];
       p.garrison = p.seat !== undefined
-        ? [unit('spear', 40, `${h.short} spearmen`), unit('sword', 20, `${h.short} men-at-arms`), unit('archer', 20, `${h.short} archers`)]
-        : [unit('spear', n(20), `${h.short} spearmen`), unit('archer', n(10), `${h.short} archers`)];
+        ? [unit('spear', 26, `${h.short} spearmen`), unit('sword', 12, `${h.short} men-at-arms`), unit('archer', 14, `${h.short} archers`)]
+        : [unit('spear', n(13), `${h.short} spearmen`), unit('archer', n(7), `${h.short} archers`)];
     }
   }
 
   // How many men a holding keeps at home before sending the rest to its lord.
   keepHome(p) {
-    const K = KINDS[p.kind];
-    return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1));
+    const K = KINDS[p.kind], settling = p.owner !== null && FACTIONS[p.owner]?.ai?.stage === 0;
+    return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.75 : 1));
   }
 
   popCap(p) { return p.eco.buildings ? housing(p.eco) : (25 + p.eco.level * 22) * KINDS[p.kind].pop; }
@@ -334,7 +341,7 @@ export class World {
       const cap = this.popCap(p);
       if (e.pop < cap) e.pop = Math.min(cap, e.pop + dt * ARRIVALS * K.pop);
       const arms = h?.invader ? dt * e.pop * 0.0011 * K.arms : dt * SMITHY * K.arms;
-      if (h && !h.bandit) { h.gold += dt * e.pop * 0.004 * K.gold; h.arms += arms; }
+      if (h && !h.bandit) { h.gold += dt * e.pop * TAX * K.gold; h.arms += arms; }
       else e.arms += arms;
       const pool = h && !h.bandit ? h : e;
       const want = this.keepHome(p), have = headcount(p.garrison);
@@ -356,9 +363,9 @@ export class World {
     const pace = h?.trait === 'builder' ? 1.15 : h?.trait === 'raider' || h?.trait === 'hothead' ? 1.05 : 1;
     const traded = runEconomy(p, dt, { pace });
     const v = vassalOf(this, p);
-    // A vassal taxes as your own villages do (fair taxes, a middling mood); rival lords'
-    // books are kept rougher.
-    const taxes = dt * e.pop * K.gold * (v ? 0.012 * 0.9 : 0.004 * (h?.trait === 'merchant' ? 1.5 : 1));
+    // Rival lords tax as you do at fair taxes, the merchant house half as much again; a
+    // vassal at a middling mood.
+    const taxes = dt * e.pop * K.gold * TAX * (v ? 0.9 : h?.trait === 'merchant' ? 1.5 : 1);
     // A vassal keeps what his village earns, less your dues.
     if (v) FACTIONS[0].gold += share(this, v, taxes + traded);
     else if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
@@ -384,10 +391,13 @@ export class World {
       return;
     }
     const elites = p.garrison.filter(u => u.elite).reduce((n, u) => n + u.count, 0);
-    // Veterans come to the hall from any of the house's garrisons.
+    // Veterans come to the hall from any of the house's garrisons; once the house reaches
+    // beyond its own lands (rivals.js STAGES) and has gold to keep them, any of its men will do.
     const held = this.pois.filter(q => q.owner === h.index && !q.town);
-    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && (u.xp || 0) >= HALL.veteran && !TYPES[u.key]?.engine && u.key !== 'sellsword' && u.key !== 'hiredxbow');
-    const room = HALL.cap - elites, have = vets.reduce((n, u) => n + u.count, 0);
+    const anyMan = (h.ai?.stage ?? 0) >= 1 && h.gold > 600;
+    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && (anyMan || (u.xp || 0) >= HALL.veteran) && !TYPES[u.key]?.engine && u.key !== 'sellsword' && u.key !== 'hiredxbow');
+    // A great house's hall keeps more men the more places it holds.
+    const room = Math.round(HALL.cap * Math.max(1, held.length / 2)) - elites, have = vets.reduce((n, u) => n + u.count, 0);
     if (room <= 0 || !have) return;
     // Weapons, and mail at the least (plate if there is enough), as in your hall.
     const has = g => Math.floor(e.stock[g] || 0);
@@ -1361,7 +1371,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);

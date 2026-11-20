@@ -142,7 +142,8 @@ function thinkCoalition(w) {
   if (w.crowned || w.time < (C?.rest ?? 1200)) return;
   const { mine, ratio } = threat(w);
   if (mine < LEAGUE_SHARE && !(ratio > 1.8 && mine > 0.2)) return;
-  const join = great().filter(H => { const d = w.dip[H.index]; return !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25; });
+  // Only houses playing to win (rivals.js STAGES: Contending) join a league.
+  const join = great().filter(H => { const d = w.dip[H.index]; return (H.ai?.stage ?? 0) >= 2 && !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25; });
   if (join.length < 2) return;
   const ids = join.map(H => H.index);
   for (const a of ids) for (const b of ids) if (a < b) w.makePeace(a, b);
@@ -206,11 +207,13 @@ export function actions(w, h) {
     list.push({ id: 'peace', label: 'Offer peace', ok: true });
     const price = peacePrice(w, h);
     list.push({ id: 'buypeace', label: `Buy peace (${price} gold)`, ok: gold >= price, why: `Needs ${price} gold` });
+    if (leagued(w, h)) { const all = leaguePrice(w); list.push({ id: 'buyleague', label: `Buy off the whole coalition (${all} gold)`, ok: gold >= all, why: `Needs ${all} gold` }); }
     list.push({ id: 'vassal', label: 'Demand they bend the knee', ok: ratio > 2.5 || !H.seat || H.seat.owner !== h, why: 'They are not beaten enough' });
   } else {
     list.push({ id: 'gift', label: `Send a gift (${GIFT} gold)`, ok: gold >= GIFT, why: `Needs ${GIFT} gold` });
     if (!d.allied) list.push({ id: 'ally', label: 'Propose an alliance', ok: d.opinion >= 35, why: 'They are not friendly enough' });
-    if (!d.married) list.push({ id: 'marry', label: `Propose a marriage (${DOWRY} gold)`, ok: d.opinion >= 25 && gold >= DOWRY, why: d.opinion < 25 ? 'They are not warm enough' : `Needs ${DOWRY} gold` });
+    const dowry = dowryFor(w, h);
+    if (!d.married) list.push({ id: 'marry', label: `Propose a marriage (${dowry} gold)`, ok: d.opinion >= 25 && gold >= dowry, why: d.opinion < 25 ? 'They are not warm enough' : `Needs ${dowry} gold` });
     list.push({ id: 'tribute', label: 'Demand tribute', ok: ratio > 2 && !d.allied && !d.married, why: 'You are not strong enough to demand it' });
     if (d.vassal && H.alive) { const c = canCall(w, h); list.push({ id: 'host', label: `Call their host to war${c.target ? ` (to ${c.target.name})` : ''}`, ok: c.ok, why: c.why }); }
     if (!d.backs) list.push({ id: 'claim', label: 'Ask them to back your claim', ok: canBack(w, h), why: 'They need to be devoted, or bound to you and far weaker' });
@@ -218,6 +221,11 @@ export function actions(w, h) {
   }
   return list;
 }
+
+// A great house asks a bigger dowry than a small one.
+export const dowryFor = (w, h) => Math.round((DOWRY + w.strength(h) * 0.5) / 50) * 50;
+// What the whole league asks to go home at once: less than buying each house off.
+export const leaguePrice = w => Math.round((w.coalition?.members || []).reduce((n, h) => n + peacePrice(w, h), 0) * 0.75 / 50) * 50;
 
 // What a house at war asks to go home: more the stronger it is.
 export function peacePrice(w, h) {
@@ -291,6 +299,21 @@ export function act(w, h, id, theirs = false) {
     d.score = 0;
     return yes(`You paid ${H.name} ${price} gold for peace. Neither side may attack for ten minutes.`);
   }
+  if (id === 'buyleague') {
+    const price = leaguePrice(w), members = [...(w.coalition?.members || [])];
+    if (!members.length) return no('There is no coalition.');
+    if (me.gold < price) return no(`You need ${price} gold.`);
+    me.gold -= price;
+    for (const m of members) {
+      FACTIONS[m].gold += Math.round(price / members.length);
+      w.makePeace(0, m);
+      Object.assign(w.dip[m], { truceUntil: w.time + TRUCE, score: 0 });
+    }
+    w.coalition = { members: [], since: w.coalition.since, rest: w.time + LEAGUE_REST };
+    w.log('The coalition against you is bought off.', 1);
+    w.chron('You bought off the coalition against you.');
+    return yes(`You paid the coalition ${price} gold. Its lords go home, and none may attack you for ten minutes.`);
+  }
   if (id === 'vassal') {
     w.makePeace(0, h);
     Object.assign(d, { vassal: true, backs: true, truceUntil: Infinity, score: 0 });
@@ -317,9 +340,11 @@ export function act(w, h, id, theirs = false) {
   }
   if (id === 'marry') {
     if (!theirs) {
-      if (me.gold < DOWRY) return no('Not enough gold for the dowry.');
+      const dowry = dowryFor(w, h);
+      if (me.gold < dowry) return no('Not enough gold for the dowry.');
       if (d.opinion < 25) return no(`${H.lord} declines the match.`);
-      me.gold -= DOWRY;
+      me.gold -= dowry;
+      H.gold += dowry;
     }
     d.married = true;
     w.chron(`Your house and ${H.name} were joined by marriage.`);

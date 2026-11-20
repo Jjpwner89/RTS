@@ -234,6 +234,7 @@ function unload(w, cart, p) {
   const W = cart.wagon, t = p.town;
   for (const [g, n] of Object.entries(W.goods)) t.put(t.keep, g, n);
   for (let i = 0; i < W.people; i++) { const a = t.rand() * Math.PI * 2; t.addVillager(Math.sin(a) * 14, Math.cos(a) * 14); }
+  if (W.bought) { t.event?.(`The goods bought at ${W.from.name} have come in: ${loadText(W)}.`); w.log(`The cart from ${W.from.name} reached ${p.name}: ${loadText(W)}.`); return; }
   t.event?.(`A supply run from ${W.from.name} has come in: ${loadText(W)}.`);
   w.log(p === W.from ? `The supply run came back to ${p.name}.` : `The supply run reached ${p.name}: ${loadText(W)}.`);
 }
@@ -265,7 +266,7 @@ function moveCaravan(w, cart, dt) {
     // Still yours: unloaded. Lost on the way: it turns for home, and failing that is gone.
     if (to.owner === 0 && to.town) unload(w, cart, to);
     else if (to !== W.from && W.from.owner === 0 && W.from.town) { W.to = W.from; w.log(`${to.name} is lost; the supply run turns back.`); return; }
-    else w.log(`The supply run had nowhere to go, and its people scattered.`);
+    else w.log(W.bought ? `The cart from ${W.from.name} had nowhere to go, and its goods were lost.` : `The supply run had nowhere to go, and its people scattered.`);
     return w.removeArmy(cart);
   }
   // Both lords profit: the sender its gold, the market at the other end half as much again.
@@ -293,7 +294,7 @@ export function catchWagons(w, meet) {
       continue;
     }
     if (wag.wagon.run) {
-      w.log(`${e.name} seized your supply run from ${wag.wagon.from.name}.`, 1);
+      w.log(wag.wagon.bought ? `${e.name} robbed the cart of goods you bought at ${wag.wagon.from.name}.` : `${e.name} seized your supply run from ${wag.wagon.from.name}.`, 1);
       w.removeArmy(wag);
       continue;
     }
