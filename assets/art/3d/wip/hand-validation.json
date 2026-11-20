@@ -1,0 +1,175 @@
+{
+  "handChecks": [
+    {
+      "clip": "Spear_Thrust",
+      "frames": 25,
+      "maxRightWristBend": 24.73248635319958,
+      "maxRightWristRotation": 24.804176754367052,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Spear_Brace",
+      "frames": 37,
+      "maxRightWristBend": 22.8730389233107,
+      "maxRightWristRotation": 22.873046424375836,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "March_Upright",
+      "frames": 37,
+      "maxRightWristBend": 33.29024629208474,
+      "maxRightWristRotation": 33.36589714625487,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Bow_Loose",
+      "frames": 49,
+      "maxRightWristBend": 4.666383765546866,
+      "maxRightWristRotation": 5.262339882293211,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Crossbow_Span",
+      "frames": 91,
+      "maxRightWristBend": 53.027518202081296,
+      "maxRightWristRotation": 53.21428387526409,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Shield_Block",
+      "frames": 19,
+      "maxRightWristBend": 24.099368662889454,
+      "maxRightWristRotation": 24.233463300809326,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Shield_Wall",
+      "frames": 61,
+      "maxRightWristBend": 39.05605091978647,
+      "maxRightWristRotation": 39.207614756934234,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Javelin_Throw",
+      "frames": 31,
+      "maxRightWristBend": 71.39867809022375,
+      "maxRightWristRotation": 72.61313946176612,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Rout",
+      "frames": 23,
+      "maxRightWristBend": 4.666383765546866,
+      "maxRightWristRotation": 5.262339882293211,
+      "maxFingerArcError": 5.649064038770746e-8
+    },
+    {
+      "clip": "Cheer",
+      "frames": 46,
+      "maxRightWristBend": 52.75967328337433,
+      "maxRightWristRotation": 52.802336732789016,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Chop",
+      "frames": 43,
+      "maxRightWristBend": 41.39096499393931,
+      "maxRightWristRotation": 41.73832228042246,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Hoe",
+      "frames": 55,
+      "maxRightWristBend": 45.73526636326768,
+      "maxRightWristRotation": 45.761470523830496,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Mine",
+      "frames": 49,
+      "maxRightWristBend": 24.125054087952222,
+      "maxRightWristRotation": 24.23204674662804,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Carry",
+      "frames": 43,
+      "maxRightWristBend": 4.666383765546866,
+      "maxRightWristRotation": 5.262339882293211,
+      "maxFingerArcError": 2.9802322387695312e-8
+    },
+    {
+      "clip": "Ride_Idle",
+      "frames": 91,
+      "maxRightWristBend": 4.666383765546866,
+      "maxRightWristRotation": 5.262339882293211,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Ride_Trot",
+      "frames": 31,
+      "maxRightWristBend": 4.666383765546866,
+      "maxRightWristRotation": 5.262339882293211,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Ride_Gallop",
+      "frames": 21,
+      "maxRightWristBend": 4.666383765546866,
+      "maxRightWristRotation": 5.262339882293211,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Ride_Couch",
+      "frames": 31,
+      "maxRightWristBend": 52.991556489434075,
+      "maxRightWristRotation": 53.08740957283469,
+      "maxFingerArcError": 1.5600045677466312e-7
+    },
+    {
+      "clip": "Ride_Slash",
+      "frames": 28,
+      "maxRightWristBend": 53.74633151609554,
+      "maxRightWristRotation": 54.29340317838762,
+      "maxFingerArcError": 1.5600045677466312e-7
+    }
+  ],
+  "spearClearance": [
+    {
+      "source": "male",
+      "clip": "Spear_Thrust",
+      "frames": 25,
+      "shaftRadius": 0.018,
+      "torsoIntersections": 0,
+      "hitFrames": [],
+      "maxOffhandError": 0.008983474008006753
+    },
+    {
+      "source": "male",
+      "clip": "Spear_Brace",
+      "frames": 37,
+      "shaftRadius": 0.018,
+      "torsoIntersections": 0,
+      "hitFrames": [],
+      "maxOffhandError": 0.000023581479438215115
+    },
+    {
+      "source": "female",
+      "clip": "Spear_Thrust",
+      "frames": 25,
+      "shaftRadius": 0.018,
+      "torsoIntersections": 0,
+      "hitFrames": [],
+      "maxOffhandError": 0.008983474008006753
+    },
+    {
+      "source": "female",
+      "clip": "Spear_Brace",
+      "frames": 37,
+      "shaftRadius": 0.018,
+      "torsoIntersections": 0,
+      "hitFrames": [],
+      "maxOffhandError": 0.000023581479438215115
+    }
+  ]
+}

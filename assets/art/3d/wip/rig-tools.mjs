@@ -28,17 +28,17 @@ export class Rig{
  turn(name,axis,deg){this.setQ(name,Q().setFromAxisAngle(V(axis),rad(deg)).multiply(this.quat(name)));}
  aim(name,local,target){this.update();let o=this.by[name],from=local.clone().applyQuaternion(this.quat(name)).normalize(),to=target.clone().sub(this.pos(name)).normalize();this.setQ(name,Q().setFromUnitVectors(from,to).multiply(this.quat(name)));}
  // Analytic two-link IK, with a stable bend pole in model coordinates.
- limb(a,b,end,target,pole,length2){
+ limb(a,b,end,target,pole,length2,localEndAxis){
  const A=this.pos(a),l1=this.pos(a).distanceTo(this.pos(b)),l2=length2||this.pos(b).distanceTo(this.pos(end)),v=target.clone().sub(A),dist=v.length(),d=Math.min(l1+l2-0.00001,Math.max(Math.abs(l1-l2)+0.00001,dist)),dir=v.normalize();
  let bend=pole.clone().sub(A);bend.addScaledVector(dir,-bend.dot(dir)).normalize();
  const along=(l1*l1-l2*l2+d*d)/(2*d),height=Math.sqrt(Math.max(0,l1*l1-along*along)),B=A.clone().addScaledVector(dir,along).addScaledVector(bend,height);
- this.limbBases||={};
- if(!this.limbBases[a]){
-  const qa=this.quat(a),qb=this.quat(b),B0=this.pos(b),endAxis=end?this.by[end].position.clone():V([0,1,0]);
+ this.limbBases||={};const key=a+(localEndAxis?":grip":":wrist");
+ if(!this.limbBases[key]){
+  const qa=this.quat(a),qb=this.quat(b),B0=this.pos(b),endAxis=localEndAxis|| (end?this.by[end].position.clone():V([0,1,0]));
   const fore=endAxis.clone().applyQuaternion(qb),normal=B0.clone().sub(A).cross(fore).normalize();
-  this.limbBases[a]={upper:frame(this.by[b].position,normal.clone().applyQuaternion(qa.invert())).invert(),lower:frame(endAxis,normal.clone().applyQuaternion(qb.invert())).invert()};
+  this.limbBases[key]={upper:frame(this.by[b].position,normal.clone().applyQuaternion(qa.invert())).invert(),lower:frame(endAxis,normal.clone().applyQuaternion(qb.invert())).invert()};
  }
- const normal=bend.clone().cross(dir).normalize(),basis=this.limbBases[a];
+ const normal=bend.clone().cross(dir).normalize(),basis=this.limbBases[key];
  this.setQ(a,frame(B.clone().sub(A),normal).multiply(basis.upper));
  this.setQ(b,frame(target.clone().sub(B),normal).multiply(basis.lower));
  this.maxLimbError=Math.max(this.maxLimbError||0,dist-l1-l2);return Math.max(0,dist-l1-l2);
@@ -47,19 +47,56 @@ export class Rig{
 export function frame(x,y){x=x.clone().normalize();y=y.clone().addScaledVector(x,-y.dot(x));if(y.length()<1e-5)y=(Math.abs(x.x)<.8?V([1,0,0]):V([0,0,1])).addScaledVector(x,-(Math.abs(x.x)<.8?x.x:x.z));y.normalize();const z=x.clone().cross(y).normalize();return Q().setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z));}
 export class Human{
  constructor(src){this.r=new Rig(src);this.r.sample('Idle_Neutral',0);this.base=this.r.capture();this.r.sample('Idle_Sword',0.4);this.grip=this.r.capture();this.r.restore(this.base);this.footQ={L:this.r.quat('Foot.L'),R:this.r.quat('Foot.R')};this.legLen={};for(let s of ['L','R'])this.legLen[s]=this.r.pos('LowerLeg.'+s).distanceTo(this.r.pos('Foot.'+s));}
- reset(){this.r.restore(this.base);for(let i=0;i<this.r.nodes.length;i++){if(/^(Index|Middle|Ring|Pinky|Thumb)/.test(this.r.nodes[i].name))this.r.nodes[i].quaternion.copy(this.grip[i].q);let m=this.r.nodes[i].name.match(/^(Index|Middle|Ring|Pinky)([234])/);if(m)this.r.nodes[i].quaternion.multiply(Q().setFromAxisAngle(V([1,0,0]),rad({2:-62,3:-74,4:-35}[m[2]])));}this.r.update();}
+ // Idle_Sword already closes the right fingers; curl only its open left hand.
+ reset(){this.r.restore(this.base);for(let i=0;i<this.r.nodes.length;i++){if(/^(Index|Middle|Ring|Pinky|Thumb)/.test(this.r.nodes[i].name))this.r.nodes[i].quaternion.copy(this.grip[i].q);let m=this.r.nodes[i].name.match(/^(Index|Middle|Ring|Pinky)([234])/);if(m&&this.r.nodes[i].name.endsWith('.L'))this.r.nodes[i].quaternion.multiply(Q().setFromAxisAngle(V([1,0,0]),rad({2:-62,3:-74,4:-35}[m[2]])));}this.r.update();}
  body(y=.82,z=.02,lean=0,twist=0,x=0){this.r.setPos('Body',V([x,y,z]));this.r.turn('Torso',[1,0,0],lean);this.r.turn('Torso',[0,1,0],twist);this.r.turn('Head',[1,0,0],-lean*.5);}
  legs(left=[.15,.02275,.15],right=[-.15,.02275,-.12],poles=null){for(let [s,p]of [['L',left],['R',right]]){let target=V(p);this.r.setPos('Foot.'+s,target);this.r.setQ('Foot.'+s,this.footQ[s]);let pole=poles?.[s]||V([p[0],.5,1]);this.r.limb('UpperLeg.'+s,'LowerLeg.'+s,null,target,pole,this.legLen[s]);this.r.setPos('PT.'+s,pole);}}
- // Grip centre is offset into the palm. local +X is the tool shaft axis.
+ // Grip axes follow the mirrored hands: right -X, left +X.
+ // Solve palm roll and elbow together; pronation belongs in the forearm.
  hand(s,centre,axis=[0,0,1],down=[0,-1,0],open=0,pole=null){
- let q=frame(V(axis),down?V(down):V(centre).sub(this.r.pos('UpperArm.'+s))),offset=V([0,.135,-.035]),target=V(centre).sub(offset.applyQuaternion(q));
- this.r.limb('UpperArm.'+s,'LowerArm.'+s,'Wrist.'+s,target,pole||V([s==='L'?.65:-.65,1.05,-.25]));
- this.r.setQ('Wrist.'+s,q);this.maxGripError=Math.max(this.maxGripError||0,this.r.pos('Wrist.'+s).add(V([0,.135,-.035]).applyQuaternion(q)).distanceTo(V(centre)));
- if(open)for(let i=0;i<this.r.nodes.length;i++)if(new RegExp('^(Index|Middle|Ring|Pinky|Thumb).*\\.'+s+'$').test(this.r.nodes[i].name))this.r.nodes[i].quaternion.slerp(this.base[i].q,open);
+ const r=this.r,offset=V([0,.135,-.035]);
+ const blendFingers=()=>{
+  if(open)for(let i=0;i<r.nodes.length;i++){
+   const name=r.nodes[i].name;
+   if(/^(Index|Middle|Ring|Pinky|Thumb)/.test(name)&&name.endsWith('.'+s))r.nodes[i].quaternion.slerp(this.base[i].q,open);
+  }
+ };
+ // Empty hands follow the forearm and retain the source wrist pose.
+ if(axis===null){
+  const wrist=r.by['Wrist.'+s],wristRest=this.base[r.nodes.indexOf(wrist)].q;
+  wrist.quaternion.copy(wristRest);r.update();
+  const endAxis=wrist.position.clone().add(offset.clone().applyQuaternion(wristRest));
+  r.limb('UpperArm.'+s,'LowerArm.'+s,null,V(centre),pole||V([s==='L'?.65:-.65,1.05,-.25]),endAxis.length(),endAxis);
+  wrist.quaternion.copy(wristRest);r.update();blendFingers();
+  this.maxGripError=Math.max(this.maxGripError||0,r.pos('Wrist.'+s).add(offset.applyQuaternion(r.quat('Wrist.'+s))).distanceTo(V(centre)));
+  return;
  }
+ const A=r.pos('UpperArm.'+s),C=V(centre),x=V(axis).normalize().multiplyScalar(s==='R'?-1:1),pref=frame(x,down?V(down):C.clone().sub(A)),l1=A.distanceTo(r.pos('LowerArm.'+s)),l2=r.pos('LowerArm.'+s).distanceTo(r.pos('Wrist.'+s)),P=pole||V([s==='L'?.65:-.65,1.05,-.25]);
+ // Minimise wrist bend while preserving contact and a continuous elbow path.
+ const evaluate=angle=>{
+  const q=Q().setFromAxisAngle(x,angle).multiply(pref),y=V([0,1,0]).applyQuaternion(q),target=C.clone().sub(V([0,.135,-.035]).applyQuaternion(q)),D=target.clone().sub(A),length=D.length(),d=Math.max(Math.abs(l1-l2)+.00001,Math.min(l1+l2-.00001,length)),dir=D.normalize(),natural=P.clone().sub(A);natural.addScaledVector(dir,-natural.dot(dir)).normalize();const bend=y.clone().negate().addScaledVector(dir,y.dot(dir));bend.addScaledVector(natural,.25).normalize();
+  const along=(l1*l1-l2*l2+d*d)/(2*d),height=Math.sqrt(Math.max(0,l1*l1-along*along)),B=A.clone().addScaledVector(dir,along).addScaledVector(bend,height),fore=target.clone().sub(B).normalize(),flex=Math.acos(Math.max(-1,Math.min(1,y.dot(fore)))),reach=Math.max(0,length-l1-l2,Math.abs(l1-l2)-length);
+  return {q,target,flex,reach,angle,bend,score:flex*flex+2500*reach*reach+.35*(1-bend.dot(natural))+.001*(1-Math.cos(angle))+(r.handElbows?.[s]?40*B.distanceToSquared(r.handElbows[s]):0)};
+ };
+ // Continue the previous palm roll rather than switching to the opposite grip.
+ const previous=r.handFrames?.[s],baseY=V([0,1,0]).applyQuaternion(pref),baseZ=V([0,0,1]).applyQuaternion(pref);
+ const previousY=previous&&V([0,1,0]).applyQuaternion(previous),start=previous?Math.atan2(previousY.dot(baseZ),previousY.dot(baseY)):0,range=previous?Math.PI/6:Math.PI;
+ let best=evaluate(start);for(let i=0;i<=72;i++){const test=evaluate(start-range+2*range*i/72);if(test.score<best.score)best=test;}
+ let step=range/36;for(let i=0;i<12;i++){step/=2;for(const a of [best.angle-step,best.angle+step]){let test=evaluate(a);if(test.score<best.score)best=test;}}
+ (r.handFrames||={})[s]=best.q.clone();
+ r.limb('UpperArm.'+s,'LowerArm.'+s,'Wrist.'+s,best.target,A.clone().add(best.bend));
+ (r.handElbows||={})[s]=r.pos('LowerArm.'+s);
+ // Forearm supplies pronation; the wrist supplies only the remaining swing.
+ const fore=r.pos('Wrist.'+s).sub(r.pos('LowerArm.'+s)).normalize(),foreX=V([1,0,0]).applyQuaternion(best.q);foreX.addScaledVector(fore,-foreX.dot(fore)).normalize();
+ r.setQ('LowerArm.'+s,frame(foreX,fore));
+ r.setQ('Wrist.'+s,best.q);
+ blendFingers();
+ this.maxGripError=Math.max(this.maxGripError||0,r.pos('Wrist.'+s).add(V([0,.135,-.035]).applyQuaternion(best.q)).distanceTo(C));
+ return best;
+}
 }
 export function makeClip(r,name,frames,loop,pose,extra={}){
- const samples=[];for(let f=0;f<=frames;f++){pose(f/30,f/frames);r.update();samples.push(r.capture());}if(loop)samples[frames]=samples[0];
+ r.handFrames={};r.handElbows={};const samples=[];for(let f=0;f<=frames;f++){pose(f/30,f/frames);r.update();samples.push(r.capture());}if(loop)samples[frames]=samples[0];
  return {name,frames,loop,samples,extra};
 }
 export function writeClips(src,clips,path,{mesh=true}={}){

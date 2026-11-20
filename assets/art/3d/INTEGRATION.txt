@@ -47,9 +47,14 @@ The exported packs contain original character/horse reference meshes and
 animation, not replacement equipment. The review's simple tools, shield,
 bow, sack, log and rock are contact guides only.
 Default grip centre in wrist-local coordinates: [0, 0.135, -0.035].
-Weapon/tool shaft runs along wrist-local +X. Spears, swords, javelins,
-axes, hoes, picks and lances use Wrist.R. Bow and shield use Wrist.L.
-For the reference shield, its outward normal is wrist-local +Y.
+Weapon/tool shaft runs along wrist-local -X on the RIGHT and +X on the
+LEFT. This mirrors the source hands so the right thumb faces the weapon
+head. For a review prop built along +X, rotate it pi radians about local Y
+before attaching to Wrist.R. Spears, swords, javelins, axes, hoes, picks and
+lances use Wrist.R. Bow and shield use Wrist.L.
+For the reference shield, its outward normal is wrist-local +Y and its
+face sits 0.08 m beyond the grip. The crossbow barrel runs along wrist-
+local +Y; its handle crosses the palm on local X.
 Three.js sanitizes Wrist.R to WristR at load time; raw GLB names keep dots.
 
 Spear_Thrust uses a second grip 0.29 m along the shaft. Reference spear:
@@ -108,9 +113,24 @@ female rigs, plus all 3 horse clips on the source horse rig: 41 applications,
 no missing targets or browser errors, zero joint-position differences.
 Includes sampled mesh ground bounds. Hoof/shoe edge contact is within
 2.3 cm of the ground on these low-poly meshes.
-wip/contact-checks.json: authored grip target residuals (maximum 1.6 cm).
-Small residuals occur where an arm reaches its anatomical limit.
-All loops were visually reviewed on the original meshes.
+wip/contact-checks.json: authored grip target residuals. Equipment contact
+is within 1.3 cm; the released javelin hand has up to 3.4 cm target error
+while settling into its relaxed pose. Spear off-hand error is below 9 mm.
+wip/hand-validation.json: all 19 human clips keep the right finger poses
+on the arc between the original closed grip and relaxed source hand,
+without a second curl. Right wrist bend is below 75 degrees throughout
+and below 25 degrees in Spear_Thrust. Both spear clips have zero sampled
+torso intersections on the male and female source geometry at 30 Hz.
+The clearance check covers the full 2.6 m shaft with nine rays across its
+18 mm radius against triangles weighted to the torso bones.
+Run with THREE_MODULE set: node wip/validate-hands.mjs.
+
+The hand correction removes the doubled right-finger curl, places
+pronation in the forearm, and solves the wrist and elbow together. Empty
+hands follow the source wrist pose. The spear guard and thrust sit ahead
+of the torso; the braced shaft also clears the female clothing.
+All human clips were reviewed in hand close-ups as well as full-body
+contact sheets. wip/reviews/Spear_Thrust-hands.png shows the corrected grip.
 
 SOURCES
 Quaternius CC0 sources and licences are recorded in tools/models/README.md.

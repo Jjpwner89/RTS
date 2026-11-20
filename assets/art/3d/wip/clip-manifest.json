@@ -24,11 +24,18 @@
       0.135,
       -0.035
     ],
-    "shaftAxis": [
-      1,
-      0,
-      0
-    ],
+    "shaftAxes": {
+      "right": [
+        -1,
+        0,
+        0
+      ],
+      "left": [
+        1,
+        0,
+        0
+      ]
+    },
     "shieldNormal": [
       0,
       1,
@@ -58,7 +65,7 @@
           -0.035
         ],
         "axis": [
-          1,
+          -1,
           0,
           0
         ],
@@ -118,6 +125,19 @@
       "name": "Crossbow_Span",
       "duration": 3,
       "loop": false,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "barrelAxis": [
+          0,
+          1,
+          0
+        ]
+      },
       "equipmentGrounded": [
         0.4,
         2.4

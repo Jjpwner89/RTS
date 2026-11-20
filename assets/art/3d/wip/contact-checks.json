@@ -3,79 +3,79 @@
   "handTargetErrors": [
     {
       "name": "Spear_Thrust",
-      "maxGripError": 0.008230035723984007
+      "maxGripError": 0.008983514409191009
     },
     {
       "name": "Spear_Brace",
-      "maxGripError": 4.9458773376408634e-8
+      "maxGripError": 8.288592500519541e-8
     },
     {
       "name": "March_Upright",
-      "maxGripError": 6.81857498615724e-8
+      "maxGripError": 9.695013813359551e-8
     },
     {
       "name": "Bow_Loose",
-      "maxGripError": 0.015904848249808715
+      "maxGripError": 0.01264588114179242
     },
     {
       "name": "Crossbow_Span",
-      "maxGripError": 6.882037593830002e-8
+      "maxGripError": 8.90232746663056e-8
     },
     {
       "name": "Shield_Block",
-      "maxGripError": 0.0032735317963314705
+      "maxGripError": 1.0551498911365748e-7
     },
     {
       "name": "Shield_Wall",
-      "maxGripError": 1.6864852905061078e-8
+      "maxGripError": 7.763465857300846e-8
     },
     {
       "name": "Javelin_Throw",
-      "maxGripError": 0.012671490628716102
+      "maxGripError": 0.033042268333119906
     },
     {
       "name": "Rout",
-      "maxGripError": 6.073501935442315e-8
+      "maxGripError": 8.994500043623157e-8
     },
     {
       "name": "Cheer",
-      "maxGripError": 7.392412753067635e-8
+      "maxGripError": 0.0018572059654798022
     },
     {
       "name": "Chop",
-      "maxGripError": 8.49838670558918e-8
+      "maxGripError": 7.805986264721166e-8
     },
     {
       "name": "Hoe",
-      "maxGripError": 0.015649922561480817
+      "maxGripError": 0.012426587675299767
     },
     {
       "name": "Mine",
-      "maxGripError": 7.484836758184728e-8
+      "maxGripError": 8.139306981624096e-8
     },
     {
       "name": "Carry",
-      "maxGripError": 6.420853931042125e-8
+      "maxGripError": 8.369702107564192e-8
     },
     {
       "name": "Ride_Idle",
-      "maxGripError": 6.47627543249094e-8
+      "maxGripError": 8.122793443271907e-8
     },
     {
       "name": "Ride_Trot",
-      "maxGripError": 5.9057809041249764e-8
+      "maxGripError": 7.868131786329773e-8
     },
     {
       "name": "Ride_Gallop",
-      "maxGripError": 4.15623386385716e-8
+      "maxGripError": 8.17428956191979e-8
     },
     {
       "name": "Ride_Couch",
-      "maxGripError": 6.474071513992489e-8
+      "maxGripError": 9.271018013347487e-8
     },
     {
       "name": "Ride_Slash",
-      "maxGripError": 6.474071513992489e-8
+      "maxGripError": 7.514355827458814e-8
     }
   ]
 }

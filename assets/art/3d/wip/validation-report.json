@@ -1,7 +1,7 @@
 [
   {
     "file": "clips-foot.glb",
-    "bytes": 3239668,
+    "bytes": 3239740,
     "joints": 62,
     "checks": "passed",
     "khronos": {
@@ -15,14 +15,14 @@
         "duration": 0.800000011920929,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 27.86310836114899
+        "maxFrameRotationDegrees": 20.650839419542727
       },
       {
         "name": "Spear_Brace",
         "duration": 1.2000000476837158,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 12.153714044593706
+        "maxFrameRotationDegrees": 8.411492385106811
       },
       {
         "name": "March_Upright",
@@ -36,70 +36,70 @@
         "duration": 1.600000023841858,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 49.90447130254544
+        "maxFrameRotationDegrees": 46.86032040677415
       },
       {
         "name": "Crossbow_Span",
         "duration": 3,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 16.023746769293524
+        "maxFrameRotationDegrees": 50.15969722625397
       },
       {
         "name": "Shield_Block",
         "duration": 0.6000000238418579,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 43.66122943176535
+        "maxFrameRotationDegrees": 23.755889891333045
       },
       {
         "name": "Shield_Wall",
         "duration": 2,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 0.3196019208687414
+        "maxFrameRotationDegrees": 0.4554078183825432
       },
       {
         "name": "Javelin_Throw",
         "duration": 1,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 63.984065857965405
+        "maxFrameRotationDegrees": 62.245458974157586
       },
       {
         "name": "Rout",
         "duration": 0.7333333492279053,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 41.15341683998834
+        "maxFrameRotationDegrees": 36.58693888725518
       },
       {
         "name": "Cheer",
         "duration": 1.5,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 44.99694608057081
+        "maxFrameRotationDegrees": 31.963298208590455
       },
       {
         "name": "Chop",
         "duration": 1.399999976158142,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 38.29636608093406
+        "maxFrameRotationDegrees": 31.79146464111814
       },
       {
         "name": "Hoe",
         "duration": 1.7999999523162842,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 1.5390930424423168
+        "maxFrameRotationDegrees": 15.916208671476682
       },
       {
         "name": "Mine",
         "duration": 1.600000023841858,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 22.647282226460327
+        "maxFrameRotationDegrees": 24.623257862202344
       },
       {
         "name": "Carry",
@@ -126,35 +126,35 @@
         "duration": 3,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 0.040371004773280886
+        "maxFrameRotationDegrees": 0.04260674858511785
       },
       {
         "name": "Ride_Trot",
         "duration": 1,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 0.29893213845607675
+        "maxFrameRotationDegrees": 0.3206474896873254
       },
       {
         "name": "Ride_Gallop",
         "duration": 0.6666666865348816,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 1.219108227133781
+        "maxFrameRotationDegrees": 0.8924447448877122
       },
       {
         "name": "Ride_Couch",
         "duration": 1,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 17.177224988645655
+        "maxFrameRotationDegrees": 28.94103196862422
       },
       {
         "name": "Ride_Slash",
         "duration": 0.8999999761581421,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 30.876281008912624
+        "maxFrameRotationDegrees": 38.59630496300279
       }
     ]
   },
