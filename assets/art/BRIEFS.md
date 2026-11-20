@@ -1,6 +1,6 @@
 # RTS art briefs for Codex
 
-Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added, then five more events (tournament, scheme, pilgrims, toll, collapse); section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist, added; section 7's animation clips requested ahead of everything else, after the creator turned down Codex's prototype bodies). Status of every brief: **ready**. Nothing is generated yet.
+Written 2026-11-18 by the Art workstream. Revision 3 (2026-11-19: section 4 rewritten for the chosen parchment-and-ink interface, with tiling textures, exact 9-slice borders and the full icon list; section 5, event pictures, and the armour-level icons added, then seven more events (tournament, scheme, pilgrims, toll, collapse, masons, foresters); section 6, Norrhold, outlaws, mercenary banners, the big moments, a title painting, cursors and captains, added; an upright phone version of the title painting and section 7, a 3D wishlist, added; section 7's animation clips requested ahead of everything else, after the creator turned down Codex's prototype bodies). Status of every brief: **ready**. Nothing is generated yet.
 
 These are the only paintings the game needs. Everything else (models, terrain, effects) comes from free CC0 packs. Codex may stop being available soon, so **work in priority order** and finish each section before starting the next: a complete set of portraits is worth more than half of everything.
 
@@ -219,7 +219,7 @@ Then, if there is time, these new ones: the orders (move, attack, hold, charge, 
 
 ## 5. Event pictures
 
-Eleven paintings for the choices that come up during a campaign (a blight, a fever, a wandering knight and so on). Each sits at the top of a small prompt box above the text and the choice buttons, at about 640×360 and sometimes half that on a phone. The box hides the picture while a file is missing, so each can land on its own. Do these **after the portraits and heraldry**.
+Thirteen paintings for the choices that come up during a campaign (a blight, a fever, a wandering knight and so on). Each sits at the top of a small prompt box above the text and the choice buttons, at about 640×360 and sometimes half that on a phone. The box hides the picture while a file is missing, so each can land on its own. Do these **after the portraits and heraldry**.
 
 **Shared framing:** landscape, 640×360, opaque. One clear scene with one focal group in the middle third, readable at half size. Same painting hand and finish as the portraits (section 1), so the prompt box feels like part of the same game. A low-poly countryside of timber villages, stone keeps, fields and woods, about the 13th century. People are ordinary and grounded: no heroes posing, no magic. No text, banners with writing, or numbers. Keep the edges calm, since the text box sits right below.
 
@@ -288,6 +288,18 @@ A shallow river ford in a valley. A rough timber toll booth on the bank and a he
 A timbered mine entrance in a rocky hillside, at dusk. Grey dust pours out of the dark mouth. Miners with lanterns and ropes haul at fallen timbers and stones to dig through, others pass buckets of rubble back, and women from the village wait anxiously nearby.
 
 **Must keep:** urgency and rescue; the dust and lantern light, not injuries.
+
+### 5.12 `masons`: masons on the road
+
+A country road toward a timber village in soft afternoon light. Three or four stonemasons in dusty work tunics and leather aprons walk beside an ox cart loaded with pale dressed stone blocks, their mallets, chisels and a long measuring rod bundled on top. One older mason with a grey beard points ahead at the village. Far behind them on a hill, a newly finished abbey tower.
+
+**Must keep:** skilled, hopeful working men looking for a new place; the cartload of cut stone reads at once.
+
+### 5.13 `foresters`: foresters with their timber
+
+The edge of a deep wood in the early morning, mist between the trees. Three or four foresters in green-brown hoods and rough wool, axes on their shoulders, haul a wooden sledge stacked with seasoned logs out of the trees toward a village's fields. One has a hunting dog at heel; a woman carries a bundle and a small child. A royal hunting lodge's fence is just visible deep in the wood behind them.
+
+**Must keep:** sturdy, weathered people of the woods asking for a home; the sledge of timber is the focal point.
 
 *Design context, not for the image prompt:* these illustrate the campaign's event choices (`src/world/`, Realm workstream). Each event id matches the file name.
 

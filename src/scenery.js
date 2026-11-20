@@ -40,7 +40,7 @@ export function groundMaterial(land = null) {
   const uniforms = { uTime: TIME, uMask: { value: land?.tex || null }, uExtent: { value: land?.extent || 1 },
     uHomeA: { value: new THREE.Vector2(land?.homes[0]?.x || 0, land?.homes[0]?.z || 0) },
     uHomeB: { value: new THREE.Vector2(land?.homes[1]?.x ?? 0, land?.homes[1]?.z ?? 1e5) } };
-  if (land) { mat.defines = { LAND: '' }; mat.userData.mask = land.tex; }
+  if (land) { mat.defines = { LAND: '' }; mat.userData.mask = land.tex; mat.userData.land = land; mat.userData.uniforms = uniforms; }
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = withWorld(sh);
@@ -133,7 +133,10 @@ export function waterMaterial({ opacity = 0.85 } = {}) {
 // roads: [{ pts: [[x, z], ...], width, paved }] to draw instead of tracks made up from the homes; a paved
 // road is also painted crisply in blue (stone, with a fainter blue edge for the kerbs) over its worn track.
 // wear: [{ x, z, r }] patches of trampled ground. river: keeps fields out of the water.
-export function landMask(seed, { homes = [], roads = null, fields = false, wear = null, river = null, extent = 380, size = 2048 } = {}) {
+// paved: [{ pts, width }] stone roads laid on top, whatever the tracks are (a village's own roads).
+// `redraw(paved)` paints the same land again with a new set of those.
+export function landMask(seed, opts = {}) {
+  const { homes = [], roads = null, fields = false, wear = null, river = null, extent = 380, size = 2048 } = opts;
   const rand = rng(seed * 31 + 9);
   const cv = document.createElement('canvas');
   cv.width = cv.height = size;
@@ -187,7 +190,7 @@ export function landMask(seed, { homes = [], roads = null, fields = false, wear 
     return out;
   };
   const paved = (pts, width) => {
-    g.lineCap = 'butt'; g.lineJoin = 'round';
+    g.lineCap = g.lineJoin = 'round';
     for (const [k, c] of [[1, 'rgb(0,0,100)'], [0.8, 'rgb(0,0,155)']]) {
       g.strokeStyle = c;
       g.lineWidth = width * k * m;
@@ -207,6 +210,8 @@ export function landMask(seed, { homes = [], roads = null, fields = false, wear 
       track(wander(h.x, h.z, h.x, h.z + (Math.sign(h.z) || 1) * 200, 6), 4);
     }
   }
+  // The village's own stone roads, over whatever tracks there are.
+  for (const r of opts.paved || []) { track(r.pts, r.width * 0.8); paved(r.pts, r.width); }
   // Trampled ground where men have camped, drilled or gathered.
   const blobs = wear || homes.flatMap(h => [0, 1, 2].map(() => ({ x: h.x + (rand() - 0.5) * 80, z: h.z * 0.7 + (rand() - 0.5) * 30, r: 10 + rand() * 12 })));
   for (const b of blobs) {
@@ -228,6 +233,7 @@ export function landMask(seed, { homes = [], roads = null, fields = false, wear 
   const data = g.getImageData(0, 0, size, size).data;
   return {
     tex, extent, homes, fields: list,
+    redraw: paved => landMask(seed, { ...opts, paved }),
     // How worn, and how much field, the ground is at (x, z), 0..1.
     at(x, z) {
       const [px, py] = P(x, z);

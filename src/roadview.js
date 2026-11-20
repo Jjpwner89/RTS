@@ -1,6 +1,8 @@
-// Paved roads on the village ground (economy.js ROAD): flat stone strips that follow the
-// lie of the land, and a ghost of the stretch being laid. A plain first look; Art owns
-// the village's look (townview.js) and may dress them up.
+// Paved roads on the village ground (economy.js ROAD), and a ghost of the stretch being laid.
+// The roads are cobbles painted into the ground itself (scenery.js landMask `paved`): when the
+// town's roads change, the village's land mask is painted again with them and handed to the
+// ground shader, and the grass and pebbles come off the stones. Where the ground has no land
+// mask, they fall back to flat stone strips.
 import * as THREE from 'three';
 import { ROAD } from './economy.js';
 
@@ -57,12 +59,41 @@ export class RoadView {
     return g;
   }
 
+  // The village ground's material, when it is painted from a land mask.
+  ground() {
+    if (this.groundMat === undefined) {
+      this.groundMat = null;
+      this.scene.traverse(o => { if (!this.groundMat && o.isMesh && o.material?.userData?.land) this.groundMat = o.material; });
+    }
+    return this.groundMat;
+  }
+
+  // Paint the roads into the ground: the land again with the town's roads laid in cobbles.
+  paint() {
+    const mat = this.ground(), ud = mat.userData;
+    const next = ud.land.redraw(this.town.roads.map(r => ({ pts: [[r.a.x, r.a.z], [r.b.x, r.b.z]], width: ROAD.width })));
+    if (ud.land !== ud.first) ud.land.tex.dispose();
+    ud.first ??= ud.land;
+    ud.land = next;
+    ud.mask = next.tex;
+    ud.uniforms.uMask.value = next.tex;
+    const cover = this.scene.userData.cover;
+    this.cleared ??= new WeakSet();
+    for (const r of this.town.roads) {
+      if (this.cleared.has(r)) continue;
+      this.cleared.add(r);
+      const len = Math.hypot(r.b.x - r.a.x, r.b.z - r.a.z), n = Math.max(1, Math.ceil(len / 1.5));
+      for (let i = 0; i <= n; i++) cover?.clear(r.a.x + (r.b.x - r.a.x) * i / n, r.a.z + (r.b.z - r.a.z) * i / n, ROAD.width * 0.6 + 0.3);
+    }
+  }
+
   // from: the first point of a stretch being laid; at: the cursor.
   update({ from = null, at = null } = {}) {
     if (this.version !== this.town.roadsVersion) {
       this.version = this.town.roadsVersion;
       if (this.mesh) { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mesh = null; }
-      if (this.town.roads.length) {
+      if (this.ground()) this.paint();
+      else if (this.town.roads.length) {
         this.mesh = new THREE.Mesh(this.geometry(this.town.roads, 0.08), this.mat);
         this.mesh.receiveShadow = true;
         this.scene.add(this.mesh);
