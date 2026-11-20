@@ -1,0 +1,18 @@
+{
+  "id": "market",
+  "take": 1,
+  "prompt": "Single hand-painted medieval strategy-game UI icon for a warm parchment interface. Bold dark brown ink outline #2b1d0e, flat hand-colouring, matte earthy ochre/brown/steel-grey with restrained rust and blue, only two or three broad colour planes. Not photorealistic, no shiny 3D rendering. Readable at just 20 pixels, deliberately SIMPLE chunky silhouette, no fine detail. One centred compact object/emblem occupying about 85% of a square transparent canvas, no ground, no vignette, no halo or shadow, no frame or badge background, no text or numbers. Target128x128 PNG. Match the attached finished icons' confident dark ink outline and visible broad brushwork. They are style references only; paint the new subject alone. SUBJECT: One small medieval stall with a cream-and-rust striped awning, broad simple geometry. Take 1: clear broad painted material facets.",
+  "references": [
+    "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/wip/ui/icons/gold-take-1.png",
+    "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/wip/ui/icons/wood-take-1.png",
+    "/Users/dpuser/Documents/Claude/Games/RTS/assets/art/wip/ui/icons/battle-take-1.png"
+  ],
+  "source": "/Users/dpuser/.codex/generated_images/01a1f4d9-95d2-7ab3-8e4d-3decdca5fe32/exec-ed45e4b3-9933-4c7c-8555-d79cfa306d68.png",
+  "section": "ui/icons",
+  "output": "assets/art/wip/ui/icons/market-take-1.png",
+  "size": [
+    128,
+    128
+  ],
+  "group": "buildings"
+}
