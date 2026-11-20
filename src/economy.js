@@ -903,6 +903,7 @@ export class Town {
     this.feastUntil = this.time + FEAST.secs;
     this.moodClock = 0;
     this.event(`A feast for the whole village: roast meat, ale and music by the keep.`);
+    audio.play('feast', this.keep, this.battle); // audio
     return { ok: true };
   }
 
@@ -1060,6 +1061,7 @@ export class Town {
     this.mood = Math.min(100, this.mood + 15);
     this.grief = 0;
     this.event(`${out.length} angry villagers have thrown down their tools and are gathering by the keep!`, 1);
+    audio.play('mob', this.keep, this.battle); // audio
     this.onRebel?.(out.length);
   }
 

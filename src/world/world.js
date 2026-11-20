@@ -266,6 +266,7 @@ export class World {
       if (quiet) return;
       const line = tauntFor(this, a);
       this.log(`${a.name} has declared war on you!`, 1);
+      this.hooks.sound?.('boom'); // audio
       this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: line ? `“${line}”` : '' });
     } else if (i === 0) {
       this.log(`You have declared war on ${b.name}.`);
@@ -483,6 +484,7 @@ export class World {
     town.onRebel = n => {
       if (p.owner !== 0) return;
       this.log(`${n} villagers of ${p.name} have risen in revolt!`, 1);
+      this.hooks.sound?.('mob'); // audio
       this.hooks.herald?.({ house: FACTIONS[this.bandits], title: `${p.name} rises`, text: `Taxed and hungry and grieving, ${n} of your own people have taken up pitchforks. Put them down, then ease their lot.` });
     };
     Object.assign(p, { town, heightAt, trees, garrison: [], aiClock: 0, pruneClock: 30, onRoad });
@@ -1626,6 +1628,7 @@ export class World {
       }
       p.intel = report(p, this.time);
       const r = p.intel, rich = ['poor', 'modest', 'rich'][r.wealth];
+      this.hooks.sound?.('quill'); // audio
       this.log(`Your spy is back from ${p.name}: a ${rich} place, stores worth about ${worth(r.stock, r.gold)} gold, ${r.men} men.`);
     }
   }

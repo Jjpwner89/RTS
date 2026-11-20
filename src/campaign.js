@@ -85,7 +85,7 @@ const hooks = {
     } else dropBundle(p);
   },
   ended: winner => {
-    audio.setMood(winner === 0 ? 'victory' : 'defeat'); // audio
+    audio.setMood(winner === 0 ? 'victory' : 'defeat'); if (winner === 0) audio.play('bells'); // audio
     if (winner !== 0 && world.options.ironman) clearSave();   // ironman: a lost campaign is gone
     if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload(), true);
     if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload(), true);
@@ -95,8 +95,9 @@ const hooks = {
   },
   herald: msg => herald(msg),
   rankUp: () => { audio.play('drums'); setTimeout(() => audio.play('horn'), 900); },
+  sound: name => audio.play(name), // audio: realm news from the world files
   offer: o => asks.push({ kind: 'offer', ...o }),
-  choice: ev => asks.push({ kind: 'choice', ev }),
+  choice: ev => { audio.play('scroll'); asks.push({ kind: 'choice', ev }); }, // audio
 };
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
 
@@ -592,6 +593,7 @@ function crownedThenNorth() {
   const shot = snapshot('You are crowned', 'Long live the king.');
   if (mode !== 'world') showWorld();
   world.beginPart2();
+  audio.play('collapse'); // audio: the wall falls
   const old = worldView;
   worldView = new WorldView(stage, world);
   worldControls.view = worldView;
@@ -1118,8 +1120,8 @@ function frame(now) {
   goals();
   alertList();
   worldLog();
-  audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events } // audio
-    : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events });
+  audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events, world } // audio
+    : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events, world });
   stage.renderer.render(stage.current(), cam);
   renderAway();
   requestAnimationFrame(frame);

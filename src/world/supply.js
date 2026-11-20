@@ -145,6 +145,7 @@ export function sendWagon(w, a) {
   wag.wagon = { food, to: a, from: src.p };
   wag.at = null;
   w.log(`A wagon with ${food} food sets out from ${src.p.name} for ${a.name}.`);
+  w.hooks.sound?.('cart'); // audio
   return wag;
 }
 
@@ -227,6 +228,7 @@ export function sendRun(w, from, to) {
   wag.wagon = { run: true, goods: c.load.goods, people: c.load.people, to, from };
   wag.at = null;
   w.log(`A supply run sets out from ${from.name} for ${to.name}: ${loadText(wag.wagon)}.`);
+  w.hooks.sound?.('cart'); // audio
   return { ok: true, wagon: wag };
 }
 export const loadText = W => [...Object.entries(W.goods).map(([g, n]) => `${n} ${g}`), W.people ? `${W.people} families` : ''].filter(Boolean).join(', ') || 'nothing';
@@ -275,6 +277,7 @@ function moveCaravan(w, cart, dt) {
   if (to.owner !== cart.side) pay(to.owner, Math.round(W.gold / 2));
   if (cart.side === 0) w.log(`The caravan from ${W.from.name} reached ${to.name}: ${W.gold} gold.`);
   else if (to.owner === 0) w.log(`A caravan from ${W.from.name} trades at ${to.name}: ${Math.round(W.gold / 2)} gold for you.`);
+  if (cart.side === 0 || to.owner === 0) w.hooks.sound?.('coins'); // audio
   for (const a of w.armies) if (a.escort === cart.id) { a.escort = null; a.at = to; a.x = to.x; a.z = to.z; a.last = to; }
   w.removeArmy(cart);
 }

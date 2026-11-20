@@ -105,11 +105,13 @@ export function buy(w, p, g) {
   if (p === c.to) {
     p.town.put(p.town.keep, g, W.lot);
     w.log(`You bought ${W.lot} ${W.name} at ${p.name} for ${c.price} gold.`);
+    w.hooks.sound?.('coins'); // audio
     return { ok: true, text: `${W.lot} ${W.name} are in the stores.` };
   }
   const cart = w.spawnArmy(0, [], p, `Goods from ${p.name}`, 'wagon');
   cart.wagon = { run: true, bought: true, goods: { [g]: W.lot }, people: 0, to: c.to, from: p };
   cart.at = null;
+  w.hooks.sound?.('coins'); // audio
   w.log(`You bought ${W.lot} ${W.name} at ${p.name} for ${c.price} gold. A cart takes them to ${c.to.name}.`);
   return { ok: true, text: `A cart sets out for ${c.to.name} with ${W.lot} ${W.name}.` };
 }

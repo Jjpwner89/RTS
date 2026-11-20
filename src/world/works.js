@@ -69,6 +69,7 @@ export function startWork(w, p, key) {
   FACTIONS[0].gold -= o.W.gold;
   state(w).doing = { key, p: p.id, left: o.W.secs, of: o.W.secs, name: o.W.name };
   w.log(`Work begins at ${p.name}: ${o.W.name.toLowerCase()}.`);
+  w.hooks.sound?.('scroll'); // audio
   return { ok: true };
 }
 
@@ -107,6 +108,7 @@ function finish(w, p, key) {
   }
   const W = WORKS[key];
   s.done[key] = true;
+  w.hooks.sound?.('bells'); // audio
   w.log(W.done);
   w.chron(W.done);
   w.hooks.herald?.({ house: FACTIONS[0], title: W.name.replace(/^(Mend|Reopen|Raise) the /, (m, v) => ({ Mend: 'Mended: the ', Reopen: 'Reopened: the ', Raise: 'Raised: the ' }[v])), text: `${W.done} ${W.about}` });
@@ -174,6 +176,7 @@ export function cathedralDone(w, p) {
   if (s.cathedral === p.id) return;
   s.cathedral = p.id;
   w.dip.forEach((d, i) => { if (d && i > 0 && i !== w.bandits && i !== w.invader) d.opinion = Math.min(100, d.opinion + 10); });
+  w.hooks.sound?.('bells'); // audio
   w.log(`The cathedral at ${p.name} is consecrated. Every lord in the realm hears of it.`);
   w.chron(`The cathedral at ${p.name} was consecrated.`);
   w.hooks.herald?.({ house: FACTIONS[0], title: `A cathedral at ${p.name}`, text: 'Bells ring across the realm. Every great house thinks better of you, your vassals are proud to serve, and the village round it is the happiest in your lands.' });

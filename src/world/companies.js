@@ -94,6 +94,7 @@ export function hire(w, c, side, p) {
     w.log(`${Name(c)} have left ${FACTIONS[was].name} for ${side === 0 ? 'you' : FACTIONS[side].name}: outbid.`, side === 0 || was === 0 ? 1 : 2);
   }
   c.employer = side;
+  if (side === 0) w.hooks.sound?.('coins'); // audio
   c.unpaid = 0;
   c.grumbled = false;
   c.men = c.size;
@@ -109,6 +110,7 @@ export function hire(w, c, side, p) {
 export function release(w, c, why) {
   const { where, men } = pull(w, c);
   const was = c.employer;
+  if (was === 0 && why === 'unpaid') w.hooks.sound?.('mob'); // audio: they walk out
   c.employer = null;
   c.back = w.time + REFORM;
   c.men = c.size;

@@ -36,6 +36,7 @@ export function toggleDecree(w, k) {
   const s = state(w), D = DECREES[k], on = !s.on[k];
   s.on[k] = on;
   s.at[k] = w.time;
+  w.hooks.sound?.('seal'); // audio
   w.log(on ? `By your decree: ${D.name.toLowerCase()}.` : `You lift ${D.name.toLowerCase()}.`);
   w.chron(on ? `The king decreed ${D.name.toLowerCase()}.` : `The king lifted ${D.name.toLowerCase()}.`);
   if (on && k === 'peace') for (const v of w.vassals || []) if (v.feud) v.feud = null;

@@ -151,6 +151,7 @@ function thinkCoalition(w) {
   w.coalition = { members: ids, since: w.time };
   const names = join.map(H => H.name).join(', ');
   w.log(`${names} have leagued together against you!`, 1);
+  w.hooks.sound?.('boom'); // audio
   w.chron(`${names} leagued together against you.`);
   w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `You hold ${Math.round(mine * 100)}% of the realm, and the lords are afraid. ${names} have made peace among themselves and declared war on you together. It will fall apart if you give back enough, make peace one by one, or simply outlast it.` });
 }

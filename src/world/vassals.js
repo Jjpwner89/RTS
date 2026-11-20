@@ -197,6 +197,7 @@ function tickFaction(w) {
   if (angry.length >= 2) {
     w.faction = { members: angry.map(v => v.id), since: w.time, asked: false };
     w.log(`${angry.map(v => v.name).join(' and ')} have formed a faction against you.`, 1);
+    w.hooks.sound?.('boom'); // audio
   }
 }
 
