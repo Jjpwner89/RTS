@@ -315,15 +315,15 @@ export class World {
     else {
       const h = FACTIONS[p.owner];
       p.garrison = p.seat !== undefined
-        ? [unit('spear', 26, `${h.short} spearmen`), unit('sword', 12, `${h.short} men-at-arms`), unit('archer', 14, `${h.short} archers`)]
-        : [unit('spear', n(13), `${h.short} spearmen`), unit('archer', n(7), `${h.short} archers`)];
+        ? [unit('spear', 16, `${h.short} spearmen`), unit('sword', 8, `${h.short} men-at-arms`), unit('archer', 8, `${h.short} archers`)]
+        : [unit('spear', n(9), `${h.short} spearmen`), unit('archer', n(5), `${h.short} archers`)];
     }
   }
 
   // How many men a holding keeps at home before sending the rest to its lord.
   keepHome(p) {
     const K = KINDS[p.kind], settling = p.owner !== null && FACTIONS[p.owner]?.ai?.stage === 0;
-    return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.75 : 1));
+    return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.5 : 1));
   }
 
   popCap(p) { return p.eco.buildings ? housing(p.eco) : (25 + p.eco.level * 22) * KINDS[p.kind].pop; }

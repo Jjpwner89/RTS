@@ -64,7 +64,7 @@ function climb(w, h) {
   }
 }
 const THINK = 8;
-const SETTLED_RESERVE = 50;           // men a settling house keeps in the field at most
+const SETTLED_RESERVE = 30;           // men a settling house keeps in the field at most
 const GROW = [1500, 900, 240];        // seconds a house rests after taking a free village, by stage
 
 export function startHouseMinds(w) {
