@@ -15,6 +15,16 @@ float lh21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32)
 float lvn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   return mix(mix(lh21(i), lh21(i + vec2(1, 0)), f.x), mix(lh21(i + vec2(0, 1)), lh21(i + vec2(1, 1)), f.x), f.y); }
 float lfbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 4; i++) { s += a * lvn(p); p = p * 2.03 + 17.1; a *= .5; } return s / .9375; }
+vec2 lh22(vec2 p) { return vec2(lh21(p), lh21(p + 19.7)); }
+// Cobbles: x = distance to the nearest joint, y = that stone's own random shade.
+vec2 cobble(vec2 p) {
+  vec2 i = floor(p), f = fract(p), best = vec2(0.); float d1 = 8., d2 = 8.;
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 g = vec2(x, y), o = g + .15 + .7 * lh22(i + g) - f; float d = dot(o, o);
+    if (d < d1) { d2 = d1; d1 = d; best = i + g; } else if (d < d2) d2 = d;
+  }
+  return vec2(sqrt(d2) - sqrt(d1), lh21(best + 3.7));
+}
 `;
 
 // Hands the fragment shader the world position and normal.
@@ -70,6 +80,19 @@ ${NOISE}`)
   float wear = smoothstep(.15, .9, mk.r + (lvn(p * .7) - .5) * .25);
   float rut = smoothstep(.75, 1., mk.r) * (.5 + .5 * sin(lvn(p * .5) * 6.));
   col = mix(col, vec3(.43, .35, .25) * (.82 + .3 * lvn(p * 3.)) * (1. - rut * .18), wear * .9);
+  // Paved roads: rounded cobbles in greys and buff, dark joints, a kerb of darker setts along each edge.
+  float pave = smoothstep(.5, .75, mk.b) * (1. - smoothstep(.4, .8, mk.g));
+  float kerb = smoothstep(.2, .45, mk.b) * (1. - smoothstep(.55, .8, mk.b)) * (1. - smoothstep(.4, .8, mk.g));
+  if (pave + kerb > .001) {
+    vec2 cb = cobble(p * 2.3);
+    float fine = 1. - smoothstep(30., 140., length(cameraPosition - vWPos));
+    vec3 stone = mix(vec3(.50, .49, .46), vec3(.60, .55, .46), cb.y) * (.8 + .32 * cb.y);
+    stone *= mix(1., .55 + .45 * smoothstep(.02, .12, cb.x), fine);
+    stone *= .9 + .2 * lvn(p * .4);
+    vec3 kerbs = vec3(.40, .39, .37) * (.85 + .25 * lh21(floor(p * .9)));
+    col = mix(col, kerbs, kerb * .95);
+    col = mix(col, stone, pave);
+  }
 #endif
   // Cloud shadows drift over the land.
   col *= 1. - smoothstep(.42, .68, lfbm((p + uTime * vec2(3.5, 1.2)) * .006)) * .28;
@@ -107,7 +130,8 @@ export function waterMaterial({ opacity = 0.85 } = {}) {
 
 // A painted map of the land, read by the ground shader: red = worn track, green = field,
 // blue = its crop. homes: keeps the tracks start from (fields grow round them when `fields`).
-// roads: [{ pts: [[x, z], ...], width }] to draw instead of tracks made up from the homes.
+// roads: [{ pts: [[x, z], ...], width, paved }] to draw instead of tracks made up from the homes; a paved
+// road is also painted crisply in blue (stone, with a fainter blue edge for the kerbs) over its worn track.
 // wear: [{ x, z, r }] patches of trampled ground. river: keeps fields out of the water.
 export function landMask(seed, { homes = [], roads = null, fields = false, wear = null, river = null, extent = 380, size = 2048 } = {}) {
   const rand = rng(seed * 31 + 9);
@@ -162,7 +186,17 @@ export function landMask(seed, { homes = [], roads = null, fields = false, wear 
     }
     return out;
   };
-  if (roads) for (const r of roads) track(r.pts, r.width);
+  const paved = (pts, width) => {
+    g.lineCap = 'butt'; g.lineJoin = 'round';
+    for (const [k, c] of [[1, 'rgb(0,0,100)'], [0.8, 'rgb(0,0,155)']]) {
+      g.strokeStyle = c;
+      g.lineWidth = width * k * m;
+      g.beginPath();
+      pts.forEach(([x, z], i) => { const [px, py] = P(x, z); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+      g.stroke();
+    }
+  };
+  if (roads) for (const r of roads) { track(r.pts, r.width); if (r.paved) paved(r.pts, r.width); }
   else {
     // One track from each keep to the river's crossing (or the middle), one to a flank, one away.
     const cross = river?.bridges[0] || river?.fords[0];

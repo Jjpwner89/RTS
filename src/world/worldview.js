@@ -237,6 +237,57 @@ export class WorldView {
     return m;
   }
 
+  // A paved road: setts in a running bond of greys, laid over the hills, between kerbs of darker stone.
+  stoneRoad(a, b) {
+    const len = Math.hypot(b.x - a.x, b.z - a.z), dx = (b.x - a.x) / len, dz = (b.z - a.z) / len;
+    const sx = dz, sz = -dx, W = 3, LANES = 5, ROW = 1.1, KERB = 0.55;
+    let seed = Math.round(a.x * 7 + a.z * 13 + b.x * 17 + b.z * 19) % 2147483646 + 1;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const pos = [], col = [], c = new THREE.Color();
+    const at = (t, s, up) => { const x = a.x + dx * t + sx * s, z = a.z + dz * t + sz * s; return [x, this.heightAt(x, z) + up, z]; };
+    const quad = (p, q, r, s, colour) => {
+      pos.push(...p, ...r, ...q, ...q, ...r, ...s);
+      for (let i = 0; i < 6; i++) col.push(colour.r, colour.g, colour.b);
+    };
+    const rows = Math.ceil(len / ROW), lane = W * 2 / LANES;
+    for (let i = 0; i < rows; i++) {
+      const t0 = i * ROW, t1 = Math.min(len, t0 + ROW * 0.92);
+      // every other row is shifted half a sett, so the joints don't line up
+      const cuts = [-W];
+      for (let k = 1; k < LANES + (i % 2); k++) cuts.push(-W + lane * (k - (i % 2) * 0.5));
+      cuts.push(W);
+      for (let k = 0; k < cuts.length - 1; k++) {
+        const s0 = cuts[k] + 0.06, s1 = cuts[k + 1] - 0.06;
+        c.set('#8f8b83').offsetHSL(0.02 * (rand() - 0.5), 0.04 * (rand() - 0.5), 0.12 * (rand() - 0.5));
+        quad(at(t0, s0, 0.4), at(t0, s1, 0.4), at(t1, s0, 0.4), at(t1, s1, 0.4), c);
+      }
+      // the mortar between them, a little lower and darker
+      c.set('#5d5a54');
+      quad(at(t0, -W, 0.33), at(t0, W, 0.33), at(t0 + ROW, -W, 0.33), at(t0 + ROW, W, 0.33), c);
+    }
+    // kerbs: long dressed stones, top and sides
+    for (let t0 = 0; t0 < len; t0 += 2.4) {
+      const t1 = Math.min(len, t0 + 2.3);
+      for (const side of [-1, 1]) {
+        const i0 = side * W, o0 = side * (W + KERB);
+        c.set('#77736b').offsetHSL(0, 0, 0.08 * (rand() - 0.5));
+        const [p, q, r, s] = side < 0 ? [at(t0, o0, 0.75), at(t0, i0, 0.75), at(t1, o0, 0.75), at(t1, i0, 0.75)] : [at(t0, i0, 0.75), at(t0, o0, 0.75), at(t1, i0, 0.75), at(t1, o0, 0.75)];
+        quad(p, q, r, s, c);
+        c.multiplyScalar(0.8);
+        const lo = (t, sv) => at(t, sv, 0.2);
+        if (side < 0) { quad(lo(t0, o0), at(t0, o0, 0.75), lo(t1, o0), at(t1, o0, 0.75), c); quad(at(t0, i0, 0.75), lo(t0, i0), at(t1, i0, 0.75), lo(t1, i0), c); }
+        else { quad(at(t0, o0, 0.75), lo(t0, o0), at(t1, o0, 0.75), lo(t1, o0), c); quad(lo(t0, i0), at(t0, i0, 0.75), lo(t1, i0), at(t1, i0, 0.75), c); }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.receiveShadow = true;
+    return m;
+  }
+
   label(cls) {
     const el = document.createElement('div');
     el.className = `wlabel ${cls}`;
