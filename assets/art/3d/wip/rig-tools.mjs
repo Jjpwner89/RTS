@@ -98,7 +98,7 @@ export class Human{
 }
 }
 export function makeClip(r,name,frames,loop,pose,extra={}){
- r.handFrames={};r.handElbows={};const samples=[];for(let f=0;f<=frames;f++){pose(f/30,f/frames);r.update();samples.push(r.capture());}if(loop)samples[frames]=samples[0];
+ r.handFrames={};r.handElbows={};r.armRoll={};const samples=[];for(let f=0;f<=frames;f++){pose(f/30,f/frames);r.update();samples.push(r.capture());}if(loop)samples[frames]=samples[0];
  return {name,frames,loop,samples,extra};
 }
 export function writeClips(src,clips,path,{mesh=true}={}){
@@ -126,3 +126,34 @@ export function writeClips(src,clips,path,{mesh=true}={}){
  delete j.textures;delete j.images;delete j.samplers;j.accessors=accs;j.bufferViews=views;j.buffers=[{byteLength:offset}];j.asset.generator='RTS Quaternius medieval clips — original mesh, hierarchy and bind matrices';
  let json=Buffer.from(JSON.stringify(j)),pad=Buffer.alloc((4-json.length%4)%4,32);json=Buffer.concat([json,pad]);let bin=Buffer.concat(chunks),head=Buffer.alloc(20),bh=Buffer.alloc(8);head.write('glTF');head.writeUInt32LE(2,4);head.writeUInt32LE(28+json.length+bin.length,8);head.writeUInt32LE(json.length,12);head.write('JSON',16);bh.writeUInt32LE(bin.length);bh.write('BIN\0',4);fs.writeFileSync(path,Buffer.concat([head,json,bh,bin]));return j;
 }
+// Deliberate two-handed grip (Claude, 2026-11-20). The elbow position is chosen by the
+// animator, not by the solver. The shaft lies diagonally across the palm (diag degrees,
+// butt end toward the heel of the hand), as a real spear grip does, so the forearm can
+// run nearly along the shaft without a broken wrist. Palm roll is the only free choice:
+// it is searched so the wrist bends as little as possible, near the previous frame.
+export function gripAxis(s,diag){const a=rad(diag);return V([s==='R'?-Math.cos(a):Math.cos(a),Math.sin(a),0]);}
+Human.prototype.arm=function(s,grip,axis,elbow,{diag=0,roll=null,rollRange=Math.PI,flexBias=0}={}){
+ const r=this.r,offset=V([0,.135,-.035]),C=V(grip),d=V(axis).normalize(),local=gripAxis(s,diag),q0=Q().setFromUnitVectors(local,d),E=V(elbow);
+ const A=r.pos('UpperArm.'+s),l1=A.distanceTo(r.pos('LowerArm.'+s)),l2=r.pos('LowerArm.'+s).distanceTo(r.pos('Wrist.'+s));
+ const solve=phi=>{
+  const q=Q().setFromAxisAngle(d,phi).multiply(q0),W=C.clone().sub(offset.clone().applyQuaternion(q));
+  const D=W.clone().sub(A),dist=D.length(),dd=Math.max(Math.abs(l1-l2)+1e-5,Math.min(l1+l2-1e-5,dist)),dir=D.clone().normalize();
+  const bend=E.clone().sub(A);bend.addScaledVector(dir,-bend.dot(dir)).normalize();
+  const along=(l1*l1-l2*l2+dd*dd)/(2*dd),B=A.clone().addScaledVector(dir,along).addScaledVector(bend,Math.sqrt(Math.max(0,l1*l1-along*along)));
+  const fore=W.clone().sub(B).normalize(),y=V([0,1,0]).applyQuaternion(q),z=V([0,0,1]).applyQuaternion(q);
+  // Flexion (about the hand's X) is uglier than deviation on a fist, so it costs more.
+  const flex=Math.asin(Math.max(-1,Math.min(1,fore.dot(z)))),dev=Math.acos(Math.max(-1,Math.min(1,fore.clone().addScaledVector(z,-fore.dot(z)).normalize().dot(y))));
+  return {phi,q,W,B,flex,dev,reach:Math.max(0,dist-l1-l2),score:(flex-rad(flexBias))**2*2+dev*dev};
+ };
+ const prev=r.armRoll?.[s],centre=roll!==null?rad(roll):prev??0,range=roll!==null?0:prev!==undefined?Math.PI/5:rollRange;
+ let best=solve(centre);for(let i=0;i<=90&&range;i++){const t=solve(centre-range+2*range*i/90);if(t.score<best.score)best=t;}
+ for(let step=range/45;step>1e-4&&range;step/=2)for(const p of [best.phi-step,best.phi+step]){const t=solve(p);if(t.score<best.score)best=t;}
+ (r.armRoll||={})[s]=best.phi;
+ r.limb('UpperArm.'+s,'LowerArm.'+s,'Wrist.'+s,best.W,best.B.clone().add(best.B.clone().sub(A).multiplyScalar(.01)));
+ // The forearm carries the palm's twist; the wrist only swings.
+ const fore=r.pos('Wrist.'+s).sub(r.pos('LowerArm.'+s)).normalize(),fx=V([1,0,0]).applyQuaternion(best.q);fx.addScaledVector(fore,-fx.dot(fore)).normalize();
+ r.setQ('LowerArm.'+s,frame(fx,fore));r.setQ('Wrist.'+s,best.q);r.update();
+ this.armReport=Object.assign(this.armReport||{},{[s]:{flex:best.flex*180/Math.PI,dev:best.dev*180/Math.PI,reach:best.reach,roll:best.phi*180/Math.PI}});
+ this.maxGripError=Math.max(this.maxGripError||0,r.pos('Wrist.'+s).add(offset.applyQuaternion(best.q)).distanceTo(C));
+ return best;
+};
