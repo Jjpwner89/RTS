@@ -65,11 +65,12 @@
           -0.035
         ],
         "axis": [
-          -0.766044443118978,
-          0.6427876096865393,
+          -0.766,
+          0.6428,
           0
         ],
-        "offhandSeparation": 0.42
+        "lengthBehindGrip": 0.91,
+        "offhandSeparation": "0.42 at guard; the shaft slides through the left hand to 0.22 at full thrust"
       }
     },
     {
@@ -77,6 +78,20 @@
       "duration": 1.2,
       "loop": false,
       "hold": true,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.766,
+          0.6428,
+          0
+        ],
+        "lengthBehindGrip": 0.91
+      },
       "events": [
         {
           "time": 1,
@@ -87,7 +102,20 @@
     {
       "name": "March_Upright",
       "duration": 1.2,
-      "loop": true
+      "loop": true,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -1,
+          0,
+          0
+        ]
+      }
     },
     {
       "name": "Bow_Loose",
@@ -95,15 +123,15 @@
       "loop": false,
       "weapon": {
         "bone": "Wrist.L",
-        "axis": [
-          1,
-          0,
-          0
-        ],
         "grip": [
           0,
           0.135,
           -0.035
+        ],
+        "axis": [
+          1,
+          0,
+          0
         ]
       },
       "events": [
@@ -132,33 +160,68 @@
           0.135,
           -0.035
         ],
-        "barrelDirection": [
-          0,
-          0,
-          1
-        ],
-        "bowDirection": [
-          1,
-          0,
+        "axis": [
+          -0.866,
+          0.5,
           0
         ],
-        "orientationSpace": "model"
+        "crossbow": {
+          "held": {
+            "barrel": [
+              0,
+              0,
+              1
+            ],
+            "bow": [
+              1,
+              0,
+              0
+            ],
+            "space": "model",
+            "at": "right grip"
+          },
+          "grounded": {
+            "grip": [
+              0,
+              0.68,
+              0.36
+            ],
+            "barrel": [
+              0,
+              -0.995,
+              0.0995
+            ],
+            "bow": [
+              1,
+              0,
+              0
+            ]
+          },
+          "blendToGround": [
+            0.18,
+            0.45
+          ],
+          "blendToHeld": [
+            2.1,
+            2.52
+          ]
+        }
       },
-      "equipmentGrounded": [
-        0.4,
-        2.4
-      ],
       "events": [
         {
-          "time": 0.4,
+          "time": 0.5,
+          "event": "nose-down"
+        },
+        {
+          "time": 0.57,
           "event": "foot-in-stirrup"
         },
         {
-          "time": 1.2,
+          "time": 1.35,
           "event": "string-spanned"
         },
         {
-          "time": 2.1,
+          "time": 1.86,
           "event": "bolt-laid"
         },
         {
@@ -171,6 +234,23 @@
       "name": "Shield_Block",
       "duration": 0.6,
       "loop": false,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.9397,
+          0.342,
+          0
+        ],
+        "shield": {
+          "bone": "Wrist.L",
+          "normal": "hand +Y"
+        }
+      },
       "events": [
         {
           "time": 0.2,
@@ -181,12 +261,42 @@
     {
       "name": "Shield_Wall",
       "duration": 2,
-      "loop": true
+      "loop": true,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.9397,
+          0.342,
+          0
+        ],
+        "shield": {
+          "bone": "Wrist.L",
+          "normal": "hand +Y"
+        }
+      }
     },
     {
       "name": "Javelin_Throw",
       "duration": 1,
       "loop": false,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.866,
+          0.5,
+          0
+        ]
+      },
       "events": [
         {
           "time": 0.6333333333,
@@ -203,12 +313,39 @@
     {
       "name": "Cheer",
       "duration": 1.5,
-      "loop": false
+      "loop": false,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.9397,
+          0.342,
+          0
+        ]
+      }
     },
     {
       "name": "Chop",
       "duration": 1.4,
       "loop": true,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.9063,
+          0.4226,
+          0
+        ],
+        "offhand": -0.18
+      },
       "events": [
         {
           "time": 0.9,
@@ -220,6 +357,20 @@
       "name": "Hoe",
       "duration": 1.8,
       "loop": true,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.766,
+          0.6428,
+          0
+        ],
+        "offhand": 0.22
+      },
       "events": [
         {
           "time": 1.2,
@@ -231,6 +382,20 @@
       "name": "Mine",
       "duration": 1.6,
       "loop": true,
+      "weapon": {
+        "bone": "Wrist.R",
+        "grip": [
+          0,
+          0.135,
+          -0.035
+        ],
+        "axis": [
+          -0.9063,
+          0.4226,
+          0
+        ],
+        "offhand": -0.17
+      },
       "events": [
         {
           "time": 1.0333333333,

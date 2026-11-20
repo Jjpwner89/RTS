@@ -3,11 +3,11 @@
   "handTargetErrors": [
     {
       "name": "Spear_Thrust",
-      "maxGripError": 6.06770049184959e-8
+      "maxGripError": 4.2764755619230554e-8
     },
     {
       "name": "Spear_Brace",
-      "maxGripError": 8.28859260789493e-8
+      "maxGripError": 7.029332893172345e-8
     },
     {
       "name": "March_Upright",
@@ -19,19 +19,19 @@
     },
     {
       "name": "Crossbow_Span",
-      "maxGripError": 8.90232740366313e-8
+      "maxGripError": 0
     },
     {
       "name": "Shield_Block",
-      "maxGripError": 1.0551498955959408e-7
+      "maxGripError": 6.453697239367402e-8
     },
     {
       "name": "Shield_Wall",
-      "maxGripError": 7.763465776131392e-8
+      "maxGripError": 7.010548678608533e-8
     },
     {
       "name": "Javelin_Throw",
-      "maxGripError": 0.033042268333119906
+      "maxGripError": 4.8443732781483325e-8
     },
     {
       "name": "Rout",
@@ -43,15 +43,15 @@
     },
     {
       "name": "Chop",
-      "maxGripError": 7.805986293116192e-8
+      "maxGripError": 9.448609297915397e-8
     },
     {
       "name": "Hoe",
-      "maxGripError": 0.012426587675299992
+      "maxGripError": 0.280701670987772
     },
     {
       "name": "Mine",
-      "maxGripError": 8.139307033643971e-8
+      "maxGripError": 1.5260747047271508e-7
     },
     {
       "name": "Carry",
