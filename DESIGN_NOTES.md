@@ -321,7 +321,7 @@ A simpler, high-level strategy game in the vein of War of Dots or Line Battle: a
 - Shields stop at 60 in store by default; other arms have no limit.
 - Hiring a bandit band always costs more than paying it off. A company is offered at the wage it will draw once hired at full strength.
 - A place's name label on the map can be clicked and right-clicked like the place; the label you point at wins over a neighbour's model nearer the cursor (2026-11-21). A drag whose mouseup is swallowed no longer leaves the map following the mouse.
-- Messages have two places, each said once (2026-11-21): the line at the top is news (the chronicle's latest), the toast at the bottom answers what you just clicked. A news line the toast is already saying is left out, and a burst of finished goals shows only the newest. The map's top bar never keeps a fight's "men standing" line once you are back on the map (a check in checks() watches for it).
+- Messages have two places, each said once (2026-11-21): the line at the top is news (the chronicle's latest), the toast at the bottom answers what you just clicked. A news line the toast is already saying is left out. Finished goals wait out a fight and its calm like events, then come one at a time (Orchestrator, 2026-11-21). The map's top bar never keeps a fight's "men standing" line once you are back on the map (a check in checks() watches for it).
 - The Storm prompt warns when the place is walled and the army brings no ladders, ram or engines.
 - In a storm, ladders, rams and engines ordered onto an enemy wall go for the wall, even with its defenders standing on it.
 
@@ -380,6 +380,8 @@ The creator tests by playing the campaign and wanted a save at each rank to try 
 - **Duke**: 11 places at minute 42, 4,000+ gold (about 20,000 with the coin of the places taken), Ashford at 80 (every template open). About 40 s. Every house was at war with you, for testing peace, dowries and buying off a coalition.
 - Ashford gets building stock for templates (250 wood, 200 stone, 80 planks, 30 iron) and finished houses to make room for the people.
 - Test campaigns save to their own slot (`rts.campaign.test`, chosen by `options.test`), so the real campaign is never overwritten; **Continue test** on the title page picks the test one up.
+
+- Every place you hold, not just Ashford, starts with half the building stock, 20 people and a settled mood (Orchestrator, 2026-11-21: the Lord test's Cranholm Castle had 11 people and 1 food, so templates there looked broken).
 
 ## The Realm screen (built 2026-11-20, deepened the same day)
 

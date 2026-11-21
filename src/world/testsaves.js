@@ -77,6 +77,16 @@ export async function makeTestCampaign(key, progress = () => {}) {
   for (const [g, n] of Object.entries(STOCK)) t.put(t.keep, g, n);
   while (t.housing < T.people + 4 && raise(t, 'house'));
   for (let i = t.population; i < Math.min(T.people, t.housing - 2); i++) { const a = i * 2.4; t.addVillager(t.keep.x + Math.sin(a) * 24, t.keep.z + Math.cos(a) * 24); } // clear of a grown keep
+  // Every other place you run gets enough to build with too (Orchestrator, 2026-11-21: the
+  // Lord test's Cranholm Castle had 11 people and 1 food, so templates there looked broken).
+  for (const p of w.pois) {
+    const o = p.town;
+    if (p.owner !== 0 || !o || o === t) continue;
+    for (const [g, n] of Object.entries(STOCK)) o.put(o.keep, g, Math.max(0, n / 2 - (o.keep.store[g] || 0)));
+    while (o.housing < 24 && raise(o, 'house'));
+    for (let i = o.population; i < Math.min(20, o.housing - 2); i++) { const a = i * 2.4; o.addVillager(o.keep.x + Math.sin(a) * 24, o.keep.z + Math.cos(a) * 24); }
+    o.mood = Math.max(o.mood, 50); o.misery = 0; o.hungry = false;   // fed now: not still sulking over the hungry run-up
+  }
   // Vassals to manage (2026-11-20): the furthest villages go to new lords, the first on
   // your council, so the Realm screen's vassals and council have someone in them.
   const far = w.pois.filter(p => p.owner === 0 && p.town && p.kind === 'village' && p !== w.home && w.canGrant(p).ok)

@@ -92,6 +92,7 @@ const hooks = {
   },
   // A place you stormed is won, beaten off, or given up.
   stormEnded: (p, won, chose) => {
+    fightSeen = performance.now();   // the calm after a fight starts here, frames or not
     const here = mode === 'town' && current.poi === p;
     if (won) {
       if (here) setMode('town', townBundle(p));   // "You have taken …" is in the news line already
@@ -236,7 +237,7 @@ function visitVassal(p) {
   const look = world.viewTown(p);
   if (!look) { selected = p; return; }
   setMode('town', townBundle(p, look));
-  townHud.flash(`${look.town.readOnly.name} holds ${p.name}: you may look round, but it is his to run.`);
+  townHud.flash(`${look.town.readOnly.name} holds ${p.name}: you may look round, but it is theirs to run.`);
 }
 
 function showWorld() { setMode('world', null); }
@@ -481,6 +482,7 @@ const survivors = (battle, side) => {
 };
 
 function endField(won) {
+  fightSeen = performance.now();
   const b = current;
   if (b.done) return;
   b.done = true;
@@ -790,8 +792,8 @@ function worldPanel() {
           + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('')
           + world.knightable().map(c => `<button data-act="knight:${c.id}" class="wide" title="Captain ${c.name} becomes a loyal vassal and leaves the army">${ico('crown', '#e8c45a')} Knight Captain ${c.name} with it</button>`).join('') + '</div>' : '')
         : it.vassal ? `<div data-f="vassal"></div>
-          <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please him">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger him">+</button></div>
-          <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please him">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger him">+</button></div>
+          <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please them">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger them">+</button></div>
+          <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please them">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger them">+</button></div>
           <div class="row"><button data-act="v:gift">${ico('gold', '#e8c45a')} Gift (${GIFT} gold)</button><button data-act="v:honour" title="Free, now and then: they are pleased, the proud among the others less so">${ico('crown')} Honour them</button></div>
           <div class="feud" data-f="feud"></div>
           <button data-act="deal" class="wide" title="Opinion and its reasons, wants, power, the council, land, demands, calling to arms and arrest">${ico('crown', '#e8c45a')} Deal with them in the Realm screen</button>
@@ -1080,24 +1082,30 @@ $('alerts').onclick = e => {
 };
 
 // News lines at the top. One message shows once (QC audit, 2026-11-21): a line the toast
-// below is already saying is not repeated, and a burst of finished goals shows only the
-// newest. Everything stays in the chronicle.
+// below is already saying is not repeated. Finished goals wait out a fight like events do
+// and then come one at a time, not four at once over a storm (Orchestrator, 2026-11-21).
+// Everything stays in the chronicle.
+const goalsWaiting = [];
+function newsLine(logEl, ev, key = '', life = 7000) {
+  const line = document.createElement('div');
+  line.textContent = ev.text;
+  line.className = ev.side === 0 ? 'good' : 'bad';
+  if (key) line.dataset.key = key;
+  logEl.prepend(line);
+  while (logEl.children.length > 4) logEl.lastChild.remove();
+  setTimeout(() => line.classList.add('fade'), life);
+  setTimeout(() => line.remove(), life + 1000);
+}
 function worldLog() {
   const logEl = $('log'), toast = $('toast');
   while (seenWorld < world.events.length) {
     const ev = world.events[seenWorld++];
     if (toast.classList.contains('show') && toast.textContent === ev.text) continue;
-    const key = ev.text.startsWith('Goal done:') ? 'goal' : '';
-    if (key) for (const old of logEl.querySelectorAll(`[data-key="${key}"]`)) old.remove();
-    const line = document.createElement('div');
-    line.textContent = ev.text;
-    line.className = ev.side === 0 ? 'good' : 'bad';
-    if (key) line.dataset.key = key;
-    logEl.prepend(line);
-    while (logEl.children.length > 4) logEl.lastChild.remove();
-    setTimeout(() => line.classList.add('fade'), 7000);
-    setTimeout(() => line.remove(), 8000);
+    if (ev.text.startsWith('Goal done:')) { goalsWaiting.push(ev); continue; }
+    newsLine(logEl, ev);
   }
+  const calm = mode !== 'field' && performance.now() - fightSeen >= CALM;
+  if (goalsWaiting.length && calm && !logEl.querySelector('[data-key="goal"]')) newsLine(logEl, goalsWaiting.shift(), 'goal', 5000);
 }
 
 function topBar() {
