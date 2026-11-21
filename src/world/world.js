@@ -14,7 +14,7 @@ import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
-import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal } from './supply.js';
+import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal, foodLeft, homeland, QUARTERED } from './supply.js';
 import { govern } from './governor.js';
 import { turnOut, mourn, sendHome } from './militia.js';
 import { tickEvents } from './events.js';
@@ -60,6 +60,12 @@ export const TAX = 0.012;
 const ARMOUR_POLICY = { raider: 'none', turtler: 'best', builder: 'best', merchant: 'best', hothead: 'elites', schemer: 'elites' };
 export const armourPolicy = h => (h ? ARMOUR_POLICY[h.trait] ?? 'best' : 'best');
 const SIGHT = { place: 250, army: 190 };
+// The price of a free place's fealty: gold for each of its people and each man of its
+// garrison, half again for a market, abbey or castle.
+// What outlaws carry off when they get away from a village of yours: a share of its
+// stores, and of the treasury up to a cap.
+const OUTLAW_TAKE = { share: 0.35, gold: 120 };
+export const TREAT = { folk: 6, man: 10, rich: ['market', 'monastery', 'castle'], richer: 1.5 };
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -140,7 +146,7 @@ export class World {
     startDiplomacy(this);
     this.updateVision();
     // The opening says you are safe for now (creator, 2026-11-20).
-    this.log('The great houses are all still settling their own lands: nobody will march on you for a while. See to your people first: food, wood and homes.');
+    this.log('The great houses are all still settling their own lands: nobody will march on you for a while. But outlaws haunt the woods and know what a new village keeps: keep your retinue close while you see to food, wood and homes.');
   }
 
   log(text, side = 0) { this.events.push({ time: this.time, side, text }); }
@@ -380,7 +386,7 @@ export class World {
     };
     // Hired companies stationed here weigh on the village's mood.
     // ... and your lord in person lifts it while he is there.
-    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village'], () => [this.lordAt() === p ? LORD_HERE : 0, 'the lord is here'], () => decreeMood(this)];
+    town.moodHooks = [() => [companiesIn(this, town) * COMPANY_MOOD, 'sellswords in the village'], () => [this.lordAt() === p ? LORD_HERE : 0, 'the lord is here'], () => decreeMood(this), () => [town.time < (town.quarteredUntil || 0) ? QUARTERED.mood : 0, 'soldiers quartered on the farms']];
     town.onRebel = n => {
       if (p.owner !== 0) return;
       this.log(`${n} villagers of ${p.name} have risen in revolt!`, 1);
@@ -406,7 +412,8 @@ export class World {
   removeArmy(a) { this.armies = this.armies.filter(o => o !== a); a.gone = true; releaseCaptain(this, a); }
 
   // Shortest way by road from one place to another.
-  route(from, to) {
+  // pass(p), if given, says which places on the way may be marched through.
+  route(from, to, pass = null) {
     const d = new Map(this.pois.map(p => [p, Infinity])), prev = new Map();
     d.set(from, 0);
     const open = new Set(this.pois);
@@ -416,6 +423,7 @@ export class World {
       open.delete(u);
       if (u === to || d.get(u) === Infinity) break;
       for (const q of u.links) {
+        if (pass && q !== to && !pass(q)) continue;
         const nd = d.get(u) + dist(u, q);
         if (nd < d.get(q)) { d.set(q, nd); prev.set(q, u); }
       }
@@ -426,13 +434,14 @@ export class World {
   }
 
   // March to a place. An army out on a road turns back or carries on, whichever is shorter.
-  order(a, dest) {
+  // pass, if given, limits the places it may march through (see route).
+  order(a, dest, pass = null) {
     if (a.halted || a.retreating) return false;
     a.escort = null;
     const ends = a.at ? [a.at] : [a.last, a.path[0]].filter(Boolean);
     let best = null;
     for (const e of ends) {
-      const r = this.route(e, dest);
+      const r = this.route(e, dest, pass);
       const len = dist(a, e) + r.length;
       if (!best || len < best.len) best = { len, path: e === a.at ? r.path : [e, ...r.path] };
     }
@@ -520,6 +529,11 @@ export class World {
   // it can arm, keeping half its people at work (a third under the levy decree).
   // bannerPlan works out who would come without moving anyone, so the call can be
   // shown before it is made; callBanners carries out that same plan.
+  // Places a column may march through on its way to your banners: your own, and those of
+  // anyone you are not at war with. Never through a free or enemy place, which would stop
+  // it and set it on alone.
+  friendlyRoad() { return q => !this.canAttack(0, q); }
+
   bannerPlan(dest) {
     const BEST = ['knight', 'cav', 'maa', 'crossbow', 'lightcav', 'sword', 'spear', 'archer'];
     const KEEP = ['crossbow', 'archer', 'spear', 'sword', 'maa', 'lightcav', 'cav', 'knight'];
@@ -573,8 +587,9 @@ export class World {
   }
 
   callBanners(dest) {
-    const plan = this.bannerPlan(dest);
+    const plan = this.bannerPlan(dest), safe = this.friendlyRoad();
     let men = 0, from = 0;
+    const cut = [], staged = [];   // [army, its village] with no friendly road to dest; names staying home
     for (const v of plan.villages) {
       const t = v.p.town;
       for (const l of v.raise) l.reg = t.raise(l.key, l.b).reg;
@@ -583,17 +598,35 @@ export class World {
       const a = this.muster(v.p, regs);
       if (!a) continue;
       a.name = `Banners of ${v.p.name}`;
+      if (!this.order(a, dest, safe)) { staged.push([a, v.p]); continue; }
       men += headcount(a.units);
       from++;
-      if (!this.order(a, dest)) this.enterTown(a, v.p, v.p);
+    }
+    // Columns with no friendly road to dest gather instead at the place of yours that most
+    // of them can reach through friendly land, nearest dest: one host, not a string of
+    // small ones each stopped and beaten at the first enemy place on the way.
+    let stage = null, there = 0;
+    if (staged.length) {
+      const reach = q => staged.filter(([a]) => a.at === q || Number.isFinite(this.route(a.at, q, safe).length)).length;
+      stage = this.pois.filter(q => q.owner === 0 && q !== dest && q.town && !q.town.hostile)
+        .map(q => [q, reach(q), this.route(q, dest).length]).sort((x, y) => y[1] - x[1] || x[2] - y[2])[0]?.[0] || null;
+      for (const [a, p] of staged) {
+        if (stage && p === stage) { this.enterTown(a, p, p); there += headcount(a.units); continue; }
+        if (stage && this.order(a, stage, safe)) { there += headcount(a.units); continue; }
+        this.enterTown(a, p, p);
+        cut.push(p.name);
+      }
     }
     for (const { v, p, refusing } of plan.vassals) {
       if (refusing) { this.log(`${v.name} sends nobody from ${p.name}.`, 1); continue; }
-      const n = this.vassalMen(v, p, dest);
-      if (n) { men += n; from++; }
+      let n = this.vassalMen(v, p, dest);
+      if (n) { men += n; from++; continue; }
+      if (stage && p !== stage && (n = this.vassalMen(v, p, stage))) there += n;
     }
-    this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} place${from > 1 ? 's' : ''}, to join ${plan.here} there.` : `The banners are called, but no other place has men to spare. ${plan.here} stand ready at ${dest.name}.`);
-    return { men, from };
+    if (from || !there) this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} place${from > 1 ? 's' : ''}, to join ${plan.here} there.` : `The banners are called, but no other place has men to spare. ${plan.here} stand ready at ${dest.name}.`);
+    if (there) this.log(`No road through friendly land reaches ${dest.name} from every place: ${there} men gather at ${stage.name} instead. Muster them there and march as one host.`, 1);
+    if (cut.length) this.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their men stay' : 'its men stay'} at home.`, 1);
+    return { men, from, there, stage };
   }
 
   // How much of a vassal's strength at p answers a call to arms.
@@ -610,7 +643,7 @@ export class World {
     const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
     a.vassal = v.id;
     const n = headcount(units);
-    if (!this.order(a, dest)) { mergeInto(p.garrison, units); this.removeArmy(a); return 0; }
+    if (!this.order(a, dest, this.friendlyRoad())) { mergeInto(p.garrison, units); this.removeArmy(a); return 0; }
     v.sent += n;
     recall(this, v, `Sent ${n} men to your banners at ${dest.name}`);
     return n;
@@ -656,7 +689,7 @@ export class World {
   gatherAt(p) {
     if (!['Duke', 'King'].includes(this.rank) || p.owner !== 0) return 0;
     let n = 0;
-    for (const a of this.gatherable(p)) if (this.order(a, p)) { a.gather = p.id; n++; }
+    for (const a of this.gatherable(p)) if (this.order(a, p, this.friendlyRoad())) { a.gather = p.id; n++; }
     if (n) this.log(`${n} ${n > 1 ? 'armies march' : 'army marches'} to gather at ${p.name}.`);
     return n;
   }
@@ -669,8 +702,8 @@ export class World {
     // The carts are loaded from the village stores, as far as they go.
     a.food = takeFood(p.town, capacity(a));
     const mins = Math.floor(a.food / Math.max(1, headcount(units)) * 2);
-    if (mins < 1) this.log(`${a.name} has mustered ${headcount(units)} men, but ${p.name} has no food to load on the carts. Away from your places they will desert within the minute: keep them close, or send them a wagon.`, 1);
-    else this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins} minute${mins > 1 ? 's' : ''} away from home.`);
+    if (mins < 1) this.log(`${a.name} has mustered ${headcount(units)} men, but ${p.name} has no food to load on the carts. Your villages will feed them in your own lands; beyond them they will desert within the minute, so send a wagon after them.`, 1);
+    else this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins} minute${mins > 1 ? 's' : ''} beyond your lands.`);
     return a;
   }
 
@@ -706,7 +739,10 @@ export class World {
     a.halted = false;
     a.siege = { p: p.id, since: this.time };
     p.siegeFood ??= this.storesFor(p);
-    this.log(`${a.name} sits down before ${p.name} to starve it out.`);
+    // The race, said plainly: their stores against your carts (foraging stretches them).
+    const m = t => t === Infinity ? 'as long as it takes' : `${Math.max(1, Math.round(t / 60))} min`;
+    const ours = foodLeft(this, a), home = homeland(this, a);
+    this.log(`${a.name} sits down before ${p.name} to starve it out. Its stores last about ${m(p.siegeFood)}; your carts, foraging, ${m(ours)}${home ? `, and then ${home.name} and your other villages feed you` : ours < p.siegeFood ? '. Send a wagon before they run out' : ''}.`, home || ours >= p.siegeFood ? 0 : 1);
     this.chron(`You laid siege to ${p.name}.`);
   }
   // Seconds a place can eat: its food and bread, for its people and its men.
@@ -759,6 +795,48 @@ export class World {
   }
 
   // The player thinks better of an attack and falls back without a fight.
+  // ---- treating with a free place ----
+  // From Count, gold can buy a free place's fealty instead of storming it: it swears to you
+  // whole, its people, stores and garrison with it. A great house's place is not for sale.
+  treatPrice(p) {
+    const T = TREAT, folk = p.eco?.pop ?? 20, men = headcount(p.garrison);
+    return Math.round((folk * T.folk + men * T.man) * (T.rich.includes(p.kind) ? T.richer : 1) / 10) * 10;
+  }
+  canTreat(enc) {
+    const p = enc?.poi;
+    if (!p || enc.kind !== 'assault' || p.owner !== null || p.kind === 'camp' || p.kind === 'crown') return { ok: false, why: 'Only a free place will treat.' };
+    if (!['Count', 'Duke', 'King'].includes(this.rank)) return { ok: false, why: 'A free place swears only to a count or better.' };
+    const price = this.treatPrice(p), gold = Math.floor(FACTIONS[0].gold || 0);
+    if (gold < price) return { ok: false, price, why: `They ask ${price} gold; you have ${gold}.` };
+    return { ok: true, price };
+  }
+  treat(enc) {
+    const c = this.canTreat(enc);
+    if (!c.ok) { console.warn('treat refused:', c.why); return { ok: false, text: c.why }; }
+    const p = enc.poi, a = enc.army;
+    this.encounter = null;
+    a.halted = false;
+    FACTIONS[0].gold -= c.price;
+    const kept = p.garrison || [];   // (makeTown clears it)
+    this.takePlace(p, 0);
+    const pop = p.eco?.pop ?? 20, lvl = p.eco?.level ?? 1;
+    const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(pop))), retinue: false, stock: storesOf(p, lvl) });
+    layPlace(town, p, 0);
+    p.mem = null;
+    grownLevels(town, p.eco);
+    p.eco = null;
+    const angle = this.angle(p, a.last === p ? p.links[0] : a.last);
+    if (kept.length) town.addTroops(kept, angle);
+    town.addTroops(a.units, angle);
+    this.removeArmy(a);
+    const text = `${p.name} swears fealty to you for ${c.price} gold. Its people, stores and garrison are yours.`;
+    this.log(text);
+    this.chron(`${p.name} swore fealty to you for ${c.price} gold, and not a roof was burned.`);
+    this.hooks.sound?.('seal'); // audio
+    this.hooks.captured(p, null);
+    return { ok: true, text };
+  }
+
   pullBack(enc) {
     this.encounter = null;
     enc.army.halted = false;
@@ -1121,9 +1199,16 @@ export class World {
     this.allowYield(p);
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,
-      onLeave: survivors => {
+      onLeave: (survivors, gotAway) => {
         if (t.fallenSaid && this.hooks.watching() !== p) this.log(`${p.name}: ${t.fallenSaid}`, 1);
         if (t.lost || !survivors.length) return;
+        // Outlaws who get away take a share of the stores and the purse with them.
+        if (gotAway && H.bandit && p.owner === 0) {
+          const took = t.rob(OUTLAW_TAKE.share), gold = Math.min(OUTLAW_TAKE.gold, Math.floor((FACTIONS[0].gold || 0) * OUTLAW_TAKE.share));
+          FACTIONS[0].gold -= gold;
+          const list = [...Object.entries(took).filter(([, n]) => n > 0).map(([g, n]) => `${n} ${g}`), gold ? `${gold} gold` : null].filter(Boolean);
+          if (list.length) this.log(`The outlaws got away from ${p.name} with ${list.join(', ')}.`, 1);
+        }
         const back = this.spawnArmy(a.side, survivors, p, a.name);
         this.retreat(back);
       },

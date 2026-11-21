@@ -318,6 +318,18 @@ async function worldChecks(w) {
     return sample(out);
   });
 
+  // The journey, batch 1 (climb session, 2026-11-21): your own lands feed your armies, the
+  // banners keep to friendly roads, a free place has a price, the outlaws come in order.
+  const Sup = await import('./world/supply.js'), Riv = await import('./world/rivals.js');
+  group = 'Journey';
+  const ours = w.armies.filter(a => a.side === 0 && !a.gone && !a.wagon);
+  await check('no army of yours deserts in your own lands', () => ours.filter(a => a.food <= 0 && Sup.homeland(w, a) && a.starving >= 10).map(a => `${a.name}: starving ${Math.round(a.starving)} s near ${Sup.homeland(w, a).name}`));
+  await check('banner columns march only through friendly land', () => ours.filter(a => /^Banners of /.test(a.name) || a.vassal)
+    .flatMap(a => a.path.slice(0, -1).filter(q => w.canAttack(0, q)).map(q => `${a.name} would pass ${q.name}`)));
+  await check("every free place's fealty has a price", () => w.pois.filter(p => p.owner === null && p.kind !== 'camp' && p.kind !== 'crown')
+    .filter(p => bad(w.treatPrice(p)) || w.treatPrice(p) <= 0).map(p => `${p.name}: ${w.treatPrice(p)}`));
+  await check('the outlaw bands come in order', () => (w.outlaws && (!Number.isInteger(w.outlaws.wave) || w.outlaws.wave < 0 || w.outlaws.wave > Riv.OUTLAWS.length)) ? [`wave ${w.outlaws.wave}`] : []);
+
   // Vassals and the Realm screen (Manager review, 2026-11-21).
   const V = await import('./world/vassals.js');
   group = 'Vassals';

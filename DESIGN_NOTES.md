@@ -475,3 +475,64 @@ One effects module, `src/fx.js`, one Fx per scene (`fxFor`), fed by the views wi
 - **Village**: scaffolds round sites that rise with the work, dust while men build and a burst when done; smoke from damaged buildings and flames once badly hurt; a ruin collapses in dust and smoulders for 90 s; chimney smoke from homes and hearths.
 - **World map**: a smoke column over places being stormed, raided or starved; dust where armies meet; a pale plume in the new owner's colour when a place changes hands; dust at a new battle cairn; a ring where you send an army. Nothing on the map glows or flickers, since it is read alongside panels (Manager, 2026-11-21).
 - **Quality**: fx reads `quality()` and follows `onQuality()` from src/look.js (low, medium, high; the Picture row in the sound panel). Medium is the default, so its counts are tuned to still read well.
+
+## The journey, rank by rank (climb session, 2026-11-21)
+
+Played by hand on 2026-11-21: a new campaign to Lord (33 min), then the Lord, Count and Duke test saves. Full notes are in the group notes, `climb-playtest-2026-11-21.md`, and `player-round1-summary.md` agrees with them. What the climb felt like:
+
+- **Reeve:** nothing threatens you for twenty minutes. Minutes 2–11 are spent waiting for wood. Sending the retinue to work costs nothing, because nobody comes.
+- **Lord:** gold piles up (1,700 by minute 30) with nothing to buy.
+- **Count:**
+  - Calling the banners from a village with no food starved 13 men to 3 between two of my own villages.
+  - A blockade starved my own 88 men to nothing in three minutes, while the place I besieged still had food.
+- **Duke:**
+  - The banners took the shortest roads through enemy places and attacked them piecemeal: 108 of 296 men reached the muster.
+  - Each free place's villagers cost a third of a 100-man army.
+  - The treasury reached 40,000 gold with nothing to buy.
+  - The crown is a count of places, not a moment.
+
+The common fault: **each rank adds tools but doesn't take away the old chores.** Your own logistics punish you hardest, and both the very start and the very top are flat. The journey below fixes that, rank by rank. For each rank it gives a sharp struggle, the tools that relieve the rank before, new trouble, and a moment of spectacle.
+
+| Rank | The struggle | Tools that relieve the old loop | New trouble | Spectacle |
+|---|---|---|---|---|
+| **Reeve** (1 place) | **Outlaws come for your stores** from about minute 5. The retinue is the only real defence, so sending it to work becomes a gamble. | The retinue, the militia, the first barracks. | Two outlaw bands in the first quarter hour, sized to your men and stores. | The first band seen off: the retinue comes back blooded. |
+| **Lord** (2–4) | Two villages to feed and guard, the camps' raiders, the first house you meet. | **Your own lands feed your armies**: no deserting between your own villages. Supply runs and town templates. | Your first vassal's wants; tribute demands. | The herald and the Lord's fanfare. |
+| **Count** (5–10) | The houses take notice; walled places to take. | **Treat with a free place**: gold buys its fealty without a storm (the treasury's first big use, and the village keeps its people). **The banners march only through friendly land.** **Besiegers forage**, so a blockade is a real choice. Captains, the knights' hall. | Factions and rebellions; relief hosts at your sieges. | The knights' hall milestone. |
+| **Duke** (11+) | A coalition of every house; half the realm to hold for the crown. | Gather your armies, 40-man regiments. Treating with free places is now worth its price. | The coalition (to do: one coalition host that marches on you, not five houses suing for peace in turn). | **To do: a coronation at Kingsbridge** that is an event, not a log line. |
+| **King** | The north: Part 2, the wall falls. | Royal decrees. | Great vassals with claims; the host of Norrhold. | The wall falling (built). |
+
+### Batch 1: the Reeve opening and the logistics traps (built 2026-11-21)
+
+- **Outlaws on the roads** (rivals.js `outlawMind`). Twice in the first quarter hour, a band of outlaws comes for your home village:
+  - **When:** the first at about minute 5–6, the second at about 12–14.
+  - **Size:** 8 men, plus your strength under arms and a share of your stores, at most 18. A fat, well-guarded village draws a bigger band.
+  - **Fighting them:** it is a normal raid on the village, so the attack prompt and the militia apply.
+  - **If they get away**, they carry off 35% of the village's food, bread, wood, planks and iron, and up to 120 gold from the treasury (economy.js `rob`, world.js `OUTLAW_TAKE`).
+  - **Played on seed 7:**
+    - With the retinue at home, the first band (14 men) broke at once. One retinue man fell, and the retinue came out blooded.
+    - With the retinue sent to work, the first band (10 men) burned two houses and got away with 82 food, 43 wood and 105 gold. The second (17 men, at minute 13) took 140 food, 43 wood and 120 gold.
+  - **Exceptions:** they don't come in a Gentle game, while the outlaws are paid off, or under the king's peace.
+  - The opening message now warns of them.
+  - **Why:** the creator's "brutal early". It makes the retinue a real choice: twenty swords or twenty more workers.
+- **Your own lands feed your armies** (supply.js). An army within 220 paces of a place of yours (or a vassal's or ally's; `HOMELAND`, about 40 seconds' march) does not desert.
+  - Its carts refill from the nearest village of yours that has food to spare.
+  - If none has, the army lives off the farms round about: the nearest village loses a little mood ("soldiers quartered on the farms") instead of men.
+  - Out beyond your lands, the old rules stand: carts, wagons, and desertion when the food runs out.
+- **Besiegers forage.** An army blockading a place eats at a quarter of the usual rate, living off the fields round it.
+  - The blockade message now gives the race: how long your carts last against the place's stores.
+  - Starving a place out is now a choice you can win, not a trap.
+- **The banners march through friendly land** (world.js `route(from, to, pass)`).
+  - Each column called to a muster takes the shortest road through your own, your vassals', your allies' and peaceful places.
+  - Columns with no such road to the muster gather instead at the place of yours that most of them can reach through friendly land, nearest the muster. You muster them there and march as one host. A column that can reach neither stays home, and the call names it.
+  - Before, columns blundered into enemy places one at a time and were thrown back piecemeal.
+  - **In the Duke test save:** Kingsbridge sits among enemy and free places. Before, nine columns set out for it and 108 of 296 men arrived. Now 176 men gather at Cranholm Castle as one host, and three villages cut off beyond enemy land are named.
+- **Treat with a free place** (Count and above). The attack prompt on a free place offers *Treat with them* for gold. The price is 6 gold a villager and 10 a man of the garrison, half again for a market, abbey or castle.
+  - Paid, the place swears to you whole: its people, stores and garrison stay.
+  - It is the treasury's first real use, and the answer to "storming a village kills its people" from player round 1.
+  - Rival houses' places can't be bought this way: their lords would never sell.
+  - **In the Count test save:** prices run from 320 gold (Redgate, 4 men) to 1,710 (Ashley Castle), against a 3,800-gold treasury. Redgate swore for 320 and kept all 47 of its people. Before, a storm cost a free place half its people.
+- **The blockade, played** (Count test save): Brackholm's 144 men sat down before Varn's Emberley, whose stores were to last 20 minutes against 14 minutes of carts.
+  - One wagon kept the army fed.
+  - Varn sent three relief columns, and each was fought off in the field.
+  - Emberley starved into surrender at minute 49.
+  - Before, the same blockade starved the besiegers in three minutes.

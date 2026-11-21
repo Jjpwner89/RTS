@@ -12,7 +12,7 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit, roughly } from './world.js';
+import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit, roughly, unit } from './world.js';
 import { protectedFrom, leagued, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
@@ -81,7 +81,7 @@ export function thinkHouses(w, dt) {
     h.ai.think -= dt;
     if (h.ai.think > 0) continue;
     h.ai.think = THINK;
-    if (h.bandit) banditMind(w, h);
+    if (h.bandit) { banditMind(w, h); outlawMind(w, h); }
     else if (h.invader) invaderMind(w, h);
     else houseMind(w, h);
   }
@@ -374,6 +374,40 @@ function invaderMind(w, h) {
   winterRaids(w, h);
   // The gate sends its men on to the war camps, and the camps make war like any house.
   houseMind(w, h);
+}
+
+// The first winter's outlaws: twice in the first quarter hour a small band comes out of
+// the woods for the stores of your home village. Its size follows what is worth taking
+// and what guards it, so the retinue at home turns it, and a retinue sent to work leaves
+// the militia to hold (or not). Not in a gentle game, nor while outlaws are paid off or
+// the king's peace holds.
+export const OUTLAWS = [{ at: 300, spread: 60, men: 8 }, { at: 720, spread: 120, men: 12 }];
+const OUTLAW_MAX = 18;
+function outlawMind(w, h) {
+  // (a save from before the outlaws, or a test campaign, skips the bands whose time is past)
+  const o = w.outlaws ??= { wave: (i => i < 0 ? OUTLAWS.length : i)(OUTLAWS.findIndex(W => w.time < W.at + W.spread)), at: null };
+  if (o.wave >= OUTLAWS.length || w.options?.aggression === 'gentle') return;
+  const W = OUTLAWS[o.wave];
+  o.at ??= W.at + w.rand() * W.spread;
+  if (w.time < o.at) return;
+  const home = w.home;
+  o.wave++;
+  o.at = null;
+  if (!home || home.owner !== 0 || !home.town || home.town.underAttack || w.banditPeace > w.time || w.decrees?.on?.peace) return;
+  const t = home.town;
+  const armed = t.garrison().reduce((n, r) => n + r.alive, 0);
+  const worth = ['food', 'wood', 'gold'].reduce((n, g) => n + Math.max(0, +t.free?.(g) || 0), 0) + (FACTIONS[0].gold || 0);
+  const n = Math.min(OUTLAW_MAX, Math.round(W.men + armed * 0.2 + worth / 150));
+  // They come down the road from the woods, a minute or so out.
+  const from = home.links[Math.floor(w.rand() * home.links.length)];
+  if (!from) return;
+  const a = w.spawnArmy(h.index, [unit('bandit', n, 'Outlaws of the greenwood')], home, 'Outlaws', 'raid');
+  const d = dist(home, from), k = Math.min(1, 300 / Math.max(1, d));
+  Object.assign(a, { x: home.x + (from.x - home.x) * k, z: home.z + (from.z - home.z) * k, at: null, last: from, path: [home], target: home, outlaws: true });
+  const first = o.wave === 1;
+  w.log(`Outlaws out of the greenwood are on the road to ${home.name}: about ${roughly(n)} men, come for your stores.${armed ? '' : ' Nobody in the village is under arms.'}`, 1);
+  w.hooks.sound?.('warcry'); // audio: outlaws on the road
+  if (first) w.hooks.herald?.({ house: h, title: 'Outlaws on the road', text: `A band of about ${roughly(n)} outlaws is coming for ${home.name}'s stores. Keep the retinue home and armed, or call your people out to meet them.` });
 }
 
 // Outlaws in their camps raid whatever is near, yours included once you are settled.

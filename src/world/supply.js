@@ -3,7 +3,10 @@
 // from the village stores, a rival's from its holdings). Out of food, men desert. The
 // wounded of a fight walk with the army, eat its food, and rejoin when it rests fed in
 // its own lands. Wagons carry food from your villages to an army far from home, and can
-// be caught on the road.
+// be caught on the road. In your own lands an army never deserts for hunger: once the carts
+// are empty it is fed from the nearest village with food to spare, or lives off the farms
+// round about, which the villagers resent. An army sitting down to a blockade forages the
+// fields round the place and eats a quarter of its usual.
 
 import { FACTIONS, power } from './world.js';
 import { workDone } from './works.js';
@@ -13,6 +16,9 @@ export const CARRY = 2;            // food per man the carts hold: four minutes
 const NEAR = 70;                   // this close to one of its own places, an army is fed
 const REST = 1 / 45;               // share of the wounded back on their feet each second
 const DESERT = 0.04;               // share of a starving army lost every ten seconds
+export const HOMELAND = 220;       // this close to one of its own places, an army is in its own lands
+const FORAGE = 0.25;               // what a blockading army eats, living off the fields round the place
+export const QUARTERED = { mood: -8, secs: 90 };   // a village whose farms feed soldiers who brought nothing
 const WAGON_SPEED = 8;
 
 export const fit = a => a.units.reduce((n, u) => n + u.count, 0);
@@ -31,7 +37,7 @@ export function provision(a, food = null) {
 export function foodLeft(w, a) {
   if (fedAt(w, a)) return Infinity;
   const n = mouths(a);
-  return n ? a.food / (n * EAT) : Infinity;
+  return n ? a.food / (n * EAT * (a.siege ? FORAGE : 1)) : Infinity;
 }
 
 // The place feeding this army, if it is close enough to one of its own (for you, a
@@ -46,6 +52,35 @@ export function fedAt(w, a) {
     if (d < bd) { bd = d; best = p; }
   }
   return best;
+}
+
+// The nearest of its own places within its own lands (for you, a vassal's or an ally's too).
+export function homeland(w, a) {
+  let best = null, bd = HOMELAND;
+  for (const p of w.pois) {
+    if (p.town?.hostile) continue;
+    const ours = p.owner === a.side || (a.side === 0 && p.owner !== null && (w.dip?.[p.owner]?.vassal || w.dip?.[p.owner]?.allied));
+    if (!ours) continue;
+    const d = Math.hypot(p.x - a.x, p.z - a.z);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+// Out of food in its own lands: a village of yours with food to spare sends what it eats,
+// or else the nearest village's farms feed it and the people mind. Returns the place.
+function liveOffTheLand(w, a, land, need) {
+  if (a.side !== 0) return land;
+  const giver = w.pois.filter(p => p.owner === 0 && p.town && !p.town.hostile && spareFood(p.town) >= need && Math.hypot(p.x - a.x, p.z - a.z) < HOMELAND * 1.5)
+    .sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0];
+  if (giver) { takeFood(giver.town, Math.ceil(need)); a.quartered = null; a.fedBy = giver.name; return giver; }
+  const t = land.town && land.owner === 0 ? land.town : null;
+  if (t) t.quarteredUntil = t.time + QUARTERED.secs;
+  if (!a.quarterTold) w.log(`${a.name} has eaten its carts bare and lives off the farms round ${land.name}. The people there go short.`, 1);
+  a.quartered = land.name;
+  a.quarterTold = true;   // once until the carts are filled again
+  a.fedBy = null;
+  return land;
 }
 
 // Food in a village's keep and storehouses, keeping back one meal for the villagers.
@@ -105,8 +140,11 @@ export function supplyArmies(w, dt) {
         a.food += home.town && home.owner === 0 ? takeFood(home.town, Math.min(want, rate)) : Math.min(want, rate);
       }
       if (a.food > 0) heal(a, REST * dt);
-    } else a.food = Math.max(0, a.food - n * EAT * dt);
-    if (a.food > 0) { a.starving = 0; continue; }
+    } else a.food = Math.max(0, a.food - n * EAT * dt * (a.siege ? FORAGE : 1));
+    if (a.food > 0) { a.starving = 0; a.quartered = a.fedBy = null; a.quarterTold = false; continue; }
+    const land = homeland(w, a);
+    if (land) { liveOffTheLand(w, a, land, n * EAT * dt * (a.siege ? FORAGE : 1)); a.starving = 0; continue; }
+    a.quartered = a.fedBy = null;
     // Starving: the wounded die first, then whole files slip away in the night.
     a.starving = (a.starving || 0) + dt;
     if (a.starving < 10) continue;

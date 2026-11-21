@@ -2004,7 +2004,24 @@ export class Town {
       this.fallenSaid = word;   // for the world's log, when nobody is watching (world.attackTown)
       this.fallen = {};
     }
-    g.onLeave?.(survivors);
+    g.onLeave?.(survivors, g.leaving);   // (leaving: they got away with their plunder)
+  }
+
+  // Raiders who get away carry off a share of what the stores hold. Returns what they took.
+  rob(share) {
+    const took = {};
+    for (const g of ['food', 'bread', 'wood', 'planks', 'iron']) {
+      let n = Math.floor(Math.max(0, this.free(g) || 0) * share);
+      if (n < 1) continue;
+      took[g] = n;
+      for (const b of this.stores()) {
+        const k = Math.min(n, b.store[g] || 0);
+        if (k > 0) { this.put(b, g, -k); n -= k; }
+        if (n <= 0) break;
+      }
+      took[g] -= n;
+    }
+    return took;
   }
 
   ruin(t, g) {

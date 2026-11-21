@@ -19,7 +19,7 @@ import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS, walledPlace } from './world/world.js';
-import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
+import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf } from './world/rivals.js';
@@ -613,6 +613,9 @@ function nextAsk() {
       flash(won ? `Victory at ${where}.` : `Defeat at ${where}.`, won);
     }]);
     if (enc.kind === 'assault') {
+      // From Count, a free place can be bought instead (world.treat).
+      const deal = world.canTreat(enc);
+      if (deal.price || deal.ok) buttons.push([`Treat with them (${deal.price} gold)`, () => { const r = world.treat(enc); flash(r.text, r.ok); }, !deal.ok, deal.why]);
       buttons.push(['Starve them out', () => world.blockade(enc)]);
       if (enc.poi.eco) buttons.push(['Burn the fields', () => world.burnFields(enc)]);
       buttons.push(['Pull back', () => world.pullBack(enc)]);
@@ -891,7 +894,8 @@ function worldPanel() {
     if (it.side === 0 || it.visible) {
       const home = fedAt(world, it), left = foodLeft(world, it);
       set('food', `${ico('food', it.food > 0 ? '#c9b26a' : '#ff8a5a')} ` + (home ? `Fed from ${home.name}${hurt ? '; the wounded are mending' : ''}`
-        : it.food <= 0 ? '<b class="war">Out of food: men are deserting</b>' : `Food for ${clock(left)}${left < 60 ? ' <b class="war">running low</b>' : ''}`));
+        : it.food <= 0 ? (it.fedBy ? `Carts empty: fed from ${it.fedBy}` : it.quartered ? `<b class="war">Carts empty: living off the farms round ${it.quartered}</b>` : '<b class="war">Out of food: men are deserting</b>')
+        : `Food for ${clock(left)}${it.siege ? ', foraging' : ''}${left < 60 ? homeland(world, it) ? ', then your villages feed them' : ' <b class="war">running low</b>' : ''}`));
     }
     if (own) {
       const w = fedAt(world, it) ? null : wagonFrom(world, it), btn = el.querySelector('[data-f="wagon"]');
