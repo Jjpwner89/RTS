@@ -1041,6 +1041,17 @@ export class Town {
       this.droveSaid = true;
       this.event('Your soldiers go out to drive the raiders from the village. (Hold keeps them at the keep.)', 0);
     }
+    // Soldiers you ordered to Hold stand and watch it burn: say so once, so it reads as the
+    // order it is and not a fault (QC, 2026-11-21: a retinue on Hold, a house burned, no word).
+    if (!this.holdSaid) {
+      const held = b.regs.find(r => r.side === 0 && b.usable(r) && r.hold && !r.T.militia && !r.T.engine && !b.shoots(r));
+      const burning = held && raiders.find(f => f.raidTarget && f.raidTarget.state !== 'ruined' && !f.raidTarget.removed && d(f, f.raidTarget) < f.raidTarget.B.radius + 9);
+      if (burning) {
+        this.holdSaid = true;
+        const t = burning.raidTarget;
+        this.event(`${held.retinue ? 'Your retinue holds' : `${held.name} hold`} its ground (Hold) while raiders burn the ${t === this.keep ? 'keep' : t.B.name.toLowerCase()} to the ${compass(t)}.`, 1);
+      }
+    }
   }
 
   // The militia hold by the keep. When your soldiers go for the attackers they follow a
@@ -2175,7 +2186,7 @@ export class Town {
       const off = (i - (specs.length - 1) / 2) * 30;
       return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
-    if (!this.underAttack) { this.fallen = {}; this.droveSaid = false; }
+    if (!this.underAttack) { this.fallen = {}; this.droveSaid = false; this.holdSaid = false; }
     // Raiders in the woods are hidden from an enemy's eyes (battle.updateSight), but not on a
     // village's own land: its people see them burn it, and you must be able to order men at
     // them (a band in the trees by the village could not be clicked, nor answered).
