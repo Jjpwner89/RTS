@@ -66,6 +66,10 @@ Rank today is only a title worked out from places held. Each rank should change 
 | King | Royal decrees: laws on levies, taxes and the crown's peace, each with a trade-off | Great vassals with claims; then Part 2 |
 
 - **Done (2026-11-19):** rank-up moments (a herald, drums then a horn, and what the new rank opens), vassals, town templates, mercenary companies and the knights' hall, below and in DESIGN_NOTES. Still to do from the table: captains and one muster from many villages (Count), bigger regiments and campaign planning (Duke), coalitions (§6), royal decrees (King). **Royal decrees built (2026-11-19)** (decrees.js), in the realm panel once you are King: *the king's peace* (no vassal feuds, outlaws leave your places alone; vassals −5), *the great levy* (calling the banners raises down to a third of each village and vassals send half again as many; villages −8 mood, vassals −5), *the royal tithe* (a quarter more tax; villages −6 mood) and *the king's roads* (your armies and carts a fifth faster; 18 gold a minute). Any can be in force; a change stands five minutes. Captains, the banners and coalitions are built too (see their sections). **Duke built (2026-11-19):** levies come 40 men a regiment instead of 20, and a village of yours has *Gather your armies here*: every free army in the field marches there and goes inside, to march out as one host with *Muster the garrison*.
+- **Battles of 1200+ men at Count and Duke (creator, 2026-11-21; not built).** Fights today stay at a few hundred men. The base suits more: instanced, vertex-animated soldiers, the forNear spatial grid and shared nav fields. The steps:
+  - **A scale bench.** battle.html with 300, 600 and 1200 men, showing fps and per-system ms (sim, separation, nav, draw) at each, run in a visible pane. Battles owns the sim side and fidelity the draw side.
+  - **The target.** 1200 men at 30 fps on Medium. Fix the biggest costs first, as the bench ranks them.
+  - **Caps that grow toward it.** Muster and army caps rise with rank, a few hundred men as a Lord, toward 1200 on a field by Duke. The numbers are set once the bench shows what holds 30 fps.
 
 ### Vassals
 
