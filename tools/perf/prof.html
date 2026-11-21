@@ -1,0 +1,127 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>battle profile</title>
+<style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style>
+<iframe id="f"></iframe>
+<script>
+// prof.html?q=medium&exp=a,b,c&secs=6 : loads battle.html, begins the battle, then for each
+// experiment measures fps, the CPU time of each part of the frame and the GPU time of the draw.
+// Results POST to the sink on 8733 as prof.json (resultsink.py); shots=1 PUTs jpgs to 8732 (shotsink.py).
+// Run it with runprof.sh. Experiments: see EX below (mN keeps N men, old = before the far level, ...).
+const P = new URLSearchParams(location.search);
+const Q = P.get('q') || 'medium', SECS = +(P.get('secs') || 6), ROUNDS = +(P.get('rounds') || 1);
+const EXPS = (P.get('exp') || 'base').split(',');
+const post = o => fetch(`http://127.0.0.1:8733/prof.json`, { method: 'POST', body: JSON.stringify(o) });
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const f = document.getElementById('f');
+f.src = '../../battle.html?seed=7&weather=clear' + (P.get('extra') || '');
+f.onload = async () => {
+  const w = f.contentWindow;
+  try {
+    for (let i = 0; i < 120 && !(w.look && w.stage && w.game?.battle); i++) await sleep(500);
+    await sleep(2000);
+    const G = w.game, st = w.stage, r = st.renderer, gl = r.getContext();
+    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+    w.look.QUALITY.before = { name: 'Before', scale: 2, shadow: 2048, soft: true, post: false, ao: 0, msaa: 0, cover: 270, density: 1 };
+    w.look.setQuality(Q, { save: false });
+    // ?men=N: keep N men (an even share from every regiment), the rest leave the field before it starts
+    const keep = +P.get('men'); if (keep) { const all = G.battle.soldiers; const frac = keep / all.length; let acc = 0; for (const s of all) { acc += frac; if (acc >= 1) acc -= 1; else { s.alive = false; s.gone = true; } } }
+    [...w.document.querySelectorAll('button')].find(b => /Begin battle/.test(b.innerText))?.click();
+    await sleep(+(P.get('warm') || 15000));
+    if (P.get('freeze')) { G.battle.step = () => {}; }
+    // ---- timers around each part of the frame ----
+    const T = {}; const add = (k, v) => (T[k] = (T[k] || 0) + v);
+    const wrap = (o, name, key) => { const fn = o[name].bind(o); o[name] = (...a) => { const t = performance.now(); const res = fn(...a); add(key, performance.now() - t); return res; }; };
+    wrap(G.battle, 'step', 'step'); wrap(G.view, 'update', 'view'); wrap(G.fieldView, 'update', 'field');
+    G.siegeView && wrap(G.siegeView, 'update', 'siege');
+    wrap(G.controls, 'update', 'controls');
+    const pending = []; const gpuMs = [];
+    const render = r.render;
+    r.render = (s, c) => {
+      const isMain = c === st.camera && !r.getRenderTarget();
+      let q = null;
+      if (isMain && ext && pending.length < 8) { q = gl.createQuery(); gl.beginQuery(ext.TIME_ELAPSED_EXT, q); }
+      const t = performance.now(); render(s, c); if (isMain) add('render', performance.now() - t);
+      if (q) { gl.endQuery(ext.TIME_ELAPSED_EXT); pending.push(q); }
+      for (let i = pending.length - 1; i >= 0; i--) {
+        const p = pending[i];
+        if (gl.getQueryParameter(p, gl.QUERY_RESULT_AVAILABLE)) { if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) gpuMs.push(gl.getQueryParameter(p, gl.QUERY_RESULT) / 1e6); gl.deleteQuery(p); pending.splice(i, 1); }
+      }
+    };
+    // ---- experiments: each sets something, returns an undo ----
+    const scene = st.current();
+    const byName = re => { const out = []; scene.traverse(o => { if (re.test(o.name || '') || re.test(o.userData?.kind || '')) out.push(o); }); return out; };
+    const hide = list => { const was = list.map(o => o.visible); list.forEach(o => o.visible = false); return () => list.forEach((o, i) => o.visible = was[i]); };
+    const set = (k, v) => { const q = w.look.QUALITY[Q], was = q[k]; q[k] = v; w.look.setQuality(Q, { save: false }); return () => { q[k] = was; w.look.setQuality(Q, { save: false }); }; };
+    // mN: only N of the men on the field are drawn (an even share of every regiment); interleaved with other counts in one load
+    const keepOnly = n => { const live = G.battle.soldiers.filter(s => !s.gone); const frac = n / live.length; let acc = 0; const hid = []; for (const s of live) { acc += frac; if (acc >= 1) acc -= 1; else { s.gone = true; hid.push(s); } } return () => hid.forEach(s => s.gone = false); };
+    const EX = {
+      base: () => () => {},
+      m300: () => keepOnly(300), m600: () => keepOnly(600),
+      farQuarter: () => { const l = Object.values(G.view.meshes).filter(m => m.far).flatMap(m => [m.far.gear, m.far.cloth]).map(x => x.geometry); const was = l.map(g => ({ ...g.drawRange })); l.forEach(g => g.setDrawRange(0, Math.floor((g.index ? g.index.count : g.attributes.position.count) / 12) * 3)); return () => l.forEach((g, i) => g.setDrawRange(was[i].start, was[i].count)); },
+      // the settings before the far level: medium at msaa 4, every man in the light pair with a shadow
+      old: () => { const u = Q === 'medium' ? set('msaa', 4) : () => {}; const was = w.__LOD.far; w.__LOD.far = 1e6; return () => { u(); w.__LOD.far = was; }; },
+      oldm600: () => { const u = [EX.old(), keepOnly(600)]; return () => u.forEach(f => f()); },
+      oldm300: () => { const u = [EX.old(), keepOnly(300)]; return () => u.forEach(f => f()); },
+      farShadow: () => { const l = Object.values(G.view.meshes).filter(m => m.far).flatMap(m => [m.far.gear, m.far.cloth]); l.forEach(m => m.castShadow = true); return () => l.forEach(m => m.castShadow = false); },
+      noshadow: () => set('shadow', 0),
+      nopost: () => set('post', false),
+      noao: () => set('ao', 0),
+      nomsaa: () => set('msaa', 0),
+      scale1: () => set('scale', 1),
+      nogrid: () => set('density', 0.0001),
+      paused: () => { const s = G.battle.step; G.battle.step = () => {}; return () => G.battle.step = s; },
+      nomen: () => hide(Object.values(G.view.meshes).flatMap(m => m.all)),
+      noscenery: () => hide(byName(/tree|bush|scenery|forest/i)),
+      nofx: () => { const l = []; scene.traverse(o => { if (o.isPoints || o.isSprite || (o.material && o.material.transparent && !o.isInstancedMesh)) l.push(o); }); return hide(l); },
+      shadow1024: () => set('shadow', 1024),
+      hard: () => set('soft', false),
+      scale125: () => set('scale', 1.25),
+      menNoShadow: () => { const l = Object.values(G.view.meshes).flatMap(m => m.all); l.forEach(m => m.castShadow = false); return () => l.forEach(m => m.castShadow = true); },
+      msaa2: () => set('msaa', 2),
+      ao035: () => set('ao', 0.35),
+      combo: () => { const u = [set('msaa', 2), EX.menNoShadow()]; return () => u.forEach(f => f()); },
+      lightQuarter: () => { const l = Object.values(G.view.meshes).filter(m => m.light).flatMap(m => [m.light.gear, m.light.cloth]).map(x => x.geometry); const was = l.map(g => ({ ...g.drawRange })); l.forEach(g => g.setDrawRange(0, Math.floor((g.index ? g.index.count : g.attributes.position.count) / 12) * 3)); return () => l.forEach((g, i) => g.setDrawRange(was[i].start, was[i].count)); },
+      lodAll: () => { const was = w.__LOD.near; w.__LOD.near = 0.01; return () => w.__LOD.near = was; },
+      sceneryNoShadow: () => { const men = new Set(Object.values(G.view.meshes).flatMap(m => m.all)); const l = []; scene.traverse(o => { if (o.isMesh && o.castShadow && !men.has(o)) { l.push(o); o.castShadow = false; } }); return () => l.forEach(m => m.castShadow = true); },
+    };
+    // a census of what is drawn: top-level children with triangle counts
+    const census = [];
+    for (const c of scene.children) { let tris = 0, meshes = 0, inst = 0, shadow = 0; c.traverse(o => { if (o.isMesh && o.visible) { meshes++; const g = o.geometry; const n = (g.index ? g.index.count : g.attributes.position?.count || 0) / 3 * (o.isInstancedMesh ? o.count : 1); tris += n; if (o.isInstancedMesh) inst++; if (o.castShadow) shadow += n; } }); census.push({ name: c.name || c.type, meshes, inst, ktris: Math.round(tris / 1000), kshadow: Math.round(shadow / 1000) }); }
+    const tri = g => (g.index ? g.index.count : g.attributes.position.count) / 3;
+    w.__THREE = await w.eval("import('three')");
+    w.__LOD = (await w.eval("import(new URL('../../src/models.js', location).href)")).LOD;
+    const menCensus = () => Object.entries(G.view.meshes).map(([k, m]) => `${k.split('|')[0]}: full ${m.gear.count}x${Math.round(tri(m.gear.geometry) + tri(m.cloth.geometry))}` + (m.light ? ` light ${m.light.gear.count}x${Math.round(tri(m.light.gear.geometry) + tri(m.light.cloth.geometry))}` : '') + (m.far ? ` far ${m.far.gear.count}` : '') + (m.anim ? ' anim' : '')).join('; ');
+    const men = () => G.battle.soldiers.filter(s => s.alive && !s.gone).length;
+    await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
+    const SUM = {};
+    for (let k = 0; k < ROUNDS; k++) for (const e of EXPS) {
+      const undo = EX[e](); await sleep(1200);
+      for (const key in T) delete T[key]; gpuMs.length = 0;
+      r.info.autoReset = true;
+      const times = []; let last = performance.now();
+      await new Promise(res => { const t0 = last; const tick = t => { times.push(t - last); last = t; if (t - t0 < SECS * 1000) w.requestAnimationFrame(tick); else res(); }; w.requestAnimationFrame(tick); });
+      times.shift(); const n = times.length, s = [...gpuMs].sort((a, b) => a - b);
+      const per = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, +(v / n).toFixed(2)]));
+      const rec = { fps: +(n / (times.reduce((a, b) => a + b, 0) / 1000)).toFixed(1), gpu: s.length ? +s[Math.floor(s.length * 0.25)].toFixed(2) : null, cpu: per, calls: r.info.render.calls, ktris: Math.round(r.info.render.triangles / 1000) };
+      // a frame drawn and waited for: the fastest of several is the nearest to the cost on an idle GPU
+      const px = new Uint8Array(4), sync = [];
+      for (let i = 0; i < 10; i++) { const t = performance.now(); r.render(st.current(), st.camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); sync.push(performance.now() - t); await sleep(0); }
+      rec.syncMin = +Math.min(...sync).toFixed(2);
+      (SUM[e] = SUM[e] || []).push(rec);
+      if (P.get('shots') && k === 0) for (const [nm, c] of [['wide', null], ['mid', { dist: 70 }], ['near', { dist: 38 }]]) {
+        const cam = G.controls.cam, keep = { ...cam }; if (c) Object.assign(cam, c); G.controls.update(0.016); await sleep(300);
+        r.render(st.current(), st.camera); const cv = r.domElement, c2 = document.createElement('canvas'); c2.width = 1024; c2.height = Math.round(1024 * cv.height / cv.width);
+        c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height); const blob = await new Promise(res => c2.toBlob(res, 'image/jpeg', 0.88));
+        await fetch(`http://127.0.0.1:8732/prof-${e}-${nm}.jpg`, { method: 'PUT', body: blob }); Object.assign(cam, keep); G.controls.update(0.016);
+      }
+      if (P.get('verbose')) await post({ e, round: k, fps: +(n / (times.reduce((a, b) => a + b, 0) / 1000)).toFixed(1), cpuMsPerFrame: per, gpuMs: s.length ? +s[s.length >> 1].toFixed(2) : null, gpuN: s.length, calls: r.info.render.calls, ktris: Math.round(r.info.render.triangles / 1000), men: men() });
+      undo();
+    }
+    const best = Object.fromEntries(Object.entries(SUM).map(([e, l]) => { const f = l.map(x => x.fps).sort((a, b) => b - a), g = l.map(x => x.gpu).filter(x => x != null).sort((a, b) => a - b); return [e, { drawMs: Math.min(...l.map(x => x.syncMin)), bestFps: f[0], medFps: f[f.length >> 1], minGpuP25: g[0], sim: l[0].cpu.step ?? 0, view: l[0].cpu.view, renderCpu: l[0].cpu.render }]; }));
+    await post({ best, men: men() });
+    if (P.get('checks')) { const c = await w.checks({ quiet: true }); await post({ checks: `${c.pass} pass, ${c.fail} fail, ${c.warn} warn`, failed: c.results.filter(r => r.status !== 'pass' && r.status !== 'skip').map(r => `${r.status} ${r.group}: ${r.name} ${r.detail.slice(0, 2).join(' | ')}`) }); }
+    await post({ done: true });
+  } catch (e) { await post({ error: String(e && e.stack || e) }); }
+};
+</script>
