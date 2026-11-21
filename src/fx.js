@@ -7,30 +7,26 @@
 //               that smoulder, chimney smoke
 // Particles live in fixed pools of instanced meshes, are only made near the camera, and run on
 // game time (they hold still while paused); markers and shake run on real time. The quality
-// setting (localStorage 'rts.quality': low, medium or high; setFxQuality) scales them all.
+// setting (look.js: low, medium or high) scales them all.
 //
 // For audio.js, which reads state rather than hooking: fx.fires lists the village's burning buildings and fresh
 // ruins each frame ({ x, z, level } with level 0–1), and fx.warSmoke the map's places under attack or siege ({ x, z }).
 import * as THREE from 'three';
 import { LOD } from './models.js';
 import { audio } from './audio.js';
+import { quality, onQuality } from './look.js';
 
 // ---- quality ----
 
 const QUALITY = {
   low:    { cap: 500,  rate: 0.3, trails: false, chimneys: false, blood: false, shake: 0.5 },
-  medium: { cap: 1400, rate: 0.6, trails: true,  chimneys: true,  blood: true,  shake: 1 },
+  medium: { cap: 1800, rate: 0.75, trails: true,  chimneys: true,  blood: true,  shake: 1 },
   high:   { cap: 3000, rate: 1,   trails: true,  chimneys: true,  blood: true,  shake: 1 },
 };
-let level = 'high';
-try { if (QUALITY[localStorage.getItem('rts.quality')]) level = localStorage.getItem('rts.quality'); } catch {}
+let level = quality();
 let Q = QUALITY[level];
 export const fxQuality = () => level;
-export function setFxQuality(q) {
-  if (!QUALITY[q]) { console.warn(`fx: no quality called "${q}"; keeping ${level}`); return; }
-  level = q; Q = QUALITY[q];
-  try { localStorage.setItem('rts.quality', q); } catch {}
-}
+onQuality(q => { if (QUALITY[q]) { level = q; Q = QUALITY[q]; } });
 
 // ---- shared bits ----
 
