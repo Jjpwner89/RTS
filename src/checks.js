@@ -105,11 +105,11 @@ function storeProblems(holders, label) {
 
 // Whether a place's numbers say it is walled. Mirrors World.storm() and campaign.js's
 // warning; when the place generator gives one answer for every view, ask it instead.
+let walledPlace = () => false;   // places.js, loaded with the world checks
 function saysWalled(p) {
   // your own villages are walled by what you build
   if (p.town && p.owner === 0 && !p.town.hostile) return wallsOf(p.town.battle, 0) > 0;
-  if (p.eco?.walls) return p.eco.walls !== 'none';
-  return ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
+  return walledPlace(p);
 }
 const wallsOf = (battle, side) => battle.walls.pieces.filter(q => q.side === side && q.state !== 'site').length;
 
@@ -223,7 +223,12 @@ async function battleChecks({ battle, town, label }) {
 async function worldChecks(w) {
   const { FACTIONS } = await import('./world/world.js');
   const { builtCount } = await import('./world/holdings.js');
+  const places = await import('./world/places.js');
+  walledPlace = places.walledPlace;
   group = 'World';
+
+  // Every place's layout (places.js): its whole tally laid out, nothing overlapping, walls as its numbers say.
+  await check('places: every layout holds its tally', () => sample(places.checkPlaces(w), 10));
 
   await check('places: numbers are sane', () => {
     const out = [];

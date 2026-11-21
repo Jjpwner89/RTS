@@ -156,7 +156,9 @@ function townBundle(p, look = null) {
   const scene = stage.newScene();
   // Its roads run out from the keep toward the places they lead to (scenery.js).
   const trees = look ? look.trees : p.trees;
-  const land = landMask(p.seed, { homes: [{ x: 0, z: 0 }], roads: (p.roadAngles || []).map(a => ({ pts: [[0, 0], [Math.sin(a) * 400, Math.cos(a) * 400]], width: 6 })), wear: [{ x: 0, z: 0, r: 24 }] });
+  // ... and its lanes off them, where a place was laid out with them (places.js).
+  const roads = (p.roadAngles || []).map(a => ({ pts: [[0, 0], [Math.sin(a) * 400, Math.cos(a) * 400]], width: 6 })).concat(town.lanes || []);
+  const land = landMask(p.seed, { homes: [{ x: 0, z: 0 }], roads, wear: [{ x: 0, z: 0, r: 24 }] });
   drawGround(scene, heightAt, p.seed, { land });
   drawTrees(scene, heightAt, trees);
   drawCover(scene, heightAt, p.seed, { land, trees, avoid: (x, z) => Math.hypot(x, z) < 16 });

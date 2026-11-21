@@ -72,6 +72,8 @@ export function seedEconomy(p, rand, { seat = false, crown = false, kindPop = 1 
   const n = Math.max(3, Math.min(plan.length, 5 + level * 3 + W.built + Math.floor(rand() * 3)));
   for (const k of plan.slice(0, n)) add(e, k);
   e.planAt = n;
+  // An abbey has its church, whatever else it has.
+  if (p.kind === 'monastery' && !e.buildings.monastery) add(e, 'monastery');
   while (housing(e) < pop + 2) add(e, 'house');
   // Enough fields and hunters to feed them, as any steward would see to.
   const fed = () => ((e.buildings.farm || 0) * 2 * 4 / 7 + (e.buildings.hunter || 0) * 2 * 3 / 10) * EFF * 60;

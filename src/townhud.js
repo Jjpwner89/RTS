@@ -98,7 +98,7 @@ export class TownHud {
   buildStorm() {
     const h = this.town.hostile;
     this.stockEl.innerHTML = `
-      <div class="people"><span>${ico('battle', '#ff8a5a')} Storming the village</span></div>
+      <div class="people"><span>${ico('battle', '#ff8a5a')} Storming ${h.where || 'the village'}</span></div>
       <p class="storm" data-s="theirs"></p><p class="storm" data-s="ours"></p><p class="storm" data-s="burned"></p>
       <p class="note">Beat or rout every defender and the place is yours as it stands. Select one of their buildings to burn it: it costs them dearly even if you fall back, but you lose it too if you win.</p>
       <button data-act="pullback" class="wide"><span>Pull back</span><small>march away and keep your men</small></button>`;
