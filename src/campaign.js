@@ -32,7 +32,7 @@ import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k === 'road' || k?.startsWith('tpl:') ? null : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
-import { vassalOf, holdingsOf, living, prisoners, opinion, outlook, DUES, LEVIES, TEMPERS, WANTS, SEATS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
+import { vassalOf, holdingsOf, living, prisoners, opinion, outlook, duesShare, levyShare, DUES, LEVIES, TEMPERS, WANTS, SEATS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
@@ -902,8 +902,8 @@ function worldPanel() {
           + (w => w ? `<p><b class="war">⚠ ${w}</b></p>` : '')(outlook(world, lord).warn)
           + `<p>${Math.round(e.pop)} people · ${builtCount(e)} buildings · stores worth about ${worth(e.stock)} gold</p>`
           + `<p>Has paid you ${Math.floor(lord.paid)} gold and sent ${lord.sent} men${lord.refusing ? ' · <b class="war">refuses dues and levies</b>' : ''}</p>`);
-        set('dues', `${DUES[lord.dues].name} (${Math.round(DUES[lord.dues].share * 100)}%)`);
-        set('levy', `${LEVIES[lord.levy].name} (${Math.round(LEVIES[lord.levy].share * 100)}%)`);
+        set('dues', `${DUES[lord.dues].name} (${Math.round(duesShare(lord) * 100)}%)`);   // the Realm screen's numbers: a title changes both
+        set('levy', `${LEVIES[lord.levy].name} (${Math.round(Math.min(0.9, levyShare(lord)) * 100)}%)`);
         const foe = lord.feud && world.vassals.find(x => x.id === lord.feud);
         set('feud', foe ? `<p><b class="war">Feuding with ${foe.name}</b>: both their villages suffer, and both mind that you do nothing.</p>`
           + `<div class="row"><button data-act="v:judge" title="They are pleased; ${foe.name} is not">Judge for them</button><button data-act="v:reconcile" title="Both a little pleased">${ico('gold', '#e8c45a')} Reconcile (${RECONCILE})</button></div>` : '');
