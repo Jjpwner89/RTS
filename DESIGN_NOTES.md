@@ -597,6 +597,30 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
   - So it is honest: houses with few men to spare, other prey that is easier, and once a house's free men against your defences.
 - checks(): Lord 71/0, Count 90/0, King 126/0.
 
+### How deep a house drafts: a judgement, not a floor (2026-11-21, Orchestrator's ruling (c), after the Manager)
+- **Why.** You may levy any villager who isn't a soldier, limited only by kit, LEVY_MAX a call and wages. Your soldiers who march out leave the villager list (Town.takeTroops), freeing homes and paying no tax, exactly as a house's drafted men do. So the fixed AT_WORK floor was a limit only the houses had.
+- **The rule** (holdings.js `keepAtWork`; rivals.js houseMind sets `h.ai.deep`). A house that is building and at peace, with no enemy host near, keeps its workers: half its homes for the field army and 45% for its guard, as before. A house that is arming, at war with anyone (outlaws aside), or has an enemy host within 400 of its places drafts down to the last 12 people, for as long as that lasts. Once it is over it stops arming, and its men beyond the reserve stand down to work (standDown). World.raiseFromPeople, the guard's arming, `fieldOf` and the muster-stall check all use it, so the war test sees the same numbers.
+- **Outcome** (seeds 7, 21, 91, to minute 120):
+
+  | Run | First war on you | Banked 60 / 90 / 120 | Fell |
+  |---|---|---|---|
+  | Engaged 7 | none | 1,157 / 3,243 / 5,298 | alive |
+  | Engaged 21 | none | 1,017 / 4,473 / 10,739 | alive |
+  | Engaged 91 | none | 0 / 0 / 0 | alive |
+  | Passive 7 | Varn 13, Wyndham 60 | 1,381 / 2,650 | 95 |
+  | Passive 21 | Varn 13, Wyndham 57 | 1,507 at 60 | 73 |
+  | Passive 91 | Varn 15, Penhallow 113 | 1,630 / 3,198 / 5,066 | alive |
+
+  - Engaged 91 held 2 places this run, not 3. Its wages (344 a minute) outran its tax (196), so it ran at 0 gold; the bot tops up its men for free.
+  - Passive 91 is alive at minute 120 with its seat and 16 men. Varn is at war with it but poor, and nothing came near.
+  - **House fullness at minute 80** (homes / land, %):
+    - Engaged 7: 42/27, 46/27, 16/8, 49/21, 36/21.
+    - Engaged 21: 39/23, 27/18, 39/19, 19/11, 18/10.
+    - Engaged 91: 43/32, 13/7, 21/8, 47/28, 38/26.
+    - Passive 7: 41/25, 38/23, 30/17, 19/10, 42/24.
+    - Passive 91: 43/31, 17/7, 14/8, 32/15, 55/36.
+    - Almost every house is arming or at war with another house for most of the game, so it drafts deep most of the time: 13–55% of its homes, against 41–57% under the fixed floor.
+
 ## Test campaigns (built 2026-11-20)
 
 The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.

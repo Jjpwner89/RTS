@@ -296,6 +296,12 @@ export const PEOPLE_FIRST = 0.5;   // food a head
 // 110 with 600 sets of kit in their stores, and the passive player was left alone).
 export const AT_WORK = { guard: 0.45, field: 0.5 };
 export const HOMES_AHEAD = 0.65;
+// How deep a house drafts is a judgement, not a floor (Orchestrator, 2026-11-21, after the
+// Manager: you may levy every villager, so a fixed floor was a limit only the houses had). At
+// peace, building, with no enemy host near, it keeps its workers (AT_WORK); arming, at war or
+// with an enemy host within a march (h.ai.deep, rivals.js houseMind), it drafts down to the
+// last twelve, for as long as that lasts, and its men stand down to work once it is over.
+export const keepAtWork = (e, deep, share = AT_WORK.field) => (deep ? 12 : Math.max(12, housing(e) * share));
 export function feedMen(e, men, dt) {
   let need = men * EAT * dt, spare = Math.max(0, (e.stock.food || 0) + (e.stock.bread || 0) - e.pop * PEOPLE_FIRST);
   for (const g of ['bread', 'food']) { const k = Math.min(need, spare, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; need -= k; spare -= k; }
