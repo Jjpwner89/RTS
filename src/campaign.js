@@ -3,6 +3,7 @@
 // battles you fight (or auto-resolve). URL option: ?seed=123 for a fixed map.
 import { createStage } from './stage.js';
 import { TownLabels } from './townlabels.js';
+import { showOrderHint } from './ui/orderhint.js';
 import { RoadView, placeRoad } from './roadview.js';
 import { makeHeight, drawGround, plantTrees, drawTrees, HOMES } from './terrain.js';
 import { Battle, TYPES } from './battle.js';
@@ -148,6 +149,7 @@ const worldControls = new WorldControls(stage.camera, canvas, worldView, {
     if (!world.order(selected, p)) flash(selected.retreating ? 'They are falling back and will not turn yet.' : 'They are already there.');
   },
   enter: p => enterTown(p),
+  hint: (p, x, y) => showOrderHint(world, selected, p, x, y),
 });
 
 // ---- your villages ----
@@ -570,7 +572,13 @@ function nextAsk() {
     else if (pic.src.endsWith(ev.image) && pic.complete) pic.hidden = !pic.naturalWidth;
     else pic.src = ev.image;
     // a choice answers with its text, or { ok, text } when it can be refused; a greyed one says why
-    for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r.text ?? r, r.ok ?? true); }, !c.ok, c.why, c]);
+    for (const c of ev.choices) buttons.push([c.label, () => {
+      const r = c.run();
+      if (!r) return;
+      // A result with a story to it (a tournament won or lost) stays on a card until read, not a toast that is gone in a moment (QC round 2).
+      const text = r.text ?? r;
+      if (text.length > 70) showResult(ev.title, text, 'Continue', () => {}); else flash(text, r.ok ?? true);
+    }, !c.ok, c.why, c]);
   } else if (a.kind === 'news') {
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;
@@ -601,7 +609,7 @@ function nextAsk() {
     const folk = enc.kind === 'assault' ? headcount(turnOut(enc.poi, army.units, FACTIONS[enc.poi.owner])) : 0;
     box.querySelector('h2').textContent = enc.kind === 'assault' ? `Attack ${enc.poi.name}?` : `Armies meet at ${where}`;
     box.querySelector('p').textContent = enc.kind === 'assault'
-      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${folk ? ` Outnumbered, its people will take up tools too: about ${folk} more, weak but many.` : ''}${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
+      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${/^House /.test(ownerOf(enc.poi).name) ? ownerOf(enc.poi).name : ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${folk ? ` Outnumbered, its people will take up tools too: about ${folk} more, weak but many.` : ''}${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
       : `${army.name} (${us} men) has met ${enc.enemy.name} (${them} men).`;
     buttons.push([enc.kind === 'assault' ? 'Storm it' : 'Fight it', () => {
       // A place is fought for in the place itself; armies on the road meet in the open.

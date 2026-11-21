@@ -10,6 +10,8 @@ import { BUILDINGS, ROAD, TEMPLATES, countList } from './economy.js';
 // before the label shows (so a crate on its way doesn't flicker one up).
 const STUCK = /^(No workers|No haulers|Waiting for|Yard full|Store full|Deposit worked out|Game hunted out|No trees left|Nothing left)/;
 const AFTER = 6;
+const FEW = 3;   // more stuck buildings than this fold into one line
+const SUMMARY = {};
 
 export class TownLabels {
   constructor(canvas) {
@@ -36,19 +38,36 @@ export class TownLabels {
       this.v.set(x, y, z).project(camera);
       return this.v.z > 1 ? null : { x: (this.v.x + 1) / 2 * W, y: (1 - this.v.y) / 2 * H };
     };
+    // Past a few, the tags become one line over the keep and a tag only for the building the
+    // pointer rests on (QC round 2: twenty "No workers" over a freshly taken town).
+    const stuck = [];
     if (!town.hostile) for (const b of [town.keep, ...town.buildings]) {
       if (b.state === 'ruined' || b.removed) continue;
       const why = STUCK.test(b.status || '') ? b.status : null;
       if (!why) { b.stuckSince = null; continue; }
       b.stuckSince ??= town.time;
       if (town.time - b.stuckSince < AFTER) continue;
+      stuck.push([b, why]);
+    }
+    const crowded = stuck.length > FEW;
+    const under = crowded && hoverAt ? stuck.map(([b]) => b).filter(b => Math.hypot(b.x - hoverAt.x, b.z - hoverAt.z) < (b.B.radius || 4) + 1.5).sort((p, q) => Math.hypot(p.x - hoverAt.x, p.z - hoverAt.z) - Math.hypot(q.x - hoverAt.x, q.z - hoverAt.z))[0] : null;
+    const put = (key, text, b, cls) => {
       const p = screen(b.x, town.heightAt(b.x, b.z) + (b.B.radius || 4) * 1.4 + 3, b.z);
-      if (!p) continue;
-      let tag = this.tags.get(b);
-      if (!tag) { tag = document.createElement('div'); tag.className = 'stuck'; this.el.appendChild(tag); this.tags.set(b, tag); }
-      if (tag.textContent !== why) tag.textContent = why;
+      if (!p) return;
+      let tag = this.tags.get(key);
+      if (!tag) { tag = document.createElement('div'); this.el.appendChild(tag); this.tags.set(key, tag); }
+      if (tag.className !== cls) tag.className = cls;
+      if (tag.textContent !== text) tag.textContent = text;
       tag.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
-      seen.add(b);
+      seen.add(key);
+    };
+    if (!crowded) for (const [b, why] of stuck) put(b, why, b, 'stuck');
+    else {
+      if (under) put(under, under.status, under, 'stuck');
+      const kinds = new Map();
+      for (const [, why] of stuck) { const k = why.match(STUCK)[0].toLowerCase(); kinds.set(k, (kinds.get(k) || 0) + 1); }
+      const list = [...kinds].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k, n]) => `${n} ${k}`).join(', ');
+      put(SUMMARY, `${stuck.length} places stuck: ${list}. Point at one to see why`, town.keep, 'stuck sum');
     }
     for (const [b, tag] of this.tags) if (!seen.has(b)) { tag.remove(); this.tags.delete(b); }
     this.showTip(town, hoverAt, placing, screen, roadFrom);

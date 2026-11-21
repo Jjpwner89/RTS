@@ -27,3 +27,10 @@ wire('alerts', 'alerts-folded', 'h4', el => {
 });
 // Your realm: only when the panel shows the realm (a selected place has its own panel).
 wire('wpanel', 'realm-folded', 'h3', el => el.classList.toggle('is-realm', el.firstElementChild?.tagName === 'H3' && el.firstElementChild.textContent === 'Your realm'));
+
+// The help opens short: the campaign and the three things to do first. The rest of how the
+// game works is behind "More" (QC round 2: about 1,500 words before the first click).
+document.getElementById('help-more')?.addEventListener('click', e => {
+  const help = document.getElementById('help'), on = help.classList.toggle('show-more');
+  e.currentTarget.textContent = on ? 'Less ▴' : 'More: how everything works ▾';
+});

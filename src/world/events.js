@@ -165,7 +165,7 @@ EVENTS.tournament = {
         return `${who} wins the tournament! 200 gold, the realm's applause, and four knights who saw it ride home to serve you.`;
       }
       hurt();
-      return `${who} is unhorsed in the third course. The purse goes elsewhere.`;
+      return `${who} is unhorsed in the third course. The purse goes elsewhere.${who === 'You' ? ' You are bruised and cannot ride with an army for five minutes.' : ''}`;
     };
     return [
       { label: e.champ ? `Send Captain ${e.champ.name} (50 gold)` : 'No captain to send', ok: () => !!e.champ && gold() >= 50, why: e.champ ? null : 'None of your captains is free to ride',

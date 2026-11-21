@@ -185,3 +185,24 @@ body.campaign.mode-town #info, body.town #info { max-height: calc(100vh - 180px)
 #wpanel.is-realm.folded > :not(h3, [data-f="rank"], [data-f="realm"]) { display: none; }
 #wpanel.is-realm.folded { padding-bottom: 8px; }
 #alerts.folded h4 small { display: none; }
+.town-labels .stuck.sum { font-weight: 600; }
+
+/* The orders bar in a village in a small window (QC round 2): wrap it and keep it inside the
+   window; below 800 wide there is no room beside the build bar, so it rides under the folded stock strip. */
+body.town #orders, body.campaign.mode-town #orders { flex-wrap: wrap; justify-content: center; max-width: calc((100vw - 16px) / var(--hud) - 8px); }
+@media (max-width: 800px) {
+  body.town #orders, body.campaign.mode-town #orders, body.campaign.mode-town.has-defences #orders { left: 8px; right: 8px; transform: none; max-width: none; top: 226px; bottom: auto !important; }   /* hud.js sets bottom inline */
+}
+
+/* What a right-click would do (ui/orderhint.js): a slip at the pointer, red when it is a fight or a risk. */
+#ordertip { position: fixed; z-index: 58; display: none; max-width: 300px; padding: 4px 10px; pointer-events: none;
+  background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: 0 0 0 1px #4a3018, 0 3px 10px rgba(0, 0, 0, .35);
+  color: var(--ink); font: 600 13px/1.3 var(--body-font); }
+#ordertip.show { display: block; }
+#ordertip.warn { color: var(--seal); border-left: 4px solid var(--seal); }
+
+/* The help opens short; the rest sits behind More (ui/fold.js). */
+#help { max-height: calc(100vh - 88px); overflow-y: auto; }
+#help .more { display: none; }
+#help.show-more .more { display: block; }
+#help #help-more { margin: 6px 0; width: 100%; }

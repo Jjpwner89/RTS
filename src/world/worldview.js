@@ -588,18 +588,23 @@ export class WorldView {
   // The army or place under a screen point (canvas pixels). A name label you point at
   // is what you meant, even where another place's model is nearer (QC audit, 2026-11-21);
   // off the labels, the nearest model wins, armies first.
-  pick(x, y) {
+  // `only`: a kind to the exclusion of the rest ('place' looks past an army marker).
+  pick(x, y, only = null) {
     const o = this.labelsEl.getBoundingClientRect();
     let best = null, bd = Infinity;
     for (const s of this.screen || []) {
-      if (!s.el || s.el.style.display === 'none') continue;
+      if (!s.el || s.el.style.display === 'none' || (only && s.kind !== only)) continue;
       const r = s.el.getBoundingClientRect();
       if (x < r.left - o.left || x > r.right - o.left || y < r.top - o.top || y > r.bottom - o.top) continue;
-      if (s.kind === 'army' && best?.kind !== 'army') best = s;
-      else if (!best) best = s;
+      // Armies win over places; between overlapping labels the one whose centre is nearest the pointer does.
+      const near = Math.hypot((r.left + r.right) / 2 - o.left - x, (r.top + r.bottom) / 2 - o.top - y);
+      if (s.kind === 'army' && best?.kind !== 'army') { best = s; bd = near; }
+      else if (!best || (s.kind === best.kind && near < bd)) { best = s; bd = near; }
     }
     if (best) return best;
+    bd = Infinity;
     for (const s of this.screen || []) {
+      if (only && s.kind !== only) continue;
       const d = Math.hypot(s.x - x, s.y - y) - (s.kind === 'army' ? 20 : 0);
       if (d < s.r && d < bd) { bd = d; best = s; }
     }

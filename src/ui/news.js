@@ -41,6 +41,8 @@ export function tick(w) {
   }
   for (const el of sealed) if (!want.has(el)) { el.classList.remove('is-new'); sealed.delete(el); }
   for (const el of want) { el.classList.add('is-new'); sealed.add(el); }
+  // Never over a decision: while a card, the deploy bar or the help is open, the line waits.
+  if (first && [...document.querySelectorAll('#prompt, #result, #end, #deploy, #help, #terms, #duel, #realm')].some(visible)) first = null;
   if (!first) { slip.classList.remove('show'); shown = null; return; }
   const [key, el] = first;
   if (shown !== key) {

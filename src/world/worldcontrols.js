@@ -66,8 +66,9 @@ export class WorldControls {
     if (e.button === 0) this.drag = { kind: 'pan', x: e.clientX, y: e.clientY, cx: this.cam.x, cz: this.cam.z, moved: false };
     if (e.button === 1) { e.preventDefault(); this.drag = { kind: 'rotate', x: e.clientX, yaw: this.cam.yaw, moved: true }; }
     if (e.button === 2) {
-      const hit = this.view.pick(...this.local(e));
-      if (hit && hit.kind === 'place') this.hooks.order(hit.it);
+      // An army marker over a place doesn't swallow the order: it goes to the place under it.
+      const hit = this.view.pick(...this.local(e), 'place');
+      if (hit) this.hooks.order(hit.it);
     }
   }
 
@@ -76,6 +77,9 @@ export class WorldControls {
     if (!d) {
       const hit = e.target === this.dom ? this.view.pick(...this.local(e)) : null;
       this.dom.style.cursor = hit ? 'pointer' : 'default';
+      // What a right-click here would do (ui/orderhint.js), said before it is done.
+      const at = hit ? (hit.kind === 'place' ? hit : this.view.pick(...this.local(e), 'place')) : null;
+      this.hooks.hint?.(at ? at.it : null, e.clientX, e.clientY);
       return;
     }
     // The button came up somewhere that swallowed the mouseup (a panel): the drag is over.
