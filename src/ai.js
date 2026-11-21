@@ -526,6 +526,14 @@ export function thinkSiegeDefence(battle, side, { regs = null } = {}) {
 // are inside, the town's own raid and assault logic takes them back. Call once a second.
 export function thinkTownSiege(town) {
   const b = town.battle, W = b.walls;
+  // Every defender dead or gone and an assault still at the walls: the last of the people open the
+  // gates. Without this a host with no way through stone walls stood outside for good, the place
+  // empty and never taken (the league host at Ashley Castle: its ram lost, 1,000 s idle). Once a second.
+  const assault = town.attackers.some(g => !g.leaving && (g.mode === 'assault' || g.mode === 'siege') && g.regs.some(r => usable(r)));
+  if (assault && !town.lost && !b.regs.some(r => r.side === 0 && !r.gone && r.alive > 0)) {
+    town.emptyFor = (town.emptyFor || 0) + 1;
+    if (town.emptyFor >= 15) { town.event('Nobody is left to hold the walls: the gates are opened to the enemy.', 1); town.ruin(town.keep); return; }
+  } else town.emptyFor = 0;
   if (!W.structures().some(s => s.side === 0 && s.state === 'up')) {
     for (const g of town.attackers) for (const r of g.regs) if (r.ai === 'siege' && !r.engine) r.ai = null;
     return;
