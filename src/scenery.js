@@ -79,6 +79,7 @@ export function groundMaterial(land = null) {
       .replace('#include <common>', `#include <common>
 varying vec3 vWPos; varying vec3 vWN;
 uniform float uTime, uExtent, uFrost; uniform vec3 uGrass; uniform sampler2D uMask; uniform vec2 uHomeA, uHomeB;
+float gGrass = 1.;   // how much of the ground here is grass, for its bump (below)
 uniform sampler2D tgrass, tearth, ttrack, tsoil, trock; uniform vec3 mgrass, mearth, mtrack, msoil, mrock;
 ${NOISE}
 // a texture's detail at p: its colour over its average, partly greyed so the palette keeps its hue
@@ -109,6 +110,7 @@ vec3 dtl(sampler2D t, vec3 m, vec2 p, float sat) { vec3 d = texture2D(t, p).rgb 
   float rk = smoothstep(.16, .32, slope + (lvn(p * .2) - .5) * .12);
   float ledge = .82 + .18 * smoothstep(.2, .8, fract(vWPos.y * .45 + lvn(p * .15) * 1.5));
   col = mix(col, vec3(.5, .49, .45) * ledge * dtl(trock, mrock, p / 11., .7), rk);
+  gGrass = (1. - rk) * (1. - bare * .7);
 #ifdef LAND
   vec4 mk = texture2D(uMask, p / (2. * uExtent) + .5);
   // Fields: furrows round the nearest keep; ploughed earth, ripe grain or young green.
@@ -135,12 +137,24 @@ vec3 dtl(sampler2D t, vec3 m, vec2 p, float sat) { vec3 d = texture2D(t, p).rgb 
     col = mix(col, kerbs, kerb * .95);
     col = mix(col, stone, pave);
   }
+  gGrass *= (1. - smoothstep(.55, .95, mk.g)) * (1. - wear) * max(0., 1. - pave - kerb);
 #endif
   // Cloud shadows drift over the land.
   col *= 1. - smoothstep(.42, .68, lfbm((p + uTime * vec2(3.5, 1.2)) * .006)) * .28;
   // A warmer, slightly softer grade so the greens don't go lime.
   col = mix(vec3(dot(col, vec3(.3, .59, .11))), col, .9) * vec3(1.02, .99, .93);
   diffuseColor.rgb = col;
+}`)
+      // Near the camera the grass has a little relief: the photographed grass's own light and dark as a bump.
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  float bnear = (1. - smoothstep(25., 110., length(cameraPosition - vWPos))) * gGrass;
+  if (bnear > .01) {
+    vec2 q = vWPos.xz / 3.3, e = vec2(1. / 512., 0.);
+    float h0 = dot(texture2D(tgrass, q).rgb, vec3(.33)), hx = dot(texture2D(tgrass, q + e.xy).rgb, vec3(.33)), hz = dot(texture2D(tgrass, q + e.yx).rgb, vec3(.33));
+    vec3 tilt = vec3(h0 - hx, 0., h0 - hz) / max(.05, dot(mgrass, vec3(.33))) * 1.6 * bnear;
+    normal = normalize(normal + (viewMatrix * vec4(tilt, 0.)).xyz);
+  }
 }`);
   };
   return mat;
