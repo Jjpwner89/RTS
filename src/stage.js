@@ -2,6 +2,7 @@
 // How it all looks (light, haze, sky, the quality setting, the finishing pass) is look.js.
 import * as THREE from 'three';
 import { LOD } from './models.js';
+import { TREE_LOD } from './nature.js';
 import { look, onQuality, guessQuality, lightScene, prepare, mountPicture, Post, SUN_DIR, PALETTE } from './look.js';
 
 export function createStage(canvas) {
@@ -44,6 +45,7 @@ export function createStage(canvas) {
     renderer.shadowMap.type = q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     shadowSize = q.shadow;
     if (q.far) LOD.far = q.far;
+    if (q.trees) TREE_LOD.near = q.trees;
     resize();
     renderer.shadowMap.needsUpdate = true;
   }

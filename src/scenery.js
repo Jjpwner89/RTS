@@ -353,7 +353,9 @@ export function treeMaterial() {
   treeMat.onBeforeCompile = sh => {
     sh.uniforms.uTime = TIME;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vUp;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vUp;\nattribute float aLeaf;')
+      // each tree's own green tints its leaves (aLeaf 1), not its bark
+      .replace('#include <color_vertex>', '#include <color_vertex>\nvColor.xyz = mix(color.xyz, vColor.xyz, aLeaf);')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 vUp = position.y;
 { vec4 wp = instanceMatrix * vec4(0., 0., 0., 1.);

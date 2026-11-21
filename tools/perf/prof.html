@@ -63,6 +63,8 @@ f.onload = async () => {
       old: () => { const u = Q === 'medium' ? set('msaa', 4) : () => {}; const was = w.__LOD.far; w.__LOD.far = 1e6; return () => { u(); w.__LOD.far = was; }; },
       oldm600: () => { const u = [EX.old(), keepOnly(600)]; return () => u.forEach(f => f()); },
       oldm300: () => { const u = [EX.old(), keepOnly(300)]; return () => u.forEach(f => f()); },
+      treesFar: () => { const T = w.__TREE, was = T.near; T.near = 0.01; return () => T.near = was; },
+      treesNear: () => { const T = w.__TREE, was = T.near; T.near = 1e6; return () => T.near = was; },
       farShadow: () => { const l = Object.values(G.view.meshes).filter(m => m.far).flatMap(m => [m.far.gear, m.far.cloth]); l.forEach(m => m.castShadow = true); return () => l.forEach(m => m.castShadow = false); },
       noshadow: () => set('shadow', 0),
       nopost: () => set('post', false),
@@ -88,9 +90,12 @@ f.onload = async () => {
     // a census of what is drawn: top-level children with triangle counts
     const census = [];
     for (const c of scene.children) { let tris = 0, meshes = 0, inst = 0, shadow = 0; c.traverse(o => { if (o.isMesh && o.visible) { meshes++; const g = o.geometry; const n = (g.index ? g.index.count : g.attributes.position?.count || 0) / 3 * (o.isInstancedMesh ? o.count : 1); tris += n; if (o.isInstancedMesh) inst++; if (o.castShadow) shadow += n; } }); census.push({ name: c.name || c.type, meshes, inst, ktris: Math.round(tris / 1000), kshadow: Math.round(shadow / 1000) }); }
+    // a camera on the wood's edge nearest the left of the field: the tree there is its target
+    const woodsCam = () => { let best = null; const v = new w.__THREE.Vector3(), mm = new w.__THREE.Matrix4(); scene.traverse(o => { if (!o.isInstancedMesh || !o.geometry.attributes.aLeaf) return; for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, mm); v.setFromMatrixPosition(mm); const d = Math.hypot(v.x + 120, v.z - 120); if (!best || d < best.d) best = { d, x: v.x, z: v.z }; } }); return best ? { x: best.x + 12, z: best.z, dist: 42, yaw: 1.2 } : null; };
     const tri = g => (g.index ? g.index.count : g.attributes.position.count) / 3;
     w.__THREE = await w.eval("import('three')");
-    w.__LOD = (await w.eval("import(new URL('../../src/models.js', location).href)")).LOD;
+    w.__LOD = (await w.eval("import(new URL('src/models.js', document.baseURI).href)")).LOD;   // (the battle page's own module)
+    w.__TREE = (await w.eval("import(new URL('src/nature.js', document.baseURI).href)")).TREE_LOD;
     const menCensus = () => Object.entries(G.view.meshes).map(([k, m]) => `${k.split('|')[0]}: full ${m.gear.count}x${Math.round(tri(m.gear.geometry) + tri(m.cloth.geometry))}` + (m.light ? ` light ${m.light.gear.count}x${Math.round(tri(m.light.gear.geometry) + tri(m.light.cloth.geometry))}` : '') + (m.far ? ` far ${m.far.gear.count}` : '') + (m.anim ? ' anim' : '')).join('; ');
     const men = () => G.battle.soldiers.filter(s => s.alive && !s.gone).length;
     await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
@@ -109,7 +114,7 @@ f.onload = async () => {
       for (let i = 0; i < 10; i++) { const t = performance.now(); r.render(st.current(), st.camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); sync.push(performance.now() - t); await sleep(0); }
       rec.syncMin = +Math.min(...sync).toFixed(2);
       (SUM[e] = SUM[e] || []).push(rec);
-      if (P.get('shots') && k === 0) for (const [nm, c] of [['wide', null], ['mid', { dist: 70 }], ['near', { dist: 38 }]]) {
+      if (P.get('shots') && k === 0) for (const [nm, c] of [['wide', null], ['mid', { dist: 70 }], ['near', { dist: 38 }], ['woods', woodsCam()]]) {
         const cam = G.controls.cam, keep = { ...cam }; if (c) Object.assign(cam, c); G.controls.update(0.016); await sleep(300);
         r.render(st.current(), st.camera); const cv = r.domElement, c2 = document.createElement('canvas'); c2.width = 1024; c2.height = Math.round(1024 * cv.height / cv.width);
         c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height); const blob = await new Promise(res => c2.toBlob(res, 'image/jpeg', 0.88));
