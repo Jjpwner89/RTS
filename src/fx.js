@@ -532,8 +532,9 @@ export class Fx {
 
   // ---- the world map (from worldview.js) ----
 
-  // Smoke over places under attack or siege, a clash where armies meet, a burst in the new owner's colour
+  // Smoke over places under attack or siege, dust where armies meet, a plume in the new owner's colour
   // when a place changes hands, dust where a battle's cairn is raised, and a ring where you send an army.
+  // Nothing here flickers or glows: the map is read alongside panels, so it only drifts and fades.
   world(w, colourOf) {
     const dt = this.tick(w.time);
     const first = !this.worldSeen;
@@ -559,10 +560,9 @@ export class Fx {
       this.owners.set(p, shown);
       const y = H(p.x, p.z);
       if (!first && was !== undefined && shown !== undefined && was !== shown) {
-        const colour = new THREE.Color(colourOf(shown));
+        const colour = new THREE.Color(colourOf(shown)).lerp(COL.white, 0.45);   // a pale tint of their colour
         this.ring(colourOf(shown), p.x, p.z, 60, { life: 2, from: 0.2 });
-        this.ring(colourOf(shown), p.x, p.z, 36, { life: 1.6, from: 0.1, delay: 0.3 });
-        for (let i = 0; i < 40 * Q.rate + 8; i++) this.glow.add(p.x + rnd(-6, 6), y + 20, p.z + rnd(-6, 6), rnd(-8, 8), rnd(14, 26), rnd(-8, 8), rnd(1.4, 2.4), 1.2, 0.3, 1, i % 3 ? colour : COL.gold, 14, 0.4);
+        for (let i = 0; i < 14 * Q.rate + 4; i++) this.puffs.add(p.x + rnd(-10, 10), y + rnd(10, 20), p.z + rnd(-10, 10), rnd(-2, 2), rnd(4, 7), rnd(-2, 2), rnd(3, 4.5), 3, 10, 0.4, colour, 0, 0.5, 1, 1.4);
       }
       if (dt <= 0 || !p.visible || far(p.x, p.z, 1100)) continue;
       // Battle smoke: a dark column over a place being stormed, raided or starved.
@@ -570,17 +570,15 @@ export class Fx {
         if (Math.random() < dt * 5 * Q.rate + dt) {
           this.puffs.add(p.x + rnd(-14, 14), y + rnd(8, 18), p.z + rnd(-14, 14), rnd(1, 3), rnd(5, 9), rnd(-1, 1), rnd(6, 9), 4, 16, 0.6, COL.warsmoke, -0.3, 0.1, 1, 1.3);
         }
-        if (Math.random() < dt * 4 * Q.rate) this.flames(p.x + rnd(-10, 10), y + 6, p.z + rnd(-10, 10), 4, 1);
       }
     }
-    // Armies met in the field: dust and the flash of blades between them while you choose.
+    // Armies met in the field: dust rising between them while you choose.
     const enc = w.encounter;
     if (enc && dt > 0) {
       const at = enc.poi && enc.kind === 'assault' ? enc.poi : enc.enemy ? { x: (enc.army.x + enc.enemy.x) / 2, z: (enc.army.z + enc.enemy.z) / 2 } : enc.army;
       if (at && !far(at.x, at.z, 1100)) {
         const y = H(at.x, at.z);
         if (Math.random() < dt * 6 * Q.rate + dt) this.puffs.add(at.x + rnd(-12, 12), y + 2, at.z + rnd(-12, 12), rnd(-2, 2), rnd(2, 4), rnd(-2, 2), rnd(3, 5), 3, 11, 0.5, COL.dust, 0, 0.6, 0.8);
-        if (Math.random() < dt * 8 * Q.rate) this.glow.add(at.x + rnd(-8, 8), y + 5, at.z + rnd(-8, 8), rnd(-6, 6), rnd(4, 9), rnd(-6, 6), 0.35, 0.8, 0.2, 1, COL.spark, 20, 1);
       }
     }
     // A cairn newly raised where a field battle was fought.
