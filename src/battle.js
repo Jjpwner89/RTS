@@ -406,6 +406,7 @@ export class Battle {
       if (hidden && cover) { r.hiddenAt = this.time; r.ambushed = false; }
       r.seen = !hidden;
       r.unseen = hidden && r.side !== this.viewer;
+      r.hiddenBy = hidden ? (cover ? 'woods' : this.weather) : null;   // for its card (doingLabel)
     }
   }
 
@@ -2932,7 +2933,7 @@ export class Battle {
     if (r.burnBridge) return 'Burning the bridge';
     if (r.swim) return 'Swimming';
     if (r.mine && !r.mine.done && !r.mine.lost) return r.mine.side === r.side ? `Digging a mine ${Math.floor(r.mine.progress * 100)}%` : 'Counter-mining';
-    if (r.seen === false) return 'Hidden in the woods';
+    if (r.seen === false) return r.hiddenBy === 'woods' ? 'Hidden in the woods' : r.hiddenBy === 'night' ? 'Unseen in the dark' : `Unseen in the ${r.hiddenBy}`;
     if (r.hold) return 'Holding';
     return '';
   }
