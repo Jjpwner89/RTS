@@ -437,6 +437,9 @@ async function worldChecks(w) {
     say({ temper: 'builder', wars: false, threat: false, prey: false, larder: 1, stage: 2 }, false);
     say({ temper: 'merchant', wars: false, threat: false, prey: true, larder: 10, stage: 1 }, false);
     say({ temper: 'hothead', wars: false, threat: false, prey: true, larder: 10, stage: 1 }, true);
+    // Ambition: a settled house with nothing left to take arms in time, a builder too, but not at once.
+    say({ temper: 'builder', wars: false, threat: false, prey: false, larder: 1, stage: 2, ambition: R.ambitionOf('builder', 3000) }, true);
+    say({ temper: 'raider', wars: false, threat: false, prey: false, larder: 1, stage: 2, ambition: R.ambitionOf('raider', 60) }, false);
     for (const h of FACTIONS) if (h.alive && h.index && !h.bandit && !h.invader && h.ai?.stance && !(h.ai.stance in R.STANCE)) out.push(`${h.name} has stance ${h.ai.stance}`);
     return out;
   });
@@ -1114,8 +1117,8 @@ function pageChecks() {
   results.push({ group, name: 'every file loaded', status: failed.length ? 'fail' : 'pass', detail: sample([...new Set(failed)], 8) });
   // small windows shrink the panels (style.css): the top bar must still fit without scrolling
   const top = document.getElementById('top'), wide = top && top.offsetParent ? top.scrollWidth - top.clientWidth : 0;
-  // a hidden or background tab lays nothing out (the bar measures 0 wide): that can't be measured, so it warns rather than fails
-  const blind = top && top.offsetParent && (document.hidden || !top.clientWidth);
+  // a hidden or background tab lays nothing out (the bar or the window measures 0 wide): that can't be measured, so it warns rather than fails
+  const blind = top && top.offsetParent && (document.hidden || !top.clientWidth || !innerWidth);
   results.push({ group, name: 'the top bar fits the window', status: blind ? 'warn' : wide > 1 ? 'fail' : 'pass', detail: blind ? ["can't measure: page hidden"] : wide > 1 ? [`${wide}px of it scrolls out of sight at ${innerWidth}×${innerHeight}`] : [] });
   // GENRE_BASICS: a greyed button says why. A choice box that doesn't fails; elsewhere it warns for now.
   const mute = [...document.querySelectorAll('button:disabled')].filter(b => b.offsetParent && !b.title && !b.dataset.why && !b.closest('[title]') && b.textContent.trim())
