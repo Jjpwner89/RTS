@@ -1404,10 +1404,11 @@ export class World {
     if (men.length) town.addTroops(men, this.angle(p, p.links[0]));
     recall(this, v, `${p.name} was taken back by you`);
     if (quiet) return true;
-    if (!holdingsOf(this, v).length) v.gone = true;
+    const left = !holdingsOf(this, v).length;
+    if (left) { v.gone = true; v.council = false; v.seat = null; recall(this, v, 'Left your service, landless'); }
     else mark(this, v, -30, `You took ${p.name} back`, 2400);
     for (const o of living(this)) if (o !== v) mark(this, o, -12 * harmWeight(v), `You took ${p.name} from ${v.name}`, 1800);
-    this.log(`You have taken ${p.name} back from ${v.name}.`, 1);
+    this.log(`You have taken ${p.name} back from ${v.name}.${left ? ` It was all they held: ${v.name} has left your service for good.` : ''}`, 1);
     return true;
   }
 
@@ -1513,7 +1514,7 @@ export class World {
         if (!yes && v.title) for (const u of p.garrison || []) u.count *= TITLED.faction;
         p.vassal = null; p.owner = null; p.free = v.name;
       }
-      v.gone = true;
+      v.gone = true; v.council = false; v.seat = null;
       v.rebel = !yes;
       recall(this, v, yes ? 'Released from your service' : 'Rose against you');
     }

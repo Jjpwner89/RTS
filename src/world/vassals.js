@@ -238,6 +238,8 @@ export function factionView(w) {
 // Forgotten marks are dropped, and a vassal who sours enough stops paying. Feuds start
 // and burn out, and the discontented gather into a faction. dt: seconds since last time.
 export function tickVassals(w, dt = 5) {
+  // The departed and the imprisoned sit on no council.
+  for (const v of w.vassals) if ((v.gone || v.prison) && (v.council || v.seat)) { v.council = false; v.seat = null; }
   for (const v of living(w)) {
     v.marks = v.marks.filter(m => m.fade === Infinity || w.time - m.at < m.fade);
     // Older saves: a knack, a named seat for a councillor, no favours yet.
@@ -246,7 +248,7 @@ export function tickVassals(w, dt = 5) {
     v.title ??= 0;
     if (v.council && !v.seat) v.seat = Object.keys(SEATS).find(k => !seatHolder(w, k)) || null;
     if (!v.council) v.seat = null;
-    if (!holdingsOf(w, v).length && !v.landless) { v.gone = true; continue; }
+    if (!holdingsOf(w, v).length && !v.landless) { v.gone = true; v.council = false; v.seat = null; continue; }
     // A want met long enough is a debt of thanks paid; they find something new to want.
     const want = WANTS[v.want];
     if (want?.met(w, v)) {
@@ -461,7 +463,7 @@ export function interact(w, v, act, arg) {
     if (!arg) return { ok: false, text: 'No such place' };
     if (arg.vassal !== v.id) return { ok: false, text: `${v.name} does not hold ${arg.name}` };
     if (!w.revoke(arg)) return { ok: false, text: `${arg.name} is not yours to take back` };
-    return { ok: true, text: `You take ${arg.name} back from ${v.name}.` };
+    return { ok: true, text: `You take ${arg.name} back from ${v.name}.${v.gone ? ` It was all they held: they leave your service for good.` : ''}` };
   }
   if (act === 'pardon') {
     if (!w.pardon(v)) return { ok: false, text: `${v.name} is not in your dungeon` };
@@ -512,7 +514,7 @@ const PETITIONS = {
       const n = 60;
       return { title: `${v.name} asks for help`, text: `A lean year at ${p.name}: the stores are low before the harvest. ${v.name} asks you for ${n} gold to buy grain.`,
         choices: [
-          { label: `Send ${n} gold`, ok: w.houses[0].gold >= n, need: () => w.houses[0].gold < n && `You no longer have ${n} gold to send`, run: () => { w.houses[0].gold -= n; v.gold += n; mark(w, v, 12, 'You helped them through a lean year', 1800); owe(w, v, 'your help in a lean year'); remember(w, v, 'Helped by you through a lean year'); return `${p.name} eats, and ${v.name} owes you for it.`; } },
+          { label: `Send ${n} gold`, ok: w.houses[0].gold >= n, why: `you have ${Math.floor(w.houses[0].gold)}`, need: () => w.houses[0].gold < n && `You no longer have ${n} gold to send`, run: () => { w.houses[0].gold -= n; v.gold += n; mark(w, v, 12, 'You helped them through a lean year', 1800); owe(w, v, 'your help in a lean year'); remember(w, v, 'Helped by you through a lean year'); return `${p.name} eats, and ${v.name} owes you for it.`; } },
           { label: 'They must manage', run: () => { mark(w, v, -8, 'You left them to go hungry', 1200); remember(w, v, 'Refused help in a lean year'); return `${v.name} goes home with nothing.`; } },
         ] };
     },
@@ -563,7 +565,8 @@ function tickPetitions(w) {
   const [id, P] = kinds[Math.floor(w.rand() * kinds.length)];
   const ev = P.make(w, v, p);
   // Checked again when chosen: the purse or the vassal may have changed while it waited.
-  const choices = ev.choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => {
+  // A choice you can't take says why on its face.
+  const choices = ev.choices.map(c => ({ label: (c.ok ?? true) || !c.why ? c.label : `${c.label} (${c.why})`, ok: c.ok ?? true, why: c.ok ?? true ? null : c.why, run: () => {
     const why = v.gone ? `${v.name} is no longer your vassal` : v.prison ? `${v.name} is in your dungeon` : c.need?.();
     if (why) { console.warn(`[vassals] petition ${id} from ${v.name}: ${why}`); w.log(`${why}.`); return `${why}.`; }
     const out = c.run(); w.log(out); return out;

@@ -296,6 +296,7 @@ async function worldChecks(w) {
   await check('one holder per council seat', () => Object.keys(V.SEATS).map(k => [k, kept.filter(v => v.council && v.seat === k)])
     .filter(([, vs]) => vs.length > 1).map(([k, vs]) => `${V.SEATS[k].name}: ${vs.map(v => v.name).join(', ')}`));
   await check('no councillor without a seat', () => kept.filter(v => v.council ? !V.SEATS[v.seat] : v.seat).map(v => `${v.name}: council ${v.council}, seat ${v.seat}`));
+  await check('no departed or imprisoned vassal keeps a seat', () => w.vassals.filter(v => (v.gone || v.prison) && (v.council || v.seat)).map(v => `${v.name}${v.gone ? ' (gone)' : ' (in prison)'}: council ${v.council}, seat ${v.seat}`));
   await check(`favours owed are ${V.FAVOURS} at most`, () => kept.filter(v => bad(v.favours || 0) || v.favours < 0 || v.favours > V.FAVOURS).map(v => `${v.name} owes ${v.favours}`));
   await check('titles are real and named', () => kept.filter(v => !Number.isInteger(v.title ?? 0) || (v.title || 0) < 0 || (v.title || 0) >= V.TITLES.length || !v.name.startsWith(`${V.titleName(v)} `))
     .map(v => `${v.name}: title ${v.title}`));
@@ -388,6 +389,11 @@ async function worldChecks(w) {
       const out = [];
       for (const [sel, what] of [['#stock [data-tax]', 'tax − / +'], ['#stock [data-act="muster"]', 'Muster the militia'], ['#stock [data-act="standdown"]', 'Stand the militia down'], ['#build [data-build]', 'a building to place']])
         if ([...document.querySelectorAll(sel)].some(live)) out.push(`${what} can be clicked`);
+      // Orders go to the selection: nothing of theirs may be selected (QC, 2026-11-21).
+      const C = c.controls, mine = t.battle.regs.filter(r => r.side === 0 && !r.gone), was = [...C.selection];
+      C.setSelection(mine);
+      if (C.selection.size) out.push(`${C.selection.size} of their regiments can be selected and given orders`);
+      C.selection.clear(); for (const r of was) C.selection.add(r);
       return out;
     });
   }

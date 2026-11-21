@@ -35,6 +35,8 @@ body { font-family: var(--body-font); color: var(--ink); }
 button { font-family: var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow, none); }
 button:hover { background: var(--btn-hover); }
 button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #result button, #deploy .go, #terms .yes, #duel .yes, #help-close { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border, var(--btn-border)); }
+/* A choice you can't take looks it, even when it is the first (QC, 2026-11-21). */
+.modal .row button:disabled { background: var(--btn); color: var(--btn-ink); border: var(--btn-border); opacity: 0.5; cursor: default; }
 #cards .card.selected { outline: 2px solid var(--gold); outline-offset: 1px; }
 .card .bar { background: var(--track); }
 .card .strength i { background: var(--strength); }

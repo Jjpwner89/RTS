@@ -231,8 +231,12 @@ export class Controls {
     return !p.behind && p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
   }
 
+  // Orders only ever go to the selection, so a place you may only watch selects nothing:
+  // a vassal's village (campaign.js marks the page readonly while you look round one).
+  get watchOnly() { return this.hooks.watchOnly ? this.hooks.watchOnly() : document.body.classList.contains('readonly'); }
   setSelection(regs, add = false) {
     if (!add) this.selection.clear();
+    if (this.watchOnly) regs = [];
     for (const r of regs) if (r.side === 0 && !r.gone) this.selection.add(r);
     this.hooks.selectionChanged(this.selection);
   }
