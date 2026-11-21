@@ -210,7 +210,7 @@ export class WorldView {
     const trees = plantTrees(world.seed, (x, z) => world.pois.some(p => Math.hypot(x - p.x, z - p.z) < (p.kind === 'crown' ? 175 : 80))
       || world.roads.some(r => nearSegment(x, z, r.a, r.b) < 12) || nearWall(x, z), 0.52, Math.round(6500 * (EXTENT / (WORLD_HALF + 140)) ** 2), EXTENT);
     for (const t of trees.spots) { t.k *= 1.8; t.tall *= 1.8; }
-    drawTrees(this.scene, h, trees);
+    const woods = drawTrees(this.scene, h, trees);
     for (const r of world.roads) this.scene.add(this.road(r.a, r.b));
 
     this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -227,6 +227,7 @@ export class WorldView {
       this.dress(p, o);
     }
     this.fog = this.makeFog();
+    this.fogTrees(woods);
 
     this.columnGeo = columnModel();
     this.armyGeo = new Map();   // each army's figure, by its troops and whether it is ragged
@@ -905,6 +906,30 @@ export class WorldView {
     mesh.renderOrder = 3;
     this.scene.add(mesh);
     return { cv, ctx: cv.getContext('2d'), tex, N, size, key: '' };
+  }
+
+  // Trees stand taller than the wash, so on the map they wear it themselves: a copy of the tree material that fades
+  // each pixel to the wash over it, as the ground under it is (the wash's canvas, sampled where the pixel stands).
+  fogTrees(woods) {
+    const base = woods.children[0]?.material;
+    if (!base) { console.warn('worldview: no trees drawn, so none to put under the fog of war'); return; }
+    const mat = base.clone(), { tex, size } = this.fog;
+    mat.onBeforeCompile = (sh, r) => {
+      base.onBeforeCompile(sh, r);
+      sh.uniforms.uFogMap = { value: tex };
+      sh.uniforms.uFogSize = { value: size };
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uFogSize;\nvarying vec2 vFogUv;')
+        .replace('#include <fog_vertex>', `#include <fog_vertex>
+{ vec4 fw = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+  vFogUv = vec2(fw.x / uFogSize + 0.5, 0.5 - fw.z / uFogSize); }`);   // (the canvas is drawn north up, and flipped)
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D uFogMap;\nvarying vec2 vFogUv;')
+        .replace('#include <tonemapping_fragment>', `{ vec4 wash = texture2D(uFogMap, vFogUv); gl_FragColor.rgb = mix(gl_FragColor.rgb, wash.rgb, wash.a); }
+#include <tonemapping_fragment>`);
+    };
+    mat.customProgramCacheKey = () => 'tree-under-fog';
+    for (const m of woods.children) m.material = mat;
   }
 
   updateFog() {
