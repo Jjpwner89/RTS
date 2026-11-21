@@ -319,4 +319,7 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 @media (max-width: 800px), (max-height: 600px) {
   body:not(.mode-world) #top #strength { white-space: nowrap; max-width: none; font-size: 12px; text-align: left; }
   #strength .long { display: none; } #strength .short { display: inline; }
+  #strength .foe[data-n="0"] { display: none; }   /* no enemy: nothing to say */
 }
+.town-labels .stuck.shy { opacity: 0; pointer-events: none; }
+.town-labels .stuck { transition: opacity .15s; }

@@ -33,6 +33,17 @@ export function stuckKind(status) {
 // One badge style for everything that flags a building (stuck, and the Priority flag).
 export const badge = (k, text) => `<span class="tbadge${k.bad ? ' bad' : ''}${k.prio ? ' prio' : ''}" title="${text}">${ico(k.icon)}</span>`;
 
+// The boxes of the panels a badge must not sit over (client pixels).
+function panelBoxes() {
+  const out = [];
+  for (const n of document.querySelectorAll('#top, #stock, #info, #build, #orders, #cards, #defences, #log > div, #toast.show, .modal.open, #realm:not([hidden]), #help.open')) {
+    if (!n.getClientRects().length) continue;
+    const r = n.getBoundingClientRect();
+    out.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom, owner: n });
+  }
+  return out;
+}
+
 export class TownLabels {
   constructor(canvas) {
     this.canvas = canvas;
@@ -114,24 +125,34 @@ export class TownLabels {
       seen.add(key);
     }
     for (const [b, tag] of this.tags) if (!seen.has(b)) { tag.remove(); this.tags.delete(b); }
-    this.showStrip(stuck.length > FEW ? groups : null);
+    // A badge under a panel, card or news line is hidden rather than drawn over it.
+    const boxes = panelBoxes();
+    for (const tag of this.tags.values()) {
+      const r = tag.getBoundingClientRect(), hit = boxes.some(q => r.left < q.right && r.right > q.left && r.top < q.bottom && r.bottom > q.top);
+      tag.classList.toggle('shy', hit);
+    }
+    this.showStrip(stuck.length > FEW ? groups : null, boxes);
     this.showTip(town, hoverAt, placing, screen, roadFrom);
   }
 
   // The strip: one icon and a count per kind of trouble, red ones first, under the stock panel (or the
   // top bar when that is folded away). A click looks at the next building of that kind.
-  showStrip(groups) {
+  showStrip(groups, boxes = []) {
     const el = this.strip;
     el.hidden = !groups;
     if (!groups) return;
     const list = [...groups].sort((p, q) => !!q[1].kind.bad - !!p[1].kind.bad || q[1].length - p[1].length);
     const html = list.map(([k, g]) => `<button class="tbadge chip${g.kind.bad ? ' bad' : ''}" data-k="${k}" title="${g.length} ${g.length > 1 ? 'places' : 'place'}: ${[...new Set(g.map(b => b.status.toLowerCase()))].slice(0, 2).join('; ')}. Click to look at ${g.length > 1 ? 'each' : 'it'}">${ico(g.kind.icon)}<b>${g.length}</b></button>`).join('');
     if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
-    const o = this.el.getBoundingClientRect(), vis = id => { const n = document.getElementById(id); return n && n.getClientRects().length ? n.getBoundingClientRect() : null; };
-    const s = vis('stock'), t = vis('top');
-    const x = s ? s.left : 8, y = (s ? s.bottom : t ? t.bottom : 0) + 6;
-    el.style.transform = `translate(${Math.round(x - o.left)}px, ${Math.round(y - o.top)}px)`;
+    const o = this.el.getBoundingClientRect(), rect = id => { const n = document.getElementById(id); return n && n.getClientRects().length ? n.getBoundingClientRect() : null; };
+    const s = rect('stock'), t = rect('top'), bd = rect('build');
     el.style.maxWidth = Math.max(120, (s ? s.width : 200)) + 'px';
+    const w = el.offsetWidth, h = el.offsetHeight;
+    // Under the stock panel, else beside it, else above the build panel: the first spot that covers nothing.
+    const spots = [[s ? s.left : 8, (s ? s.bottom : t ? t.bottom : 0) + 6], s && [s.right + 6, s.top], bd && [bd.left, bd.top - h - 6]].filter(Boolean);
+    const free = ([x, y]) => x >= 0 && y >= 0 && x + w <= innerWidth && y + h <= innerHeight && !boxes.some(q => x < q.right && x + w > q.left && y < q.bottom && y + h > q.top);
+    const [x, y] = spots.find(free) || spots[0];
+    el.style.transform = `translate(${Math.round(x - o.left)}px, ${Math.round(y - o.top)}px)`;
   }
 
   // What is left in the deposit under the cursor, or in reach of a quarry or mine being placed.
