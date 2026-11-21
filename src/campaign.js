@@ -82,7 +82,12 @@ const bundles = new Map();              // place → its drawn village, made on 
 const hooks = {
   watching: () => (mode === 'town' ? current.poi : null),
   ask: enc => { asks.push({ kind: 'encounter', enc }); },
-  townAttacked: p => { audio.play('horn'); if (!(mode === 'town' && current.poi === p)) asks.push({ kind: 'alarm', poi: p }); }, // audio: horn
+  townAttacked: p => {
+    audio.play('horn'); // audio: horn
+    // A raid at 4× can be over in six real seconds: drop to 1× and say so (QC round 3).
+    if (speed > 1) { speed = 1; flash(`${p.name} is attacked: the game drops to normal speed.`); }
+    if (!(mode === 'town' && current.poi === p)) asks.push({ kind: 'alarm', poi: p });
+  },
   fell: p => {
     if (mode === 'town' && current.poi === p) showWorld();
     dropBundle(p);
