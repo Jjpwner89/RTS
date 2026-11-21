@@ -26,8 +26,9 @@ const UP = new THREE.Vector3(0, 1, 0);
 // line doesn't look pasted on the field: an oval reaching away from the sun about as far as his shadow would (a
 // disc right under him would hide behind his own legs). One instanced flat square with a round fading alpha,
 // drawn without writing depth.
-const SHADE = new THREE.Vector3(-SUN_DIR.x, 0, -SUN_DIR.z).normalize();
-const SHADE_LEN = 1 / Math.tan(Math.asin(SUN_DIR.y));   // metres of shadow for each metre of height
+// (the sun moves with the time of day, look.js: SHADE follows it each frame)
+const SHADE = new THREE.Vector3();
+let SHADE_LEN = 1;   // metres of shadow for each metre of height, at most three
 function blobMesh(capacity) {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -713,6 +714,8 @@ export class BattleView {
     this.syncBanners();
     const cam = LOD.camera?.position;
     this.blobs.count = 0;
+    SHADE.set(-SUN_DIR.x, 0, -SUN_DIR.z).normalize();
+    SHADE_LEN = Math.min(3, 1 / Math.tan(Math.asin(SUN_DIR.y)));
     for (const key in this.meshes) {
       const m = this.meshes[key], { gear, cloth, list, darkened } = m;
       const counts = { full: 0, light: 0, far: 0 };

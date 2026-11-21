@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fbm, rng } from './noise.js';
-import { SKY, look } from './look.js';
+import { SKY, SEASON, look } from './look.js';
 
 // Seconds, shared by every material that moves (grass, water, clouds).
 export const TIME = { value: 0 };
@@ -70,7 +70,7 @@ export function groundMaterial(land = null) {
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const uniforms = { uTime: TIME, uMask: { value: land?.tex || null }, uExtent: { value: land?.extent || 1 },
     uHomeA: { value: new THREE.Vector2(land?.homes[0]?.x || 0, land?.homes[0]?.z || 0) },
-    uHomeB: { value: new THREE.Vector2(land?.homes[1]?.x ?? 0, land?.homes[1]?.z ?? 1e5) }, ...groundTextures() };
+    uHomeB: { value: new THREE.Vector2(land?.homes[1]?.x ?? 0, land?.homes[1]?.z ?? 1e5) }, ...groundTextures(), ...SEASON };
   if (land) { mat.defines = { LAND: '' }; mat.userData.mask = land.tex; mat.userData.land = land; mat.userData.uniforms = uniforms; }
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, uniforms);
@@ -78,7 +78,7 @@ export function groundMaterial(land = null) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vWPos; varying vec3 vWN;
-uniform float uTime, uExtent; uniform sampler2D uMask; uniform vec2 uHomeA, uHomeB;
+uniform float uTime, uExtent, uFrost; uniform vec3 uGrass; uniform sampler2D uMask; uniform vec2 uHomeA, uHomeB;
 uniform sampler2D tgrass, tearth, ttrack, tsoil, trock; uniform vec3 mgrass, mearth, mtrack, msoil, mrock;
 ${NOISE}
 // a texture's detail at p: its colour over its average, partly greyed so the palette keeps its hue
@@ -96,6 +96,9 @@ vec3 dtl(sampler2D t, vec3 m, vec2 p, float sat) { vec3 d = texture2D(t, p).rgb 
   col *= mix(vec3(.84, .93, .86), vec3(1.12, 1.06, .9), smoothstep(.3, .75, lfbm(p * .0035 + 41.)));
   col *= .9 + .2 * lfbm(p * .09 + 3.1);
   col *= dtl(tgrass, mgrass, p / 3.3, .6) * mix(vec3(1.), dtl(tgrass, mgrass, p / 21. + .37, .5), .6);
+  // the season (look.js): spring green, summer gold, autumn rust, winter pale with frost
+  col *= uGrass;
+  col = mix(col, vec3(dot(col, vec3(.3, .59, .11))) * vec3(1.3, 1.34, 1.42), uFrost);
   // Bare earth showing through in worn hollows, grass breaking up its edges.
   vec3 earthD = dtl(tearth, mearth, p / 4.6, .8);
   float bare = smoothstep(.65, .82, lfbm(p * .035 + 9.) + (earthD.g - 1.) * .12);
@@ -334,6 +337,13 @@ function grassMaterial() {
   swayMat = new THREE.MeshLambertMaterial({ vertexColors: true });
   swayMat.onBeforeCompile = sh => {
     sh.uniforms.uTime = TIME;
+    Object.assign(sh.uniforms, SEASON);
+    // the grass's season, as on the ground
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGrass; uniform float uFrost;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+diffuseColor.rgb *= uGrass;
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(.3, .59, .11))) * vec3(1.3, 1.34, 1.42), uFrost);`);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>

@@ -28,7 +28,8 @@ function startQuality() {
   return { name: 'medium', chosen: false };
 }
 const start = startQuality();
-export const look = { quality: start.name, chosen: start.chosen, get q() { return QUALITY[this.quality]; } };
+// clock: the campaign's seconds (campaign.js sets it), which turn the seasons and the day (below)
+export const look = { quality: start.name, chosen: start.chosen, get q() { return QUALITY[this.quality]; }, clock: null };
 export const quality = () => look.quality;
 const listeners = new Set();
 // f(name, settings) whenever the setting changes; returns a function that stops listening.
@@ -68,6 +69,71 @@ const WEATHER = {
   fog: { zenith: '#aab3b2', horizon: '#c4c9c4', haze: '#c4c9c4', light: 0.55, hemi: 1.1, cloud: 0.7, near: 15, far: 210, sunTint: '#f3ecdf', grade: 0.4 },
   night: { zenith: '#0b1222', horizon: '#1c2738', haze: '#182233', light: 0.12, hemi: 0.3, cloud: 0.4, near: 40, far: 330, sunTint: '#9fb4dd', grade: 0.8 },
 };
+
+// ---- the year and the day ----
+// On the campaign's clock a year is 1200 seconds (world.js season) and a day DAY seconds. Without a clock (a
+// battle on its own) nothing turns: late spring at midday, as the game always looked.
+export const YEAR = 1200, DAY = 150;
+// The grass's season, for the ground and the grass tufts (scenery.js): a tint and how much winter frost pales it.
+export const SEASON = { uGrass: { value: new THREE.Color(1, 1, 1) }, uFrost: { value: 0 } };
+// The leaves' season, for trees (terrain.js): a tint for broadleaves (pines keep theirs) and whether birches are bare.
+// (step changes whenever they do)
+export const year = { leaf: new THREE.Color(1, 1, 1), bare: false, step: -1 };
+// at the middle of spring, summer, autumn and winter
+const SEASONS = [
+  { leaf: [0.92, 1.08, 0.86], grass: [0.95, 1.06, 0.92], frost: 0 },
+  { leaf: [1.08, 1.02, 0.76], grass: [1.17, 1.03, 0.70], frost: 0 },
+  { leaf: [1.62, 0.72, 0.36], grass: [1.12, 0.92, 0.70], frost: 0.08 },
+  { leaf: [0.86, 0.88, 0.86], grass: [0.92, 0.95, 0.97], frost: 0.5 },
+];
+function turnYear(t) {
+  const f = ((t % YEAR) + YEAR) % YEAR / YEAR, step = Math.floor(f * 240);   // a step every five seconds
+  if (step === year.step) return;
+  year.step = step;
+  const x = f * 4 - 0.5, i = (Math.floor(x) + 4) % 4, k = x - Math.floor(x), w = k * k * (3 - 2 * k);
+  const A = SEASONS[i], B = SEASONS[(i + 1) % 4], mix = (a, b) => a.map((v, j) => v + (b[j] - v) * w);
+  year.leaf.setRGB(...mix(A.leaf, B.leaf));
+  SEASON.uGrass.value.setRGB(...mix(A.grass, B.grass));
+  SEASON.uFrost.value = A.frost + (B.frost - A.frost) * w;
+  year.bare = Math.floor(f * 4) === 3;
+}
+
+// The day, through the weather: the sun's strength (i) and colour, the sky's light (hemi), the sky and haze, and
+// how high the sun stands (degrees). Dawn and dusk are warm and low; the night is moonlit and never dark enough to
+// hide a regiment. d: 0 midnight, 0.5 noon. Keys without colours keep the weather's own.
+const DAYKEYS = [
+  { d: 0, i: 0.42, sun: '#a9bde0', hemi: 0.8, zenith: '#2e4366', horizon: '#7d8b9c', haze: '#7f8c99', elev: 34 },
+  { d: 0.22, i: 0.78, sun: '#ffc29a', hemi: 0.88, zenith: '#7f97ba', horizon: '#efcfb2', haze: '#e0cdbb', elev: 11 },
+  { d: 0.32, i: 1, hemi: 1, elev: 24 },
+  { d: 0.5, i: 1, hemi: 1, elev: 38 },
+  { d: 0.68, i: 1, hemi: 1, elev: 30 },
+  { d: 0.8, i: 0.74, sun: '#ffad78', hemi: 0.84, zenith: '#6d7fa8', horizon: '#e9b391', haze: '#d9b9a0', elev: 10 },
+  { d: 1, i: 0.42, sun: '#a9bde0', hemi: 0.8, zenith: '#2e4366', horizon: '#7d8b9c', haze: '#7f8c99', elev: 34 },
+];
+const AZIMUTH = Math.atan2(SUN_DIR.z, SUN_DIR.x), tmp = new THREE.Color();
+// the campaign starts in the morning
+export const dayOf = t => ((t / DAY + 0.3) % 1 + 1) % 1;
+function turnDay(s, t) {
+  const L = s.userData.look, d = dayOf(t), step = Math.floor(d * 1200);
+  if (step === L.dayStep && L.dayWeather === L.weather) return;
+  L.dayStep = step; L.dayWeather = L.weather;
+  const j = DAYKEYS.findIndex(k => k.d > d), A = DAYKEYS[j - 1], B = DAYKEYS[j], k = (d - A.d) / (B.d - A.d), w = k * k * (3 - 2 * k);
+  const num = key => A[key] + (B[key] - A[key]) * w;
+  // a colour from the keys, each falling back to the weather's own; a dull sky takes only some of the day's colour
+  const B0 = L.base, wc = L.weather === 'clear' ? 1 : 0.35;
+  const col = (key, out, base) => out.copy(tmp.set(A[key] || base).lerp(new THREE.Color(B[key] || base), w)).lerp(base, 1 - wc);
+  L.sun.intensity = B0.sunI * num('i');
+  col('sun', L.sun.color, B0.sun);
+  L.hemi.intensity = B0.hemiI * num('hemi');
+  const u = L.sky.material.uniforms;
+  col('zenith', u.uZenith.value, B0.zenith);
+  col('horizon', u.uHorizon.value, B0.horizon);
+  col('haze', s.fog.color, B0.haze);
+  s.background.copy(u.uHorizon.value);
+  const e = THREE.MathUtils.degToRad(num('elev'));
+  SUN_DIR.set(Math.cos(AZIMUTH) * Math.cos(e), Math.sin(e), Math.sin(AZIMUTH) * Math.cos(e));
+  u.uSun.value.copy(SUN_DIR); SKY.uSunDir.value.copy(SUN_DIR);
+}
 
 // ---- the sky ----
 // A dome round the camera: blue overhead fading to the haze at the horizon, a glow round
@@ -125,6 +191,8 @@ export const SKY = { uZenith: { value: PALETTE.zenith.clone() }, uHorizon: { val
 export function prepare(s) {
   const L = s.userData.look;
   if (!L) return;
+  const t = look.clock?.();
+  if (t != null) { turnYear(t); if (L.weather !== 'night') turnDay(s, t); }
   const u = L.sky.material.uniforms;
   SKY.uZenith.value.copy(u.uZenith.value); SKY.uHorizon.value.copy(u.uHorizon.value);
   SKY.uSunCol.value.copy(L.sun.color); SKY.uSunI.value = L.sun.intensity / PALETTE.sunI;
@@ -168,6 +236,9 @@ export function setWeather(s, kind) {
   L.hemi.color.set(P.skyLight); L.hemi.groundColor.set(P.groundLight);
   L.weather = kind;
   L.grade = W.grade;
+  // what the day turns from (turnDay); a night's weather is its own night and the day leaves it be
+  L.base = { sunI: L.sun.intensity, sun: L.sun.color.clone(), hemiI: L.hemi.intensity, zenith: u.uZenith.value.clone(), horizon: u.uHorizon.value.clone(), haze: s.fog.color.clone() };
+  L.dayStep = -1;
 }
 
 // ---- the finishing pass ----
@@ -343,4 +414,4 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
   for (const q of qualities) out[q] = { gpuMinMs: low(gpu[q]), gpuMs: med(gpu[q]), gpuP90Ms: p90(gpu[q]), cpuMs: med(cpu[q]), ...info[q] };
   return out;
 }
-if (typeof window !== 'undefined') window.look = { bench, quality, setQuality, setWeather, look, QUALITY, GRADE, PALETTE };
+if (typeof window !== 'undefined') window.look = { bench, quality, setQuality, setWeather, look, QUALITY, GRADE, PALETTE, SEASON, year, dayOf };

@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fbm, rng } from './noise.js';
 import { groundMaterial, treeMaterial, tick } from './scenery.js';
-import { TREES, TREE_LOD, paint, nearAndFar } from './nature.js';
+import { TREES, TREE_LOD, paint, bare, nearAndFar } from './nature.js';
+import { year } from './look.js';
 
 export const HALF = 250;          // playable area is -HALF..HALF on x and z
 const EXTENT = 380;               // mesh reaches past the edge so fog hides the border
@@ -119,6 +120,9 @@ function treeKinds() {
 }
 const TONES = { oak: [0.29, 0.36, 0.21], pine: [0.38, 0.32, 0.18], birch: [0.23, 0.38, 0.33] };
 
+const bares = new Map();
+const bareOf = g => { if (!bares.has(g)) bares.set(g, bare(g)); return bares.get(g); };
+
 // Pines gather in their own stands, birches at the edges of broadleaf woods.
 function kindOf(t) {
   const r = fbm(t.x * 0.008, t.z * 0.008, 17, 2) + (t.hue - 0.3) * 3;
@@ -136,10 +140,19 @@ export function drawTrees(scene, heightAt, trees) {
     q.setFromAxisAngle(up, t.x * 12.9898 + t.z * 78.233);
     s.set(t.k, t.tall, t.k);
     p.set(t.x, heightAt(t.x, t.z) - 0.2, t.z);
-    return { t, x: t.x, y: p.y, z: t.z, hidden: !t.standing, matrix: m.compose(p, q, s).toArray(),
-      color: new THREE.Color().setHSL(h + (t.hue - 0.29) * 0.8, sa + (t.light - 0.26) * 1.2, l + (t.light - 0.26) * 0.9), near: pick(K.near, 1), far: pick(K.far, 2) };
+    const near = pick(K.near, 1), far = pick(K.far, 2), green = new THREE.Color().setHSL(h + (t.hue - 0.29) * 0.8, sa + (t.light - 0.26) * 1.2, l + (t.light - 0.26) * 0.9);
+    return { t, kind, x: t.x, y: p.y, z: t.z, hidden: !t.standing, matrix: m.compose(p, q, s).toArray(), green, color: green.clone(), near, far,
+      ...(kind === 'birch' ? { nearAlt: bareOf(near), farAlt: bareOf(far) } : {}) };
   });
-  const set = nearAndFar(scene, items, treeMaterial(), () => TREE_LOD.near);
+  // the seasons (look.js): broadleaves take the year's colour, pines keep theirs, and birches stand bare in winter
+  let seen = -1;
+  const season = () => {
+    if (year.step === seen) return;
+    seen = year.step;
+    for (const a of items) { if (a.kind !== 'pine') a.color.copy(a.green).multiply(year.leaf); a.alt = year.bare; }
+    set.dirty();
+  };
+  const set = nearAndFar(scene, items, treeMaterial(), () => TREE_LOD.near, season);
   trees.onFell = () => { for (const a of items) a.hidden = !a.t.standing; set.dirty(); };
   return set.group;
 }

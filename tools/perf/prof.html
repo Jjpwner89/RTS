@@ -104,7 +104,7 @@ f.onload = async () => {
     await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, blobs: G.view.blobs?.count, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
     const SUM = {};
     for (let k = 0; k < ROUNDS; k++) for (const e of EXPS) {
-      const kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed await sleep(1200);
+      const at = e.match(/^at:(\d+)$/), kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = at ? (L => { L.clock = () => +at[1]; return () => L.clock = null; })(w.look.look) : kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed; at:600: the campaign clock stopped at 600 s (look.js seasons and day) await sleep(1200);
       for (const key in T) delete T[key]; gpuMs.length = 0;
       r.info.autoReset = true;
       const times = []; let last = performance.now();
@@ -121,7 +121,7 @@ f.onload = async () => {
         const cam = G.controls.cam, keep = { ...cam }; if (c) Object.assign(cam, c); G.controls.update(0.016); await sleep(300);
         r.render(st.current(), st.camera); const cv = r.domElement, c2 = document.createElement('canvas'); c2.width = 1024; c2.height = Math.round(1024 * cv.height / cv.width);
         c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height); const blob = await new Promise(res => c2.toBlob(res, 'image/jpeg', 0.88));
-        await fetch(`http://127.0.0.1:8732/prof-${e}-${nm}.jpg`, { method: 'PUT', body: blob }); Object.assign(cam, keep); G.controls.update(0.016);
+        await fetch(`http://127.0.0.1:8732/prof-${e.replace(/[^\w.-]/g, '_')}-${nm}.jpg`, { method: 'PUT', body: blob }); Object.assign(cam, keep); G.controls.update(0.016);
       }
       if (P.get('verbose')) await post({ e, round: k, fps: +(n / (times.reduce((a, b) => a + b, 0) / 1000)).toFixed(1), cpuMsPerFrame: per, gpuMs: s.length ? +s[s.length >> 1].toFixed(2) : null, gpuN: s.length, calls: r.info.render.calls, ktris: Math.round(r.info.render.triangles / 1000), men: men() });
       undo();

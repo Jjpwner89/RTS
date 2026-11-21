@@ -70,15 +70,30 @@ try {
   console.warn('Tree models did not load; using the built-in shapes.', e);
 }
 
+// A model's bark and branches alone: a birch in winter.
+export function bare(geo) {
+  const leaf = geo.attributes.aLeaf, keep = [];
+  for (let i = 0; i < geo.attributes.position.count; i += 3) if (leaf.getX(i) < 0.5) keep.push(i, i + 1, i + 2);
+  const g = new THREE.BufferGeometry();
+  for (const [k, a] of Object.entries(geo.attributes)) {
+    const out = new Float32Array(keep.length * a.itemSize);
+    keep.forEach((v, j) => { for (let c = 0; c < a.itemSize; c++) out[j * a.itemSize + c] = a.array[v * a.itemSize + c]; });
+    g.setAttribute(k, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  return g;
+}
+
 // Things drawn in one model near the camera and another farther off (trees), each in `mat`: one instanced
 // mesh per model, and before each frame through a perspective camera, once it has moved a few metres, every thing
 // goes again into its near or its far model's mesh. items: [{ x, y, z, matrix (16 numbers), color, near, far
-// (geometries), hidden }]; near(): the distance in metres. Returns the group of meshes and dirty(), to call after
-// hiding or showing one. (scene.onBeforeRender runs before anything is drawn, so a frame sees its own placing.)
-export function nearAndFar(scene, items, mat, near) {
+// (geometries), hidden }], and optionally nearAlt, farAlt (geometries) for while `alt` is set (a bare birch);
+// near(): the distance in metres; before(), if given, runs first each time. Returns the group of meshes and dirty(),
+// to call after hiding or showing one, recolouring or setting alt. (scene.onBeforeRender runs before anything is
+// drawn, so a frame sees its own placing.)
+export function nearAndFar(scene, items, mat, near, before = null) {
   const group = new THREE.Group();
   const room = new Map();
-  for (const a of items) for (const g of new Set([a.near, a.far])) room.set(g, (room.get(g) || 0) + 1);
+  for (const a of items) for (const g of new Set([a.near, a.far, a.nearAlt, a.farAlt].filter(Boolean))) room.set(g, (room.get(g) || 0) + 1);
   const meshes = new Map([...room].map(([geo, n]) => {
     const x = new THREE.InstancedMesh(geo, mat, n);
     x.castShadow = x.receiveShadow = true;
@@ -88,7 +103,7 @@ export function nearAndFar(scene, items, mat, near) {
     group.add(x);
     return [geo, x];
   }));
-  for (const a of items) { a.near = meshes.get(a.near); a.far = meshes.get(a.far); }
+  for (const a of items) for (const k of ['near', 'far', 'nearAlt', 'farAlt']) if (a[k]) a[k] = meshes.get(a[k]);
   let dirty = true, cx = 1e9, cy = 0, cz = 0, was = 0;
   const place = cam => {
     const near2 = near() ** 2;
@@ -97,16 +112,17 @@ export function nearAndFar(scene, items, mat, near) {
     for (const x of group.children) x.count = 0;
     for (const a of items) {
       if (a.hidden) continue;
-      const x = (a.x - cx) ** 2 + (a.y - cy) ** 2 + (a.z - cz) ** 2 < near2 ? a.near : a.far, i = x.count++;
+      const close = (a.x - cx) ** 2 + (a.y - cy) ** 2 + (a.z - cz) ** 2 < near2;
+      const x = a.alt && a.nearAlt ? (close ? a.nearAlt : a.farAlt) : close ? a.near : a.far, i = x.count++;
       x.instanceMatrix.array.set(a.matrix, i * 16);
       x.setColorAt(i, a.color);
     }
     for (const x of group.children) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; }
   };
-  const before = scene.onBeforeRender;
+  const chain = scene.onBeforeRender;
   scene.onBeforeRender = function (renderer, sc, camera, ...rest) {
-    before.call(this, renderer, sc, camera, ...rest);
-    if (camera.isPerspectiveCamera && group.parent) place(camera.position);
+    chain.call(this, renderer, sc, camera, ...rest);
+    if (camera.isPerspectiveCamera && group.parent) { before?.(); place(camera.position); }
   };
   scene.add(group);
   return { group, dirty: () => { dirty = true; } };

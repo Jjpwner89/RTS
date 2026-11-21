@@ -1,6 +1,7 @@
 // The campaign: one world map, and a zoom into any place on it. Your villages are the
 // full village game; meetings on the road and attacks on other places become field
 // battles you fight (or auto-resolve). URL option: ?seed=123 for a fixed map.
+import { look } from './look.js';
 import { createStage } from './stage.js';
 import { TownLabels } from './townlabels.js';
 import { showOrderHint } from './ui/orderhint.js';
@@ -134,6 +135,7 @@ const hooks = {
   choice: ev => { audio.play(String(ev.id).startsWith('petition') ? 'petition' : 'scroll'); asks.push({ kind: 'choice', ev }); }, // audio
 };
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
+look.clock = () => world.time;   // the seasons and the day turn on the campaign's clock (look.js)
 
 // A lord's words or big news, shown for a while at the top without stopping the game.
 const heraldQueue = [];
