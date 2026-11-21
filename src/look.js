@@ -230,8 +230,11 @@ export function prepare(s) {
   if (!L) return;
   const t = look.clock?.();
   if (t != null) turnYear(t);
-  if (L.weather === 'night') L.night = L.sky.material.uniforms.uNight.value = 1;
-  else if (t != null) turnDay(s, t);
+  if (L.weather === 'night') {
+    L.night = L.sky.material.uniforms.uNight.value = 1;
+    // a night-weather battle gets the same moon boost turnDay gives a campaign night, on top of its own darkness
+    if (L.battle) { L.sun.intensity = L.base.sunI + PALETTE.sunI * 0.33; L.hemi.intensity = L.base.hemiI + PALETTE.hemiI * 0.45; }
+  } else if (t != null) turnDay(s, t);
   else L.night = L.sky.material.uniforms.uNight.value = 0;
   NIGHT.value = L.night;
   const u = L.sky.material.uniforms;
