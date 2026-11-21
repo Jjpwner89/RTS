@@ -270,10 +270,19 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   }
   // A mine under a stone stretch, one at a time, when there is foot to spare: slow, but it
   // brings the wall down. The defenders may hear it and dig it out.
-  if (!prepare && !inside && foot.length >= 3 && !battle.mines.some(m => m.side === side && !m.done && !m.lost)) {
+  // With nothing else left to make a way in (the ram lost, no ladders, no throwers), any foot
+  // dig, and a stretch whose mine the defenders broke into is dug again (Ashley Castle stood
+  // ten minutes once its ram fell at the stone gate).
+  const rams = engines.some(r => r.engine.kind === 'ram');
+  const climbing = ladders.length || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length && r.alive >= r.engine.per);
+  const throwing = engines.some(r => r.engine.range);
+  const stuck = !rams && !climbing && !throwing;
+  if (!prepare && !inside && (foot.length >= 3 || stuck && foot.length) && !battle.mines.some(m => m.side === side && !m.done && !m.lost)) {
     const mined = st.mined ||= [];
     const byNear = [...pieces].sort((a, b) => Math.hypot(a.x - army.cx, a.z - army.cz) - Math.hypot(b.x - army.cx, b.z - army.cz));
-    const stone = [breach, ...byNear].find(p => p && p.material === 'stone' && !p.gate && p.len > 5 && !mined.includes(p));
+    const can = p => p && p.material === 'stone' && !p.gate && p.len > 5;
+    const lost = p => battle.mines.some(m => m.side === side && m.piece === p && m.lost);
+    const stone = [breach, ...byNear].find(p => can(p) && !mined.includes(p)) || (stuck && [breach, ...byNear].find(p => can(p) && lost(p)));
     const digger = stone && (foot.find(r => !r.posts && !r.targetWall && (r.T.key === 'militia' || r.T.key === 'spear')) || foot.find(r => !r.posts && !r.targetWall));
     if (digger) { battle.orderMine([digger], stone); st.mined.push(stone); }
   }
@@ -339,13 +348,20 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   // battered half down is worth rushing at once.
   st.waited = (st.waited || 0) + 1;
   // Engines that have had two minutes and got nowhere stop holding the men back.
-  const working = ladders.length || st.waited < 120 && (engines.some(r => r.engine.kind === 'ram')
-    || engines.some(r => r.engine.kind === 'ladder' && !r.engine.ladders.length && r.alive >= r.engine.per));
-  const throwing = engines.some(r => r.engine.range);
+  const working = ladders.length || st.waited < 120 && (rams || climbing && !ladders.length);
   const weak = gate && gate.hp < gate.maxHp * 0.35;
-  // Never by hand at a stone gate that still stands: swords barely mark it, and the men die under it.
-  if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20) && gate.material !== 'stone'))) {
+  // Not by hand at a stone gate that still stands while anything else could make a way in:
+  // swords barely mark it, and the men die under it. With nothing else left and no mine to dig,
+  // the axes are all there is; standing out of bowshot for ever is worse.
+  const digging = battle.mines.some(m => m.side === side && !m.done && !m.lost);
+  const lastResort = stuck && !digging && st.waited > 60;
+  if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20) && (gate.material !== 'stone' || lastResort)))) {
+    if (gate.material === 'stone' && !weak && !st.axes) { st.axes = true; battle.event(side, side ? 'With no ram left, the enemy set about the stone gate with axes.' : 'With no ram left, our men set about the stone gate with axes.'); }
     for (const r of foot) if (!r.posts && !r.mine && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
+  } else if (stuck && !digging && !gate && !foot.length && !st.warned) {
+    st.warned = true;
+    console.warn('thinkSiegeAttack: no ram, ladder, thrower, mine or foot left to make a way in');
+    battle.event(side, side ? 'The enemy has nothing left to break the walls with.' : 'We have nothing left to break the walls with.');
   }
   // Horse guards the engines against sallies, else waits.
   for (const r of horse) {
