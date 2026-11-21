@@ -2486,7 +2486,12 @@ export class Battle {
     const start = this.gStart, items = this.gItems;
     for (const s of this.soldiers) {
       if (!live(s) || s.climb > 0) continue;
-      const sm = s.reg.T.mounted, rs = sm ? 1.1 : 0.55, lvl = s.level;
+      const sm = s.reg.T.mounted, rs = sm ? 1.1 : 0.55, lvl = s.level, R = s.reg;
+      // A man planted where he stands (striking at a foe, a spear braced as view.js shows it, a rider
+      // in the melee) plays no step for a shove: he gives a little along the way he faces and hardly
+      // at all across it, so his feet don't skate under the strike or brace.
+      const planted = !!s.target || (R.T.braces && (R.formation === 'square' || R.hold || R.engaged > 0) && s.v < 0.4);
+      const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
       const x0 = Math.max(0, Math.floor((s.x - 2.4 + GSPAN) / CELL)), x1 = Math.min(GN - 1, Math.floor((s.x + 2.4 + GSPAN) / CELL));
       const z0 = Math.max(0, Math.floor((s.z - 2.4 + GSPAN) / CELL)), z1 = Math.min(GN - 1, Math.floor((s.z + 2.4 + GSPAN) / CELL));
       for (let cz = z0; cz <= z1; cz++) for (let c = cz * GN + x0, e = cz * GN + x1; c <= e; c++) {
@@ -2499,8 +2504,10 @@ export class Battle {
           const d = Math.sqrt(d2), push = (min - d) * (lvl === 1 ? 0.15 : 0.25);
           // Horses shove infantry aside more than the other way round.
           const w = sm && !om ? 0.3 : !sm && om ? 1.7 : 1;
-          s.x += dx / d * push * w;
-          s.z += dz / d * push * w;
+          let px = dx / d * push * w, pz = dz / d * push * w;
+          if (planted) { const a = px * fx + pz * fz; px = fx * a * 0.5 + (px - fx * a) * 0.15; pz = fz * a * 0.5 + (pz - fz * a) * 0.15; }
+          s.x += px;
+          s.z += pz;
         }
       }
     }
