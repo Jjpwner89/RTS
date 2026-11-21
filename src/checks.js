@@ -445,6 +445,11 @@ async function worldChecks(w) {
   // Nobody stands stuck at a wall on their way to work (playtest round 3: builders 5 m short of a knights' hall).
   await check('no villager has stood stuck for half a minute on the way to a door', () =>
     w.pois.flatMap(p => (p.town?.villagers || []).filter(v => v.stuckK && v.stuckK.t > 30 && v.state !== 'soldier').map(v => `${p.name}: at ${Math.round(v.x)}, ${Math.round(v.z)}`)));
+  // A site isn't left without builders while someone else has a job to spare (playtest round 3b:
+  // a carpenter's site waited eleven minutes because every villager was busy).
+  await check('no building site has waited long for builders while a hand could be spared', () =>
+    w.pois.flatMap(p => (p.town?.buildings || []).filter(b => b.state === 'site' && !b.builders.length && b.lacked > 90 && !p.town.underAttack && p.town.leastNeeded(b))
+      .map(b => `${p.name}: the ${b.kind} site has waited ${Math.round(b.lacked)} s`)));
   // A petition you can't afford lights up when the purse fills while it waits (QC, 2026-11-21).
   // Nothing is chosen; the purse is put back.
   await check("a petition's cost is read live", () => {

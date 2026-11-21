@@ -61,6 +61,8 @@ export const RESERVE = { wood: 20, planks: 25 };
 export const WOOD_FIRST = 36;
 const CLEAR_TIME = 25;
 const CRAFT_SOUND = { carpenter: 'saw', bowyer: 'saw', smelter: 'smith', weaponsmith: 'smith', armourer: 'smith' };   // audio: the rest hammer
+// A site nobody comes to build for this long takes a hand from the job the village misses least.
+const BUILDER_WAIT = 30;
 export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers, and a hearth that burns a little wood. Newcomers come for food, a good mood and the village\'s name.' },
@@ -852,6 +854,7 @@ export class Town {
   release(v) {
     if (v.job) v.job.workers = v.job.workers.filter(o => o !== v);
     for (const b of this.buildings) b.builders = b.builders.filter(o => o !== v);
+    v.lent = null;
     this.cancelHaul(v);
     v.job = null;
     v.site = null;
@@ -1462,6 +1465,7 @@ export class Town {
     this.mendWalls(dt);
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
+    this.lendBuilders(dt);
     this.updatePeople(dt);
     this.updateAttacks(dt);
   }
@@ -1660,6 +1664,47 @@ export class Town {
     if (best) { best.workers.push(v); v.job = best; v.state = 'work'; v.task = null; }
   }
 
+  // A site nobody has come to build for BUILDER_WAIT seconds takes a hand from the job the village
+  // misses least, and gives them back when it is done (playtest round 3b: a carpenter's site waited
+  // eleven minutes because every villager had a job). The last farmer, hunter or woodcutter is never taken.
+  lendBuilders(dt) {
+    for (const s of this.buildings) {
+      if (s.state !== 'site' || s.removed) continue;
+      if (s.builders.length) { s.lacked = 0; continue; }
+      s.lacked = (s.lacked || 0) + dt;
+      if (s.lacked < BUILDER_WAIT || this.underAttack || this.hostile) continue;
+      const v = this.leastNeeded(s);
+      if (!v) continue;
+      const from = v.job;
+      this.release(v);
+      s.builders.push(v); v.state = 'build'; v.job = null; v.site = s; v.lent = from;
+      const name = from.B.name.toLowerCase();
+      s.lentFrom = name;
+      s.status = `Builders taken from the ${name}`;
+      this.event(`The ${s.B.name.toLowerCase()} had nobody to build it: a hand was taken from the ${name}, and goes back when it is done.`);
+    }
+  }
+
+  // The villager whose job matters least to the village now (null when everyone is needed).
+  leastNeeded(site) {
+    const jobs = [this.keep, ...this.buildings].filter(b => b.state === 'active' && b.B.jobs && b.workers.length);
+    const sum = pred => jobs.reduce((n, b) => n + (pred(b) ? b.workers.length : 0), 0);
+    const food = sum(b => b.B.gather?.out?.food), wood = sum(b => b.B.gather?.out?.wood), haul = sum(b => b.B.haul);
+    let best = null, bs = Infinity;
+    for (const b of jobs) {
+      const n = b.workers.length, gath = b.B.gather, idleish = !gath && !b.B.haul && /^(Waiting|Village has enough|Saving|Store full)/.test(b.status || '');
+      let score;
+      if (b.B.haul) { if (haul <= 1) continue; score = 1; }
+      else if (gath?.out?.food) { if (food <= 1 || this.hungry) continue; score = 5; }
+      else if (gath?.out?.wood) { if (wood <= 1) continue; score = 2; }
+      else score = idleish ? 0 : 3;
+      // Spare hands at a building first, then the nearest one to the site.
+      score += -n * 0.1 + dist(b, site) / 10000;
+      if (score < bs) { bs = score; best = b; }
+    }
+    return best ? best.workers[best.workers.length - 1] : null;
+  }
+
   // Builders can only get as far as the materials on site allow. When more are needed
   // and nobody is bringing them, they fetch them themselves.
   delivered(b) {
@@ -1688,7 +1733,7 @@ export class Town {
     if (b.progress >= ready - 1e-6) return;
     v.phase += dt * 6;
     b.progress = Math.min(ready, b.progress + dt / b.B.build);
-    b.status = 'Under construction';
+    b.status = b.lentFrom ? `Under construction: builders taken from the ${b.lentFrom}` : 'Under construction';
     audio.tick('hammer', b, dt, 1.5, this.battle); // audio
     if (b.progress >= 1 - 1e-6) {
       b.progress = 1;
@@ -1700,8 +1745,13 @@ export class Town {
       const crew = b.builders;
       b.builders = [];
       for (const o of crew) { o.state = 'idle'; o.site = null; }
-      // Builders stay on as the first workers.
-      for (const o of crew) if (b.B.jobs && b.workers.length < this.staffed(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
+      // Hands taken from their jobs go back first; the rest stay on as the first workers.
+      for (const o of crew) {
+        const j = o.lent;
+        o.lent = null;
+        if (j && !j.removed && j.state === 'active' && !j.paused && j.workers.length < this.staffed(j)) { j.workers.push(o); o.job = j; o.state = 'work'; o.task = null; }
+      }
+      for (const o of crew) if (!o.job && b.B.jobs && b.workers.length < this.staffed(b)) { b.workers.push(o); o.job = b; o.state = 'work'; o.task = null; }
       this.event(`${b.B.name} finished.`);
       this.onBuilt?.(b);
       audio.play('built', b, this.battle); // audio
