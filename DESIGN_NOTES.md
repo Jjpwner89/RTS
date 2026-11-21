@@ -565,7 +565,15 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
 
   - Passive at minute 110: it fell on seeds 7 and 21. On seed 91 it holds its seat with 10 men, at war with Varn, but no enemy army or place is within 400. Varn there is poor (4 places, 101 men, 1,424 gold) and the strong houses are far off.
   - The engaged bot fields 190 men at 60, 280–350 at 90 and 400–490 at 120. On seeds 7 and 91 it runs at break-even from minute 60 and is held by its purse: men stood down unpaid 36–58 times. Seed 21 banks 10,900 by minute 120 from four market towns.
-  - No house declared war on the engaged bot by minute 120 (before: minutes 28, 99 and 98). Its 350–480 men by minute 90–110 make every house's prey score low. Not yet broken down by preyScore inputs.
+  - No house declared war on the engaged bot by minute 120 (before: minutes 28, 99 and 98). The sims' "peaceful" bot is this engaged bot (30 men a place, a field army that marches).
+- **The opening still holds.** With the draft fix, Varn (a raider) declares on the passive player at minutes 13.7–14.8, when it reaches its second stage. But no house army comes within 150 of Ashford before minute 28 (Wyndham's raiders on seed 21), minute 30 (Varn's raiders on seed 7), or by minute 30 at all on seed 91. Before minute 20 only outlaws raid Ashford, at minutes 5–7 and 13–15.
+- **Why no house makes war on the engaged player** (rivals.js thinkWars, the two nearest houses, seeds 7, 21 and 91). A war needs score × the temper's war factor > 0.6, so the bar is 0.46 for a raider and 0.75 for a merchant.
+  - At minute 60, on seeds 21 and 91, it is honest deterrence. The player scores 0.07–0.46, below the bar, because the houses field 8–58 men against defences of 70–212 (weak 0.03–0.46).
+  - At minute 60 on seed 7, and at minute 90 on every seed, the player is above the bar for every one of these houses (1.25–4.54). Two things keep them off:
+    - Every house is at its limit of wars: one at a time, two for a raider or hothead past its first stage. Each is at war with other houses, wars the leagues feed. On seed 7 at minute 90, Penhallow is building, not arming.
+    - When a war ends, thinkWars takes the best place of any neighbour. Another house's nearly empty place scores 3.5–9.8 (defence 0–32), against 1.2–4.5 for the player's.
+  - Grudges, claims and a full purse play no part: their factors are 1 throughout (the player stays under 5,000 gold). The bigger-neighbour factor (×1.6) applies once: Varn on seed 21 at minute 90, with 2 places to the player's 4.
+  - Note: `field` counts a house's kit in store (`h.arms`) as men, in thinkWars and chooseStance. Varn's 281 at minute 90 on seed 7 includes 218 sets of kit.
 
 ## Test campaigns (built 2026-11-20)
 
