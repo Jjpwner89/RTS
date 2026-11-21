@@ -255,8 +255,8 @@ async function worldChecks(w) {
     return sample(out);
   });
 
-  // The map draws walls round a place from its kind (worldview.js cityWall); its numbers
-  // (eco.walls) and a storm decide them another way. They must agree.
+  // The map draws each place from its layout (places.js, worldview.js miniature); its numbers
+  // (eco.walls) say whether it is walled. They must agree.
   await check('walled places have walls on the map', async () => {
     const view = window.game.worldView, out = [];
     const { buildingModel } = await import('./models.js');
@@ -264,7 +264,8 @@ async function worldChecks(w) {
     const wallGeos = new Set(['wall.stone', 'wall.wood', 'gate.stone', 'gate.wood'].map(buildingModel).filter(Boolean));
     for (const p of w.pois) {
       const o = view.places.get(p);
-      if (!o?.parts || !p.seen) continue;
+      // (the map redraws a place when it is next on screen: one changed since isn't drawn yet)
+      if (!o?.parts || !p.seen || o.look !== view.lookKey(p)) continue;
       let drawn = false;
       o.parts.traverse(m => { if (m.geometry && wallGeos.has(m.geometry)) drawn = true; });
       if (saysWalled(p) && !drawn) out.push(`${p.name} (${p.kind}${p.seat !== undefined ? ', seat' : ''}): ${p.eco?.walls || 'walled by kind'} by its numbers, no walls on the map`);

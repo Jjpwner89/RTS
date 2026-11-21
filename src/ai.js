@@ -156,16 +156,38 @@ export function unwatched(battle, { hold = [false, false], limit = 600, dt = 0.0
 
 // ---- sieges ----
 
-// The inside of a side's walls, roughly: nearer its home than its nearest wall piece.
+// How far a side's walls reach from its home: its farthest wall piece (Infinity with none).
 function wallRadius(battle, side) {
   const h = battle.fortHome(side);
-  let near = Infinity;
-  for (const p of battle.walls.pieces) if (p.side === side) near = Math.min(near, Math.hypot(p.x - h.x, p.z - h.z));
-  return near;
+  let far = -Infinity;
+  for (const p of battle.walls.pieces) if (p.side === side) far = Math.max(far, Math.hypot(p.x - h.x, p.z - h.z));
+  return far === -Infinity ? Infinity : far;
 }
+// Inside a side's walls: nearer its home than the outermost wall (broken or not) on the way
+// out toward (x, z). Walls needn't be round: a town wall can run far out on one side and close
+// in on the other, with a castle's curtain inside it. Where the line out finds a gap, the
+// outermost piece within about 15° of it stands for the wall there.
 const insideOf = (battle, side, x, z) => {
-  const h = battle.fortHome(side);
-  return Math.hypot(x - h.x, z - h.z) < wallRadius(battle, side) - 3;
+  const h = battle.fortHome(side), dx = x - h.x, dz = z - h.z, d = Math.hypot(dx, dz);
+  if (d < 1) return true;
+  const ux = dx / d, uz = dz / d;
+  let out = -Infinity, near = -Infinity, any = false;
+  for (const p of battle.walls.pieces) {
+    if (p.side !== side) continue;
+    any = true;
+    // where the ray from home through (x, z) crosses the piece, if it does
+    const ax = p.a.x - h.x, az = p.a.z - h.z, ex = p.b.x - p.a.x, ez = p.b.z - p.a.z;
+    const den = ux * ez - uz * ex;
+    if (Math.abs(den) > 1e-9) {
+      const t = (ax * ez - az * ex) / den, u = (ax * uz - az * ux) / den;
+      if (t > 0 && u >= -0.02 && u <= 1.02) { out = Math.max(out, t); continue; }
+    }
+    const px = p.x - h.x, pz = p.z - h.z, r = Math.hypot(px, pz);
+    if ((px * ux + pz * uz) / (r || 1) > 0.966) near = Math.max(near, r);
+  }
+  if (!any) return true;
+  const wall = out > -Infinity ? out : near > -Infinity ? near : wallRadius(battle, side);
+  return d < wall - 3;
 };
 
 // The attacking side. regs: the regiments to command. Phases: engines go first, ladders
