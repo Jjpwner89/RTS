@@ -1,5 +1,20 @@
 # RTS roadmap
 
+## North star (the creator, 2026-11-21: read this first)
+
+The mandate: **make the best damn strategy game from this skeleton**, overnight, with wide autonomy.
+
+- **The climb.** It plays like Mount & Blade and its best mods (Prophesy of Pendor): you start very low and climb very high, gaining new mechanics as you rise and leaving behind the loops that held you before. Brutal early, exciting late. Depth runs from as low as possible to as high as possible. **Improving that journey is the key.**
+- **Looks and feel.** The interface, graphical fidelity and animation all matter. The interface should be clear and easy, so that it *enables* the depth instead of suffering from it.
+- **Even priority.** Fix whatever is weakest, in any area.
+- **Freedom.** Cut what isn't working and add what helps, even new setting elements (magic was the creator's example of how free we are, not an order).
+- **Assets.** Free only: we never pay. Find more free assets ourselves.
+  - **3D models and animation**: CC0 finds, or made by us with the rig tools, bakes and code. Never rely on Codex for 3D.
+  - **2D** (event pictures, icons, portraits): if it can't be found free, brief Codex in assets/art/BRIEFS.md. Codex checks there every 20 minutes overnight.
+- **How we build** stays: played by hand in every view, one way of doing each thing, no silent failures, checks() before pushing, then QC, then the Orchestrator. Big calls go in DESIGN_NOTES with their reasons, so the creator can follow in the morning.
+
+First, finish what is half-done: militia, the Realm screen, places (Normoor, the re-lay, the burgh, abbey and mine looks on the map), pace B, the weapon fixes, the storm gate stall, viewer batch 2.
+
 What to build next, agreed with the creator on 2026-11-19 after a review of the core loop against Total War, Stronghold, Manor Lords, Crusader Kings, Bannerlord and Stellaris. The creator approved everything here. [DESIGN_NOTES.md](DESIGN_NOTES.md) stays the home for decisions; move items there as they are built, and strike them from this file.
 
 Each item names the workstream that owns it (see *Workstreams* in DESIGN_NOTES.md). Work runs roughly in the order below; **balance comes first**.
