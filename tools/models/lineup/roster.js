@@ -61,6 +61,7 @@ function aimSun(t, span) {
 const RIGS = {
   q18: { R: 'PalmR', L: 'PalmL', head: 'Head', top: 'Head_end', hips: 'Hips', thighR: 'UpperLegR', thighL: 'UpperLegL', shinR: 'LowerLegR', shinL: 'LowerLegL', armR: 'UpperArmR', armL: 'UpperArmL', shR: 'ShoulderR', shL: 'ShoulderL' },
   qmod: { R: 'Wrist.R', L: 'Wrist.L', foreR: 'LowerArm.R', foreL: 'LowerArm.L', head: 'Head', hips: 'Hips', thighR: 'UpperLeg.R', thighL: 'UpperLeg.L', shinR: 'LowerLeg.R', shinL: 'LowerLeg.L', armR: 'UpperArm.R', armL: 'UpperArm.L', shR: 'Shoulder.R', shL: 'Shoulder.L' },
+  wolf: { head: 'Head', neck: 'Neck3', neckBase: 'Neck1', withers: 'Torso2' },   // (the war dog: bake.js warDog fits its collar)
   kay: { R: 'handslot.r', L: 'handslot.l', head: 'head', hips: 'hips', thighR: 'upperleg.r', thighL: 'upperleg.l', shinR: 'lowerleg.r', shinL: 'lowerleg.l', armR: 'upperarm.r', armL: 'upperarm.l', shR: 'upperarm.r', shL: 'upperarm.l' },
 };
 

@@ -503,10 +503,46 @@ async function lordParty(body, tint) {
 // the shoulders, 'Torso' mid-back, 'Back' over the hips, 'Head' (skin.js WOLF_BONES).
 async function wolf(opts = {}) {
   const SKL = await SK.load();
-  return R.bake('glb', SK.WOLF.file, { clip: 'Idle', time: 0, scale: SKL.wolf.G.elements[0], team: 0, skin: 'wolf', ...opts });
+  return R.bake('glb', SK.WOLF.file, { clip: 'Idle', time: 0, scale: SKL.wolf.G.elements[0], team: 0, skin: 'wolf', rig: 'wolf', ...opts });
 }
-// A big war dog, mastiff-sized: the wolf with a team cloth over its back (Art's look to come: cloth, collar, coat).
-const warDog = () => wolf({ armour: [{ bones: ['Torso', 'Torso2', 'Torso3'], push: 0.02, color: 'team' }] });
+// A big war dog, mastiff-sized: a quilted coat in the team colour over its back and flanks, held on by a leather
+// girth strap, and a broad leather collar ringed with iron spikes, as Norrhold's handlers turn them loose.
+async function warDog() {
+  const f = await wolf({ armour: [
+    { bones: ['Torso', 'Torso2', 'Torso3'], push: 0.03, color: 'team' },
+    { bones: ['Torso2'], push: 0.045, color: '#5a4636' },   // the girth strap, round the middle of the coat
+  ] });
+  const { neck, neckBase, head } = f.bones;
+  if (!neck || !neckBase || !head) { console.warn('bake: the wolf has no neck bones named, so the war dog goes without its collar'); return f; }
+  // the collar sits round the neck at Neck3, square to the neck's line (Neck1 to the head), as wide as the fur there
+  const axis = head.clone().sub(neckBase).normalize(), v = new THREE.Vector3(), radial = [];
+  f.group.traverse(m => {
+    if (!m.isMesh || m.userData.part === 'armour') return;
+    const p = m.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).sub(neck);
+      const t = v.dot(axis);
+      if (Math.abs(t) < 0.035) radial.push(v.addScaledVector(axis, -t).length());
+    }
+  });
+  radial.sort((a, b) => a - b);
+  const r = (radial[Math.floor(radial.length * 0.85)] || 0.11) + 0.012;
+  const collar = new THREE.Group();
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.06, 14, 1, true), plain('#3a2a1e'));
+  band.material.side = THREE.DoubleSide;
+  collar.add(band);
+  for (let i = 0; i < 10; i++) {
+    const a = i / 10 * Math.PI * 2, spike = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.05, 4), plain(STEEL));
+    spike.position.set(Math.sin(a) * (r + 0.02), 0, Math.cos(a) * (r + 0.02));
+    spike.rotation.set(0, a, 0); spike.rotateX(Math.PI / 2);   // pointing straight out from the band
+    collar.add(spike);
+  }
+  collar.position.copy(neck);
+  collar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+  collar.userData.attach = 'Neck3';
+  f.group.add(collar);
+  return f;
+}
 // Fur over the shoulders: a pale shaggy mantle.
 const FUR = { bones: ['ShoulderL', 'ShoulderR', 'Chest', 'UpperArmL', 'UpperArmR'], push: 0.07, color: '#cfc4b0' };
 const MAIL = { bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR', 'Hips'], push: 0.03, color: '#7d848c', metal: true };
