@@ -95,7 +95,9 @@ export class Controls {
     if (down) this.keys.add(key); else this.keys.delete(key);
     if (!down) return;
     if (key === 'enter' && this.battle.deploying) { document.querySelector('#deploy .go')?.click(); return; }
-    if (key === ' ') { e.preventDefault(); this.hooks.togglePause(); }
+    // A toolbar button keeps focus after a click, and the browser would press it again on Space's
+    // key-up, undoing the pause: drop the focus first.
+    if (key === ' ') { e.preventDefault(); if (document.activeElement?.tagName === 'BUTTON') document.activeElement.blur(); this.hooks.togglePause(); }
     if (key === 'h') this.battle.orderHalt([...this.selection]);
     if (key === 'f') this.focus(this.selection);
     if (key === 'escape') document.body.classList.remove('mining');

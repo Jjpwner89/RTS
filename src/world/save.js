@@ -117,7 +117,7 @@ function packTown(t) {
     kind: t.kind,
     keep: { store: t.keep.store, hp: t.keep.hp },
     buildings: t.buildings.map(b => ({ kind: b.kind, x: b.x, z: b.z, state: b.state, progress: b.progress, level: b.level || 1, style: b.style, angle: b.angle,
-      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null, staff: b.staff ?? null, ripeAt: b.ripeAt ?? null })),
+      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null, staff: b.staff ?? null, ripeAt: b.ripeAt ?? null, dry: b.dry ? b.dryWhy : null })),
     people: t.villagers.filter(v => v.state !== 'soldier').length,
     vets: t.villagers.filter(v => v.state !== 'soldier' && v.xp).map(v => v.xp),
     regiments: t.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing).map(r => ({
@@ -160,6 +160,7 @@ function unpackTown(w, p, s) {
     Object.assign(nb, { state: b.state, progress: b.progress, level: b.level, style: b.style, angle: b.angle ?? nb.angle, off: new Set(b.off), paused: b.paused, store: { ...b.store }, hp: b.hp, status: b.status || '', training: b.training || null, policy: b.policy || undefined });
     if (b.staff !== null && b.staff !== undefined) nb.staff = b.staff;
     if (b.ripeAt) nb.ripeAt = b.ripeAt;
+    if (b.dry) { nb.dry = t.time || 1; nb.dryWhy = b.dry; }   // worked out: its people don't go back
   }
   for (let i = 0; i < s.people; i++) {
     const a = t.rand() * Math.PI * 2;

@@ -82,6 +82,8 @@ export class TownLabels {
           text = d.left > 0 ? `${what} (${d.rich ? 'rich' : 'poor'}): ${Math.round(d.left)} of ${d.full} left` : `${what}: worked out`;
         }
       }
+      // A building in hand that can't stand here says why, at the cursor (never a silent red ghost).
+      if (BUILDINGS[placing]) { const c = town.canPlace(placing, at.x, at.z); if (!c.ok) text = text ? `${c.reason} · ${text}` : c.reason; }
     }
     this.tip.hidden = !text;
     if (!text) return;

@@ -2,7 +2,7 @@
 // alert names a place or an army to look at. Worked out fresh from the world's state, so
 // an alert goes away by itself when its trouble does.
 //
-// Levels: 5 a village of yours is being fought in, 4 enemies marching on you or a revolt,
+// Levels: 5 a village of yours is being fought in or going hungry (with why: playtest, 2026-11-21), 4 enemies marching on you or a revolt,
 // 3 hunger and pay, 2 grumbling, 1 good to know, 0 news (buildings finished in the last
 // minute and a half; houses aren't news).
 import { FACTIONS, headcount, seenAs } from './world.js';
@@ -10,6 +10,16 @@ import { foodLeft } from './supply.js';
 import { living, opinion } from './vassals.js';
 
 const SPEED = 6;   // world.js: road speed
+
+// Why a village is short of food, in a few words: mouths against what feeds them.
+function hungerWhy(t) {
+  const makers = t.buildings.filter(b => b.state === 'active' && (b.B.gather?.out?.food || b.B.recipes?.some(r => r.out.bread)));
+  if (!makers.length) return `${t.population} people and nothing growing or hunting food`;
+  const working = makers.filter(b => b.workers.length && !b.dry && !b.paused);
+  const dry = makers.filter(b => b.dry).length, idle = makers.length - working.length - dry;
+  return `${t.population} people, ${working.length} of ${makers.length} food workplaces working` +
+    (dry ? `, ${dry} worked out` : '') + (idle ? `, ${idle} with nobody at them` : '');
+}
 
 const mins = s => s < 60 ? 'under a minute' : `${Math.round(s / 60)} min`;
 
@@ -33,7 +43,9 @@ export function alerts(w) {
     }
     if (t.revolt) add(4, `${p.name} is in revolt`, p, 'warning');
     else if (t.misery > 30) add(3, `${p.name} is close to revolt (mood ${Math.round(t.mood)})`, p, 'people');
-    if (t.hungry) add(3, `${p.name} is running out of food`, p, 'food');
+    if (t.hungry) add(5, `${p.name} is going hungry: ${hungerWhy(t)}`, p, 'food');
+    const dry = t.buildings.filter(b => b.dry && b.state === 'active');
+    if (dry.length) add(2, `${p.name}: ${dry.length > 1 ? `${dry.length} workplaces stand` : `the ${dry[0].B.name.toLowerCase()} stands`} idle, worked out: move or pull down`, p, 'warning');
   }
 
   // Enemy columns you can see, marching on a place of yours.

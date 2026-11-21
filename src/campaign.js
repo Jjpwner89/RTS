@@ -545,6 +545,7 @@ let shown = [];   // the open box's [button, choice] pairs: re-read every frame,
 function nextAsk() {
   for (const [btn, c] of shown) {
     const off = !c.ok, tip = off ? c.why || '' : '';
+    if (btn.textContent !== c.label) btn.textContent = c.label;   // a petition's "(you have N)"
     if (btn.disabled !== off) btn.disabled = off;
     if (btn.title !== tip) btn.title = tip;
   }

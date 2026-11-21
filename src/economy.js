@@ -1580,6 +1580,8 @@ export class Town {
     if (best) { best.builders.push(v); v.state = 'build'; v.job = null; v.site = best; return; }
     for (const b of [this.keep, ...this.buildings]) {
       if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= this.staffed(b)) continue;
+      if (b.dry && this.time - b.dry > 30) b.dry = this.pickSpot(b) ? null : this.time;   // game breeds back
+      if (b.dry) continue;
       const d = dist(v, b);
       if (d < bd) { bd = d; best = b; }
     }
@@ -1650,7 +1652,16 @@ export class Town {
     const t = v.task;
     if (t.phase === 'out') {
       if (!t.spot) t.spot = this.pickSpot(b);
-      if (!t.spot) { b.status = g.game ? 'Game hunted out: it breeds back slowly' : g.node === 'tree' ? 'No trees left in reach' : 'Deposit worked out'; return; }
+      if (!t.spot) {
+        b.status = g.game ? 'Game hunted out: it breeds back slowly' : g.node === 'tree' ? 'No trees left in reach' : 'Deposit worked out';
+        // Nothing left to work (playtest, 2026-11-21: a village starved while its people stood at
+        // dead mines): its workers go and find other work, and nobody is sent back until there
+        // is something to work again (findWork looks every half minute). Said once.
+        if (!b.dry) { b.dry = this.time; b.dryWhy = b.status; this.event(`The ${b.B.name.toLowerCase()} stands idle: ${b.status.toLowerCase()}. Its workers find other work; move it or pull it down.`, 1); }
+        v.task = null;
+        this.release(v);
+        return;
+      }
       if (this.walk(v, t.spot.x, t.spot.z, dt)) { t.phase = 'gather'; t.timer = g.time / this.speed(b); }
     } else if (t.phase === 'gather') {
       t.timer -= dt;
@@ -1822,6 +1833,7 @@ export class Town {
     if (b.B.engines) b.status = Object.keys(ENGINES).some(k => this.engineCheck(k, b).ok) ? 'Ready to build an engine' : 'Waiting for materials';
     if (!b.B.jobs) return;
     if (b.paused) b.status = 'Paused';
+    else if (b.dry) b.status = `${b.dryWhy}: move it or pull it down`;
     else if (!b.workers.length) b.status = 'No workers';
     else if (b.B.haul) b.status = this.haulStatus(b);
     // Damage mends slowly once the raiders are gone.

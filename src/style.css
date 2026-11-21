@@ -459,7 +459,7 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 }
 @media (max-width: 800px), (max-height: 600px) {
   #top { zoom: calc(var(--hud) * 0.88); max-width: calc((100vw - 16px) / var(--hud) / 0.88); }
-  #top #place { max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* the full name is its tooltip */
+  #top #place { flex: none; max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* the full name is its tooltip */
   #deploy { top: calc(62px / var(--hud)); flex-wrap: wrap; justify-content: center; text-align: center; row-gap: 4px; max-width: calc((100vw - 16px) / var(--hud)); }
   #deploy span:not(.left) { flex-basis: 100%; order: 3; }
 }
