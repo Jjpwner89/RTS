@@ -6,7 +6,7 @@ import { HOMES } from './terrain.js';
 import { unitModel, unitLook, hasLevels, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
-import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip } from './anim.js';
+import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -24,17 +24,21 @@ export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
 // routing, cheering a win, braced, marching or standing. `info` is the model's (rig, horse, weapon, shield, rest).
 // A strike or shot is lined up so the blow lands, or the arrow leaves, when the battle says it does: the clip
 // winds up while the man's cooldown runs out and plays on from the moment after (battle.js marks both, `// anim:`).
-// Gaits play at the pace the man covers ground, within reason; a horse's and its rider's share one clock.
+// Gaits are picked and paced by how fast the man covers ground (anim.js gaitFor), so his feet keep pace with it;
+// a horse's and its rider's share one clock. Also read by tools/viewer.html, with a stand-in soldier and battle.
 const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // carried upright on the march
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-function soldierClip(s, b, info, out) {
+const HORSE_TROT = 2.4;   // the stock trot steps short: a horse trots a little quicker than its clip before it gallops
+export function soldierClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
   const dt = clamp(now - (s.animAt ?? now), 0, 0.25);
   s.animAt = now;
   s.animT ??= Math.random() * 3;
   out.hc = null; out.ht = 0;
   const show = (name, t) => { out.c = clipOf(rig, name) || clipOf(rig, info.rest); out.t = t; return out; };
-  const gait = (name, speed, lo = 0.6, hi = 1.7) => { s.animT += dt * (speed ? clamp(s.v / speed, lo, hi) : 1); return show(name, s.animT); };
+  const gait = name => { s.animT += dt; return show(name, s.animT); };
+  // on the move: the slowest of `gaits` that keeps up, at the pace that matches the ground
+  const pace = (gaits, v = s.v) => { const g = gaitFor(rig, gaits, v); s.animT += dt * g.rate; return show(g.name, s.animT); };
   // a one-off action timed on an event of its clip: `since` the battle did it, or `left` until it does
   const timed = (name, ev, since, left) => {
     const c = clipOf(rig, name);
@@ -48,14 +52,15 @@ function soldierClip(s, b, info, out) {
 
   if (info.horse) {
     if (!s.alive) { out.hc = clipOf('horse', 'Idle'); return show('Ride_Idle', 0); }   // he goes down with his horse
-    const pace = s.v < 0.4 ? 'Idle' : s.v < 5 || r.routing ? 'Trot' : 'Gallop';
-    s.animT += dt * (pace === 'Idle' ? 1 : clamp(s.v / (pace === 'Trot' ? 3 : 6), 0.6, 1.6));
+    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', ['Trot', 'Gallop'], s.v, HORSE_TROT), pace = g.name;
+    s.animT += dt * g.rate;
     out.hc = clipOf('horse', pace); out.ht = s.animT;
     const lance = info.weapon === 'lance';
     if (close && lance) { s.couchAt ??= now; return show('Ride_Couch', now - s.couchAt); }
     s.couchAt = null;
     if (!lance) { const k = timed('Ride_Slash', 'sword-contact', now - (s.struckAt ?? -99), close ? s.cd : null); if (k) return k; }
-    if (lance && pace === 'Gallop' && ((T.charge && !s.charged) || now < r.chargeUntil)) return show('Ride_Charge', s.animT);
+    // the lance comes down for the charge: galloping at a foe with the charge still in him, or ordered to
+    if (lance && pace === 'Gallop' && ((T.charge && !s.charged && s.target) || now < r.chargeUntil)) return show('Ride_Charge', s.animT);
     return show('Ride_' + pace, s.animT);
   }
 
@@ -71,11 +76,11 @@ function soldierClip(s, b, info, out) {
     k = timed(...shot, now - (s.shotAt ?? -99), loosing ? s.fireCd : null);
     if (k) return k;
   }
-  if (r.routing) return gait('Rout', 1.8);
+  if (r.routing) return pace(['Rout']);
   if (b.winner === r.side) { s.animT += dt; return show('Cheer', s.animT % 2.6); }
   if (s.v >= 0.4 || s.climb > 0) {
-    const up = UPRIGHT[info.weapon];
-    return s.v > 3.6 ? gait(up ? 'RunArmed' : 'Run', 2.6) : gait(up ? 'March_Upright' : 'Walk', up ? 2.2 : 1.6);
+    // (a climber keeps stepping up his ladder however slowly he rises)
+    return pace(UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'], Math.max(s.v, 0.8));
   }
   // standing: spears brace against what's coming, shields close up in a tight line
   const braced = T.braces && info.weapon === 'spear' && (r.formation === 'square' || r.hold || r.engaged > 0);

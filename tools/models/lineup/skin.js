@@ -26,13 +26,16 @@ const SHIELD_IN_HAND = new Set(['Shield_Block', 'Shield_Wall', 'Spear_Thrust', '
 const TOOLS = { Chop: 'AXE', Mine: 'PICK', Hoe: 'HOE' };
 
 // The clips each skeleton gets. `src` names the source clip; `arm` takes the right arm from March_Upright at that
-// time (a weapon held upright while standing or running); `upper` lays the upper body of another clip, frozen at
-// a time, over this one (a lance couched at the gallop).
+// time (a weapon held upright while standing, walking or running); `upper` lays the upper body of another clip over
+// this one, frozen at a time (a lance couched at the gallop) or keeping step ('step': a load carried on the move).
+// Walking and running come from the stock Walk and Run, whose strides fit the game's paces (anim.js gaitSpeed);
+// March_Upright and Carry step short, so on the move they lend only their arms.
 const FOOT = ['Spear_Thrust', 'Spear_Brace', 'March_Upright', 'Bow_Loose', 'Crossbow_Span', 'Shield_Block', 'Shield_Wall', 'Javelin_Throw', 'Rout', 'Cheer', 'Chop', 'Hoe', 'Mine', 'Carry'];
 const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Couch', 'Ride_Slash'];
 const HUMAN_CLIPS = {
   Idle: { src: 'Idle', loop: true }, Stand: { src: 'Idle', loop: true, arm: 0 },
-  Walk: { src: 'Walk', loop: true }, Run: { src: 'Run', loop: true }, RunArmed: { src: 'Run', loop: true, arm: 0 },
+  Walk: { src: 'Walk', loop: true }, Run: { src: 'Run', loop: true }, RunArmed: { src: 'Run', loop: true, arm: 0 }, WalkArmed: { src: 'Walk', loop: true, arm: 0 },
+  CarryWalk: { src: 'Walk', loop: true, upper: ['Carry', 'step'], weapon: 'Carry' }, CarryRun: { src: 'Run', loop: true, upper: ['Carry', 'step'], weapon: 'Carry' },
   Death: { src: 'Death', hold: true }, Sword_Slash: { src: 'Sword_Slash' },
 };
 const RIDER_CLIPS = { Ride_Charge: { src: 'Ride_Gallop', loop: true, upper: ['Ride_Couch', 1], weapon: 'Ride_Couch' } };
@@ -93,7 +96,7 @@ function pose(r, def, t) {
   const over = def.arm != null ? [RIGHT_ARM, 'March_Upright', def.arm] : def.upper ? [UPPER, ...def.upper] : null;
   if (over) {
     const keep = over[0].map(n => base.bones.get(n)), held = new Map();
-    sample(base, over[1], over[2]);
+    sample(base, over[1], over[2] === 'step' ? t / base.clips[def.src].duration * base.clips[over[1]].duration : over[2]);
     for (const b of keep) held.set(b, b.quaternion.clone());
     sample(base, def.src, t);
     for (const [b, q] of held) b.quaternion.copy(q);

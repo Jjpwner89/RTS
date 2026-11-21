@@ -5,19 +5,26 @@ import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
-import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip } from './anim.js';
+import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
 import { BUILDINGS } from './economy.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 // anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
 // digging or hoeing at his job, running from raiders, or standing about. `dt` is village time since the last frame.
 const WORK_CLIP = { tree: 'Chop', rock: 'Mine', ore: 'Mine', field: 'Hoe' };
+// A walker's gait and its pace follow how fast he really covers the ground (faster on a road: economy.js walk),
+// measured from where he has got to, so his feet keep pace (anim.js gaitFor).
 function villagerClip(v, dt) {
-  v.animT = (v.animT ?? Math.random() * 3) + dt * (v.v ? Math.min(1.7, Math.max(0.6, v.v / 2)) : 1);
+  if (dt > 0) {
+    const moved = v.animX == null ? 0 : Math.hypot(v.x - v.animX, v.z - v.animZ) / dt;
+    if (moved < 12) v.animV = (v.animV ?? moved) + (moved - (v.animV ?? moved)) * Math.min(1, dt * 6);   // (not a jump to a new spot)
+    v.animX = v.x; v.animZ = v.z;
+  }
   const work = v.state === 'work' && !v.v && (v.task?.phase === 'gather' || v.task?.phase === 'tend') && v.job?.B.gather;
-  const name = v.v ? (v.state === 'flee' ? 'Run' : v.carry ? 'Carry' : 'Walk')
-    : work ? WORK_CLIP[work.node] || 'Idle' : v.state === 'build' ? 'Chop' : 'Idle';
-  return clipOf('male', name);
+  const g = v.v ? gaitFor('male', v.carry ? ['CarryWalk', 'CarryRun'] : ['Walk', 'Run'], Math.max(0.5, v.animV || v.v))
+    : { name: work ? WORK_CLIP[work.node] || 'Idle' : v.state === 'build' ? 'Chop' : 'Idle', rate: 1 };
+  v.animT = (v.animT ?? Math.random() * 3) + dt * g.rate;
+  return clipOf('male', g.name);
 }
 
 const TIMBER = '#8a6a48', SHINGLE = '#6d5a48', ROOF_RED = '#7a4a32', CRATE_WOOD = '#a07a4a', CRATE_BAND = '#5e4228';

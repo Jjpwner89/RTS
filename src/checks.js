@@ -444,10 +444,12 @@ async function findAssets() {
   push(`event pictures (${PAINTED.size} painted)`, (await missing([...PAINTED].map(id => `assets/art/events/${id}.png`))).map(f => `missing ${f}`));
 
   // Clips: the animated soldiers and villagers stand in their bind pose without assets/anim.bin, and play a wrong
-  // clip if their skeleton lacks one the views ask for (view.js soldierClip, townview.js villagerClip).
-  const { animReady, clipOf } = await import('./anim.js');
-  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'March_Upright', 'Death', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
-  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch'], HORSE = ['Idle', 'Trot', 'Gallop'], WORK = ['Walk', 'Run', 'Carry', 'Chop', 'Mine', 'Hoe', 'Idle'];
+  // clip if their skeleton lacks one the views ask for (view.js soldierClip, townview.js villagerClip). A gait whose
+  // stride can't be measured (anim.js gaitSpeed) can't keep pace with the ground: its feet would slide.
+  const { animReady, clipOf, gaitSpeed } = await import('./anim.js');
+  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
+  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch'], HORSE = ['Idle', 'Trot', 'Gallop'], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Mine', 'Hoe', 'Idle'];
+  const GAITS = ['Walk', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun'], HORSE_GAITS = ['Trot', 'Gallop'];
   const noClip = new Set();
   if (!animReady()) noClip.add('assets/anim.json or anim.bin did not load: animated soldiers are left out');
   else for (const key of [...Object.keys(TYPES), 'villager']) {
@@ -455,6 +457,10 @@ async function findAssets() {
     if (!a) continue;
     for (const n of key === 'villager' ? WORK : a.horse ? RIDE : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
     if (a.horse) for (const n of HORSE) if (!clipOf('horse', n)) noClip.add(`no horse '${n}' clip`);
+    for (const n of a.horse ? HORSE_GAITS : GAITS) {
+      const rig = a.horse ? 'horse' : a.rig;
+      if (clipOf(rig, n) && !(gaitSpeed(rig, n) > 0)) noClip.add(`can't measure the ${rig} '${n}' stride: it plays at its own pace and its feet slide`);
+    }
   }
   push('soldier and villager clips', [...noClip]);
   return out;

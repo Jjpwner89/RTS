@@ -36,11 +36,13 @@ function boneAt(frame, bone, out) {
   for (let i = 0; i < 12; i++) out[i] = data[at + i];
   return out;
 }
-// Positions for a baked geometry posed at a clip's frame (the rider's clip for people, the horse's for the horse).
-export function poseOf(geo, rig, name, horseName = 'Idle', frame = 0) {
+// Positions for a baked geometry posed at a clip's frame (the rider's clip for people, the horse's for the horse);
+// `only` poses just those vertices (the rest of `out` stays zero).
+export function poseOf(geo, rig, name, horseName = 'Idle', frame = 0, only = null) {
   const bind = geo.attributes.bind, B = geo.attributes.aBones, W = geo.attributes.aWeights, out = new Float32Array(bind.count * 3);
   const human = clipOf(rig, name), horse = clipOf('horse', horseName);
-  for (let i = 0; i < bind.count; i++) {
+  for (let n = only ? only.length : bind.count, j = 0; j < n; j++) {
+    const i = only ? only[j] : j;
     const x = bind.getX(i), y = bind.getY(i), z = bind.getZ(i);
     let px = 0, py = 0, pz = 0;
     for (let k = 0; k < 4; k++) {
@@ -58,6 +60,53 @@ export function poseOf(geo, rig, name, horseName = 'Idle', frame = 0) {
   return out;
 }
 
+// ---- gaits: how fast each clip's feet cover the ground ----
+
+// A looping gait's own speed, in metres a second: how fast a planted foot (or hoof) slides back when the clip plays
+// at its natural pace. Measured once from the first baked figure of each skeleton (the horse's from a rider's
+// horse), so a clip that changes needs no number changed anywhere.
+const measureOn = {}, speeds = {};
+export function gaitSpeed(rig, name) {
+  const key = rig + '/' + name;
+  if (key in speeds) return speeds[key];
+  const geo = measureOn[rig], horse = rig === 'horse', c = clipOf(rig, name);
+  let v = NaN;
+  if (geo && c?.loop) {
+    const rest = geo.attributes.position, B = geo.attributes.aBones;
+    let lo = Infinity;
+    for (let i = 0; i < rest.count; i++) if ((B.getX(i) >= table.horse) === horse) lo = Math.min(lo, rest.getY(i));
+    // the soles: the lowest part of the figure, near its middle (not a spear butt or a shield's rim)
+    const feet = [];
+    for (let i = 0; i < rest.count; i++) if ((B.getX(i) >= table.horse) === horse && rest.getY(i) < lo + 0.12 && (horse || Math.abs(rest.getX(i)) < 0.35)) feet.push(i);
+    const poses = [];
+    for (let f = 0; f < c.frames; f++) poses.push(horse ? poseOf(geo, geo.userData.anim.rig, 'Ride_Idle', name, f, feet) : poseOf(geo, rig, name, 'Idle', f, feet));
+    const vs = [];
+    for (const i of feet) {
+      const ys = poses.map(p => p[i * 3 + 1]), low = Math.min(...ys);
+      if (Math.max(...ys) - low < 0.06) continue;   // never lifts: not a foot
+      for (let f = 0; f < c.frames; f++) {
+        const a = poses[f], b = poses[(f + 1) % c.frames];
+        if (a[i * 3 + 1] < low + 0.012 && b[i * 3 + 1] < low + 0.012) vs.push((a[i * 3 + 2] - b[i * 3 + 2]) * c.fps);
+      }
+    }
+    vs.sort((x, y) => x - y);
+    v = vs.length ? vs[vs.length >> 1] : NaN;
+  }
+  if (!(v > 0.2)) console.warn(`anim: can't measure how fast the ${rig} ${name} clip walks${geo ? '' : ' (no baked figure of that skeleton)'}; it plays at its own pace`);
+  return speeds[key] = v > 0.2 ? v : NaN;
+}
+// The range of paces a gait may play at before the next one takes over (and, past the fastest, the most it is
+// hurried before the feet slide).
+export const CADENCE = { lo: 0.6, hi: 1.6, max: 2.2 };
+// Which of `gaits` (slowest first) to show at ground speed v, and how fast to play it so the feet keep pace: the
+// slowest that keeps up without hurrying past `hi`. { name, rate }, rate 1 being the clip's own pace.
+export function gaitFor(rig, gaits, v, hi = CADENCE.hi) {
+  let name = gaits[gaits.length - 1], speed = gaitSpeed(rig, name);
+  for (const g of gaits) { const s = gaitSpeed(rig, g); if (v / s <= hi) { name = g; speed = s; break; } }
+  const rate = speed > 0 ? Math.max(CADENCE.lo, Math.min(CADENCE.max, v / speed)) : 1;
+  return { name, rate };
+}
+
 // Ready a baked geometry from models.glb: its stored positions are the bind pose; keep them (and their normals) for
 // the shader, and pose `position` in the figure's standing clip for anything drawn without animation.
 export function prepare(geo, info) {
@@ -73,6 +122,8 @@ export function prepare(geo, info) {
   geo.setAttribute('bindNormal', g.attributes.normal);
   geo.setAttribute('position', new THREE.BufferAttribute(poseOf(geo, info.rig, info.rest), 3));
   geo.userData.anim = info;
+  if (info.horse) measureOn.horse ??= geo;   // (a rider's own feet sit in the stirrups: men are measured on foot)
+  else measureOn[info.rig] ??= geo;
 }
 
 // ---- the shader ----

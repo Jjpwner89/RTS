@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
-import { part, box, keepModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD } from '../view.js';
+import { part, box, keepModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD, soldierClip } from '../view.js';
+import { animGeometry, animMaterial, animDepthMaterial, setClip, clipOf, gaitFor } from '../anim.js';
 import { unitModel, unitLook, hasLevels, buildingModel, HOUSE_STYLES } from '../models.js';
 import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
 import { layoutOf, walledPlace, wallMaterial } from './places.js';
@@ -40,12 +41,16 @@ function armyModel(units, ragged = false) {
   const gear = [], cloth = [], plain = g => { const o = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(o.attributes)) if (!['position', 'normal', 'color'].includes(a)) o.deleteAttribute(a); return o; };
   let seed = 5, footZ = 0, horseZ = 0, footW = 0;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // the men are drawn as figures (WorldView.figures), so they can march in their clips
+  const figures = new Map();
+  let T = null;
   const place = (m, x, z, turn = 0) => {
-    gear.push(plain(m.gearLight.clone().rotateY(turn).translate(x, 0, z)));
-    cloth.push(plain(m.clothLight.clone().rotateY(turn).translate(x, 0, z)));
+    if (!figures.has(m)) figures.set(m, { look: m, T, at: [] });
+    figures.get(m).at.push({ x, z, turn });
   };
   // a block of figures, its front rank at z, centred on x0; returns its depth
-  const block = (m, n, x0, z, dx, dz, files) => {
+  const block = (m, n, x0, z, dx, dz, files, type) => {
+    T = type;
     let i = 0;
     for (; i < n; i++) {
       const f = i % files, r = Math.floor(i / files), row = Math.min(files, n - r * files);
@@ -58,10 +63,10 @@ function armyModel(units, ragged = false) {
   const foot = groups.filter(g => roleOf(g.T) === 1 || roleOf(g.T) === 2);
   for (const g of foot) footW = Math.max(footW, Math.min(6, g.n) * 1.5);
   footW = Math.max(footW, 4.5);
-  for (const g of foot) footZ -= block(lookOf(g.key, g.gear), g.n, 0, footZ, 1.5, 1.6, 6) + 0.8;
+  for (const g of foot) footZ -= block(lookOf(g.key, g.gear), g.n, 0, footZ, 1.5, 1.6, 6, g.T) + 0.8;
   const horseX = footW / 2 + 3;
-  for (const g of groups.filter(g => roleOf(g.T) === 3)) horseZ -= block(lookOf(g.key, g.gear), g.n, horseX, horseZ, 2.4, 3.4, 3) + 1;
-  for (const g of groups.filter(g => roleOf(g.T) === 0)) block(lookOf(g.key, g.gear), g.n, 0, 2, 1.4, 1.4, 6);
+  for (const g of groups.filter(g => roleOf(g.T) === 3)) horseZ -= block(lookOf(g.key, g.gear), g.n, horseX, horseZ, 2.4, 3.4, 3, g.T) + 1;
+  for (const g of groups.filter(g => roleOf(g.T) === 0)) block(lookOf(g.key, g.gear), g.n, 0, 2, 1.4, 1.4, 6, g.T);
   // engines are drawn from the buildings file, a little smaller than in battle
   let engineZ = Math.min(footZ, horseZ) - 4;
   for (const g of groups.filter(g => roleOf(g.T) === 4)) {
@@ -75,7 +80,7 @@ function armyModel(units, ragged = false) {
   const banner = part(box(0.06, 1.4, 1.6), '#ffffff', { x: bx, y: 4.2, z: 0.2 });
   // dipped about the foot of the pole
   if (ragged) for (const g of [pole, banner]) g.translate(-bx, 0, -1).rotateZ(0.4).translate(bx, 0, 1);
-  return { gear: mergeGeometries([...gear, pole].map(plain)), cloth: mergeGeometries([...cloth, banner].map(plain)), lordAt: [bx - 4, 0, 3.5] };
+  return { gear: mergeGeometries([...gear, pole].map(plain)), cloth: mergeGeometries([...cloth, banner].map(plain)), figures: [...figures.values()], lordAt: [bx - 4, 0, 3.5] };
 }
 
 // A cairn where a field battle was fought (world.cairns): a low pile of grey stones round a leaning pole with
@@ -113,9 +118,10 @@ function cartModel(kind, families) {
   cart.computeBoundingBox();
   const b = cart.boundingBox, walkers = [[1.2, b.max.z + 1.2]];
   if (families) walkers.push([-0.6, b.min.z - 1.3], [0.7, b.min.z - 2.4]);
-  if (u) for (const [x, z] of walkers) { gear.push(plain(u.gearLight).translate(x, 0, z)); cloth.push(plain(u.clothLight).translate(x, 0, z)); }
+  // (the carter and the walkers are figures, WorldView.figures, so they walk in their clips)
+  const figures = u ? [{ look: u, T: null, at: walkers.map(([x, z]) => ({ x, z, turn: 0 })) }] : [];
   if (!cloth.length) cloth.push(new THREE.BufferGeometry());
-  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
+  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth), figures };
 }
 
 // A supply wagon: the cart under a canvas tilt in its side's colour, with a carter walking ahead.
@@ -142,8 +148,8 @@ function wagonModel() {
   tilt.translate((b.min.x + b.max.x) / 2, bed - 0.1, (b.min.z + b.max.z) / 2 - (len >= w ? len * 0.12 : 0));
   const white = c => { const n = c.attributes.position.count; c.setAttribute('color', new THREE.Float32BufferAttribute(new Array(n * 3).fill(1), 3)); return c; };
   const gear = [bedGeo], cloth = [white(plain(tilt))];
-  if (u) { gear.push(plain(u.gearLight.clone().translate(1.2, 0, b.max.z + 1.2))); cloth.push(plain(u.clothLight.clone().translate(1.2, 0, b.max.z + 1.2))); }
-  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth) };
+  const figures = u ? [{ look: u, T: null, at: [{ x: 1.2, z: b.max.z + 1.2, turn: 0 }] }] : [];
+  return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth), figures };
 }
 
 // A column of marching men, coloured per side by tinting the white cloth (used when the baked models are missing).
@@ -297,6 +303,60 @@ export class WorldView {
   }
 
   // Screen positions of everything clickable, refreshed each frame for picking.
+  // An army's (or a cart's) men as instanced figures on `mesh`, one mesh pair per look, the cloth in `colour`. A baked
+  // figure marches in its clips (anim.js), in the light version: the map is seen from afar.
+  figures(mesh, groups, colour) {
+    const d = new THREE.Object3D();
+    return groups.map(({ look, T, at }) => {
+      const anim = look.anim, n = at.length;
+      const make = geo => {
+        const x = new THREE.InstancedMesh(anim ? animGeometry(geo, n) : geo, anim ? animMaterial(this.mat, { light: true }) : this.mat, n);
+        if (anim) x.customDepthMaterial = animDepthMaterial(true);
+        x.castShadow = true; x.frustumCulled = false;
+        return x;
+      };
+      const f = { anim, T, gear: make(look.gearLight), cloth: make(look.clothLight), men: at.map(() => ({ reg: { T }, v: 0, alive: true })) };
+      at.forEach((p, i) => {
+        d.position.set(p.x, 0, p.z); d.rotation.set(0, p.turn, 0); d.updateMatrix();
+        f.gear.setMatrixAt(i, d.matrix); f.cloth.setMatrixAt(i, d.matrix); f.cloth.setColorAt(i, colour);
+      });
+      mesh.add(f.gear, f.cloth);
+      return f;
+    });
+  }
+  // Each frame: the figures step at the pace the army really covers the map (scaled to the figures), so their
+  // feet keep pace with it; at a halt they stand at ease. Soldiers in their battle clips (view.js soldierClip),
+  // carters and families in a villager's walk.
+  march(o, a) {
+    const figs = o.mesh.userData.figures;
+    if (!figs?.length) return;
+    const now = performance.now() / 1000, dt = Math.min(0.25, now - (o.animAt ?? now));
+    if (dt > 0) {
+      const moved = o.animX == null ? 0 : Math.hypot(a.x - o.animX, a.z - o.animZ) / dt / o.mesh.scale.x;
+      if (moved < 40) o.animV = (o.animV ?? moved) + (moved - (o.animV ?? moved)) * Math.min(1, dt * 4);   // (not a jump)
+    }
+    o.animAt = now; o.animX = a.x; o.animZ = a.z;
+    const v = o.animV > 0.3 ? o.animV : 0;
+    this.parade ??= { time: 0, winner: null };
+    this.parade.time = now;
+    const out = {};
+    for (const f of figs) {
+      if (!f.anim) continue;
+      f.men.forEach((s, i) => {
+        s.v = v;
+        let k = out;
+        if (f.T) k = soldierClip(s, this.parade, f.anim, out);
+        else {   // a carter: walk or run with the cart, else stand
+          const g = v ? gaitFor(f.anim.rig, ['Walk', 'Run'], v) : { name: f.anim.rest, rate: 1 };
+          s.animT = (s.animT ?? i * 0.7) + dt * g.rate;
+          out.c = clipOf(f.anim.rig, g.name); out.t = s.animT; out.hc = null; out.ht = 0;
+        }
+        for (const x of [f.gear, f.cloth]) { setClip(x.geometry, i, k.c, k.t); setClip(x.geometry, i, k.hc, k.ht, true); }
+      });
+      for (const x of [f.gear, f.cloth]) x.geometry.attributes.aAnim.needsUpdate = x.geometry.attributes.aAnimH.needsUpdate = true;
+    }
+  }
+
   update(camera, selected) {
     const w = this.world, v = new THREE.Vector3();
     if (w.wall && `${w.wall.fallen}:${w.wall.sealedCount || 0}` !== this.wallFallen) this.drawOldWall();
@@ -337,7 +397,8 @@ export class WorldView {
     for (const [a, o] of this.armies) {
       if (!a.gone) continue;
       this.scene.remove(o.mesh);
-      o.mesh.traverse(m => { if (m.isMesh && m.material !== this.mat) m.material.dispose(); });
+      o.mesh.traverse(m => { if (m.isMesh && !m.isInstancedMesh && m.material !== this.mat) m.material.dispose(); });   // (figures share theirs)
+      for (const f of o.mesh.userData.figures || []) if (f.anim) { f.gear.geometry.dispose(); f.cloth.geometry.dispose(); }
       o.label.remove();
       this.armies.delete(a);
     }
@@ -350,10 +411,12 @@ export class WorldView {
         if (a.wagon && cart) {
           const cloth = this.mat.clone(); cloth.color.copy(colour);
           mesh.add(new THREE.Mesh(cart.gear, this.mat), new THREE.Mesh(cart.cloth, cloth));
+          mesh.userData.figures = this.figures(mesh, cart.figures, colour);
           mesh.scale.setScalar(2.6);
         } else if (a.wagon && this.wagonGeo) {
           const cloth = this.mat.clone(); cloth.color.copy(colour).lerp(new THREE.Color('#e8dcc0'), 0.55);
           mesh.add(new THREE.Mesh(this.wagonGeo.gear, this.mat), new THREE.Mesh(this.wagonGeo.cloth, cloth));
+          mesh.userData.figures = this.figures(mesh, this.wagonGeo.figures, colour);
           mesh.scale.setScalar(2.6);
         } else if (unitModel('spear')) {
           const cloth = this.mat.clone(); cloth.color.copy(colour);
@@ -404,6 +467,8 @@ export class WorldView {
           }
           ranks[0].geometry = g.gear; ranks[1].geometry = g.cloth;
           ranks[1].material.color.set(know > 1 ? FACTIONS[a.side].color : '#4a4640');
+          for (const f of o.mesh.userData.figures || []) { o.mesh.remove(f.gear, f.cloth); if (f.anim) { f.gear.geometry.dispose(); f.cloth.geometry.dispose(); } }
+          o.mesh.userData.figures = this.figures(o.mesh, g.figures, ranks[1].material.color);
           if (o.mesh.userData.lord) o.mesh.userData.lord.position.set(...g.lordAt);
           o.lordAt = g.lordAt;
         }
@@ -417,6 +482,7 @@ export class WorldView {
       const x = a.x + off, z = a.z + off;
       o.mesh.position.set(x, this.heightAt(x, z), z);
       o.mesh.rotation.y = a.heading;
+      this.march(o, a);
       const s = toScreen(x, this.heightAt(x, z) + 16, z);
       o.label.style.display = s.behind ? 'none' : '';
       o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;

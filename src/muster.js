@@ -7,7 +7,8 @@ import { drawGround, plantTrees, drawTrees } from './terrain.js';
 import { unitModel, unitLook, hasLevels, buildingModel, ARMOUR_LEVELS, HAS_SHIELD } from './models.js';
 import { ico } from './icons.js';
 import { TYPES, lookChain } from './battle.js';
-import { WOOD } from './view.js';
+import { WOOD, soldierClip } from './view.js';
+import { animGeometry, animMaterial, animDepthMaterial, setClip } from './anim.js';
 
 const COLOURS = ['#3d6fd6', '#c8423a', '#d6a93d', '#4f8f4a', '#7a4fa8'];
 const LORDS = {
@@ -77,6 +78,9 @@ function plinthMesh() {
 }
 
 // ---- the regiments ----
+// They all march at one pace (m/s); an animated man's gait follows it.
+const PACE = { foot: 1.7, horse: 1.7, dog: 1.7, engine: 1.7 };
+const parade = { time: 0, winner: null }, clip = {};   // the stand-in battle soldierClip reads, and its answer
 // Each regiment is a block of figures in its own instanced meshes; slots are places in the block,
 // measured back from the front rank and across from the middle.
 function blockSlots(files, ranks, dx, dz) {
@@ -88,10 +92,18 @@ const regiments = [];
 let front = 0;
 for (const { T } of ORDER) {
   const reg = { T, parts: [], s: 0, flag: null };
+  // an animated soldier (models.js look.anim) marches in his clips, each man his own stand-in for the battle's
+  // soldier (view.js soldierClip); the rest keep a marching bob. Both wear light models till followed (setDetail).
   const meshes = (model, slots, opts = {}) => {
-    const m = { slots, model, ...opts, gear: new THREE.InstancedMesh(model.gearLight || model, gearMat, slots.length) };
-    if (model.clothLight) m.cloth = new THREE.InstancedMesh(model.clothLight, clothMat, slots.length);
+    const anim = model.anim, n = slots.length;
+    const m = { slots, model, ...opts, anim, gear: new THREE.InstancedMesh(model.gearLight || model, gearMat, n) };
+    if (model.clothLight) m.cloth = new THREE.InstancedMesh(model.clothLight, clothMat, n);
+    if (anim) {
+      m.men = slots.map(() => ({ reg: { T }, v: PACE.foot, alive: true }));
+      m.geos = { full: [animGeometry(model.gear, n), animGeometry(model.cloth, n)], light: [animGeometry(model.gearLight, n), animGeometry(model.clothLight, n)] };
+    }
     for (const x of [m.gear, m.cloth]) if (x) { x.castShadow = true; x.frustumCulled = false; scene.add(x); }
+    setDetail(m, false);
     reg.parts.push(m);
     return m;
   };
@@ -123,14 +135,16 @@ for (const { T } of ORDER) {
 }
 
 const dummy = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0);
-const PACE = { foot: 1.7, horse: 1.7, dog: 1.7, engine: 1.7 };
 function placeFigure(reg, part, slot, i, t) {
   // each figure follows the track from its own place in the column, so the block bends round the turns
   const p = along(reg.s + slot.z), yaw = Math.atan2(p.tx, p.tz);
   const nx = p.tz, nz = -p.tx;   // to the figure's right
   const phase = t * (part.gait === 'dog' ? 9 : part.gait === 'horse' ? 4.4 : 6.2) + i * 1.7 + reg.s * 0.3;
   let y = part.lift || 0, roll = 0, pitch = 0;
-  if (part.gait === 'foot') { y += Math.abs(Math.sin(phase)) * 0.09; roll = Math.sin(phase) * 0.045; }
+  if (part.anim) {
+    const k = soldierClip(part.men[i], parade, part.anim, clip);
+    for (const x of [part.gear, part.cloth]) if (x) { setClip(x.geometry, i, k.c, k.t); setClip(x.geometry, i, k.hc, k.ht, true); }
+  } else if (part.gait === 'foot') { y += Math.abs(Math.sin(phase)) * 0.09; roll = Math.sin(phase) * 0.045; }
   else if (part.gait === 'horse') { y += Math.abs(Math.sin(phase)) * 0.12; pitch = Math.sin(phase * 2) * 0.025; roll = Math.sin(phase) * 0.02; }
   else if (part.gait === 'dog') { y += Math.abs(Math.sin(phase)) * 0.1; pitch = Math.sin(phase) * 0.06; }
   else if (part.gait === 'engine') { y += Math.abs(Math.sin(t * 2.1 + slot.z)) * 0.03; roll = Math.sin(t * 1.3 + reg.s) * 0.012; }
@@ -162,8 +176,10 @@ const shown = new THREE.Group();
 const kit = { armour: undefined, shield: true };   // the armour and shield shown on the plinth
 shown.position.set(PLINTH.x, 0.9, PLINTH.z);
 scene.add(shown);
+let plinthMan = null;
 function showOnPlinth(T) {
   for (const c of [...shown.children]) shown.remove(c);
+  plinthMan = null;
   if (T.engine) {
     const geo = buildingModel('siege.' + T.engine.kind);
     if (geo) shown.add(new THREE.Mesh(geo, gearMat));
@@ -171,7 +187,14 @@ function showOnPlinth(T) {
     if (arm && at) { const m = new THREE.Mesh(arm, gearMat); m.position.set(0, at.y, at.z); shown.add(m); }
   } else {
     const M = hasLevels(T.key) ? unitLook(T.key, kit) : lookOf(T.key);
-    shown.add(new THREE.Mesh(M.gear, gearMat), new THREE.Mesh(M.cloth, clothMat));
+    if (M.anim) {   // he stands at ease in his clip, as on the march
+      plinthMan = { man: { reg: { T }, v: 0, alive: true }, anim: M.anim, meshes: [[M.gear, gearMat], [M.cloth, clothMat]].map(([g, m]) => {
+        const x = new THREE.InstancedMesh(animGeometry(g, 1), animMaterial(m), 1);
+        x.customDepthMaterial = animDepthMaterial();
+        shown.add(x);
+        return x;
+      }) };
+    } else shown.add(new THREE.Mesh(M.gear, gearMat), new THREE.Mesh(M.cloth, clothMat));
   }
   shown.traverse(m => { m.castShadow = true; });
 }
@@ -240,6 +263,14 @@ function follow(reg) {
 }
 // the regiment you follow wears its full-detail models; the rest keep the light ones
 function setDetail(part, full) {
+  if (part.anim) {
+    [part.gear, part.cloth].forEach((x, k) => {
+      x.geometry = part.geos[full ? 'full' : 'light'][k];
+      x.material = animMaterial(k ? clothMat : gearMat, { light: !full });
+      x.customDepthMaterial = animDepthMaterial(!full);
+    });
+    return;
+  }
   if (!part.model.gearLight) return;
   part.gear.geometry = full ? part.model.gear : part.model.gearLight;
   if (part.cloth) part.cloth.geometry = full ? part.model.cloth : part.model.clothLight;
@@ -269,16 +300,23 @@ let t = 0;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.1);
   t += dt;
+  parade.time = t;
   for (const reg of regiments) {
     reg.s += PACE.foot * dt;
     reg.parts.forEach(part => {
       part.slots.forEach((slot, i) => placeFigure(reg, part, slot, i, t));
-      part.gear.instanceMatrix.needsUpdate = true;
-      if (part.cloth) part.cloth.instanceMatrix.needsUpdate = true;
+      for (const x of [part.gear, part.cloth]) if (x) {
+        x.instanceMatrix.needsUpdate = true;
+        if (part.anim) x.geometry.attributes.aAnim.needsUpdate = x.geometry.attributes.aAnimH.needsUpdate = true;
+      }
     });
     placeFlag(reg, t);
   }
   shown.rotation.y += dt * 0.35;
+  if (plinthMan) {
+    const k = soldierClip(plinthMan.man, parade, plinthMan.anim, clip);
+    for (const x of plinthMan.meshes) { setClip(x.geometry, 0, k.c, k.t); setClip(x.geometry, 0, k.hc, k.ht, true); x.geometry.attributes.aAnim.needsUpdate = x.geometry.attributes.aAnimH.needsUpdate = true; }
+  }
   if (fly.t < 1) {
     fly.t = Math.min(1, fly.t + dt / 1.4);
     const k = fly.t * fly.t * (3 - 2 * fly.t);
