@@ -610,7 +610,7 @@ function nextAsk() {
     const folk = enc.kind === 'assault' ? headcount(turnOut(enc.poi, army.units, FACTIONS[enc.poi.owner])) : 0;
     box.querySelector('h2').textContent = enc.kind === 'assault' ? `Attack ${enc.poi.name}?` : `Armies meet at ${where}`;
     box.querySelector('p').textContent = enc.kind === 'assault'
-      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${/^House /.test(ownerOf(enc.poi).name) ? ownerOf(enc.poi).name : ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${folk ? ` Outnumbered, its people will take up tools too: about ${folk} more, weak but many.` : ''}${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
+      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${/^House /.test(ownerOf(enc.poi).name) ? ownerOf(enc.poi).name : ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${folk ? ` Outnumbered, its people will take up tools too: about ${folk} more, weak but many.` : ''}${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: by hand, your men must break a gate under the walls first.' : ''}`
       : `${army.name} (${us} men) has met ${enc.enemy.name} (${them} men).`;
     // The odds, said plainly (world.autoOdds): both sides' numbers, and what auto-resolve would likely do.
     const o = world.autoOdds(enc), tenths = Math.round(o.chance * 10);
@@ -633,6 +633,12 @@ function nextAsk() {
       if (enc.poi.eco) buttons.push(['Burn the fields', () => world.burnFields(enc)]);
       buttons.push(['Pull back', () => world.pullBack(enc)]);
     }
+    // The blue default is the sensible choice: the captains when the odds are good, pulling
+    // back from a place you would likely lose (playtest round 2: "Storm it" led new players
+    // into the worst option).
+    const pick = o.chance >= 0.65 ? 'Auto-resolve' : enc.kind === 'assault' && o.chance < 0.35 ? 'Pull back' : null;
+    const k = pick ? buttons.findIndex(b => b[0] === pick) : -1;
+    if (k > 0) buttons.unshift(...buttons.splice(k, 1));
   }
   const row = box.querySelector('.row');
   row.innerHTML = '';

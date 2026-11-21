@@ -883,6 +883,26 @@ export class Battle {
       if (this.deploying?.side === r.side) this.placeNow(r);
     });
     if (this.deploying) this.updateSight();
+    // A spot inside the enemy's walls with no way in: break one first, then go on there, as an
+    // attack order does (breachFor). It used to stand outside for good with no word why.
+    else if (!this.previewing) {
+      let gate = null;   // one way in for the whole order, so nobody breaks through alone
+      for (const r of regs) if (r.side === 0 && r.dest && this.behindEnemyWalls(r, r.dest)) {
+        const d = r.dest;
+        this.breachFor(r, { cx: d.x, cz: d.z, name: 'a spot inside the walls', move: { x: d.x, z: d.z, angle: d.angle } }, gate);
+        gate = r.targetWall || gate;
+      }
+    }
+  }
+
+  // Is (at) inside a ring of enemy walls that r can't get through yet? (A rough ring test: nearer
+  // the enemy's walled home than its nearest stretch of wall, and no path there.)
+  behindEnemyWalls(r, at) {
+    const side = 1 - r.side, ring = this.walls.pieces.filter(p => p.side === side && p.state === 'up');
+    if (!ring.length) return false;
+    const h = this.fortHome(side), d = Math.hypot(at.x - h.x, at.z - h.z);
+    if (d >= Math.min(...ring.map(p => Math.hypot(p.x - h.x, p.z - h.z)))) return false;
+    return !this.nav.reachable(r.side, r.cx, r.cz, at.x, at.z);
   }
 
   // A regiment's place in a line that strays over a river: if any of its block would stand
@@ -917,14 +937,16 @@ export class Battle {
 
   // The formation outline as it will stand at its destination, for previews.
   plannedSlots(regs, x, z, angle, width) {
-    const saved = regs.map(r => ({ r, dest: r.dest, files: r.files, targetReg: r.targetReg, posts: r.posts, access: r.access, targetWall: r.targetWall, slots: r.soldiers.map(s => s.slot) }));
+    const saved = regs.map(r => ({ r, dest: r.dest, files: r.files, targetReg: r.targetReg, posts: r.posts, access: r.access, targetWall: r.targetWall, after: r.after, runOnce: r.runOnce, slots: r.soldiers.map(s => s.slot) }));
     const claims = regs.map(r => r.posts && r.posts.map(p => [p, p.perch.claims.get(p.i)]));
     // A preview must not give up anyone's posts, so stash them first.
     for (const r of regs) r.posts = null;
+    this.previewing = true;
     this.orderMove(regs, x, z, angle, width);
+    this.previewing = false;
     const plan = regs.filter(r => r.dest).map(r => ({ r, ...r.dest, files: r.files }));
     saved.forEach((s, i) => {
-      Object.assign(s.r, { dest: s.dest, files: s.files, targetReg: s.targetReg, posts: s.posts, access: s.access, targetWall: s.targetWall });
+      Object.assign(s.r, { dest: s.dest, files: s.files, targetReg: s.targetReg, posts: s.posts, access: s.access, targetWall: s.targetWall, after: s.after, runOnce: s.runOnce });
       s.r.soldiers.forEach((o, j) => { o.slot = s.slots[j]; });
       if (claims[i]) for (const [p, owner] of claims[i]) p.perch.claims.set(p.i, owner);
     });
@@ -932,13 +954,14 @@ export class Battle {
   }
 
   orderAttack(regs, target) {
+    let gate = null;   // one way in for the whole order, so nobody breaks through alone
     for (const r of regs) {
       if (!this.usable(r) || target.side === r.side) continue;
       this.clearPosts(r);
       r.targetReg = target;
       r.dest = null;
       r.runOnce = false;
-      if (this.nav.any) this.breachFor(r, target);
+      if (this.nav.any && this.breachFor(r, target, gate)) gate = r.targetWall || gate;
     }
   }
 
@@ -946,7 +969,7 @@ export class Battle {
   // for the nearest gate they can reach, ladder men raise ladders on the nearest wall, and
   // once through they go on at the foe (r.after). Horse and bowmen are told why. False when
   // the foe can be reached after all.
-  breachFor(r, t) {
+  breachFor(r, t, prefer = null) {
     if (r.ai === 'siege' || r.posts || this.nav.reachable(r.side, r.cx, r.cz, t.cx, t.cz)) return false;
     const E = r.engine, ladders = E?.kind === 'ladder' && !E.ladders.length;
     const up = E?.kind === 'ladder' && E.ladders.find(l => !l.down && l.piece.state === 'up');
@@ -958,20 +981,20 @@ export class Battle {
       const f = this.faceSpot(r, p, 0, 1);
       if (!this.nav.reachable(r.side, r.cx, r.cz, f.x, f.z)) continue;
       const mx = (p.a.x + p.b.x) / 2, mz = (p.a.z + p.b.z) / 2;
-      const sc = Math.hypot(f.x - r.cx, f.z - r.cz) + Math.hypot(t.cx - mx, t.cz - mz);
+      const sc = (p === prefer ? -1e6 : 0) + Math.hypot(f.x - r.cx, f.z - r.cz) + Math.hypot(t.cx - mx, t.cz - mz);
       if (sc < bs) { bs = sc; best = p; }
     }
     const say = r.side === 0 && !(this.time - this.saidBreach < 3);
     if (say) this.saidBreach = this.time;
     if (!best) {
-      if (say) this.event(0, r.T.mounted ? `${this.label(r)} can't ride at men behind a wall: break a gate first.` : `${this.label(r)} can't find a way in to them.`);
+      if (say) this.event(0, r.T.mounted ? `${this.label(r)} can't ride ${t.move ? 'in' : 'at men'} behind a wall: break a gate first.` : `${this.label(r)} can't find a way in${t.move ? '' : ' to them'}.`);
       if (!r.T.mounted) console.warn(`breachFor: no gate or wall ${r.name} can reach on the way to ${t.name}`);
       r.targetReg = null;
       return true;
     }
     this.orderAttackWall([r], best, (best.a.x + best.b.x) / 2, (best.a.z + best.b.z) / 2);
     r.after = t;
-    if (say) this.event(0, `${this.label(r)} can't reach them inside the walls: ${ladders ? 'raising ladders' : 'breaking a gate'} first.`);
+    if (say) this.event(0, `${this.label(r)} can't reach ${t.move ? 'there' : 'them'} inside the walls: ${ladders ? 'raising ladders' : 'breaking a gate'} first.`);
     return true;
   }
 
@@ -1022,7 +1045,16 @@ export class Battle {
           if (ahead && d < bd) { bd = d; t = o; }
         }
       }
-      if (!t) continue;
+      // Nobody ahead: the nearest foe anywhere in reach, rather than an order that does nothing.
+      if (!t) {
+        let bd = 160;
+        for (const o of this.regs) {
+          if (o.side === r.side || o.gone || o.routing) continue;
+          const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
+          if (d < bd) { bd = d; t = o; }
+        }
+      }
+      if (!t) { if (r.side === 0 && !(this.time - this.saidCharge < 3)) { this.saidCharge = this.time; this.event(0, `${this.label(r)} has nobody near enough to charge.`); } continue; }
       this.orderAttack([r], t);
       r.chargeUntil = this.time + 10;
       r.charges = (r.charges || 0) + 1;
@@ -1728,7 +1760,7 @@ export class Battle {
     // Through the wall (or ladders up): on at the foe it was sent for. And a foe that has
     // gone behind walls is looked for a way in to, once a second.
     if (r.runOnce && !r.dest && !r.targetReg && !r.targetWall && !r.after) r.runOnce = false;   // that run is over
-    if (r.after && !r.targetWall && !r.targetReg && !r.dest) { const t = r.after, hurry = r.runOnce; r.after = null; if (this.usable(t)) { this.orderAttack([r], t); r.runOnce = hurry; } }
+    if (r.after && !r.targetWall && !r.targetReg && !r.dest) { const t = r.after, hurry = r.runOnce; r.after = null; if (t.move) { this.orderMove([r], t.move.x, t.move.z, t.move.angle); r.runOnce = hurry; } else if (this.usable(t)) { this.orderAttack([r], t); r.runOnce = hurry; } }
     if (r.targetReg && !r.targetReg.gone && this.nav.any && (r.reachCd = (r.reachCd || 0) - dt) <= 0) { r.reachCd = 1; this.breachFor(r, r.targetReg); }
     if (r.targetWall) this.aimAtWall(r, dt);
     else if (r.targetReg) {

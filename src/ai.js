@@ -286,6 +286,13 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
     const digger = stone && (foot.find(r => !r.posts && !r.targetWall && (r.T.key === 'militia' || r.T.key === 'spear')) || foot.find(r => !r.posts && !r.targetWall));
     if (digger) { battle.orderMine([digger], stone); st.mined.push(stone); }
   }
+  // A mine whose diggers were called off (a sally, a rout) is dug on by someone else; it used
+  // to lie untouched at 0% while no new one could start.
+  const unmanned = battle.mines.find(m => m.side === side && !m.done && !m.lost && !battle.regs.some(r => r.mine === m && !r.gone));
+  if (!prepare && !inside && unmanned) {
+    const digger = foot.find(r => !r.posts && !r.targetWall && !r.targetReg && !r.mine && (r.T.key === 'militia' || r.T.key === 'spear')) || foot.find(r => !r.posts && !r.targetWall && !r.targetReg && !r.mine);
+    if (digger) battle.orderMine([digger], unmanned.piece);
+  }
   if (prepare) {
     // Camped: everyone else waits at the stand-off, ready.
     for (const r of [...foot, ...shooters, ...horse]) if (!r.dest && !r.targetReg && dist(r, { cx: stage.x, cz: stage.z }) > 40) battle.orderMove([r], stage.x, stage.z, stage.angle);
@@ -353,8 +360,10 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   // Not by hand at a stone gate that still stands while anything else could make a way in:
   // swords barely mark it, and the men die under it. With nothing else left and no mine to dig,
   // the axes are all there is; standing out of bowshot for ever is worse.
+  // Two mines broken into is a pattern, not bad luck: the men not digging take the axes too.
   const digging = battle.mines.some(m => m.side === side && !m.done && !m.lost);
-  const lastResort = stuck && !digging && st.waited > 60;
+  const lostMines = battle.mines.filter(m => m.side === side && m.lost).length;
+  const lastResort = stuck && st.waited > 60 && (!digging || lostMines >= 2);
   if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20) && (gate.material !== 'stone' || lastResort)))) {
     if (gate.material === 'stone' && !weak && !st.axes) { st.axes = true; battle.event(side, side ? 'With no ram left, the enemy set about the stone gate with axes.' : 'With no ram left, our men set about the stone gate with axes.'); }
     for (const r of foot) if (!r.posts && !r.mine && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
