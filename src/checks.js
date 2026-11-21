@@ -261,9 +261,11 @@ async function worldChecks(w) {
   });
 
   // A place you storm or look round is built from its numbers: it should show all of them.
-  for (const p of w.pois) {
-    const t = p.town;
-    if (!t || !p.eco?.buildings || p.owner === 0 && !t.hostile && !t.readOnly) continue;
+  // (a look-round's village isn't kept on the place, only on the screen)
+  const c = window.game.current;
+  const shown = [...w.pois.filter(p => p.town).map(p => [p, p.town]), ...(c?.look ? [[c.poi, c.town]] : [])];
+  for (const [p, t] of shown) {
+    if (!p.eco?.buildings || p.owner === 0 && !t.hostile && !t.readOnly) continue;
     const view = t.hostile ? 'storm' : t.readOnly ? 'look-round' : 'village';
     const side = t.hostile ? 1 : 0;
     group = `${p.name} (${view})`;
