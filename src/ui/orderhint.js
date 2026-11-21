@@ -5,6 +5,7 @@
 // presentation: it asks the world the same questions the order itself will ask.
 import { ownerOf } from '../world/world.js';
 import { walledPlace } from '../world/places.js';
+import { TYPES } from '../battle.js';
 
 let tip = null;
 const place = (x, y) => {
@@ -27,9 +28,12 @@ export function orderHint(w, a, p) {
   if (stop && stop !== p) return { warn: true, text: `Stops at ${how(stop)} on the way and fights: that is not ${p.name}` };
   if (hostile(w, p)) {
     const risk = p.owner === null || walledPlace(p);
-    return { warn: risk, text: `Attack ${how(p)}${walledPlace(p) ? ': no engines means a costly storm' : ''}` };
+    // A walled place wants engines: say what the army brings, or that it brings none.
+    const kit = [...a.units.filter(u => TYPES[u.key]?.engine).reduce((m, u) => m.set(u.name || TYPES[u.key].name, (m.get(u.name || TYPES[u.key].name) || 0) + (u.count || 1)), new Map())].map(([n, c]) => `${c} ${n.toLowerCase()}`);
+    const wall = !walledPlace(p) ? '' : kit.length ? `: brings ${kit.join(', ')}` : ': no ram, ladders or engines, so a costly storm';
+    return { warn: risk && !(walledPlace(p) && kit.length && p.owner !== null), text: `Attack ${how(p)}${wall}` };
   }
-  return { warn: false, text: p.owner === 0 ? `March to ${p.name}` : `March to ${p.name} (${who(p)}: at peace)` };
+  return { warn: false, text: p.owner === 0 ? `March to ${p.name}` : `March to ${p.name}: ${who(p)} are at peace with you, so the army waits outside until war is declared` };
 }
 
 // Called from the map's pointer-move: p is the place under the pointer, or null.
