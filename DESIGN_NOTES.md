@@ -341,6 +341,7 @@ The creator chose option B after seeing all three in the viewer. It replaces opt
   - The economy keeps its 2.5-minute farm timing and growth targets by adjusting work and carry amounts, not walking speed.
   - Battles re-checks march-to-contact times and the storm countdown.
   - World-map travel times don't change; only the figures' animation follows.
+- **Battles, as built** (battle.js `running` / `gaitPace`, 2026-11-21): a regiment walks at its pace-table walk (1.6 m/s on foot until Art's pace.js lands) and runs at its full speed when it's told to Run (the Run toggle, Z), when the order was a double right-click (that order only; the next plain order walks), and when it charges, routs or closes within 30 m of the regiment it's attacking. Men behind their place still catch up faster. Running costs the old march fatigue; walking costs almost none. The AI runs its attacks, its advance from beyond 110 m, its horse, a fog feel-forward far from the enemy, and a storm. Tempo against the old jog (AI on both sides): open field, first contact 18.5 s against 18; fog, the same; storm, the first blow on the gate at 17 s and first contact 24.6 s against 24.7, half the army fighting at 53 s against 41. The storm countdown is real seconds whatever the speed and doesn't change.
 - **Done means** the village, a field battle, a storm and Muster are played by hand in a visible pane, with no skating at ½×, 1× and 4×, and checks() clean.
 
 ## Rivals' pace and gold (decided 2026-11-19)

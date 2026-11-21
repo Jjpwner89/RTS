@@ -44,6 +44,7 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
       if (r.dest || r.targetReg || r.posts || r.targetWall || Math.hypot(h.x - r.cx, h.z - r.cz) < 40) continue;
       const ang = Math.atan2(h.x - r.cx, h.z - r.cz);
       nudge(battle, r, r.x + Math.sin(ang) * 20, r.z + Math.cos(ang) * 20, ang);
+      if (Math.hypot(h.x - r.cx, h.z - r.cz) > 120) battle.hurry([r]);   // walk only the last stretch blind
     }
     return;
   }
@@ -57,6 +58,9 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
       if (r.dest || r.targetReg || r.posts || r.targetWall) continue;
       const ang = Math.atan2(f.cx - r.cx, f.cz - r.cz);
       nudge(battle, r, r.x + Math.sin(ang) * 30, r.z + Math.cos(ang) * 30, ang);
+      // Far apart, foot cover the empty ground at a run and walk the last 110 m up in order;
+      // horse ride out ahead at speed.
+      if (gap > 110 || r.T.mounted) battle.hurry([r]);
     }
     return;
   }
@@ -122,6 +126,7 @@ function pickFight(battle, r, foes, standing) {
     pick = nearest(r, routers) || nearest(r, soft) || nearest(r, busy) || nearest(r, reachable);
     if (pick && pick !== current && !routers.includes(pick)) {
       battle.orderAttack([r], pick);
+      battle.hurry([r]);
       if (dist(r, pick) < 70) battle.orderCharge([r]);
       return;
     }
@@ -129,7 +134,8 @@ function pickFight(battle, r, foes, standing) {
     pick = nearest(r, reachable);
     if (current && !current.routing && !current.posts && dist(r, current) < dist(r, pick) + 25) pick = current;
   }
-  if (pick && pick !== current) battle.orderAttack([r], pick);
+  // Once it has picked its fight, it runs at it (walking pace B): only the advance walks.
+  if (pick && pick !== current) { battle.orderAttack([r], pick); battle.hurry([r]); }
 }
 
 // ---- fights nobody is watching ----
@@ -206,6 +212,8 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   const W = battle.walls, enemy = 1 - side;
   const mine = (regs || battle.regs.filter(r => r.side === side)).filter(usable);
   if (!mine.length) return;
+  // A storm under the walls' bows is no place to stroll: whatever it was told last time, at a run.
+  battle.hurry(mine);
   const home = battle.fortHome(enemy);
   const foes = battle.regs.filter(r => r.side === enemy && !r.gone);
   const standing = foes.filter(r => !r.routing && !r.regrouping);

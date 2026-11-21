@@ -852,7 +852,7 @@ export class Battle {
   orderMove(regs, x, z, angle, width = null) {
     regs = regs.filter(r => this.usable(r));
     if (!regs.length) return;
-    for (const r of regs) this.clearPosts(r);
+    for (const r of regs) { this.clearPosts(r); r.runOnce = false; }
     const gap = 4;
     const sin = Math.sin(angle), cos = Math.cos(angle);
     if (width) {
@@ -936,6 +936,7 @@ export class Battle {
       this.clearPosts(r);
       r.targetReg = target;
       r.dest = null;
+      r.runOnce = false;
       if (this.nav.any) this.breachFor(r, target);
     }
   }
@@ -1000,6 +1001,10 @@ export class Battle {
   }
 
   setHold(regs, on) { for (const r of regs) r.hold = on; }
+  // Run: the toggle keeps a regiment running on every order until turned off; hurry runs
+  // the order just given (a double-click), and walks again once it is done.
+  setRun(regs, on) { for (const r of regs) r.run = on; }
+  hurry(regs) { for (const r of regs) if (this.usable(r) && (r.dest || r.targetReg || r.targetWall)) r.runOnce = true; }
   setFireAtWill(regs, on) { for (const r of regs) r.fireAtWill = on; }
 
   // Charge: at the ordered target, or the nearest enemy ahead. Horse and foot both hit harder for it.
@@ -1721,7 +1726,8 @@ export class Battle {
 
     // Through the wall (or ladders up): on at the foe it was sent for. And a foe that has
     // gone behind walls is looked for a way in to, once a second.
-    if (r.after && !r.targetWall && !r.targetReg && !r.dest) { const t = r.after; r.after = null; if (this.usable(t)) this.orderAttack([r], t); }
+    if (r.runOnce && !r.dest && !r.targetReg && !r.targetWall && !r.after) r.runOnce = false;   // that run is over
+    if (r.after && !r.targetWall && !r.targetReg && !r.dest) { const t = r.after, hurry = r.runOnce; r.after = null; if (this.usable(t)) { this.orderAttack([r], t); r.runOnce = hurry; } }
     if (r.targetReg && !r.targetReg.gone && this.nav.any && (r.reachCd = (r.reachCd || 0) - dt) <= 0) { r.reachCd = 1; this.breachFor(r, r.targetReg); }
     if (r.targetWall) this.aimAtWall(r, dt);
     else if (r.targetReg) {
@@ -1782,7 +1788,7 @@ export class Battle {
         r.angle = turnToward(r.angle, want, dt * (T.mounted ? 1.6 : T.engine ? 0.5 : 1.0));
         // Wheel before marching off, and wait for stragglers.
         const sideways = shuffle ? Math.abs(angleDiff(Math.atan2(dx, dz), r.angle)) : 0;
-        const pace = T.speed * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1) * (sideways > 2 ? 0.6 : sideways > 0.6 ? 0.75 : 1)
+        const pace = this.gaitPace(r) * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1) * (sideways > 2 ? 0.6 : sideways > 0.6 ? 0.75 : 1)
           * (r.pinch ? this.pinchPace(r) : 1)
           * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.paceOf(r);
         const stepLen = Math.min(d, pace * dt);
@@ -2317,12 +2323,23 @@ export class Battle {
     let gain = Math.min(1, r.engaged / n * 1.5) * (T.mounted ? 0.04 : 0.033);
     if (this.time < r.chargeUntil) gain += 0.03;
     if (r.routing) gain += 0.01;
-    else if (r.dest) gain += (T.mounted ? 0.004 : 0.0025) * (r.targetReg ? 1.6 : 1);
+    else if (r.dest && this.running(r)) gain += (T.mounted ? 0.004 : 0.0025) * (r.targetReg ? 1.6 : 1);
+    else if (r.dest) gain += 0.0003;   // a walk hardly tells
     if (this.time - (r.lastShot ?? -99) < 2) gain += 0.004;
     if (r.engaged > 0 || this.time - (r.lastShot ?? -99) < 2) r.fought = true;
     if (gain === 0) r.fatigue = Math.max(0, r.fatigue - 0.012 * dt);
     else r.fatigue = Math.min(1, r.fatigue + gain * dt * kitTire(r) * (1 - r.vet * 0.08) * (1 + this.hunger[r.side] * 0.8));
   }
+
+  // Walking pace B (the creator, 2026-11-21): a regiment walks unless it runs: charging,
+  // routing, closing the last 30 m on a foe, or told to (the Run toggle, r.run, or a
+  // double-clicked order, r.runOnce). T.speed is the run; the walk is about 1.6 m/s on foot
+  // and 1.8 on horseback (or a type's own T.walk), never faster than its run.
+  running(r) {
+    const t = r.targetReg;
+    return !!(r.run || r.runOnce || r.routing || this.time < r.chargeUntil || (t && !t.gone && Math.hypot(t.cx - r.cx, t.cz - r.cz) < 30));
+  }
+  gaitPace(r) { const T = r.T; return this.running(r) ? T.speed : T.walk ?? Math.min(T.speed, T.mounted || T.dog ? 1.8 : 1.6); }
 
   // How much a regiment's tiredness and armour slow it.
   // (`hurry`: men running to catch up, as a village's militia following its soldiers in, economy.js)

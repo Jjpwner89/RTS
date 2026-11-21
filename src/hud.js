@@ -80,6 +80,7 @@ export class Hud {
       <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge<kbd>C</kbd></button>
       <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold<kbd>G</kbd></button>
       <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will<kbd>R</kbd></button>
+      <button data-c="run" title="Run, not walk, on every order: faster, but it tires them. Double right-click runs one order (Z)">Run<kbd>Z</kbd></button>
       <button data-c="burn" title="Set the nearest bridge alight from this bank (B)">Burn bridge<kbd>B</kbd></button>
       <button data-c="mine" title="Dig a mine under an enemy wall: press, then right-click the wall (U)">Dig mine<kbd>U</kbd></button>
       <button data-c="counter" title="Dig out the mine heard under our wall (U)">Counter-mine<kbd>U</kbd></button></span>`;
@@ -91,6 +92,7 @@ export class Hud {
       if (btn.dataset.c === 'charge') b.orderCharge(sel);
       if (btn.dataset.c === 'hold') b.setHold(sel, !sel.every(r => r.hold));
       if (btn.dataset.c === 'fire') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+      if (btn.dataset.c === 'run') b.setRun(sel, !sel.every(r => r.run));
       if (btn.dataset.c === 'burn') { const br = this.bridgeFor(sel); if (br) b.orderBurnBridge(sel, br); }
       if (btn.dataset.c === 'mine') document.body.classList.toggle('mining');
       if (btn.dataset.c === 'counter') { const m = b.heardMine(0, sel[0].cx, sel[0].cz); if (m) b.orderCounterMine(sel, m); }
@@ -116,6 +118,7 @@ export class Hud {
     why(on('charge', r => this.battle.time < r.chargeUntil), sel.every(r => r.T.range || r.T.engine) ? "Bowmen and siege engines don't charge" : '');
     on('hold', r => r.hold);
     why(on('fire', r => r.fireAtWill), sel.some(r => r.T.range) ? '' : 'Only bows and crossbows shoot');
+    why(on('run', r => r.run), sel.every(r => r.T.engine) ? "Siege engines don't run" : '');
     // Only shown with a standing bridge near the selection.
     const burn = on('burn', r => !!r.burnBridge);
     burn.hidden = !this.bridgeFor(sel);

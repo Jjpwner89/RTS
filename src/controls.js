@@ -151,6 +151,7 @@ export class Controls {
     else if (key === 'c') { b.orderCharge(sel); this.view.fx?.ordered('charge', sel); }
     else if (key === 'g') b.setHold(sel, !sel.every(r => r.hold));
     else if (key === 'r') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
+    else if (key === 'z') b.setRun(sel, !sel.every(r => r.run));
     else if (key === 'u' && b.walls.any) {
       const m = b.heardMine(0, sel[0].cx, sel[0].cz);
       if (m) b.orderCounterMine(sel, m);
@@ -327,6 +328,10 @@ export class Controls {
       this.view.preview = [];
       const sel = [...this.selection];
       if (!sel.length) return;
+      // A second right-click on the same spot straight after: the same order, at a run.
+      const now = performance.now(), last = this.lastOrder;
+      this.lastOrder = { t: now, x: e.clientX, y: e.clientY };
+      if (!d.moved && last && now - last.t < 350 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30) { this.battle.hurry(sel); this.lastOrder = null; return; }
       const end = this.groundAt(e.clientX, e.clientY);
       if (d.moved && d.start && end) {
         const line = this.lineOrder(d.start, end);
