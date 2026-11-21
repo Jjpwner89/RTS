@@ -45,6 +45,7 @@ export function tick(w) {
   const [key, el] = first;
   if (shown !== key) {
     shown = key;
+    dispatchEvent(new Event('ui-unlock'));
     slip.querySelector('span').textContent = UNLOCKS[key].intro;
     slip.onclick = () => { markSeen(w, key); el.classList.remove('is-new'); slip.classList.remove('show'); shown = null; };
   }
