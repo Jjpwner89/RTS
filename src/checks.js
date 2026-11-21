@@ -618,6 +618,7 @@ async function findAssets() {
     const m = unitModel(key);
     if (!m?.anim) { noClip.add(`${key}: not animated, so the ${key} slides over the ground`); continue; }
     const S = m.gear.attributes.aShift;
+    if (!S) { noClip.add(`${key}: the model has no bannerman data (aShift), so no bannerman rides beside the lord`); continue; }
     let beside = false, other = false;
     for (let i = 0; i < S.count; i++) { if (Math.hypot(S.getX(i), S.getZ(i)) > 0.5) beside = true; if (S.getW(i)) other = true; }
     if (!beside) noClip.add(`${key}: no bannerman standing beside the lord`);
