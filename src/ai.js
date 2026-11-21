@@ -41,8 +41,8 @@ export function thinkAI(battle, side, { hold = false, start = 8, regs = null } =
 // player can learn to read. Cautious lords stand and wait, and leave the field early to save
 // their men; rash ones come on and stay to the bitter end; cunning ones go round. A side
 // with no lord is steady.
-// even: the plans a house falls back on when the armies are fairly matched (odds 0.85 to
-// 1.45), first that the field allows; outside that band the odds rule. A steady side with
+// even: the plans a house falls back on when the armies are fairly matched (odds 0.7 to
+// 1.4), first that the field allows; outside that band the odds rule. A steady side with
 // no house always comes on in a plain line then.
 const HOUSES = {
   turtler:  { temper: 'cautious', even: ['hold'] },              // Stonemere takes the high ground and makes you come
@@ -54,18 +54,18 @@ const HOUSES = {
   schemer:  { temper: 'cunning', even: ['woods', 'refuse'] },    // Wyndham hides men in the woods for your flank
   bandit:   { temper: 'cunning', even: ['woods', 'charge'] },
 };
-// bias: added to each plan's score. quit: the share of its strength it will lose before it
-// withdraws (if it is outmatched by then). wait: seconds it will stand on a hold before
-// coming on anyway.
+// bias: added to each plan's score. leave: it withdraws once fewer of its men than this share
+// of those it brought still stand and the enemy has clearly more (an army breaks under half,
+// battle.js checkBreak). wait: seconds it will stand on a hold before coming on anyway.
 const TEMPERS = {
-  steady:   { bias: {}, quit: 0.5, wait: 90 },
-  cautious: { bias: { hold: 0.35, refuse: 0.25, envelop: -0.2 }, quit: 0.4, wait: 150 },
-  rash:     { bias: { hold: -0.4, refuse: -0.3, hammer: 0.15, envelop: 0.35 }, quit: 0.7, wait: 40 },
-  cunning:  { bias: { hammer: 0.35, refuse: 0.15 }, quit: 0.5, wait: 90 },
+  steady:   { bias: {}, leave: 0.6, wait: 90 },
+  cautious: { bias: { hold: 0.35, refuse: 0.25, envelop: -0.2 }, leave: 0.68, wait: 150 },
+  rash:     { bias: { hold: -0.4, refuse: -0.3, hammer: 0.15, envelop: 0.35 }, leave: 0.52, wait: 40 },
+  cunning:  { bias: { hammer: 0.35, refuse: 0.15 }, leave: 0.6, wait: 90 },
 };
 export function general(battle, side) {
   const g = battle.generals?.[side], H = HOUSES[g?.trait] || {}, temper = g?.temper || H.temper || 'steady';
-  return { ...TEMPERS[temper], ...(g?.quit != null && { quit: g.quit }), temper, even: H.even || (temper === 'steady' ? ['line'] : null), plain: !!g?.plain, who: g?.name || (side ? 'The enemy' : 'Your captain') };
+  return { ...TEMPERS[temper], temper, even: H.even || (temper === 'steady' ? ['line'] : null), plain: !!g?.plain, who: g?.name || (side ? 'The enemy' : 'Your captain') };
 }
 const strength = list => list.reduce((n, r) => n + r.alive * value(r.T.key), 0);
 const shoots = r => r.T.range && !r.engine && !r.T.javelin;
@@ -136,7 +136,7 @@ function choosePlan(battle, side, mine, standing, st, hold) {
   st.plan = Object.keys(score).reduce((a, b) => (score[b] > score[a] ? b : a));
   // Fairly matched, a lord fights the way his house always does.
   const can = { hammer: score.hammer > -5, woods: !!cover, reserve: feet.length >= 3, line: true, hold: true, refuse: true, charge: true, envelop: true };
-  if (odds >= 0.85 && odds < 1.45 && g.even) st.plan = g.even.find(k => can[k]) || st.plan;
+  if (odds >= 0.7 && odds < 1.4 && g.even) st.plan = g.even.find(k => can[k]) || st.plan;
   st.cover = cover;
   // The reserve: the strongest third of the foot and all the horse, kept back.
   const kept = feet.slice().sort((a, b) => b.alive - a.alive).slice(0, Math.floor(feet.length / 3));
@@ -167,14 +167,15 @@ function choosePlan(battle, side, mine, standing, st, hold) {
   battle.event(side, say);
 }
 
-// Beaten: it has lost the share of its strength its temper allows and has been well
-// outmatched for ten seconds, so a close fight is still fought out.
+// Beaten: fewer of its men stand than its temper allows (of all it brought) and the enemy in
+// sight has clearly more. It reckons as the army's breaking does (battle.js checkBreak), so a
+// cautious lord leaves well before his army would break and a rash one only just.
 function beaten(battle, side, mine, standing, st) {
   if (!st.planned || battle.time - st.since < 20) return false;
-  const g = general(battle, side), ours = strength(mine);
-  if (1 - ours / st.full < g.quit || ours > strength(standing) * 0.55) { st.losing = null; return false; }
-  st.losing ??= battle.time;
-  return battle.time - st.losing >= 10;
+  const men = list => list.reduce((n, r) => n + (r.T.engine ? 0 : r.alive), 0);
+  const brought = battle.regs.reduce((n, r) => n + (r.side === side && !r.T.engine ? r.initial : 0), 0);
+  const ours = men(mine);
+  return ours < brought * general(battle, side).leave && men(standing) > ours * 1.15;
 }
 
 // An orderly withdrawal: the steadiest foot near the enemy stay behind as a rearguard while
@@ -274,11 +275,20 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
   }
   for (const r of mine) {
     const near = nearest(r, standing), d = dist(r, near);
+    // A regiment that has had its fight for 20 s without getting anywhere (held at a ford,
+    // say) gives it up for whatever is nearest, so no fresh men stand idle by the river.
+    if (r.targetReg && r.engaged === 0 && !r.T.range) {
+      const p = r.aiStill;
+      if (!p || Math.hypot(r.cx - p.x, r.cz - p.z) > 4) r.aiStill = { x: r.cx, z: r.cz, t: battle.time };
+      else if (battle.time - p.t > 20) { r.aiAvoid = { reg: r.targetReg, until: battle.time + 30 }; r.targetReg = null; r.aiStill = null; }
+    }
     if (st.plan === 'hold') {
       // Each waits for the enemy to come to it: bows to their reach, foot to 40 m; the horse
       // only guard the line, riding at whoever comes near it.
-      const reach = r.engine ? Infinity : shoots(r) ? r.T.range : r.T.mounted ? 30 : 40;
-      if (d < reach || r.targetReg) pickFight(battle, r, foes, standing);
+      // Once the line has been locked 15 s, the foot still standing go in where it is busy.
+      const committed = st.clash != null && battle.time - st.clash > 15 && !r.T.mounted;
+      const reach = r.engine ? Infinity : shoots(r) ? r.T.range : r.T.mounted ? 30 : committed ? 150 : 40;
+      if (d < reach || r.targetReg) pickFight(battle, r, foes, standing, { busyFirst: committed });
       continue;
     }
     if (r.aiRole === 'reserve' && !st.sent && d > 35) { follow(battle, r, mine, F); continue; }
@@ -295,8 +305,8 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
       r.aiCharged = true;
       continue;
     }
-    // The refused wing comes in ten seconds after the leading wing has struck: an echelon.
-    if (r.aiRole === 'refused' && d > 45 && !r.targetReg && (st.clash == null || battle.time - st.clash < 10)) { trail(battle, r, mine, F); continue; }
+    // The refused wing comes in five seconds after the leading wing has struck: an echelon.
+    if (r.aiRole === 'refused' && d > 45 && !r.targetReg && (st.clash == null || battle.time - st.clash < 5)) { trail(battle, r, mine, F); continue; }
     if (r.aiRole === 'hammer' && !r.aiFree) {
       const w = wingPoint(r);
       if (Math.hypot(r.cx - w.x, r.cz - w.z) < 25 || d < 35 || busy) r.aiFree = true;
@@ -377,7 +387,8 @@ function pickFight(battle, r, foes, standing, { busyFirst = false } = {}) {
 
   const current = r.targetReg && !r.targetReg.gone ? r.targetReg : null;
   // Men on walls can't be reached from the ground; leave them to the bows.
-  const reachable = standing.filter(o => !o.posts || r.T.range);
+  const avoid = r.aiAvoid && battle.time < r.aiAvoid.until ? r.aiAvoid.reg : null;
+  const reachable = standing.filter(o => (!o.posts || r.T.range) && o !== avoid);
   if (!reachable.length) return;
   let pick;
   if (r.T.range && !r.T.javelin && r.ammo < 1) r.resupply = true;

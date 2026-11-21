@@ -403,7 +403,9 @@ export class Battle {
       // (`openGround`: a village's own land, where nobody raiding it is hidden from its people, economy.js)
       const og = this.openGround, open = og && r.side !== this.viewer && Math.hypot(r.cx - og.x, r.cz - og.z) < og.r;
       const hidden = !open && (cover || (sight && near > sight)) && !busy;
-      if (hidden && cover) { r.hiddenAt = this.time; r.ambushed = false; }
+      // An ambush is laid by men who have lain hidden a while (5 s), and sprung once a battle.
+      if (hidden && cover) { r.hiddenSince ??= this.time; if (this.time - r.hiddenSince >= 5) r.hiddenAt = this.time; }
+      else r.hiddenSince = null;
       r.seen = !hidden;
       r.unseen = hidden && r.side !== this.viewer;
       r.hiddenBy = hidden ? (cover ? 'woods' : this.weather) : null;   // for its card (doingLabel)
@@ -1093,9 +1095,10 @@ export class Battle {
           if (ahead && d < bd) { bd = d; t = o; }
         }
       }
-      // Nobody ahead: the nearest foe anywhere in reach, rather than an order that does nothing.
+      // Nobody ahead: the nearest foe anywhere in reach (60 m), rather than an order that does
+      // nothing; beyond that the charge is refused with a word, not run alone across the field.
       if (!t) {
-        let bd = 160;
+        let bd = 60;
         for (const o of this.regs) {
           if (o.side === r.side || o.gone || o.routing) continue;
           const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
@@ -1718,6 +1721,7 @@ export class Battle {
     this.updateArrows(dt);
     this.updateStones(dt);
     if (Math.floor(this.time) !== Math.floor(this.time - dt)) {
+      this.checkBreak();
       this.checkVictory();
       this.updateSight();
       if (this.river) this.riverTick();
@@ -2677,7 +2681,7 @@ export class Battle {
     const top = T.morale * (1 + r.vet * 0.06) * (1 - this.hunger[r.side] * 0.3) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4
       + (this.hasTrait(r, 'stubborn') ? 8 : 0) - (this.hasTrait(r, 'skittish') ? 8 : 0);
     if (r.regrouping) {
-      r.morale += 3 * dt;
+      r.morale += 1.5 * dt;
       if (r.morale >= T.morale * 0.6) {
         r.regrouping = false;
         this.event(r.side, `${this.label(r)} have regrouped at the keep.`);
@@ -2693,8 +2697,9 @@ export class Battle {
     if (r.morale <= 0) this.startRout(r);
   }
 
-  startRout(r) {
+  startRout(r, { quiet = false } = {}) {
     r.routedOnce = true;
+    r.routs = (r.routs || 0) + 1;
     r.routing = true;
     r.routedAt = this.time;
     r.dest = null;
@@ -2703,8 +2708,10 @@ export class Battle {
     this.clearPosts(r);
     r.pinch = null;
     for (const s of r.soldiers) { s.target = null; s.down = null; }
-    this.event(r.side, `${this.label(r)} are routing!`);
-    audio.play('rout', { x: r.cx, z: r.cz }, this); // audio
+    if (!quiet) {
+      this.event(r.side, `${this.label(r)} are routing!`);
+      audio.play('rout', { x: r.cx, z: r.cz }, this); // audio
+    }
     for (const o of this.regs) {
       if (o === r || o.gone || o.routing) continue;
       const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
@@ -2732,7 +2739,9 @@ export class Battle {
     }
     r.fleeDir = dir;
     if (Math.hypot(h.x - r.cx, h.z - r.cz) < 45) { this.regroup(r); return; }
-    if (!r.rallied && this.time - r.routedAt > 12 && nd > 45 && r.alive >= r.initial * 0.25 && !r.engine?.wrecked) {
+    // A rally on the way is rare: only the first rout, half the men left, a long way from
+    // any enemy, after a good while running, and never once the army has broken.
+    if (!r.rallied && r.routs === 1 && !this.broken?.[r.side] && this.time - r.routedAt > 25 && nd > 70 && r.alive >= r.initial * 0.5 && !r.engine?.wrecked) {
       r.routing = false;
       r.rallied = true;
       r.morale = 30;
@@ -2745,7 +2754,8 @@ export class Battle {
 
   // Safe at the keep: form up in front of it and recover before taking orders again.
   regroup(r) {
-    if (this.disbandAtHome[r.side]) {
+    const spent = !this.walls.any && !this.structures && (r.routs > 1 || r.alive < r.initial * 0.4 || this.broken?.[r.side]);
+    if (this.disbandAtHome[r.side] || spent) {
       this.disband(r);
       this.event(r.side, `${this.label(r)} have fled the field.`);
       return;
@@ -2899,6 +2909,31 @@ export class Battle {
       const shooter = r.shotBy;
       if (!best && shooter && this.time - r.lastHit < 3 && ok(shooter) && Math.hypot(shooter.cx - r.cx, shooter.cz - r.cz) < 60) best = shooter;
       if (best) this.orderAttack([r], best);
+    }
+  }
+
+  // In the open field an army breaks, as in Mount & Blade, rather than fighting to its last
+  // man: once few of its men still stand (under half of those it brought, and the enemy has
+  // clearly more standing), or almost none do, every regiment runs, none rallies, and the
+  // routers leave the field at their keep. Not behind walls or round a village.
+  checkBreak() {
+    if (this.walls.any || this.structures || this.deploying) return;
+    const standing = [0, 0], start = [0, 0];
+    for (const r of this.regs) {
+      if (r.T.engine) continue;
+      start[r.side] += r.initial;
+      if (!r.gone && !r.routing && !r.regrouping) standing[r.side] += r.alive;
+    }
+    for (const side of [0, 1]) {
+      if (this.broken?.[side] || !start[side] || !start[1 - side]) continue;
+      const own = standing[side] / start[side];
+      if (!((own < 0.5 && standing[1 - side] > standing[side] * 1.25) || own < 0.15)) continue;
+      (this.broken ||= [false, false])[side] = true;
+      this.event(side, side === 0 ? 'Your army breaks and flees the field!' : 'The enemy army breaks and flees the field!');
+      for (const r of this.regs) if (r.side === side && !r.gone) {
+        if (r.regrouping) { this.disband(r); continue; }
+        if (!r.routing) this.startRout(r, { quiet: true });
+      }
     }
   }
 
