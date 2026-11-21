@@ -8,6 +8,8 @@ First audit, 20 Nov (quality-check session). Played: a fresh campaign's opening,
 
 Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers and knights marching close up, storms of Hollwick (a village) and Ashley Castle in the Lord test, and the Muster page, with checks() on each. The pane was still hidden, so I stepped time from the console and took stills: anything about motion (feet skating, how a clip plays) stays ❓.
 
+Fourth pass, 21 Nov (QC, main to ea308c3). Played: seed 61's first outlaw band (13 at 6:07) with no orders, a hand order on the militia, and Hold; band 2 (17 at 13:10) with a muster and no orders; Lord and Count saves (banners, household guard ask, hall); world-map labels and top bar at 527 px; a battle at 527 and in a 1280x800 frame. Findings: the opening outlaw line fades in 7 s while the intro card is still up; at 527 px a routing card reads "· rou" and the MEN/NERVE labels are hidden; the paused hint peeks out clipped between the panels.
+
 ## Units
 
 | Basic | Status | Notes |
