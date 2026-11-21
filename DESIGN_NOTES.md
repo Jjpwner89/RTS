@@ -429,3 +429,34 @@ After Crusader Kings' ideas (one place to see each vassal's opinion and its reas
 - **Review fixes** (2026-11-21, Manager): the Supplies form sends from and to what it shows (place ids stay strings), and "Send food", counsel and "Short of" all pick the sender the same way (`giver`: the village of yours with most of it to spare). The Realm screen updates only what changed each second, so hover, focus, tooltips and scroll stay put. Every refused dealing says why on screen and in the console (`world.vassalAct`), and so does a petition whose terms no longer hold when chosen: gold is checked again then, so no purse goes below nothing. Road times and wagon loads come from supply.js (`runTime`, `runLoad`, `RUN_GOODS`). Taking back a vassal's only village says plainly they leave your service. `checks()` gained a Vassals group: one holder per seat, no councillor without a seat, favours ≤ 2, no purse below nothing, and the supply form's ends are what it sends.
 - **Titles** (2026-11-21, roadmap "titles as ambitions"): raise a vassal one step at a time, always below your own rank: Sir or Lady to **Baron or Baroness** once you are count, then to **Count or Countess** once you are duke. Free and for good: +10 (+20 for the proud); the proud and ambitious among the rest −4 for fifteen minutes. **A real trade** (orchestrator's ruling, 2026-11-21, after Mount & Blade's fiefs: you make someone powerful who can later turn on you): a titled vassal sends half again as many men when called (Fair levies 45% → 68%, at most 90% of a garrison) but pays a quarter less in dues (Fair 30% → 22%); in a faction against you their men count double, and if it rises their villages stand against you with twice the garrison; every vassal minds harm done to a titled one half again as much (taking their land −18 instead of −12, arresting them −15 instead of −10). The raise button's tooltip spells out the trade before you click; the Terms show the shares as they are. A new want, *a higher title*, comes up only when you could give it. The name changes everywhere (map label, heralds, chronicle). `checks()`: titles are real and match the name. Numbers in vassals.js `TITLED`.
 - **Test campaigns**: Count has one vassal, Duke three (the furthest plain villages, the first as steward), so the Vassals and Council tabs have someone in them.
+
+## An interface that grows with rank (UI session, 2026-11-21)
+
+The north star asks for an interface that *enables* depth rather than suffering from it. The audit (group notes, `ui-audit-2026-11-21.md`, with screenshots) found the opposite at the start: a Reeve with one village sees 24 goods (all 12 arms at 0), the Cathedral, Knights' hall, stone walls, masons, mercenary companies, a great keep and a seven-tab Realm screen with empty council seats, while the panels cover about 45% of a 1280×800 village and all of a 527×549 one. The fix is the Mount & Blade climb applied to the screen: **you see what your rank can use, and each new tool arrives with a one-line introduction.**
+
+### Rules
+
+1. **Shown when usable.** A panel, tab, button or good appears when its mechanic arrives: by rank where the rules gate by rank (templates at Lord, the knights' hall and cathedral at Count, gathering armies at Duke, decrees at King), by event where they gate by event (the first house met, the first vassal, the first sellsword company seen, the first plank or weapon in store). One table, `src/ui/unlocks.js`, says what appears when and its introduction line; every screen asks it, so nothing is gated twice in two ways.
+2. **Greyed means "not yet, and here is why".** Anything shown but not possible now (too few planks, too few people) is dimmed with the reason in its tooltip. Things your rank can't use yet aren't shown greyed; they aren't shown.
+3. **New things say so, once.** When something unlocks it wears a small red "New" seal and a one-line callout beside it ("New: town templates lay out a whole quarter at once. Towns tab."); using it or clicking the callout dismisses it. The seen list is saved with the campaign (`world.uiSeen`), so a reload doesn't repeat them and a new campaign starts fresh. A rank-up herald lists what arrived; the callouts show where it is.
+4. **The 3D view comes first.** Every docked panel folds to its header with one click (the fold is remembered); the stock panel folds to a single strip of the goods that matter. Panels never overlap each other: the left column (stock over build) shares its height, and the build bar keeps one height whatever the tab. Below 1100×720, panels start folded except the one you're using; below 800×600 the top bar shows icons with their names in tooltips.
+5. **One visual language.** Parchment panels with a bronze rim, the dark leather top bar, parchment ribbon buttons (never wooden frames), house-blue cloth only for what is chosen or the one primary action, ink colours from the tokens in skin.css (good, bad and warn chosen to read on parchment). One tooltip, styled as a parchment slip with the hotkey shown, on every button, good and number. Type: 11/13/15/18 px; spacing 4/8/12/16. Hover darkens and warms; disabled is 45% with no blue.
+6. **Hotkeys on the face.** Every button with a key shows it (Space, M, Tab, − / +, B then a letter, the order keys).
+
+### What each rank sees
+
+| Rank | Arrives (with its introduction) |
+|---|---|
+| Reeve (1 place) | The village: stock strip (raw goods; *made* and *arms* rows appear with the first of them), build bar (Village, Gather, Craft, Military, Walls), the keep, regiments. Map: goals, your realm, Needs you. No Realm button: one village is the whole realm. |
+| Lord (2+) | **Realm screen** (Realm, Villages, Supplies, Treasury); **Towns tab**; grant to a vassal; call the banners; hire masons; raise a great keep. **Vassals** tab with the first vassal, **Houses** with the first house met. |
+| Count (5+) | **Council** tab; knights' hall and cathedral; captains running armies. |
+| Duke (11+) | Gather your armies; bigger regiments. |
+| King | Royal decrees. |
+
+### Batches (one screen finished before the next)
+
+1. **Village HUD**: the unlocks table and New callouts; the stock strip that folds; one-height build bar with Defences as its Walls tab; the keep panel trimmed (prose behind "more"); styled tooltips; top-bar hotkeys; small-window layout; parchment-legible colours in these panels.
+2. **World map**: goals that end, a message lane that never covers labels or panels, the realm panel by rank, Needs you only for what needs you, event cards whose greyed choice looks greyed, place labels told apart from UI.
+3. **Battle**: cards with labelled bars and a clear selection, orders bar that fits, deploy bar and messages apart.
+4. **Realm screen frame**: tabs by rank and event (contents stay the vassals session's).
+5. **Menus**: the title page and loading screen in the game's look, help per screen instead of one wall, the Muster in parchment.
