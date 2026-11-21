@@ -226,6 +226,7 @@ export class Battle {
     this.walls.onBreak = s => this.onWallBreak(s);
     this.captains = [null, null];
     this.lords = [null, null];
+    this.generals = [null, null]; // who commands each side, { name, trait }: the AI's temper (ai.js general)
     // Hooks for a town: structures() lists buildings engines can hit; onRuin(b) when one falls.
     this.structures = null;
     this.onRuin = null;

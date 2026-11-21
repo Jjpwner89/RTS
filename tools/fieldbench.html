@@ -1,0 +1,53 @@
+<!doctype html><meta charset="utf-8"><title>field bench</title>
+<!-- AI-vs-AI field battles, no drawing. In the console: await fight(seed, [g0, g1], mirror) where g is {plain:true}
+     (the old AI), {} (steady) or {trait:"turtler"} (a house); or series([[seed, gens, mirror], ...]) then read OUT once DONE. -->
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { makeHeight, plantTrees } from '../src/terrain.js';
+import { addCopses, makeRiver, carveRiver } from '../src/battlefield.js';
+import { Battle, TYPES } from '../src/battle.js';
+import { unwatched } from '../src/ai.js';
+import { value } from '../src/economy.js';
+import { rng } from '../src/noise.js';
+const FOOT = ['spear', 'sword', 'maa', 'spear', 'sword'], BOWS = ['archer', 'crossbow'], HORSE = ['cav', 'knight', 'lightcav'];
+function roster(rand, big) {
+  const pick = a => a[Math.floor(rand() * a.length)], n = big ? 1.5 : 1;
+  const out = { foot: [], bows: [], horse: [] };
+  for (let i = 0, k = Math.round((3 + rand() * 3) * n); i < k; i++) out.foot.push(pick(FOOT));
+  for (let i = 0, k = Math.floor(rand() * 3.5 * n); i < k; i++) out.bows.push(pick(BOWS));
+  for (let i = 0, k = Math.floor(rand() * 3.5 * n); i < k; i++) out.horse.push(pick(HORSE));
+  return out;
+}
+function place(b, side, R) {
+  const z = side ? -70 : 70, ang = side ? 0 : Math.PI, f = side ? 1 : -1;
+  R.foot.forEach((k, i) => b.addRegiment(side, k, (i - (R.foot.length - 1) / 2) * 34, z, ang));
+  R.bows.forEach((k, i) => b.addRegiment(side, k, (i - (R.bows.length - 1) / 2) * 34, side ? z - 22 : z + 22, ang));
+  const edge = R.foot.length * 17 + 25;
+  R.horse.forEach((k, i) => b.addRegiment(side, k, (i % 2 ? 1 : -1) * Math.min(130, edge + Math.floor(i / 2) * 32), side ? z - 10 : z + 10, ang));
+}
+const pw = R => [...R.foot, ...R.bows, ...R.horse].reduce((n, k) => n + (TYPES[k].count || 40) * value(k), 0);
+// odds as auto-resolve reckons them: a 0.85-1.15 roll each side on power
+function odds(a, d) { let w = 0, N = 24; for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (a * (0.85 + 0.3 * (i + .5) / N) > d * (0.85 + 0.3 * (j + .5) / N)) w++; return w / N / N; }
+function make(seed, gens, mirror) {
+  const river = makeRiver(seed, { chance: 0.4 });
+  const heightAt = carveRiver(makeHeight(seed), river);
+  const wet = (x, z) => river && Math.abs(river.across(x, z)) < river.half + 3;
+  const trees = plantTrees(seed, (x, z) => (Math.abs(x) < 120 && Math.abs(z) < 250) || wet(x, z), 0.56, 900);
+  addCopses(trees, seed, { avoid: wet });
+  const b = new Battle(heightAt, seed, { deploy: false, disbandAtHome: [true, true] });
+  b.setWoods(trees); b.setRiver(river);
+  const rand = rng(seed * 7 + 3), R0 = roster(rand, false), R1 = mirror ? R0 : roster(rand, rand() < 0.3);
+  place(b, 0, R0); place(b, 1, R1);
+  b.generals = gens.map(g => g && { ...g });
+  return { b, p: [pw(R0), pw(R1)], river: !!river };
+}
+// one fight: gens = [g0, g1] ({plain:true} = the old AI, {trait} = a house)
+window.fight = (seed, gens, mirror) => new Promise(done => {
+  const { b, p, river } = make(seed, gens, mirror), run = unwatched(b, { limit: 900 });
+  const t0 = performance.now();
+  const tick = () => { if (run.run(40)) done({ seed, winner: b.winner, time: Math.round(b.time), loss: b.losses.slice(), men: b.regs.reduce((n, r) => (n[r.side] += r.soldiers.length, n), [0, 0]), p, chance0: odds(p[0], p[1]), plans: (b.fieldAI || []).map(s => s?.plan + (s?.withdraw ? '+withdrew' : '')), river, ms: Math.round(performance.now() - t0) }); else setTimeout(tick, 0); };
+  tick();
+});
+window.series = async (jobs) => { window.OUT = []; for (const j of jobs) window.OUT.push(await window.fight(...j)); window.DONE = true; };
+window.READY = true;
+</script>

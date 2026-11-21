@@ -359,6 +359,8 @@ function leaders(battle, side, army) {
   const c = captainOf(world, army);
   if (c) battle.setCaptain(side, c, reg);
   if (army.lord !== null && army.lord !== undefined) battle.setLord(side, { name: lordName(world, army.lord), alive: true }, regs[1] || reg);
+  // The house's temper and habit steer its plan in the field (ai.js general).
+  battle.generals[side] = { trait: FACTIONS[army.side]?.trait, name: side && army.lord != null ? lordName(world, army.lord) : null };
 }
 
 function startField(enc, { watch = true } = {}) {

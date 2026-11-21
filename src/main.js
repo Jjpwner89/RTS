@@ -97,6 +97,9 @@ if (FORT) {
   }
 }
 
+// ?general=turtler (a house trait, ai.js): the enemy commands with that house's temper and habit.
+if (params.get('general')) battle.generals[1] = { trait: params.get('general') };
+
 let paused = mode !== 'field', speed = 1;
 const hooks = {
   togglePause: () => { paused = !paused; },
