@@ -118,3 +118,28 @@ So a second, forward death is free and uses our bone names (Knight_Male `Death`)
 **CMU motion capture** has the only real tumbling falls (subject 90, trials 16 "fall on face", 17 "banana peel slip", 18 "rug pull fall"), as BVH, 3–9 s, needing retargeting. Its licence is "free for all uses… may not resell this data directly, even in converted form", which is not CC0 and not clearly redistributable in a public repo, so nothing from it is packaged. That is the creator's call.
 
 **Not packaged**: KayKit Skeletons' Warrior (`Death_C_Skeletons`, `Spawn_Air`), a duplicate of the Knight's set; other Quaternius packs (Modular Men, Zombie Apocalypse, Toon Shooter, RPG Characters, the old 2017–2019 FBX packs) each carry the same single backward `Death`. The unofficial mirror of the KayKit Character Animations 1.1 pack is not used; the official Adventurers repo above carries the same death and hit clips.
+
+## Eighth batch (2026-11-21): the manual downloads
+
+Fetched by hand through the built-in browser with the creator's go-ahead. Both itch pages state their licence in the page's own "Asset license" field, and both are "free, pay what you want": no account and no payment were needed (the "No thanks, just take me to the downloads" route).
+
+### Siege engines: `siege/` (Ankers Low Poly Medieval Weapons)
+
+[Anker's Assets, "Low Poly Medieval Weapons"](https://ankersassets.itch.io/low-poly-medieval-weapons): "Asset license: Creative Commons Zero v1.0 Universal" on the page (the author also answers "Completely free to use, personal or commercial" in the comments). FBX, 1.5 MB zip, ten weeks old when read. The siege folder of the zip: `Ankers_Battering_Ram.fbx` (3,228 triangles), `Ankers_Catapult.fbx` (3,832), `Ankers_Trebuchet.fbx` (2,796), `Ankers_Siege_Tower.fbx` (5,272), `Ankers_Ballista.fbx` (3,150), and the missiles `Ankers_Ballista_Bolt`, `Ankers_Catapult_Boulder` and `Ankers_Trebuchet_Rock`. (The zip also holds a second `Seige Tower.fbx`, a misspelt copy with the same triangle count, which is left out; and 50 weapons, shields, tools and props, none of them packaged.)
+
+Compared with the game's engines (the Kenney Castle Kit 2.0: ram 1,112 triangles, catapult 928, trebuchet 1,518, tower 1,598, ballista 676), these are **timber-built, richly detailed and read as real siege engines** (a hide-and-plank roof on the ram, cranked windlass on the catapult, counterweight on the trebuchet), against Kenney's toy shapes, but they cost **about three times the triangles**, which a handful of engines per battle can afford. Native size is in centimetres (the ram is 403 × 475 × 909, so ×0.01 for metres); each is one mesh with named nodes only for what the author grouped, so the throwing arms, wheels and windlass may need splitting before they can animate, which Kenney's already do (`arm`, `wheel`). The look is flat colour, like Kenney's. Lineup: `scout-shots/siege-ankers.jpg` in the notes folder.
+
+### Animations: `anims/kaykit-rig-medium/` (KayKit Character Animations 1.1, the free build)
+
+[Kay Lousberg, "KayKit: Character Animations"](https://kaylousberg.itch.io/kaykit-character-animations), updated 10 December 2025: "Asset license: Creative Commons Zero v1.0 Universal" on the page, and the zip's `License.txt` (copied) says CC0. Only the "Free 1.1" build was taken (14 MB); the $14.99 "Source Files" was not. These are the medium-rig GLBs (one rig for 161 animations), animation-only, plus `Mannequin_Medium.glb` to see the rig on. Same KayKit rig as the Knight in `anims/KayKit_Adventures_Knight.glb`: lowercase Blender names, 41 joints, with toes, no Quaternius names, so it needs a bone map like the others.
+
+| File | Clips |
+|---|---|
+| `Rig_Medium_General.glb` | `Death_A`, `Death_B`, `Death_A_Pose`, `Death_B_Pose`, `Hit_A`, `Hit_B`, `Idle_A/B`, `Interact`, `PickUp`, `Throw`, `Use_Item`, `Spawn_Air`, `Spawn_Ground` |
+| `Rig_Medium_Tools.glb` | **`Hammer`, `Hammering`, `Saw`, `Sawing`, `Dig`, `Digging`, `Chop`, `Chopping`, `Pickaxe`, `Pickaxing`, `Fishing_Cast/Idle/Bite/Tug/Reeling/Struggling/Catch`, `Work_A–C`, `Working_A–C`, `Holding_A–C`, `Lockpick`**: the villager jobs |
+| `Rig_Medium_Simulation.glb` | `Cheering`, `Waving`, `Sit_Chair_*`, `Sit_Floor_*`, `Lie_Down`, `Lie_Idle`, `Lie_StandUp`, `Push_Ups`, `Sit_Ups` |
+| `Rig_Medium_MovementBasic.glb` | `Walking_A–C`, `Running_A/B`, `Jump_Start/Idle/Land`, `Jump_Full_Short/Long` |
+| `Rig_Medium_CombatMelee.glb` | `Melee_1H_Attack_*`, `Melee_2H_Attack_*`, `Melee_Block`, `Melee_Block_Hit`, `Melee_Blocking`, dual-wield, unarmed |
+| `Rig_Medium_CombatRanged.glb` | `Ranged_Bow_Draw`, `Ranged_Bow_Release`, `Ranged_Bow_Idle`, `Ranged_Bow_Aiming_Idle`, `Ranged_1H`/`2H` aim, shoot and reload, magic |
+
+This fills the villager jobs the free set was missing: **fishing, hammering, sawing, digging, and generic work**. The large rig (`Rig_Large_*`) and the skeleton, advanced-movement and Special files were left out.
