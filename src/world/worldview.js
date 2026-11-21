@@ -154,6 +154,31 @@ function wagonModel() {
   return { gear: mergeGeometries(gear), cloth: mergeGeometries(cloth), figures };
 }
 
+// An army's road ahead (WorldView.drawRoutes): a flat dashed band `width` wide through `pts`, sampled every few
+// metres and lifted just clear of the ground so it lies over the hills between the corners.
+const routeMaterial = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 });
+const ROUTE_END = new THREE.RingGeometry(0.7, 1, 24).rotateX(-Math.PI / 2);
+function layRoute(geo, pts, width, heightAt) {
+  const P = [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 2));
+    for (let k = 0; k < n; k++) P.push({ x: a.x + (b.x - a.x) * k / n, z: a.z + (b.z - a.z) * k / n });
+  }
+  P.push(pts[pts.length - 1]);
+  const pos = new Float32Array(P.length * 6), idx = [], dash = width * 3.5;
+  let along = 0;
+  P.forEach((p, i) => {
+    if (i) along += Math.hypot(p.x - P[i - 1].x, p.z - P[i - 1].z);
+    const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const nx = -(b.z - a.z) / len * width / 2, nz = (b.x - a.x) / len * width / 2;
+    pos.set([p.x + nx, heightAt(p.x + nx, p.z + nz) + 1.2, p.z + nz, p.x - nx, heightAt(p.x - nx, p.z - nz) + 1.2, p.z - nz], i * 6);
+    if (i && (along / dash) % 1 < 0.6) idx.push(i * 2 - 2, i * 2 - 1, i * 2, i * 2 - 1, i * 2 + 1, i * 2);
+  });
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeBoundingSphere();
+}
+
 // A column of marching men, coloured per side by tinting the white cloth (used when the baked models are missing).
 function columnModel() {
   const parts = [];
@@ -215,9 +240,10 @@ export class WorldView {
       new THREE.LineBasicMaterial({ color: '#ffd970', depthTest: false, transparent: true }));
     this.ring.renderOrder = 5;
     this.ring.visible = false;
-    this.pathLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: '#ffd970', dashSize: 6, gapSize: 4, depthTest: false, transparent: true }));
-    this.pathLine.renderOrder = 5;
-    this.scene.add(this.ring, this.pathLine);
+    this.scene.add(this.ring);
+    // Where armies are heading (route()): your own marching armies always, any other only while selected.
+    this.routes = new Map();   // army → { band, end }
+    this.routeMat = { own: routeMaterial(FACTIONS[0].color, 0.75), chosen: routeMaterial('#ffd970', 0.9) };
 
     this.labelsEl = document.getElementById('world-labels');
     this.labelsEl.innerHTML = '';
@@ -519,22 +545,39 @@ export class WorldView {
       if (near) o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
     }
 
-    // A ring under whatever is selected, and the road a selected army will take.
+    // A ring under whatever is selected, and the road each army will take.
     const it = selected && !selected.gone ? selected : null;
     this.ring.visible = !!it;
-    this.pathLine.visible = false;
+    this.drawRoutes(w, it, camera);
     if (it) {
       const isArmy = this.armies.has(it);
       const x = isArmy && it.at && !it.path.length ? it.x + 24 : it.x, z = isArmy && it.at && !it.path.length ? it.z + 24 : it.z;
       this.ring.position.set(x, this.heightAt(x, z) + 1, z);
       this.ring.scale.setScalar(isArmy ? 16 : 60);
-      if (isArmy && it.path.length) {
-        const pts = [it, ...it.path].map(q => new THREE.Vector3(q.x, this.heightAt(q.x, q.z) + 2, q.z));
-        this.pathLine.geometry.dispose();
-        this.pathLine.geometry = new THREE.BufferGeometry().setFromPoints(pts);
-        this.pathLine.computeLineDistances();
-        this.pathLine.visible = true;
+    }
+  }
+
+  // The road ahead of every army of yours on the march (not the wagons, which go their own way), in your colour,
+  // and of the selected army, whoever's, in gold: a dashed band laid over the hills from the army to the end of
+  // its path, with a ring where it stops. Dashes keep it from reading as one more road; bands widen as you pull
+  // back, so they read from high up (WebGL lines are a pixel thin).
+  drawRoutes(w, chosen, camera) {
+    const want = new Set(w.armies.filter(a => !a.gone && a.visible && a.path?.length && (a === chosen || (a.side === 0 && !a.wagon))));
+    for (const [a, r] of this.routes) if (!want.has(a)) { this.scene.remove(r.band, r.end); r.band.geometry.dispose(); this.routes.delete(a); }
+    for (const a of want) {
+      let r = this.routes.get(a);
+      if (!r) {
+        r = { band: new THREE.Mesh(new THREE.BufferGeometry(), this.routeMat.own), end: new THREE.Mesh(ROUTE_END, this.routeMat.own) };
+        r.band.renderOrder = r.end.renderOrder = 4;
+        this.scene.add(r.band, r.end);
+        this.routes.set(a, r);
       }
+      const width = Math.max(1.6, Math.min(9, camera.position.distanceTo(new THREE.Vector3(a.x, 0, a.z)) * 0.006));
+      r.band.material = r.end.material = a === chosen ? this.routeMat.chosen : this.routeMat.own;
+      layRoute(r.band.geometry, [a, ...a.path], width, this.heightAt);
+      const last = a.path[a.path.length - 1];
+      r.end.position.set(last.x, this.heightAt(last.x, last.z) + 1.2, last.z);
+      r.end.scale.setScalar(width * 2.2);
     }
     fxFor(this.scene, this.heightAt).world(w, side => side == null ? NEUTRAL.color : FACTIONS[side]?.color || '#8a8478');   // fx: battle smoke, captures, cairns, orders
   }
