@@ -2189,7 +2189,8 @@ export class Battle {
         const below = s.level === 1 && (t.level !== 1 || t.climb > 0);
         const reach = below ? POUR_REACH : T.reach;
         const charging = (T.charge && !s.charged) || this.time < r.chargeUntil;
-        if (!below && d > T.reach * 0.85) {
+        // (not for the half second after a blow: he stands to it, rather than strike on the move)
+        if (!below && d > T.reach * 0.85 && !(this.time - (s.struckAt ?? -9) < 0.5)) {
           const sp = T.speed * (charging ? 1.5 : 1.15);
           if (s.level === 1) { this.moveToward(s, t.x, t.z, sp, dt); this.keepOnWall(s); }
           else this.groundMove(s, t.x, t.z, sp, dt);
@@ -2506,8 +2507,8 @@ export class Battle {
       if (!live(s) || s.climb > 0) continue;
       const sm = s.reg.T.mounted, rs = sm ? 1.1 : 0.55, lvl = s.level, R = s.reg;
       // A man planted where he stands (striking at a foe, a spear braced as view.js shows it, a rider
-      // in the melee) plays no step for a shove: he gives a little along the way he faces and hardly
-      // at all across it, so his feet don't skate under the strike or brace.
+      // in the melee) plays no step for a shove: he gives only a little along the way he faces and
+      // hardly at all across it, so his feet don't skate under the strike or brace.
       const planted = !!s.target || (R.T.braces && (R.formation === 'square' || R.hold || R.engaged > 0) && s.v < 0.4);
       const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw);
       const x0 = Math.max(0, Math.floor((s.x - 2.4 + GSPAN) / CELL)), x1 = Math.min(GN - 1, Math.floor((s.x + 2.4 + GSPAN) / CELL));
@@ -2523,7 +2524,7 @@ export class Battle {
           // Horses shove infantry aside more than the other way round.
           const w = sm && !om ? 0.3 : !sm && om ? 1.7 : 1;
           let px = dx / d * push * w, pz = dz / d * push * w;
-          if (planted) { const a = px * fx + pz * fz; px = fx * a * 0.5 + (px - fx * a) * 0.15; pz = fz * a * 0.5 + (pz - fz * a) * 0.15; }
+          if (planted) { const a = px * fx + pz * fz; px = fx * a * 0.12 + (px - fx * a) * 0.06; pz = fz * a * 0.12 + (pz - fz * a) * 0.06; }
           s.x += px;
           s.z += pz;
         }
