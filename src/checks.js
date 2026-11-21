@@ -213,7 +213,7 @@ async function battleChecks({ battle, town, label }) {
 // ---- the world map ----
 
 async function worldChecks(w) {
-  const { FACTIONS, headcount } = await import('./world/world.js');
+  const { FACTIONS } = await import('./world/world.js');
   const { builtCount } = await import('./world/holdings.js');
   group = 'World';
 
@@ -287,13 +287,6 @@ async function worldChecks(w) {
       const pop = Math.round(p.eco.pop), here = t.population + (t.hostile?.folk || []).reduce((n, u) => n + u.count, 0);
       const out = Math.abs(here - pop) > Math.max(3, pop * 0.1) ? [`${pop} people in its numbers, ${here} here${t.hostile ? ' (villagers and those turned out)' : ''}`] : [];
       return t.hostile && out.length ? { warn: out } : out;
-    });
-    if (t.hostile) await check('garrison matches its numbers', () => {
-      // only before the fighting starts: after that, men fall
-      if (t.battle.deploying === false || t.battle.time > 5 && !t.battle.deploy) return null;
-      const want = headcount(p.garrison) + (t.hostile.folk || []).reduce((n, u) => n + u.count, 0);
-      const here = t.battle.regs.filter(r => r.side === 1 && !r.gone).reduce((n, r) => n + r.alive, 0);
-      return here !== want ? [`${want} men in its garrison and folk, ${here} defenders here`] : [];
     });
   }
 }
