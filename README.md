@@ -1,7 +1,7 @@
 # RTS
 
 An early-stage strategy game: grand-strategy progression (lord → emperor) with hand-fought real-time battles.
-Goals, decisions and open questions live in [DESIGN_NOTES.md](DESIGN_NOTES.md). What to build next is in [ROADMAP.md](ROADMAP.md).
+Goals, decisions and open questions live in [DESIGN_NOTES.md](DESIGN_NOTES.md). What to build next is in [ROADMAP.md](ROADMAP.md). Every session follows [HOW_WE_BUILD.md](HOW_WE_BUILD.md) and checks work against [GENRE_BASICS.md](GENRE_BASICS.md).
 
 ## Run it
 
