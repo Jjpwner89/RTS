@@ -49,7 +49,7 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 
 | Basic | Status | Notes |
 |---|---|---|
-| Tooltips on every button, good and number | ❓ | |
+| Tooltips on every button, good and number | ⚠️ | 21 Nov, Realm screen (7d6ef41, Count and Duke tests): every vassal button has a tooltip, and one held for 6 s stays put while the screen updates. Greyed-out buttons keep their usual tip and don't say why they are off: dues and levies at their limit, Demand with a thin purse, Call to arms while refusing. A vassal asking 60 gold you lack shows *Send 60 gold* greyed out but still blue like the main button, with no reason; a click does nothing. The game's own refusals all give a reason ("Dues are as heavy as they go", "has no feud to settle") |
 | Every resource shows what it is, how much, and whether it's rising or falling | ❓ | |
 | Alerts for what needs you, with a way to jump there | ⚠️ | *Needs you* list. 20 Nov: *Needs you* lists the right things, but events still pop up as modals the moment a fight ends (masons straight after taking Brackholm). 21 Nov, real time: an event fired mid-storm waited and opened 5.0 s after Redgate was taken (4c82912); a burst of finished goals shows one line (da8c376) |
 | Every action has a sound; important events have a distinct one | ❓ | Second sound pass 2026-11-20 |
