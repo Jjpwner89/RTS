@@ -257,6 +257,8 @@ export const KEEP_RAISE = [
 ];
 // A feast: gold for a spell of good feeling, the cure for a village near revolt.
 export const FEAST = { perHead: 2, least: 60, mood: 15, secs: 300, again: 600 };
+// A militia that beats off an attack lifts the village: proud, fading over five minutes.
+export const DEFENDED = { mood: 8, secs: 300 };
 // Masons hired for gold: twice the crews on the walls, and damaged walls mended, for a while.
 export const MASONS = { gold: 80, secs: 180, mend: 0.01 };
 export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuchet']
@@ -883,6 +885,7 @@ export class Town {
       r.soldiers.forEach((s, j) => { band[j].state = 'soldier'; band[j].soldier = s; s.villager = band[j]; });
       regs.push(r);
     }
+    this.musterAt = this.time;
     audio.play('horn', this.keep, this.battle); audio.play('drums', this.keep, this.battle); // audio: the militia called out
     this.event(`The whole village turns out: ${men.length} villagers took up axes, flails and pitchforks.`, 1);
     return { ok: true, regs };
@@ -1203,6 +1206,7 @@ export class Town {
       add(this.time < (this.feastUntil || 0) ? FEAST.mood : 0, 'a feast');
       add(KEEP_RAISE.slice(0, this.keepBought || 0).reduce((n, K) => n + K.mood, 0), 'a great keep');
       add(this.underAttack ? -10 : 0, 'under attack');
+      add(this.time - this.defendedAt < DEFENDED.secs ? Math.ceil(DEFENDED.mood * (1 - (this.time - this.defendedAt) / DEFENDED.secs)) : 0, 'they defended their homes');
       add(this.cold ? -12 : 0, 'cold hearths');
       this.moodWhy = why.sort((a, b) => Math.abs(b[0]) - Math.abs(a[0]));
       this.moodWant = Math.max(0, Math.min(100, 50 + why.reduce((n, [k]) => n + k, 0)));
@@ -1798,6 +1802,11 @@ export class Town {
     if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
     const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...carry(r) })).filter(sp => sp.count > 0);
     if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
+    // Beaten, not just gone with their plunder, while the militia was out: a proud village.
+    if (!this.lost && !this.hostile && g.mode !== 'hold' && !g.leaving && this.musterAt >= this.time - g.time) {
+      this.defendedAt = this.time;
+      this.event('The militia beat them off. The village is proud: they defended their homes.');
+    }
     g.onLeave?.(survivors);
   }
 
@@ -1894,7 +1903,7 @@ export class Town {
     const regs = specs.map((sp, i) => {
       const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));
       // Inside their walls if they have them, else in a ring out in front of the keep.
-      const d = b.walls.any ? (ranged(sp.key) ? 13 : 17) : ranged(sp.key) ? 16 : 32;
+      const d = sp.militia ? 9 : b.walls.any ? (ranged(sp.key) ? 13 : 17) : ranged(sp.key) ? 16 : 32;   // the village's own people by the keep
       const r = Object.assign(b.addRegiment(1, sp.key, Math.sin(a) * d, Math.cos(a) * d, a, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
       r.post = { x: Math.sin(a) * d, z: Math.cos(a) * d, angle: a };
       return r;

@@ -17,6 +17,7 @@ import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } 
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal } from './supply.js';
 import { govern } from './governor.js';
+import { turnOut, mourn, sendHome } from './militia.js';
 import { tickEvents } from './events.js';
 import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
@@ -848,7 +849,10 @@ export class World {
     // Walls stormed with no ladders, ram or engines cost as dearly here as by hand (battle.js).
     const p = enc.poi, walled = p && (p.mem ? p.mem.pieces.length > 0 : p.eco?.walls ? p.eco.walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
     const bare = enc.kind === 'assault' && walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
-    const r = this.resolve(enc.army.units, enc.defenders, enc.kind === 'assault' ? this.defenceBonus(enc.poi) * (bare ? 1.4 : 1) : 1);
+    const folk = enc.kind === 'assault' ? turnOut(p, enc.army.units, FACTIONS[p.owner]) : [];
+    if (folk.length) this.log(`The people of ${p.name} have turned out to defend it.`);
+    const r = this.resolve(enc.army.units, [...enc.defenders, ...folk], enc.kind === 'assault' ? this.defenceBonus(enc.poi) * (bare ? 1.4 : 1) : 1);
+    r.D = sendHome(p, folk, r.D);
     this.settle(enc, r.attackerWins, r.A, r.D);
     return r.attackerWins;
   }
@@ -977,7 +981,10 @@ export class World {
     this.encounter = null;
     a.halted = false;
     const lvl = p.eco?.level ?? 1, pop = p.eco?.pop ?? 20;
-    const defenders = p.garrison;
+    // Outnumbered, the place's people take up tools too and stand by the keep (militia.js).
+    const folk = turnOut(p, a.units, FACTIONS[owner]);
+    const defenders = [...p.garrison, ...folk];
+    if (folk.length) this.log(`The people of ${p.name} have turned out to defend it.`);
     const town = this.makeTown(p, { kind: p.kind, villagers: 0, retinue: false, stock: storesOf(p, lvl) });
     const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
     // Castles, lords' seats, Kingsbridge and the north's strongholds have walls round the
@@ -993,7 +1000,7 @@ export class World {
     layOut(town, p, lvl, town.rand, walled ? (p.kind === 'crown' ? 40 : 33) : 16);
     town.keepLevel = town.keepLevel || Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
     const H = owner === null ? NEUTRAL : FACTIONS[owner];
-    town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came };
+    town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came, folk };
     town.flagColor = H.color;
     town.holdKeep(defenders, came, { house: owner ?? 1 });
     this.seatCaptain(town.battle, 0, captainOf(this, a), town.addTroops(a.units, came, { stand: 100 }));
@@ -1008,7 +1015,7 @@ export class World {
     if (p.eco?.hungry) b.setHunger(1, 0.5);
     const yieldTo = b.acceptTerms.bind(b);
     b.acceptTerms = () => {
-      if (b.terms?.side === 1 && town.hostile) town.hostile.yielded = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...carry(r) }));
+      if (b.terms?.side === 1 && town.hostile) town.hostile.yielded = b.regs.filter(r => r.side === 1 && !r.gone && r.alive > 0 && !r.T.militia).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...carry(r) }));
       yieldTo();
     };
     // Or they buy their way out: their lord pays a ransom for the men, and resents it.
@@ -1046,6 +1053,7 @@ export class World {
     grudge(this, was, 'took', p.name);
     if (t.buildings.some(o => o.state === 'ruined')) grudge(this, was, 'burned', p.name);
     this.takePlace(p, 0);
+    if (h.folk?.length) h.pop = Math.max(5, h.pop - Math.max(0, h.folk.reduce((n, u) => n + u.count, 0) - folkLeft(t.battle)));
     t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * (h.yielded ? 0.8 : 0.5)))) });
     t.flagColor = null;
     p.eco = h.eco;
@@ -1073,12 +1081,13 @@ export class World {
     const left = r => r.soldiers.filter(s => s.alive && !s.gone).length;
     const mine = b.regs.filter(r => r.side === 0 && !r.gone)
       .map(r => ({ key: r.T.key, count: left(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...carry(r) })).filter(u => u.count >= 3);
-    const theirs = b.regs.filter(r => r.side === 1 && !r.gone).map(r => ({ ...unit(r.T.key, left(r), r.name), ...carry(r) })).filter(u => u.count >= 3);
+    const theirs = b.regs.filter(r => r.side === 1 && !r.gone && !r.T.militia).map(r => ({ ...unit(r.T.key, left(r), r.name), ...carry(r) })).filter(u => u.count >= 3);
     const ruins = t.buildings.filter(o => o.state === 'ruined'), burned = ruins.length;
     p.mem = remember(t, 1, this.time);
     p.town = null;
     p.garrison = theirs;
     p.eco = h.eco || { pop: h.pop, level: 1, arms: 0 };
+    if (h.folk?.length) mourn(p, h.folk, folkLeft(b));
     if (burned) {
       p.eco.pop *= Math.max(0.4, 1 - burned * 0.1);
       if (p.eco.buildings) burn(p.eco, ruins.map(o => o.kind));
@@ -1153,7 +1162,10 @@ export class World {
 
   autoAssault(a, p) {
     const was = p.owner, H = FACTIONS[a.side];
-    const r = this.resolve(a.units, p.garrison, this.defenceBonus(p));
+    // Its people turn out if the keep itself is in danger (militia.js).
+    const folk = turnOut(p, a.units, FACTIONS[p.owner]);
+    const r = this.resolve(a.units, [...p.garrison, ...folk], this.defenceBonus(p));
+    r.D = sendHome(p, folk, r.D);
     a.units = r.A;
     if (r.attackerWins) {
       this.takePlace(p, a.side);
@@ -1675,6 +1687,9 @@ export class World {
 }
 
 export function unit(key, count, name) { return { key, count, name }; }
+
+// A stormed place's militia still alive, run off or not.
+const folkLeft = b => b.regs.filter(r => r.side === 1 && r.T.militia).reduce((n, r) => n + r.soldiers.filter(s => s.alive).length, 0);
 
 // An army as you can make it out (updateVision's a.know): its name and size close up, its
 // name and a rough size in the middle distance, at the edge only that an army is there.
