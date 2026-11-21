@@ -330,7 +330,9 @@ export class WorldView {
   march(o, a) {
     const figs = o.mesh.userData.figures;
     if (!figs?.length) return;
-    const now = performance.now() / 1000, dt = Math.min(0.25, now - (o.animAt ?? now));
+    // (real time: the figures keep pace with the army as it moves on screen, at any game speed)
+    const now = performance.now() / 1000, dt = now - (o.animAt ?? now);
+    if (dt > 1) { o.animAt = now; o.animX = a.x; o.animZ = a.z; return; }   // back from a hidden tab: start afresh
     if (dt > 0) {
       const moved = o.animX == null ? 0 : Math.hypot(a.x - o.animX, a.z - o.animZ) / dt / o.mesh.scale.x;
       if (moved < 40) o.animV = (o.animV ?? moved) + (moved - (o.animV ?? moved)) * Math.min(1, dt * 4);   // (not a jump)

@@ -359,7 +359,7 @@ export class TownView {
     const d = this.dummy, P = this.people, c = this.color || (this.color = new THREE.Color());
     const cam = LOD.camera?.position, near2 = LOD.near * LOD.near;
     let n = 0, nl = 0, k = 0;
-    const dt = Math.min(0.25, Math.max(0, town.time - (this.animAt ?? town.time)));   // anim
+    const dt = Math.min(0.5, Math.max(0, town.time - (this.animAt ?? town.time)));   // anim (a frame at 4x is up to 0.4 s: town.js)
     this.animAt = town.time;
     for (const v of town.villagers) {
       if (v.hidden || v.state === 'soldier' || n + nl >= 600) continue;

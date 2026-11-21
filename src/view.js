@@ -31,7 +31,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const HORSE_TROT = 2.4;   // the stock trot steps short: a horse trots a little quicker than its clip before it gallops
 export function soldierClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
-  const dt = clamp(now - (s.animAt ?? now), 0, 0.25);
+  const dt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
   s.animAt = now;
   s.animT ??= Math.random() * 3;
   out.hc = null; out.ht = 0;
