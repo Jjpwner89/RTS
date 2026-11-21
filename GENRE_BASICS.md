@@ -53,7 +53,7 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 | Alerts for what needs you, with a way to jump there | ⚠️ | *Needs you* list. 20 Nov: *Needs you* lists the right things, but events still pop up as modals the moment a fight ends (masons straight after taking Brackholm) |
 | Every action has a sound; important events have a distinct one | ❓ | Second sound pass 2026-11-20 |
 | Damage, morale and routs are readable without reading numbers | ❓ | |
-| Victory and defeat are clear, and you know why you won or lost | ⚠️ | 20 Nov: "You have taken Brackholm" and the gold toast are clear. A storm without engines warns you first now, then costs 13 of 31 men in about 20 s with no defender lost |
+| Victory and defeat are clear, and you know why you won or lost | ⚠️ | 20 Nov: "You have taken Brackholm" and the gold toast are clear. A storm without engines warns you first now, then costs 13 of 31 men in about 20 s with no defender lost. 21 Nov: only the front rank hacks a gate now (2c13600): 7 of 30 guards struck at once, and a 360 hp palisade gate took 9 s |
 
 ## Camera and comfort
 
@@ -63,7 +63,7 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 | Edge-scroll or WASD, and centring on a selection | ⚠️ | 20 Nov: WASD, arrows, Q/E and F to centre work; there's no edge-scroll, and in a village or battle left-drag selects, so only the keys pan. Edge-scroll added in battles and villages 2026-11-21 (2c13600), not yet tried |
 | Pause, and orders while paused | ✅ | 20 Nov: Pause in the top bar and on Space; "Paused: you can still build and give orders" |
 | Game speed control | ✅ | Built 2026-11-20. 20 Nov: ½× to 4× in the top bar, and 1/2/3 keys. The deploy countdown runs at game speed, so at 4× a storm starts before you've read the deploy panel. The countdown runs in real seconds since 2c13600; speed moved to − and + (21 Nov: + steps it up) |
-| Steady frame rate in the biggest battles and towns | ❓ | |
+| Steady frame rate in the biggest battles and towns | ❓ | 21 Nov, simulation only (no drawing): a Kingsbridge storm with about 680 men costs the whole world 5.9 ms a step (median), 10.8 ms at the 90th percentile and 22.5 ms at worst. That is tight at 4×, which takes two steps a frame. Frame rate on screen not yet measured |
 | No layout breaking at common window sizes | ⚠️ | 20 Nov: at 800×600 the left stock panel, the build menu and the Defences panel cover half the village, and toasts stack over each other at the top. The toast now sits above the panels (8526f15) |
 | Keyboard shortcuts shown on buttons | ✅ | 20 Nov: build buttons show their letter key. 21 Nov: the battle orders bar shows them too (Line N, Tight T … Dig mine U, 2c13600) |
 
