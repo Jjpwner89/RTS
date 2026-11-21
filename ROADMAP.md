@@ -66,7 +66,8 @@ A vassal runs a town for you: builds it up, raises troops and pays gold. But he 
 - **Built (2026-11-19):** grant a village (from Lord), the realm's vassal list and one opinion number with reasons on hover, a temper and one want each, dues and levies up or down, gifts, three council seats, taking a village back (the others take note), a lord too aggrieved stops paying and sending men, and each lord's short memory of what happened to him. His village runs on the tracked economy and keeps your layout.
 - **Look round a vassal's village** (creator, 2026-11-19: read-only): double-click it or press *Look round* in its panel. You see it as he has grown it, people at work, but can't build, order or tax; the layout you saw is kept as the place's own.
 - **Built (2026-11-19), vassal trouble:** feuds between neighbouring vassals (one at a time; both villages lose people and each minds more the longer you leave it; judge for one or pay 80 to reconcile them; they burn out after about half an hour), factions of the resentful (⚑ in the list) who after three minutes demand light dues and levies and rise if refused (their villages go free of you, to be retaken by force), imprisoning a vassal (his villages come back, the others mind) and pardoning him (landless at your court until you grant him a village).
-- **Not built yet:** marriages and titles as ambitions; a faction demanding a different king.
+- **Titles built (2026-11-21):** raise a vassal to baron (from count) or count (from duke), wanted as an ambition; see "Vassals, deeper" in DESIGN_NOTES.
+- **Not built yet:** marriages as ambitions; a faction demanding a different king.
 
 ### Town templates
 

@@ -10,6 +10,7 @@ Tradeoffs where either answer plays well. The game carries on with the default n
 
 - **Pause while the Realm screen is open?** It keeps running now, as the map does, so supplies and armies move while you read. Pausing would make it a calm planning screen, at the cost of forgetting to unpause. Default: keeps running (Space still pauses).
 - **How often vassals petition you.** Every 10–15 minutes now. More often gives the court more life and more small choices; less keeps the focus on war. Default: 10–15 minutes.
+- **What a title costs you** (2026-11-21). Raising a vassal to baron (from count) or count (from duke) is free and pleases them for good (+10, the proud +20), and the proud and ambitious among the rest mind it for a while. The price now: every vassal minds harm done to a titled one half again as much (taking their land, arresting them). A sharper price would make titled vassals worth more and fear more: for example a titled vassal's men counting double toward a faction, or titled vassals expecting lighter dues. A softer one makes titles an easy reward to hand out. Default: the half-again rule.
 
 ## The militia (2026-11-21)
 

@@ -4,7 +4,7 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
-import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, DUES, LEVIES, RECONCILE } from './vassals.js';
+import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, harmWeight, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
@@ -1403,7 +1403,7 @@ export class World {
     if (quiet) return true;
     if (!holdingsOf(this, v).length) v.gone = true;
     else mark(this, v, -30, `You took ${p.name} back`, 2400);
-    for (const o of living(this)) if (o !== v) mark(this, o, -12, `You took ${p.name} from ${v.name}`, 1800);
+    for (const o of living(this)) if (o !== v) mark(this, o, -12 * harmWeight(v), `You took ${p.name} from ${v.name}`, 1800);
     this.log(`You have taken ${p.name} back from ${v.name}.`, 1);
     return true;
   }

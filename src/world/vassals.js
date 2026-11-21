@@ -49,9 +49,26 @@ export const TEMPERS = {
   ambitious: { name: 'ambitious', base: -8, want: 2, about: 'Always wants more, and minds going without.' },
   content: { name: 'content', base: 6, about: 'Asks little and grumbles less.' },
 };
+// Titles you can raise a vassal to (2026-11-21, roadmap "titles as ambitions"): always one
+// below your own rank, so a count makes barons and a duke or king makes counts. A title is
+// kept for good, and the rest of your vassals mind harm done to a titled one half again as
+// much.
+export const TITLES = [
+  { name: 'Sir', lady: ['Lady', 'Dame'] },
+  { name: 'Baron', lady: ['Baroness'], from: 'Count' },
+  { name: 'Count', lady: ['Countess'], from: 'Duke' },
+];
+const RANK_ORDER = ['Reeve', 'Lord', 'Count', 'Duke', 'King'];
+const LADY = new Set(TITLES.flatMap(t => t.lady));
+// The highest title you can give now (0: none).
+export const titleCap = w => TITLES.reduce((n, t, i) => (t.from && RANK_ORDER.indexOf(w.rank) >= RANK_ORDER.indexOf(t.from) ? i : n), 0);
+export const titleName = (v, k = v.title || 0) => LADY.has(v.name.split(' ')[0]) ? TITLES[k].lady[0] : TITLES[k].name;
+export const harmWeight = v => (v.title ? 1.5 : 1);
+
 // What they want. Each is met or not; unmet, it weighs on them more as time passes. Once
 // met for a while (WANT_KEPT) they are grateful for good and want something new. `how`
-// says what you can do about it.
+// says what you can do about it; `can` (if given) says whether you could give it at all,
+// and a want you can't give is never picked.
 export const WANTS = {
   land: { text: 'a second village', how: 'Grant them another of your villages', met: (w, v) => w.pois.filter(p => p.vassal === v.id).length >= 2 },
   seat: { text: 'a seat on your council', how: 'Seat them on your council', met: (w, v) => v.council },
@@ -59,7 +76,16 @@ export const WANTS = {
   peace: { text: 'peace with the great houses', how: 'Make peace with every house', met: w => ![...w.wars].some(k => k.startsWith('0:')) },
   glory: { text: 'a war to win glory in', how: 'Call them to arms, then take a place from a rival', met: (w, v, at = w.time) => at - (v.glory ?? -1e9) < 1200 },
   gold: { text: 'a gift of gold', how: 'Send them a gift', met: (w, v, at = w.time) => at - (v.gifted ?? -1e9) < 900 },
+  title: { text: 'a higher title', how: 'Raise them to a title', met: (w, v) => (v.title || 0) >= (v.titleAsked || 1),
+    can: (w, v) => (v.title || 0) < titleCap(w) },
 };
+const wantable = (w, v, k) => !WANTS[k].can || WANTS[k].can(w, v);
+function setWant(w, v, k) {
+  v.want = k;
+  v.wantSince = w.time;
+  v.wantMet = null;
+  if (k === 'title') v.titleAsked = (v.title || 0) + 1;
+}
 
 // What each is good at, and which seat of your council that suits.
 export const KNACKS = {
@@ -96,14 +122,15 @@ export function makeVassal(w, p) {
     const lady = FIRST.indexOf(first) >= 19;
     name = `${lady ? 'Lady' : 'Sir'} ${first} ${LAST[Math.floor(r() * LAST.length)]}`;
   }
-  const tempers = Object.keys(TEMPERS), wants = Object.keys(WANTS), knacks = Object.keys(KNACKS);
+  const tempers = Object.keys(TEMPERS), wants = Object.keys(WANTS).filter(k => wantable(w, { title: 0 }, k)), knacks = Object.keys(KNACKS);
   const v = {
     id: (w.vassalId = (w.vassalId || 0) + 1), name, color: COLORS[(w.vassalId - 1) % COLORS.length],
-    temper: tempers[Math.floor(r() * tempers.length)], want: wants[Math.floor(r() * wants.length)], wantSince: w.time,
+    temper: tempers[Math.floor(r() * tempers.length)], want: wants[Math.floor(r() * wants.length)], title: 0,
     knack: knacks[Math.floor(r() * knacks.length)], seat: null, favours: 0,
     dues: 1, levy: 1, council: false, gold: 0, paid: 0, sent: 0, since: w.time, refusing: false,
     marks: [], memory: [],
   };
+  setWant(w, v, v.want);
   w.vassals.push(v);
   remember(w, v, `Given ${p.name} by you`);
   mark(w, v, 20, `Given ${p.name}`, Infinity);
@@ -210,6 +237,7 @@ export function tickVassals(w, dt = 5) {
     // Older saves: a knack, a named seat for a councillor, no favours yet.
     v.knack ??= Object.keys(KNACKS)[v.id % 3];
     v.favours ??= 0;
+    v.title ??= 0;
     if (v.council && !v.seat) v.seat = Object.keys(SEATS).find(k => !seatHolder(w, k)) || null;
     if (!v.council) v.seat = null;
     if (!holdingsOf(w, v).length && !v.landless) { v.gone = true; continue; }
@@ -239,11 +267,10 @@ export function tickVassals(w, dt = 5) {
 }
 
 function newWant(w, v) {
-  const left = Object.keys(WANTS).filter(k => k !== v.want && !WANTS[k].met(w, v));
-  const pick = left.length ? left : Object.keys(WANTS).filter(k => k !== v.want);
-  v.want = pick[Math.floor(w.rand() * pick.length)];
-  v.wantSince = w.time;
-  v.wantMet = null;
+  const ok = Object.keys(WANTS).filter(k => k !== v.want && wantable(w, v, k));
+  const left = ok.filter(k => !WANTS[k].met(w, v) || k === 'title');
+  const pick = left.length ? left : ok;
+  setWant(w, v, pick[Math.floor(w.rand() * pick.length)]);
   remember(w, v, `Came to want ${WANTS[v.want].text}`);
   w.log(`${v.name} now wants ${WANTS[v.want].text}.`);
 }
@@ -364,6 +391,20 @@ export function interact(w, v, act, arg) {
     for (const o of living(w)) if (o !== v && TEMPERS[o.temper].honour) mark(w, o, -3, `You honoured ${v.name} over them`, 600);
     return { ok: true, text: `You raise ${v.name} before your court.` };
   }
+  if (act === 'title') {
+    const k = (v.title || 0) + 1, cap = titleCap(w);
+    if (v.landless) return { ok: false, text: `${v.name} holds no land to take a title from` };
+    if (k > cap) return { ok: false, text: cap ? `As ${w.rank.toLowerCase()} you can raise no one above ${TITLES[cap].name.toLowerCase()}` : 'From the rank of count you can raise a vassal to a title' };
+    const seat = holdingsOf(w, v)[0], was = v.name;
+    v.title = k;
+    v.name = `${titleName(v)} ${v.name.split(' ').slice(1).join(' ')}`;
+    mark(w, v, 10 * (T.honour || 1), `Raised to ${TITLES[k].name.toLowerCase()}`, Infinity);
+    for (const o of living(w)) if (o !== v && (TEMPERS[o.temper].honour || TEMPERS[o.temper].want)) mark(w, o, -4, `You raised ${v.name} over them`, 900);
+    remember(w, v, `Raised by you to ${titleName(v).toLowerCase()} of ${seat.name}`);
+    w.log(`${was} is ${titleName(v)} of ${seat.name} now.`, 1);
+    w.chron?.(`${was} was raised to ${titleName(v).toLowerCase()} of ${seat.name}.`);
+    return { ok: true, text: `${was} kneels, and rises ${titleName(v)} of ${seat.name}.` };
+  }
   if (act === 'demand') {
     const n = Math.floor((v.gold || 0) / 2);
     if (n < DEMAND_MIN) return { ok: false, text: `Their purse holds too little to ask for (${Math.floor(v.gold || 0)} gold)` };
@@ -431,7 +472,7 @@ export function interact(w, v, act, arg) {
   }
   if (act === 'arrest') {
     const odds = arrestOdds(w, v);
-    for (const o of living(w)) if (o !== v) mark(w, o, -10, `You imprisoned ${v.name}`, 2400);
+    for (const o of living(w)) if (o !== v) mark(w, o, -10 * harmWeight(v), `You imprisoned ${v.name}`, 2400);
     if (odds && w.rand() < odds) {
       // Warned in time: they ride to their men and their villages close their gates to you.
       const held = holdingsOf(w, v);

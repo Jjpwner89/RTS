@@ -13,7 +13,7 @@
 import { FACTIONS, headcount, seenAs } from './world/world.js';
 import { GOOD_GROUPS, TAXES } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
-  moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN } from './world/vassals.js';
+  moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, titleCap, titleName, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN } from './world/vassals.js';
 import { elitePay } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
@@ -505,7 +505,8 @@ export class RealmScreen {
       <h4>Terms</h4><div class="terms"><span>Dues</span>${btn('dues-', '−', v.dues > 0, 'Lighter dues please them')}<b>${DUES[v.dues].name} (${Math.round(DUES[v.dues].share * 100)}%)</b>${btn('dues+', '+', v.dues < 2, v.favours ? 'They owe you: no bad blood' : 'Heavier dues anger them')}
         <span>Levies</span>${btn('levy-', '−', v.levy > 0, 'Lighter levies please them')}<b>${LEVIES[v.levy].name} (${Math.round(LEVIES[v.levy].share * 100)}%)</b>${btn('levy+', '+', v.levy < 2, v.favours ? 'They owe you: no bad blood' : 'Heavier levies anger them')}</div>
       <h4>Favour</h4><div class="acts-row">${btn('gift', `${ico('gold', '#e8c45a')} Gift (${GIFT} gold)`, me.gold >= GIFT, `+15${T.dues ? ' (more for the greedy)' : ''}, fading over 15 minutes`)}
-        ${btn('honour', `${ico('crown')} Honour before your court${honourWait ? ` (${Math.ceil(honourWait / 60)} min)` : ''}`, !honourWait, `Free. +8${T.honour ? ' (twice that for the proud)' : ''}; the proud among the others mind being passed over (−3)`)}</div>
+        ${btn('honour', `${ico('crown')} Honour before your court${honourWait ? ` (${Math.ceil(honourWait / 60)} min)` : ''}`, !honourWait, `Free. +8${T.honour ? ' (twice that for the proud)' : ''}; the proud among the others mind being passed over (−3)`)}
+        ${this.titleButton(v, btn)}</div>
       <h4>Council</h4>${council}
       <h4>Land</h4>${land || '<p class="note">They hold nothing.</p>'}
       <h4>Demands</h4><div class="acts-row">${btn('demand', `${ico('gold', '#e8c45a')} Demand ${demand} gold`, demand >= DEMAND_MIN, v.favours ? 'They owe you: they pay without bad blood' : `Half their purse. −15${T.dues ? ' (more for the greedy)' : ''}; refused if they are resentful`)}
@@ -515,6 +516,15 @@ export class RealmScreen {
       <h4>Justice</h4><div class="acts-row">${sure('arrest') ? `<span class="warn">${odds ? `About ${Math.round(odds * 100)}% they flee to their men and rise.` : 'They will come quietly.'} Every other vassal will mind it (−10).</span> ${btn('arrest', 'Yes, arrest them', true, '', 'warn')}<button data-act="cancel">No</button>`
         : btn('arrest', 'Arrest them', true, `Every village they hold comes back to you and they go to your dungeon. ${odds ? `Defiant: about ${Math.round(odds * 100)}% they flee and rise instead.` : 'They are not defiant: they will come quietly.'}`, 'warn')}</div>
       ${v.memory?.length ? `<h4>They remember</h4><div class="memory">${v.memory.slice(-6).reverse().map(m => `<div><small>${clock(m.at)}</small> ${esc(m.text)}</div>`).join('')}</div>` : ''}`;
+  }
+
+  // Raise them a title: one below your own rank, kept for good.
+  titleButton(v, btn) {
+    const w = this.w, k = (v.title || 0) + 1, cap = titleCap(w), T = TEMPERS[v.temper];
+    if (k >= TITLES.length) return '';
+    const name = titleName(v, k), seat = holdingsOf(w, v)[0];
+    const why = v.landless ? 'They hold no land to take a title from' : k > cap ? `From the rank of ${TITLES[k].from.toLowerCase()} you can make ${TITLES[k].name.toLowerCase()}s` : '';
+    return btn('title', `${ico('crown')} Make them ${name}${seat ? ` of ${esc(seat.name)}` : ''}`, !why, why || `Free, and for good: +${10 * (T.honour || 1)}${T.honour ? ' (the proud twice over)' : ''}. The proud and ambitious among the rest mind it (−4), and every vassal minds harm done to a titled one half again as much.`);
   }
 
   prisoner(v) {
