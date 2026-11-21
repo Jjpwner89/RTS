@@ -169,7 +169,8 @@ function townBundle(p, look = null) {
   const townView = new TownView(scene, town, heightAt, rng(p.seed + 11));
   const st = { placing: null, hoverAt: null, selected: null, roadFrom: null };
   const b = { kind: 'town', poi: p, town, scene, view, townView, roadView: new RoadView(scene, town, heightAt), st, heightAt, look: !!look,
-    title: look ? `${p.name} · ${town.readOnly.name}'s village` : null };
+    // short, to fit the top bar; who holds it is in the panel and the tooltip
+    title: look ? `${p.name} · looking round` : null, holder: look ? `${town.readOnly.name}'s village: you may look, not build or give orders` : null };
   b.hooks = {
     togglePause: () => { paused = !paused; },
     setSpeed: s => { speed = s; paused = false; },
@@ -1113,6 +1114,8 @@ function worldLog() {
 
 function topBar() {
   $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
+  const holder = mode === 'town' && current.holder || '';
+  if ($('place').title !== holder) $('place').title = holder;
   if (mode === 'world') {
     $('clock').textContent = `${SEASONS[world.season]} · ${clock(world.time)}`;
     $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';

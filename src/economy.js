@@ -645,6 +645,10 @@ export class Town {
     if (planned) for (const b of planned) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
     for (const n of [...this.nodes.rock, ...this.nodes.ore]) if (dist(n, p) < B.radius + 6) return { ok: false, reason: 'Something is in the way' };
     if (this.battle.walls.structureAt(x, z) || this.battle.walls.pieceAt(x, z, null, B.radius)) return { ok: false, reason: 'A wall is in the way' };
+    // Standing men aren't moved off a site, so a building can't go up on them (it once walled
+    // the lord's retinue inside a governor's house).
+    for (const r of this.battle.regs) if (!r.gone && Math.hypot((r.cx ?? r.x) - x, (r.cz ?? r.z) - z) < B.radius + 30
+      && r.soldiers.some(s => s.alive && !s.gone && Math.hypot(s.x - x, s.z - z) < B.radius + 1)) return { ok: false, reason: `${r.name} stand there` };
     const h = this.heightAt(x, z), r = B.radius;
     for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r]]) {
       if (Math.abs(this.heightAt(x + dx, z + dz) - h) > (r > 5 ? 3.5 : 2)) return { ok: false, reason: 'Ground too steep' };
