@@ -386,6 +386,9 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Great vassals' claims (world/claims.js): each names a real place of yours they don't hold.
+  await check('great vassals: every claim names a place of yours they do not hold', async () => (await import('./world/claims.js')).claimProblems(w));
+
   await check('houses and armies: numbers are sane', () => {
     const out = [];
     for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);

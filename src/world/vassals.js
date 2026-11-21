@@ -17,6 +17,7 @@ import { decreeOpinion, decreed } from './decrees.js';
 import { PAINTED } from './events.js';
 import { BUILDINGS } from '../economy.js';
 import { dowryFor } from './diplomacy.js';
+import { tickClaims, grantClaim, claimWeight, claimOn, GREAT } from './claims.js';
 
 export const DUES = [
   { name: 'Light', share: 0.15, mood: 10 },
@@ -62,6 +63,8 @@ export const TITLES = [
   { name: 'Sir', lady: ['Lady', 'Dame'] },
   { name: 'Baron', lady: ['Baroness'], from: 'Count' },
   { name: 'Count', lady: ['Countess'], from: 'Duke' },
+  // A king's great vassal (claims.js): twice the men, a quarter more dues, and a claim.
+  { name: 'Duke', lady: ['Duchess'], from: 'King' },
 ];
 const RANK_ORDER = ['Reeve', 'Lord', 'Count', 'Duke', 'King'];
 const LADY = new Set(TITLES.flatMap(t => t.lady));
@@ -70,8 +73,10 @@ export const titleCap = w => TITLES.reduce((n, t, i) => (t.from && RANK_ORDER.in
 export const titleName = (v, k = v.title || 0) => LADY.has(v.name.split(' ')[0]) ? TITLES[k].lady[0] : TITLES[k].name;
 export const TITLED = { levy: 1.5, dues: 0.75, faction: 2, harm: 1.5 };
 export const harmWeight = v => (v.title ? TITLED.harm : 1);
-export const duesShare = v => DUES[v.dues].share * (v.title ? TITLED.dues : 1);
-export const levyShare = v => LEVIES[v.levy].share * (v.title ? TITLED.levy : 1);
+// A great vassal (claims.js GREAT) pays more, not less, and sends twice the men.
+export const GREATED = { dues: 1.25, levy: 2 };
+export const duesShare = v => DUES[v.dues].share * (v.title >= GREAT ? GREATED.dues : v.title ? TITLED.dues : 1);
+export const levyShare = v => LEVIES[v.levy].share * (v.title >= GREAT ? GREATED.levy : v.title ? TITLED.levy : 1);
 
 // Marriages (2026-11-21, roadmap "marriages as ambitions"): a vassal may want a match with one of the
 // great houses. You arrange it and pay half the dowry; the house warms to you for as long as their kin
@@ -204,6 +209,7 @@ export function opinion(w, v, at = w.time) {
   // A feud you leave unjudged weighs on them more as it goes on.
   const foe = v.feud && w.vassals.find(o => o.id === v.feud);
   if (foe) add(-Math.min(15, (at - v.feudSince) / 60), `Feuding with ${foe.name}, and you do nothing`);
+  if (v.claim) add(claimWeight(w, v, at), `Claims ${claimOn(w, v)?.name || 'a place'} by right`);
   // The proud and the ambitious mind a peer who holds more than they do.
   if ((T.honour || T.want) && !v.landless) {
     const mine = holdingsOf(w, v).length, rival = living(w).filter(o => o !== v).map(o => [o, holdingsOf(w, o).length]).sort((a, b) => b[1] - a[1])[0];
@@ -307,6 +313,7 @@ export function tickVassals(w, dt = 5) {
     if (K && baseOpinion(w, v) <= FACTION_ANGER) defectToKin(w, v, K);
   }
   tickFeuds(w, dt);
+  tickClaims(w);
   tickFaction(w);
   tickPetitions(w);
 }
@@ -463,6 +470,7 @@ export function interact(w, v, act, arg) {
     remember(w, v, `Received a gift of ${GIFT} gold`);
     return { ok: true, text: `${v.name} thanks you for the gift.` };
   }
+  if (act === 'claim') return grantClaim(w, v);
   if (act === 'honour') {
     const wait = (v.honoured ?? -1e9) + HONOUR_EVERY - w.time;
     if (wait > 0) return { ok: false, text: `Honoured lately: again in ${Math.ceil(wait / 60)} min` };

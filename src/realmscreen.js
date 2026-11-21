@@ -21,6 +21,7 @@ import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } f
 import { alerts } from './world/alerts.js';
 import { ROAD_UPKEEP, decreed } from './world/decrees.js';
 import { ico } from './icons.js';
+import { claimOn, isGreat, CLAIM, GREAT } from './world/claims.js';
 import { unlocked } from './ui/unlocks.js';
 
 const TABS = [['realm', 'Realm'], ['villages', 'Villages'], ['supplies', 'Supplies'], ['vassals', 'Vassals'], ['council', 'Council'], ['houses', 'Houses'], ['treasury', 'Treasury']];
@@ -184,7 +185,7 @@ export class RealmScreen {
       const v = w.vassals.find(o => o.id === +id);
       if (!v) return this.refuse(`No such vassal (${id}).`);
       const key = b.dataset.act;
-      if ((x === 'arrest' || x === 'revoke' || x === 'marry') && this.confirm !== key) { this.confirm = key; return this.update(true); }
+      if ((x === 'arrest' || x === 'revoke' || x === 'marry' || x === 'claim') && this.confirm !== key) { this.confirm = key; return this.update(true); }
       this.confirm = null;
       const arg = x === 'grant' || x === 'revoke' ? w.byId[y] : x === 'arms' ? w.byId[y] : y;
       this.say(w.vassalAct(v, x, arg));
@@ -509,11 +510,12 @@ export class RealmScreen {
       <section><h4>What they want</h4>${want ? `<p class="${met ? 'good' : 'warn'}">${met ? `Has ${want.text}` : `Wants ${want.text}`}${met ? '' : ` <small>(for ${clock(w.time - v.wantSince)})</small>`}</p><p class="note">${met ? 'Met for long enough, they will be grateful and want something new.' : `${esc(want.how)}.`}</p>` : ''}
         <h4>Their power</h4><p>${num(pw.men)} men · ${num(pw.people)} people · ${num(pw.gold)} gold in their purse<br><small>Their men are ${share} (${Math.round(pw.share * 100)}% of yours).</small></p>
         <p>Paid you ${num(v.paid || 0)} gold, sent ${num(v.sent || 0)} men.${v.favours ? ` <b class="good">Owes you ${plural(v.favours, 'favour')}</b>: a demand or harder terms will pass without bad blood.` : ''}</p></section></div>
-      <h4>Terms</h4><div class="terms"><span>Dues</span>${btn('dues-', '−', v.dues > 0 || 'Dues are as light as they go', 'Lighter dues please them')}<b title="${v.title ? 'A quarter less, for their title' : ''}">${DUES[v.dues].name} (${Math.round(duesShare(v) * 100)}%)</b>${btn('dues+', '+', v.dues < 2 || 'Dues are as heavy as they go', v.favours ? 'They owe you: no bad blood' : 'Heavier dues anger them')}
-        <span>Levies</span>${btn('levy-', '−', v.levy > 0 || 'Levies are as light as they go', 'Lighter levies please them')}<b title="${v.title ? 'Half again, for their title' : ''}">${LEVIES[v.levy].name} (${Math.round(Math.min(0.9, levyShare(v)) * 100)}%)</b>${btn('levy+', '+', v.levy < 2 || 'Levies are as heavy as they go', v.favours ? 'They owe you: no bad blood' : 'Heavier levies anger them')}</div>
+      <h4>Terms</h4><div class="terms"><span>Dues</span>${btn('dues-', '−', v.dues > 0 || 'Dues are as light as they go', 'Lighter dues please them')}<b title="${v.title >= GREAT ? 'A quarter more, for a great vassal' : v.title ? 'A quarter less, for their title' : ''}">${DUES[v.dues].name} (${Math.round(duesShare(v) * 100)}%)</b>${btn('dues+', '+', v.dues < 2 || 'Dues are as heavy as they go', v.favours ? 'They owe you: no bad blood' : 'Heavier dues anger them')}
+        <span>Levies</span>${btn('levy-', '−', v.levy > 0 || 'Levies are as light as they go', 'Lighter levies please them')}<b title="${v.title >= GREAT ? 'Twice over, for a great vassal' : v.title ? 'Half again, for their title' : ''}">${LEVIES[v.levy].name} (${Math.round(Math.min(0.9, levyShare(v)) * 100)}%)</b>${btn('levy+', '+', v.levy < 2 || 'Levies are as heavy as they go', v.favours ? 'They owe you: no bad blood' : 'Heavier levies anger them')}</div>
       <h4>Favour</h4><div class="acts-row">${btn('gift', `${ico('gold', '#e8c45a')} Gift (${GIFT} gold)`, me.gold >= GIFT || `Needs ${GIFT} gold; you have ${num(Math.floor(me.gold))}`, `+15${T.dues ? ' (more for the greedy)' : ''}, fading over 15 minutes`)}
         ${btn('honour', `${ico('crown')} Honour before your court${honourWait ? ` (${Math.ceil(honourWait / 60)} min)` : ''}`, !honourWait || `Honoured lately: again in ${Math.ceil(honourWait / 60)} min`, `Free. +8${T.honour ? ' (twice that for the proud)' : ''}; the proud among the others mind being passed over (−3)`)}
         ${this.titleButton(v, btn)}</div>
+      ${this.claimRow(v, btn)}
       ${this.matchRow(v, btn)}
       <h4>Council</h4>${council}
       <h4>Land</h4>${land || '<p class="note">They hold nothing.</p>'}
@@ -543,13 +545,25 @@ export class RealmScreen {
       : btn('marry', `${ico('crown')} Arrange a match`, warm ? `No house likes you well enough yet (it takes ${MATCH_WARM}): send gifts` : 'You have met no house at peace with you', tip)}</div>`;
   }
 
+  // A great vassal's claim (world/claims.js): what they say is theirs, and the grant.
+  claimRow(v, btn) {
+    const w = this.w, p = claimOn(w, v);
+    if (!isGreat(v) || !p) return '';
+    const held = w.vassals.find(o => o.id === p.vassal), sure = this.confirm === `v:${v.id}:claim`;
+    const cost = held ? `${esc(held.name)} loses it and minds it (−${-CLAIM.lost})` : 'you no longer run it yourself';
+    const left = Math.max(0, Math.ceil((v.claim.since + CLAIM.press - w.time) / 60));
+    return `<h4>Their claim</h4><p class="warn">Claims ${esc(p.name)} by right${held ? `, held by ${esc(held.name)}` : ''}, for ${clock(w.time - v.claim.since)}. It weighs on them more each minute${v.claim.asked ? '' : `; within ${left} min, or sooner if they turn angry, they press it`}.</p>`
+      + `<div class="acts-row">${sure ? `<span class="warn">${esc(p.name)} becomes theirs (+${CLAIM.grant}); ${cost}.</span> ${btn('claim', 'Yes, grant it', true, '', 'warn')}<button data-act="cancel">No</button>`
+        : btn('claim', `${ico('crown')} Grant ${esc(p.name)}`, true, `+${CLAIM.grant} with them; ${cost}; the proud and ambitious among the rest mind it (−${-CLAIM.rivals}).`)}</div>`;
+  }
+
   // Raise them a title: one below your own rank, kept for good.
   titleButton(v, btn) {
     const w = this.w, k = (v.title || 0) + 1, cap = titleCap(w), T = TEMPERS[v.temper];
     if (k >= TITLES.length) return '';
     const name = titleName(v, k), seat = holdingsOf(w, v)[0];
     const why = v.landless ? 'They hold no land to take a title from' : k > cap ? `From the rank of ${TITLES[k].from.toLowerCase()} you can make ${TITLES[k].name.toLowerCase()}s` : '';
-    const trade = v.title ? '' : ` A titled vassal sends ${Math.round((TITLED.levy - 1) * 100)}% more men when called but pays ${Math.round((1 - TITLED.dues) * 100)}% less in dues; in a faction against you their men count double, and every vassal minds harm done to them half again as much.`;
+    const trade = k === GREAT ? ' A duke is a great vassal: twice the men when called and a quarter more in dues, but they claim a place near their lands as theirs by right, and press it if you leave it.' : v.title ? '' : ` A titled vassal sends ${Math.round((TITLED.levy - 1) * 100)}% more men when called but pays ${Math.round((1 - TITLED.dues) * 100)}% less in dues; in a faction against you their men count double, and every vassal minds harm done to them half again as much.`;
     return btn('title', `${ico('crown')} Make them ${name}${seat ? ` of ${esc(seat.name)}` : ''}`, why || true, `Free, and for good: +${10 * (T.honour || 1)}${T.honour ? ' (the proud twice over)' : ''}; the proud and ambitious among the rest mind it (−4).${trade}`);
   }
 

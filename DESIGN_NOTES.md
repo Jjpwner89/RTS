@@ -448,6 +448,26 @@ After Crusader Kings' ideas (one place to see each vassal's opinion and its reas
 - **A faction demanding a different king** (2026-11-21, roadmap "a faction demanding a different king"): when a faction of two or more makes its demand, it may name a king instead of asking for dues or freedom (`claimant` in vassals.js). The king is **the great house one of its members is wed into** (so a match is a risk as well as a gift), or, once you are a duke and the faction's men are 30% of yours (titled lords count double), the strongest house they know; always a house you are at peace with that is not your vassal. The Realm screen's faction banner names the king they would pick before they ask. **Give way** (what it costs is the orchestrator's ruling, 2026-11-21): the faction keeps its villages and pays light dues and levies, that house becomes your ally (so you cannot war on it without betraying it), and you send it a one-time gift of about 15% of your purse (`kingGift`: at least 100, to the nearest 50, never more than you have). No place is ever lost by giving way. The prompt sets both choices side by side: what giving way costs, and what refusing risks (how many villages and men go over, and the war). **Refuse:** they rise and their villages go over to that house (not free folk), which goes to war on you; the others who stood by you are pleased (+8). `world.factionAnswer`; checks(): a faction's would-be king is a living house at peace with you.
 - **Test campaigns**: Count has one vassal, Duke three (the furthest plain villages, the first as steward), so the Vassals and Council tabs have someone in them.
 
+### Great vassals and their claims (2026-11-21, the climb's King depth)
+
+- **How a vassal becomes one.** A king raises a vassal to **Duke**, the fourth title in TITLES (`from: 'King'`), with the same raise button. Nobody is made a duke on their own.
+- **The trade.** A great vassal sends twice the men and pays a quarter more in dues (vassals.js `GREATED`), the reverse of a lesser title, which pays a quarter less. The cost is a claim (world/claims.js).
+- **The claim.** A great vassal claims the place nearest their lands that they say is theirs by right. It can be one you run yourself (not your seat, the crown city or a camp) or another vassal's, but never a vassal's last place, since a vassal with no land is gone.
+  - The claim shows in the vassal panel as "Their claim", with a grant that asks twice.
+  - Unanswered, it weighs like a want: up to −12 over 15 minutes (`claimWeight`, one line in opinion()).
+- **Grant it.** The place is theirs (+18, fading over 50 minutes). A vassal who held it minds it (−20), and the proud and ambitious among the rest mind it a little (−3).
+- **The press.** After 15 minutes unanswered, or sooner once they are angry (opinion −10 or lower), they press it with a give-way-or-refuse ask. Refused:
+  - **A vassal's place:** they seize it. The holder minds that you let them (−15), and the two fall into a feud (the existing feud rules).
+  - **One of yours:** they cannot take it, and they do not forget it (−30, fading over 50 minutes). On a content vassal that is enough to push them toward the faction rules (vassals.js tickFaction), which handle any rising.
+- **After a claim ends** (granted, refused or lapsed), the next comes 30 minutes later.
+- **Never the crown.** A vassal claiming another king is the factions' (`claimant`).
+- **Measured on the King save:**
+  - The biggest vassal, raised three times, became Duke of Elmmere. Their dues share went to 37.5%, their levy share to 90% (the cap), and they claimed Oakley.
+  - Granted: their opinion rose from 70 to 100, the cap.
+  - Refused at the press, for a place of yours: 70 to 40.
+  - Refused for Hollwick, held by Lady Edith Stour: they seized it and the two feud.
+- **checks():** King 116/0, Duke 116/0, Count 80/0, with a new check that every claim names a place of yours the claimant doesn't hold.
+
 ## An interface that grows with rank (UI session, 2026-11-21)
 
 The north star asks for an interface that *enables* depth rather than suffering from it. The audit (group notes, `ui-audit-2026-11-21.md`, with screenshots) found the opposite at the start: a Reeve with one village sees 24 goods (all 12 arms at 0), the Cathedral, Knights' hall, stone walls, masons, mercenary companies, a great keep and a seven-tab Realm screen with empty council seats, while the panels cover about 45% of a 1280×800 village and all of a 527×549 one. The fix is the Mount & Blade climb applied to the screen: **you see what your rank can use, and each new tool arrives with a one-line introduction.**
