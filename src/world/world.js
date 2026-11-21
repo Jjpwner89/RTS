@@ -817,7 +817,7 @@ export class World {
   // whole, its people, stores and garrison with it. A great house's place is not for sale.
   treatPrice(p) {
     const T = TREAT, folk = p.eco?.pop ?? 20, men = headcount(p.garrison);
-    return Math.round((folk * T.folk + men * T.man) * (T.rich.includes(p.kind) ? T.richer : 1) * (this.rank === 'Count' ? 1 : T.duke) / 10) * 10;
+    return Math.round((folk * T.folk + men * T.man) * (T.rich.includes(p.kind) ? T.richer : 1) * (this.rank === 'Duke' || this.crowned ? T.duke : 1) / 10) * 10;
   }
   canTreat(enc) {
     const p = enc?.poi;
