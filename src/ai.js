@@ -41,15 +41,17 @@ export function thinkAI(battle, side, { hold = false, start = 8, regs = null } =
 // player can learn to read. Cautious lords stand and wait, and leave the field early to save
 // their men; rash ones come on and stay to the bitter end; cunning ones go round. A side
 // with no lord is steady.
+// even: the plans a house falls back on when the armies are fairly matched (odds 0.85 to
+// 1.45), first that the field allows; outside that band the odds rule.
 const HOUSES = {
-  turtler:  { temper: 'cautious', likes: 'hold' },     // Stonemere takes the high ground and makes you come
-  builder:  { temper: 'cautious', likes: 'refuse' },   // Carrow rests a wing on a wood or a river
-  merchant: { temper: 'cautious', likes: 'hold' },     // Penhallow spends men like coin
-  raider:   { temper: 'rash', likes: 'hammer' },       // Varn swings the horse round a flank
-  hothead:  { temper: 'rash', likes: 'envelop' },      // Dunmore throws everything forward, wings wide
-  invader:  { temper: 'rash', likes: 'envelop' },
-  schemer:  { temper: 'cunning', likes: 'hammer' },    // Wyndham goes for the rear
-  bandit:   { temper: 'cunning', likes: null },
+  turtler:  { temper: 'cautious', even: ['hold'] },              // Stonemere takes the high ground and makes you come
+  builder:  { temper: 'cautious', even: ['refuse'] },            // Carrow rests a wing on a wood or a river
+  merchant: { temper: 'cautious', even: ['reserve', 'hold'] },   // Penhallow keeps a second line back, spends men like coin
+  raider:   { temper: 'rash', even: ['hammer', 'charge'] },      // Varn swings the horse round a flank
+  hothead:  { temper: 'rash', even: ['charge'] },                // Dunmore runs straight at you, horse and all
+  invader:  { temper: 'rash', even: ['envelop'] },               // Norrhold spreads wide whatever the odds
+  schemer:  { temper: 'cunning', even: ['woods', 'refuse'] },    // Wyndham hides men in the woods for your flank
+  bandit:   { temper: 'cunning', even: ['woods', 'charge'] },
 };
 // bias: added to each plan's score. quit: the share of its strength it will lose before it
 // withdraws (if it is outmatched by then). wait: seconds it will stand on a hold before
@@ -62,7 +64,7 @@ const TEMPERS = {
 };
 export function general(battle, side) {
   const g = battle.generals?.[side], H = HOUSES[g?.trait] || {}, temper = g?.temper || H.temper || 'steady';
-  return { ...TEMPERS[temper], ...(g?.quit != null && { quit: g.quit }), temper, likes: H.likes || null, plain: !!g?.plain, who: g?.name || (side ? 'The enemy' : 'Your captain') };
+  return { ...TEMPERS[temper], ...(g?.quit != null && { quit: g.quit }), temper, even: H.even || null, plain: !!g?.plain, who: g?.name || (side ? 'The enemy' : 'Your captain') };
 }
 const strength = list => list.reduce((n, r) => n + r.alive * value(r.T.key), 0);
 const shoots = r => r.T.range && !r.engine && !r.T.javelin;
@@ -91,6 +93,19 @@ function findAnchor(battle, F) {
   return best;
 }
 
+// A wood out on one flank, between the armies and short of the enemy, to hide a flanking
+// party in: { x, z, s } or null.
+function findCover(battle, F) {
+  if (!battle.trees) return null;
+  const span = Math.hypot(F.e.cx - F.c.cx, F.e.cz - F.c.cz);
+  let best = null;
+  for (const s of [-1, 1]) for (let t = 0.3; t <= 0.8; t += 0.1) for (let w = F.halfM * 0.6; w <= F.halfM + 60; w += 12) {
+    const p = onField(F.c.cx + F.fwd.x * span * t + F.right.x * s * w, F.c.cz + F.fwd.z * span * t + F.right.z * s * w);
+    if (battle.woodAt(p.x, p.z) > 0.5 && Math.hypot(p.x - F.e.cx, p.z - F.e.cz) > 50 && (!best || t > best.t)) best = { ...p, s, t };
+  }
+  return best;
+}
+
 // The plan, chosen once when the enemy is first in sight, from the two armies' make-up, the
 // ground and the general's temper. It is said aloud so the player can read it.
 function choosePlan(battle, side, mine, standing, st, hold) {
@@ -104,16 +119,28 @@ function choosePlan(battle, side, mine, standing, st, hold) {
   const share = (list, f) => strength(list.filter(f)) / Math.max(1, strength(list));
   const bows = share(mine, shoots), theirBows = share(standing, shoots);
   const horse = share(mine, r => r.T.mounted), foot = share(mine, r => !r.T.mounted && !r.engine && !shoots(r));
-  const F = frame(mine, standing), rise = findHill(battle, mine, standing).rise, anchor = findAnchor(battle, F);
+  const F = frame(mine, standing), rise = findHill(battle, mine, standing).rise;
+  const cover = findCover(battle, F), feet = mine.filter(r => !r.engine && !shoots(r) && !r.T.mounted);
+  // With no wood or river, a refused line leads with its stronger wing.
+  const wingStrength = s => strength(mine.filter(r => F.lat(r) * s > 0));
+  const anchor = findAnchor(battle, F) || { s: wingStrength(1) >= wingStrength(-1) ? 1 : -1, what: null };
   const score = {
     line: 0.3,
     hold: bows * 1.5 + (rise >= 3 ? 0.4 : 0) - Math.max(0, theirBows - bows) * 1.5 - (odds > 1.3 ? 0.4 : 0),
     hammer: horse >= 0.15 && foot >= 0.3 ? 0.35 + horse : -9,
-    refuse: odds < 0.85 && anchor ? 0.45 + (0.85 - odds) : -9,
+    refuse: odds < 0.85 && anchor.what ? 0.45 + (0.85 - odds) : -9,
     envelop: odds >= 1.45 ? 0.5 + (odds - 1.45) : -9,
   };
-  for (const k in score) score[k] += (g.bias[k] || 0) + (g.likes === k ? 0.3 : 0);
+  for (const k in score) score[k] += g.bias[k] || 0;
   st.plan = Object.keys(score).reduce((a, b) => (score[b] > score[a] ? b : a));
+  // Fairly matched, a lord fights the way his house always does.
+  const can = { hammer: score.hammer > -5, woods: !!cover, reserve: feet.length >= 3, hold: true, refuse: true, charge: true, envelop: true };
+  if (odds >= 0.85 && odds < 1.45 && g.even) st.plan = g.even.find(k => can[k]) || st.plan;
+  st.cover = cover;
+  // The reserve: the strongest third of the foot and all the horse, kept back.
+  const kept = feet.slice().sort((a, b) => b.alive - a.alive).slice(0, Math.floor(feet.length / 3));
+  // The woods party: the horse, or with too few the two outermost foot on the wood's side.
+  const party = horse >= 0.1 ? mine.filter(r => r.T.mounted) : feet.slice().sort((a, b) => F.lat(b) * (cover?.s || 1) - F.lat(a) * (cover?.s || 1)).slice(0, 2);
   // Who does what: the horse of a hammer, the far wing of a refused line, the outer
   // thirds of an envelopment, each going round its own side.
   const ranked = mine.filter(r => !r.engine && !shoots(r)).sort((a, b) => F.lat(a) - F.lat(b)), third = Math.floor(ranked.length / 3);
@@ -121,15 +148,20 @@ function choosePlan(battle, side, mine, standing, st, hold) {
     const s = F.lat(r) < 0 ? -1 : 1;
     r.aiSide = s;
     r.aiRole = st.plan === 'hammer' && r.T.mounted ? 'hammer'
-      : st.plan === 'refuse' && F.lat(r) * anchor.s < -10 ? 'refused'
+      : st.plan === 'refuse' && feet.includes(r) && F.lat(r) * anchor.s < -10 ? 'refused'
+      : st.plan === 'reserve' && (r.T.mounted || kept.includes(r)) ? 'reserve'
+      : st.plan === 'woods' && party.includes(r) ? 'woods'
       : st.plan === 'envelop' && third && (ranked.indexOf(r) < third || ranked.indexOf(r) >= ranked.length - third) ? 'wing' : null;
   }
   const say = {
     line: `${g.who} comes straight on in a line.`,
     hold: rise >= 3 ? `${g.who} holds the rise and waits for you to come under the bows.` : `${g.who} stands to receive you and lets the bows do the work.`,
     hammer: `${g.who} sends the horse wide round the flanks while the foot come on.`,
-    refuse: `${g.who} rests a wing on the ${anchor?.what} and holds the other back.`,
-    envelop: `${g.who} has the numbers and spreads wide to take you in the flanks.`,
+    refuse: anchor.what ? `${g.who} rests a wing on the ${anchor.what} and holds the other back.` : `${g.who} leads with one wing and holds the other back.`,
+    charge: `${g.who} comes straight at you, horse and foot together, to charge home all at once.`,
+    reserve: `${g.who} keeps a second line back, to send in where you break through.`,
+    woods: `${g.who} sends men off into the woods: mind your flanks.`,
+    envelop: odds >= 1.45 ? `${g.who} has the numbers and spreads wide to take you in the flanks.` : `${g.who} spreads wide to take you in the flanks.`,
   }[st.plan];
   battle.event(side, say);
 }
@@ -215,29 +247,55 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
   if (gap > 75) {
     if (hold || st.plan === 'garrison' || st.plan === 'hold') { takeHill(battle, side, mine, standing); return; }
     for (const r of mine) {
-      if (r.posts || r.targetWall || r.aiRole === 'refused') continue;
+      if (r.posts || r.targetWall) continue;
+      if (r.aiRole === 'refused') { trail(battle, r, mine, F); continue; }
       if (r.aiRole === 'hammer') { ride(battle, r, wingPoint(r)); continue; }
+      if (r.aiRole === 'woods') { ride(battle, r, st.cover); continue; }
+      if (r.aiRole === 'reserve') { follow(battle, r, mine, F); continue; }
       if (r.dest || r.targetReg) continue;
       // An envelopment's wings lean outward as they come on, to overlap the enemy's ends.
       const ang = Math.atan2(F.e.cx - r.cx, F.e.cz - r.cz) + (r.aiRole === 'wing' ? r.aiSide * 0.35 : 0);
       nudge(battle, r, r.x + Math.sin(ang) * 30, r.z + Math.cos(ang) * 30, Math.atan2(F.e.cx - r.cx, F.e.cz - r.cz));
       // Far apart, foot cover the empty ground at a run and walk the last 110 m up in order;
-      // horse ride out ahead at speed.
-      if (gap > 110 || r.T.mounted) battle.hurry([r]);
+      // horse ride out ahead at speed (in a charge they keep level with the foot).
+      if (gap > 110 || (r.T.mounted && st.plan !== 'charge')) battle.hurry([r]);
     }
     return;
   }
   const busy = mine.some(r => r.engaged > 0 && !r.T.mounted);
+  if (busy) st.clash ??= battle.time;
+  // The reserve goes in when a regiment of the line breaks or wavers, or the fighting has
+  // gone on half a minute.
+  if (st.plan === 'reserve' && !st.sent && (battle.regs.some(r => r.side === side && r.routing && r.aiRole !== 'reserve')
+    || mine.some(r => r.aiRole !== 'reserve' && r.engaged > 0 && r.morale < r.T.morale * 0.5) || (st.clash != null && battle.time - st.clash > 30))) {
+    st.sent = true;
+    battle.event(side, `${g.who} sends in the reserve.`);
+  }
   for (const r of mine) {
     const near = nearest(r, standing), d = dist(r, near);
     if (st.plan === 'hold') {
-      // Each waits for the enemy to come to it: bows to their reach, foot to 40 m, horse
-      // until the foot are fighting and there is someone to hit from the side.
-      const reach = r.engine ? Infinity : shoots(r) ? r.T.range : r.T.mounted ? (busy ? 120 : 30) : 40;
-      if (d < reach || r.targetReg) pickFight(battle, r, foes, standing, { busyFirst: r.T.mounted });
+      // Each waits for the enemy to come to it: bows to their reach, foot to 40 m; the horse
+      // only guard the line, riding at whoever comes near it.
+      const reach = r.engine ? Infinity : shoots(r) ? r.T.range : r.T.mounted ? 30 : 40;
+      if (d < reach || r.targetReg) pickFight(battle, r, foes, standing);
       continue;
     }
-    if (r.aiRole === 'refused' && d > 45 && !r.targetReg && battle.losses[1 - side] < battle.losses[side] * 1.3 + 20) continue;
+    if (r.aiRole === 'reserve' && !st.sent && d > 35) { follow(battle, r, mine, F); continue; }
+    if (r.aiRole === 'woods' && !r.aiFree) {
+      // Out of the woods once the lines are locked, onto whoever is busiest.
+      if ((busy && Math.hypot(r.cx - st.cover.x, r.cz - st.cover.z) < 25) || d < 35 || (busy && battle.time - st.clash > 30)) r.aiFree = true;
+      else { ride(battle, r, st.cover); continue; }
+    }
+    if (st.plan === 'charge' && !r.aiCharged && !shoots(r) && !r.engine && d < 60) {
+      // The whole line runs the last stretch together and the horse charge home with it.
+      pickFight(battle, r, foes, standing);
+      battle.hurry([r]);
+      if (r.T.mounted) battle.orderCharge([r]);
+      r.aiCharged = true;
+      continue;
+    }
+    // The refused wing comes in ten seconds after the leading wing has struck: an echelon.
+    if (r.aiRole === 'refused' && d > 45 && !r.targetReg && (st.clash == null || battle.time - st.clash < 10)) { trail(battle, r, mine, F); continue; }
     if (r.aiRole === 'hammer' && !r.aiFree) {
       const w = wingPoint(r);
       if (Math.hypot(r.cx - w.x, r.cz - w.z) < 25 || d < 35 || busy) r.aiFree = true;
@@ -249,8 +307,25 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
       const pick = ends.reduce((b, o) => (!b || (o.cx - F.e.cx) * F.right.x * r.aiSide + (o.cz - F.e.cz) * F.right.z * r.aiSide > (b.cx - F.e.cx) * F.right.x * r.aiSide + (b.cz - F.e.cz) * F.right.z * r.aiSide ? o : b), null);
       if (pick) { battle.orderAttack([r], pick); battle.hurry([r]); continue; }
     }
-    pickFight(battle, r, foes, standing, { busyFirst: r.aiRole === 'hammer' });
+    pickFight(battle, r, foes, standing, { busyFirst: ['hammer', 'woods', 'reserve'].includes(r.aiRole) });
   }
+}
+
+// A reserve keeps 50 m behind the rest of the line, opposite its own place in it.
+function follow(battle, r, mine, F) {
+  const line = mine.filter(o => o.aiRole !== 'reserve');
+  if (!line.length) return;
+  const c = centroid(line), x = c.cx + F.right.x * F.lat(r) - F.fwd.x * 50, z = c.cz + F.right.z * F.lat(r) - F.fwd.z * 50;
+  if (r.targetReg || (r.dest ? Math.hypot(r.dest.x - x, r.dest.z - z) < 15 : Math.hypot(r.cx - x, r.cz - z) < 15)) return;
+  nudge(battle, r, x, z, F.a);
+}
+
+// A refused wing keeps 40 m behind the front of the leading wing, in its own place across.
+function trail(battle, r, mine, F) {
+  const ahead = o => (o.cx - F.c.cx) * F.fwd.x + (o.cz - F.c.cz) * F.fwd.z, lead = mine.filter(o => o.aiRole !== 'refused');
+  if (!lead.length || r.dest) return;
+  const back = Math.max(...lead.map(ahead)) - 40 - ahead(r);
+  if (back > 8) nudge(battle, r, r.x + F.fwd.x * back, r.z + F.fwd.z * back, F.a);
 }
 
 // Horse riding wide for the flank: at speed, and only re-ordered when the spot has moved.
@@ -296,7 +371,7 @@ function takeHill(battle, side, mine, standing) {
   }
 }
 
-// busyFirst: horse going for the enemy already fighting (a hammer's blow from the flank).
+// busyFirst: going for the enemy already fighting (a hammer's blow from the flank, a reserve).
 function pickFight(battle, r, foes, standing, { busyFirst = false } = {}) {
 
   const current = r.targetReg && !r.targetReg.gone ? r.targetReg : null;
@@ -333,7 +408,7 @@ function pickFight(battle, r, foes, standing, { busyFirst = false } = {}) {
       return;
     }
   } else {
-    pick = nearest(r, reachable);
+    pick = (busyFirst && nearest(r, reachable.filter(o => o.engaged > 0))) || nearest(r, reachable);
     if (current && !current.routing && !current.posts && dist(r, current) < dist(r, pick) + 25) pick = current;
   }
   // Once it has picked its fight, it runs at it (walking pace B): only the advance walks.

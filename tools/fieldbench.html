@@ -36,7 +36,8 @@ function make(seed, gens, mirror) {
   addCopses(trees, seed, { avoid: wet });
   const b = new Battle(heightAt, seed, { deploy: false, disbandAtHome: [true, true] });
   b.setWoods(trees); b.setRiver(river);
-  const rand = rng(seed * 7 + 3), R0 = roster(rand, false), R1 = mirror ? R0 : roster(rand, rand() < 0.3);
+  const rand = rng(seed * 7 + 3); for (let i = 0; i < 5; i++) rand();   // a seed's first draws run low
+  const R0 = roster(rand, false), R1 = mirror ? R0 : roster(rand, rand() < 0.3);
   place(b, 0, R0); place(b, 1, R1);
   b.generals = gens.map(g => g && { ...g });
   return { b, p: [pw(R0), pw(R1)], river: !!river };
