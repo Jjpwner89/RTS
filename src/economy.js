@@ -1617,15 +1617,27 @@ export class Town {
     if (v.state === 'shelter') return;
     if (v.state === 'haul') { if (this.doHaul(v, dt) && !v.task) v.state = 'idle'; return; }
     if (v.state === 'idle') {
-      if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, PACE.wander)) {
-        const a = this.rand() * Math.PI * 2, r = 13 + this.rand() * 8;
-        v.wander = this.rand() < 0.02 || !v.wander ? { x: Math.sin(a) * r, z: Math.cos(a) * r } : v.wander;
+      if (!v.wander || !this.wanderClear(v.wander) || this.walk(v, v.wander.x, v.wander.z, dt, PACE.wander)) {
+        if (this.rand() < 0.02 || !v.wander || !this.wanderClear(v.wander)) v.wander = this.wanderSpot();
       }
       return;
     }
     if (v.state === 'build') return this.doBuild(v, dt);
     if (v.state === 'work') return v.job.B.haul ? this.doHaulJob(v, dt) : v.job.B.gather ? this.doGather(v, dt) : this.doCraft(v, dt);
   }
+
+  // Somewhere for an idle villager to stroll to, clear of every building (walk() lets someone whose
+  // goal is inside a footprint straight in: seed Duke, a villager idle in the knights' hall).
+  wanderSpot() {
+    let p;
+    for (let i = 0; i < 8; i++) {
+      const a = this.rand() * Math.PI * 2, r = 13 + this.rand() * 8;
+      p = { x: Math.sin(a) * r, z: Math.cos(a) * r };
+      if (this.wanderClear(p)) break;
+    }
+    return p;
+  }
+  wanderClear(p) { return ![this.keep, ...this.buildings].some(b => b.state !== 'ruined' && Math.hypot(p.x - b.x, p.z - b.z) < b.B.radius + 1.5); }
 
   // A worker who is stuck carries a crate for their own building, then gets back to it.
   selfHaul(v, dt) {
