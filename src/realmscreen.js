@@ -297,7 +297,7 @@ export class RealmScreen {
       const risk = fv.men / Math.max(1, fv.yours), king = fv.members.length >= 2 && claimant(this.w, fv.members), K = king && FACTIONS[king.house];
       return `<div class="faction"><b class="bad">⚑ A faction against you</b>: ${fv.members.map(v => esc(v.name)).join(', ')}.
         ${fv.members.length < 2 ? 'Alone for now; it needs a second to make a demand.' : fv.demandIn !== null ? `They will make their demand in ${clock(fv.demandIn)}.` : 'They have made their demand.'}
-        ${K ? `<b class="warn">They would have ${esc(K.lord)} of ${esc(K.name)} for king</b> (${esc(king.why)}): give way (light dues and levies, ${esc(K.name)} your ally, about ${kingGift(this.w)} gold to it, no place lost) or refuse (they rise, their villages go over to ${esc(K.name)}, which goes to war on you).` : ''}
+        ${K ? `<b class="warn">They would have ${esc(K.lord)} of ${esc(K.name)} for king</b> (${esc(king.why)}).<br>Give way: light dues and levies, ${esc(K.name)} your ally, about ${kingGift(this.w)} gold to it, no place lost.<br>Refuse: they rise, their villages go over to ${esc(K.name)}, which goes to war on you.` : ''}
         Their men: ${num(fv.men)}${fv.members.some(v => v.title) ? ' (a titled lord\'s count double)' : ''} against your ${num(fv.yours)} (${risk > 0.6 ? '<b class="bad">a grave threat</b>' : risk > 0.25 ? '<b class="warn">a real threat</b>' : 'a small threat'}).
         <small>Win members back with gifts, honours and what they want, or arrest the worst of them.</small></div>`;
     }
@@ -552,7 +552,7 @@ export class RealmScreen {
     const held = w.vassals.find(o => o.id === p.vassal), sure = this.confirm === `v:${v.id}:claim`;
     const cost = held ? `${esc(held.name)} loses it and minds it (−${-CLAIM.lost})` : 'you no longer run it yourself';
     const left = Math.max(0, Math.ceil((v.claim.since + CLAIM.press - w.time) / 60));
-    return `<h4>Their claim</h4><p class="warn">Claims ${esc(p.name)} by right${held ? `, held by ${esc(held.name)}` : ''}, for ${clock(w.time - v.claim.since)}. It weighs on them more each minute${v.claim.asked ? '' : `; within ${left} min, or sooner if they turn angry, they press it`}.</p>`
+    return `<h4>Their claim</h4><p class="warn">Claims ${esc(p.name)} by right${held ? `, held by ${esc(held.name)}` : ''}, ${w.time - v.claim.since < 60 ? 'a claim only just made' : `for ${clock(w.time - v.claim.since)}`}. It weighs on them more each minute${v.claim.asked ? '' : `; within ${left} min, or sooner if they turn angry, they press it`}.</p>`
       + `<div class="acts-row">${sure ? `<span class="warn">${esc(p.name)} becomes theirs (+${CLAIM.grant}); ${cost}.</span> ${btn('claim', 'Yes, grant it', true, '', 'warn')}<button data-act="cancel">No</button>`
         : btn('claim', `${ico('crown')} Grant ${esc(p.name)}`, true, `+${CLAIM.grant} with them; ${cost}; the proud and ambitious among the rest mind it (−${-CLAIM.rivals}).`)}</div>`;
   }

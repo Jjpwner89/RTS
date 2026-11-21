@@ -818,12 +818,12 @@ function askBanners(dest) {
 // The arrière-ban shows its men and its price before it is called (ruling, 2026-11-21).
 function askArriere(dest) {
   const P = arrierePlan(world, dest), n = P.places.length, f = x => x.toLocaleString('en-GB');
-  const text = P.per ? `Every place you hold calls up ${P.per} men from its countryside, beyond its village people, so no villager is taken: ${n} place${n > 1 ? 's' : ''}, ${P.men} men for ${dest.name}. `
-    + `They are spearmen with no armour and little heart for a hard fight, and they break before your banners do. They cost ${f(P.gold)} gold to call and eat ${f(P.food)} food a minute, fed by your villages in your own lands. `
+  const text = P.per ? `Every place you hold calls up ${P.per} men from its countryside, beyond its village people, so no villager is taken: ${n} place${n > 1 ? 's' : ''}, ${P.men} men for ${dest.name}.\n\n`
+    + `They are spearmen with no armour and little heart for a hard fight, and they break before your banners do. They cost ${f(P.gold)} gold to call and eat ${f(P.food)} food a minute, fed by your villages in your own lands.\n\n`
     + `They serve ${P.mins} minutes, then go home, and the countryside rests ${ARRIERE.rest / 60} minutes before it answers again.`
     : 'A reeve has no countryside to call. From the rank of Lord, every place you hold sends men from its fields.';
   asks.unshift({ kind: 'choice', ev: { title: `Call the arrière-ban to ${dest.name}`, text, at: dest, choices: [
-    { label: `Call the arrière-ban: ${f(P.men)} men, ${f(P.gold)} gold, ${f(P.food)} food a minute, ${P.mins} minutes`, ok: P.ok, why: P.why, run: () => { const r = callArriere(world, dest); if (!r.ok) flash(r.why); } },
+    { label: `Call ${f(P.men)} men for ${f(P.gold)} gold`, ok: P.ok, why: P.why, run: () => { const r = callArriere(world, dest); if (!r.ok) flash(r.why); } },
     { label: 'Not now', ok: true, run: () => {} },
   ] } });
 }
@@ -1224,14 +1224,16 @@ $('alerts').onclick = e => {
 // Everything stays in the chronicle.
 const goalsWaiting = [];
 function newsLine(logEl, ev, key = '', life = 7000) {
-  const line = document.createElement('div');
-  line.textContent = ev.text;
-  line.className = ev.side === 0 ? 'good' : 'bad';
+  // The same line again while it is still up (raiders reaching the same place twice) counts up instead of stacking.
+  const same = !key && [...logEl.children].find(l => l.dataset.base === ev.text);
+  const line = same || document.createElement('div');
+  if (same) { line.dataset.n = +line.dataset.n + 1; line.textContent = `${ev.text} (×${line.dataset.n})`; line.classList.remove('fade'); clearTimeout(line.t1); clearTimeout(line.t2); }
+  else { line.textContent = ev.text; line.dataset.base = ev.text; line.dataset.n = 1; line.className = ev.side === 0 ? 'good' : 'bad'; }
   if (key) line.dataset.key = key;
-  logEl.prepend(line);
+  if (!same) logEl.prepend(line);
   while (logEl.children.length > 4) logEl.lastChild.remove();
-  setTimeout(() => line.classList.add('fade'), life);
-  setTimeout(() => line.remove(), life + 1000);
+  line.t1 = setTimeout(() => line.classList.add('fade'), life);
+  line.t2 = setTimeout(() => line.remove(), life + 1000);
 }
 let introDone = false;
 function worldLog() {

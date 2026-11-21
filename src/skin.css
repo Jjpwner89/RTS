@@ -193,6 +193,10 @@ body.campaign.mode-town #info, body.town #info { max-height: calc(100vh - 180px)
 .tbadge.bad { border-color: var(--bad); color: var(--bad); }
 .tbadge.chip { font-family: var(--body-font); }
 
+/* A prompt's text keeps its paragraph breaks; a tall one scrolls inside a small window. */
+.modal p { white-space: pre-line; }
+.modal { max-height: calc((100vh - 24px) / var(--hud)); overflow-y: auto; }
+
 /* The orders bar in a village in a small window (QC round 2): wrap it and keep it inside the
    window; below 800 wide there is no room beside the build bar, so it rides under the folded stock strip. */
 body.town #orders, body.campaign.mode-town #orders { flex-wrap: wrap; justify-content: center; max-width: calc((100vw - 16px) / var(--hud) - 8px); }
