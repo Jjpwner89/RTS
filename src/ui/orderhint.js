@@ -34,7 +34,9 @@ export function orderHint(w, a, p) {
     const wall = !walledPlace(p) ? '' : kit.length ? `: brings ${kit.join(', ')}` : ': no ram, ladders or engines, so a costly storm';
     return { warn: risk && !(walledPlace(p) && kit.length && p.owner !== null), text: `Attack ${how(p)}${wall}` };
   }
-  return { warn: false, text: p.owner === 0 ? `March to ${p.name}` : `March to ${p.name}: ${who(p)} is at peace with you, so the army waits outside until war is declared` };
+  // A great house at peace: the order asks you to declare war first (campaign.js 'war').
+  const peace = p.owner !== null && p.owner !== 0 && !w.atWar(0, p.owner) && !ownerOf(p).bandit;
+  return { warn: false, text: p.owner === 0 ? `March to ${p.name}` : peace ? `March on ${p.name}: ${who(p)} is at peace with you, so you will be asked to declare war` : `March to ${p.name}: ${who(p)} is at peace with you, so the army waits outside` };
 }
 
 // Called from the map's pointer-move: p is the place under the pointer, or null.

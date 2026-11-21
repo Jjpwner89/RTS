@@ -5,6 +5,7 @@
 // governor runs Ashford, then given gold and building stock and handed to the game as a
 // loaded save. Test campaigns save to their own slot, never over the real one.
 import { World, FACTIONS } from './world.js';
+import { updateGoals } from './goals.js';
 
 export const TEST_RANKS = {
   lord: { name: 'Lord', places: 2, minutes: 10, gold: 800, people: 35,
@@ -16,6 +17,9 @@ export const TEST_RANKS = {
 };
 const SEED = 7;
 const STOCK = { wood: 250, stone: 200, planks: 80, iron: 30, food: 400, flax: 20, string: 20 };
+// Arms for the barracks racks: a regiment of spears and one of bows. The hall's kit is on top.
+const ARMS = { spears: 24, shields: 24, bows: 12, arrows: 120 };
+const HALL_ARMS = { mail: 12, swords: 12, shields: 36, armour: 6, lances: 6, horses: 6 };
 
 // The game quietly answers everything itself: fights are reckoned, offers and news pass,
 // and settlers are taken in when there is room.
@@ -87,6 +91,18 @@ export async function makeTestCampaign(key, progress = () => {}) {
     for (let i = o.population; i < Math.min(20, o.housing - 2); i++) { const a = i * 2.4; o.addVillager(o.keep.x + Math.sin(a) * 24, o.keep.z + Math.cos(a) * 24); }
     o.mood = Math.max(o.mood, 50); o.misery = 0; o.hungry = false;   // fed now: not still sulking over the hungry run-up
   }
+  // What the rank opens, ready to try (Manager, 2026-11-21: the Count test had no barracks
+  // or hall, so its tools could not be tried and the banners raised no levies). Every rank
+  // gets a barracks in Ashford with arms in its racks; Count and Duke also a knights' hall,
+  // veterans home from the wars, mail and plate, and the fees.
+  if (raise(t, 'barracks')) {
+    const b = t.buildings.find(o => o.kind === 'barracks' && o.state === 'active');
+    for (const [g, n] of Object.entries({ ...ARMS, ...(T.vassals ? HALL_ARMS : {}) })) t.put(b, g, n);
+  }
+  if (T.vassals && raise(t, 'hall')) {
+    t.keepPeak = Math.max(t.keepPeak || 1, 3);
+    for (const v of t.villagers.filter(o => o.state !== 'soldier').slice(0, 12)) v.xp = Math.max(v.xp || 0, 1);
+  }
   // Vassals to manage (2026-11-20): the furthest villages go to new lords, the first on
   // your council, so the Realm screen's vassals and council have someone in them.
   const far = w.pois.filter(p => p.owner === 0 && p.town && p.kind === 'village' && p !== w.home && w.canGrant(p).ok)
@@ -96,5 +112,6 @@ export async function makeTestCampaign(key, progress = () => {}) {
     if (v && !w.vassals.some(o => o.council)) w.vassalAct(v, 'seat', 'steward');
   }
   w.update(0.5);
+  updateGoals(w, {});   // starts on the goal for its rank, the ones before ticked quietly
   return w;
 }

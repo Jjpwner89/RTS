@@ -558,3 +558,25 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
   - a broken or free company leaves nobody behind;
   - no house paid tribute is in a league;
   - no goal shown has already been passed.
+
+### Round 3 fixes on the climb (2026-11-21, QC and the Manager)
+
+- **Marching on a house at peace asks first.** Before, an army sent to Coldden sat silently ("Waiting at Coldden").
+  - Ordering an army onto a place of a great house you are at peace with now opens "March on Coldden?". It says the place's owner, that you must declare war first, and what war costs (`diplomacy.js warCost`):
+    - any truce or paid-for peace broken, and that every house will think less of you;
+    - any marriage or alliance betrayed;
+    - a sworn house lost, or a house's backing of your claim lost;
+    - which of your allies and vassal houses will join you;
+    - their men against yours.
+  - The choices are "Declare war and march", "March there in peace" and "Stay".
+  - An army already waiting outside gets "Attack Coldden?" with "Declare war and attack", which goes straight to the assault prompt. Ordering it onto the place again after war is declared some other way also attacks.
+  - An army that does arrive at peace logs "Fourth host waits outside Coldden: you are at peace with House Dunmore. Declare war on them first to attack it."
+  - The map hint reads "March on X: H is at peace with you, so you will be asked to declare war".
+- **Each rank's test save carries what the rank opens** (`testsaves.js`):
+  - Every rank gets a barracks in Ashford, with 24 spears and shields and 12 bows and 120 arrows in its racks.
+  - Count and Duke also get a knights' hall at keep level 3, 12 veterans, and mail, plate, swords, lances and horses for a batch of men-at-arms or knights.
+  - The test save starts on its rank's goal.
+  - Checked results:
+    - Count: the banners raise 24 levies, and the hall trained 6 knights in 7.5 minutes.
+    - Duke: 48 levies raised and 163 men answering, with three vassals sending 16 each.
+- **"0 levies" from the banners was right, not a bug.** Levies are raised only where an active barracks has kit in its racks, and the old test saves had none. Even now, the Lord save (one village besides the castle) sends no one: Ashford's 20-man guard keeps its 12 levies and the retinue home.

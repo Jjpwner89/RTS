@@ -403,6 +403,23 @@ export function act(w, h, id, theirs = false) {
   return no('');
 }
 
+// What declaring war on house h would cost you, said before you do it: a list of plain
+// lines (the march-on prompt and anything else that asks first).
+export function warCost(w, h) {
+  const H = FACTIONS[h], d = w.dip[h], out = [];
+  const paid = d.paidUntil > w.time, truce = w.time < d.truceUntil;
+  if (paid) out.push(`it breaks the peace you paid them tribute for, and every house will think less of you`);
+  else if (truce) out.push(`it breaks your truce with them (${Math.ceil((d.truceUntil - w.time) / 60)} min left), and every house will think less of you`);
+  if (d.married) out.push(`it betrays your marriage to ${H.name}, and every house will think less of you`);
+  else if (d.allied) out.push(`it betrays your alliance with ${H.name}, and every house will think less of you`);
+  if (d.vassal) out.push(`${H.lord} is sworn to you, and will be no longer`);
+  if (d.backs && !d.vassal) out.push(`${H.lord} will stop backing your claim to the crown`);
+  const friends = FACTIONS.filter(o => o.index !== h && o.index !== 0 && !o.bandit && o.alive && (w.dip[o.index]?.allied || w.dip[o.index]?.vassal) && !w.atWar(h, o.index));
+  if (friends.length) out.push(`${friends.map(o => o.name).join(' and ')} will join you against them`);
+  out.push(`${H.name} has about ${Math.round(w.strength(h))} men under arms to your ${Math.round(w.strength(0))}`);
+  return out;
+}
+
 // Houses at peace with you that may not be attacked yet, or that are bound to you.
 export function protectedFrom(w, h, by) {
   if (!w.dip) return false;

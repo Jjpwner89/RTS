@@ -39,7 +39,7 @@ import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
 import { RealmScreen } from './realmscreen.js';
-import { actions as dipActions, act as dipAct, mood, grudgeLines } from './world/diplomacy.js';
+import { actions as dipActions, act as dipAct, mood, grudgeLines, warCost } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
@@ -146,6 +146,10 @@ const worldControls = new WorldControls(stage.camera, canvas, worldView, {
   select: it => { selected = it; },
   order: p => {
     if (!selected || !selected.units || selected.side !== 0) return;
+    // A great house's place you are at peace with: attacking it means war, so ask first.
+    if (p.owner !== null && p.owner !== 0 && !FACTIONS[p.owner]?.bandit && !world.atWar(0, p.owner)) { asks.push({ kind: 'war', army: selected, poi: p }); return; }
+    // Already waiting outside a place it may now attack (war declared since): attack it.
+    if (selected.at === p && !selected.path.length && world.canAttack(0, p)) { world.arrive(selected, p); return; }
     if (!world.order(selected, p)) flash(selected.retreating ? 'They are falling back and will not turn yet.' : 'They are already there.');
   },
   enter: p => enterTown(p),
@@ -585,6 +589,15 @@ function nextAsk() {
       const text = r.text ?? r;
       if (text.length > 70) showResult(ev.title, text, 'Continue', () => {}); else flash(text, r.ok ?? true);
     }, !c.ok, c.why, c]);
+  } else if (a.kind === 'war') {
+    // Marching on a house you are at peace with (the order above): say what war costs.
+    const p = a.poi, H = FACTIONS[p.owner], army = a.army;
+    if (!H?.alive || army.gone || world.atWar(0, p.owner)) { if (!army.gone && world.atWar(0, p.owner ?? -1)) { if (army.at === p) world.arrive(army, p); else world.order(army, p); } return nextAsk(); }
+    box.querySelector('h2').textContent = army.at === p ? `Attack ${p.name}?` : `March on ${p.name}?`;
+    box.querySelector('p').textContent = `${p.name} belongs to ${H.name}, and you are at peace with them. To attack it you must declare war first: ${warCost(world, p.owner).join('; ')}.`;
+    buttons.push([army.at === p ? 'Declare war and attack' : 'Declare war and march', () => { const r = dipAct(world, p.owner, 'war'); if (r?.text) flash(r.text, r.ok ?? true); if (army.at === p) world.arrive(army, p); else if (!world.order(army, p)) flash('They cannot march there now.', false); else selected = army; }]);
+    if (army.at !== p) buttons.push([`March there in peace`, () => { if (world.order(army, p)) flash(`${army.name} marches to ${p.name}, and will wait outside: you are at peace with ${H.name}.`, true); }]);
+    buttons.push(['Stay', () => {}]);
   } else if (a.kind === 'news') {
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;

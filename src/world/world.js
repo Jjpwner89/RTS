@@ -498,7 +498,12 @@ export class World {
       }
       return;
     }
-    if (!this.canAttack(a.side, p)) { if (a.side !== 0) this.retreat(a); return; }
+    if (!this.canAttack(a.side, p)) {
+      if (a.side !== 0) this.retreat(a);
+      // yours waits outside, and says why, so a march on a house at peace is never silent
+      else if (p.owner !== null && FACTIONS[p.owner]) this.log(`${a.name} waits outside ${p.name}: you are at peace with ${FACTIONS[p.owner].name}. Declare war on them first to attack it.`, 1);
+      return;
+    }
     if (a.side === 0) { this.ask({ kind: 'assault', army: a, poi: p }); return; }
     // An army of yours waiting outside one of your villages falls back into it and
     // fights there; outside anyone else's, it meets them in the open.
