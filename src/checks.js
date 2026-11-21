@@ -1078,7 +1078,9 @@ function pageChecks() {
   results.push({ group, name: 'every file loaded', status: failed.length ? 'fail' : 'pass', detail: sample([...new Set(failed)], 8) });
   // small windows shrink the panels (style.css): the top bar must still fit without scrolling
   const top = document.getElementById('top'), wide = top && top.offsetParent ? top.scrollWidth - top.clientWidth : 0;
-  results.push({ group, name: 'the top bar fits the window', status: wide > 1 ? 'fail' : 'pass', detail: wide > 1 ? [`${wide}px of it scrolls out of sight at ${innerWidth}×${innerHeight}`] : [] });
+  // a hidden or background tab lays nothing out (the bar measures 0 wide): that can't be measured, so it warns rather than fails
+  const blind = top && top.offsetParent && (document.hidden || !top.clientWidth);
+  results.push({ group, name: 'the top bar fits the window', status: blind ? 'warn' : wide > 1 ? 'fail' : 'pass', detail: blind ? ["can't measure: page hidden"] : wide > 1 ? [`${wide}px of it scrolls out of sight at ${innerWidth}×${innerHeight}`] : [] });
   // GENRE_BASICS: a greyed button says why. A choice box that doesn't fails; elsewhere it warns for now.
   const mute = [...document.querySelectorAll('button:disabled')].filter(b => b.offsetParent && !b.title && !b.dataset.why && !b.closest('[title]') && b.textContent.trim())
     .map(b => `${b.closest('[id]')?.id || 'page'}: "${b.textContent.trim().slice(0, 40)}"`);
