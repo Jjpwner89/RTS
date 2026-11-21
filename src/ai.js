@@ -42,7 +42,8 @@ export function thinkAI(battle, side, { hold = false, start = 8, regs = null } =
 // their men; rash ones come on and stay to the bitter end; cunning ones go round. A side
 // with no lord is steady.
 // even: the plans a house falls back on when the armies are fairly matched (odds 0.85 to
-// 1.45), first that the field allows; outside that band the odds rule.
+// 1.45), first that the field allows; outside that band the odds rule. A steady side with
+// no house always comes on in a plain line then.
 const HOUSES = {
   turtler:  { temper: 'cautious', even: ['hold'] },              // Stonemere takes the high ground and makes you come
   builder:  { temper: 'cautious', even: ['refuse'] },            // Carrow rests a wing on a wood or a river
@@ -64,7 +65,7 @@ const TEMPERS = {
 };
 export function general(battle, side) {
   const g = battle.generals?.[side], H = HOUSES[g?.trait] || {}, temper = g?.temper || H.temper || 'steady';
-  return { ...TEMPERS[temper], ...(g?.quit != null && { quit: g.quit }), temper, even: H.even || null, plain: !!g?.plain, who: g?.name || (side ? 'The enemy' : 'Your captain') };
+  return { ...TEMPERS[temper], ...(g?.quit != null && { quit: g.quit }), temper, even: H.even || (temper === 'steady' ? ['line'] : null), plain: !!g?.plain, who: g?.name || (side ? 'The enemy' : 'Your captain') };
 }
 const strength = list => list.reduce((n, r) => n + r.alive * value(r.T.key), 0);
 const shoots = r => r.T.range && !r.engine && !r.T.javelin;
@@ -134,7 +135,7 @@ function choosePlan(battle, side, mine, standing, st, hold) {
   for (const k in score) score[k] += g.bias[k] || 0;
   st.plan = Object.keys(score).reduce((a, b) => (score[b] > score[a] ? b : a));
   // Fairly matched, a lord fights the way his house always does.
-  const can = { hammer: score.hammer > -5, woods: !!cover, reserve: feet.length >= 3, hold: true, refuse: true, charge: true, envelop: true };
+  const can = { hammer: score.hammer > -5, woods: !!cover, reserve: feet.length >= 3, line: true, hold: true, refuse: true, charge: true, envelop: true };
   if (odds >= 0.85 && odds < 1.45 && g.even) st.plan = g.even.find(k => can[k]) || st.plan;
   st.cover = cover;
   // The reserve: the strongest third of the foot and all the horse, kept back.
