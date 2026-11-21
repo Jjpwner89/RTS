@@ -87,7 +87,7 @@ A vassal runs a town for you: builds it up, raises troops and pays gold. But he 
 - **Built (2026-11-19), vassal trouble:** feuds between neighbouring vassals (one at a time; both villages lose people and each minds more the longer you leave it; judge for one or pay 80 to reconcile them; they burn out after about half an hour), factions of the resentful (⚑ in the list) who after three minutes demand light dues and levies and rise if refused (their villages go free of you, to be retaken by force), imprisoning a vassal (his villages come back, the others mind) and pardoning him (landless at your court until you grant him a village).
 - **Titles built (2026-11-21):** raise a vassal to baron (from count) or count (from duke), wanted as an ambition; see "Vassals, deeper" in DESIGN_NOTES.
 - **Marriages built (2026-11-21):** a vassal may want a match into a great house; see "Vassals, deeper" in DESIGN_NOTES.
-- **Not built yet:** a faction demanding a different king.
+- **A faction demanding a different king built (2026-11-21):** see "Vassals, deeper" in DESIGN_NOTES.
 
 ### Town templates
 

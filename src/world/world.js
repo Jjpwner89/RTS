@@ -1723,7 +1723,17 @@ export class World {
     if (!F) return;
     const vs = F.members.map(id => this.vassals.find(o => o.id === id)).filter(v => v && !v.gone && !v.prison);
     this.faction = null;
-    if (yes && F.demand === 'dues') {
+    // A different king (vassals.js claimant): giving way means light dues and an ally in their king's house;
+    // refusing sends their villages over to that house, which goes to war on you.
+    const c = F.demand === 'king' && F.claimant != null && FACTIONS[F.claimant]?.alive ? F.claimant : null, K = c != null && FACTIONS[c];
+    if (yes && c != null) {
+      const d = this.dip[c];
+      for (const v of vs) { v.dues = 0; v.levy = 0; v.refusing = false; mark(this, v, 10, 'You gave in to the faction', 2400); recall(this, v, `Won light dues from you, and ${K.name} as your ally`); }
+      if (!this.atWar(0, c)) { d.allied = true; d.opinion = Math.min(100, d.opinion + 15); this.chron(`You allied with ${K.name} at your vassals' demand.`); }
+      this.log(`You give way: ${vs.map(v => v.name).join(', ')} pay light dues and send light levies${this.atWar(0, c) ? '' : `, and ${K.name} is your ally`}.`, 1);
+      return;
+    }
+    if (yes && (F.demand === 'dues' || F.demand === 'king')) {
       for (const v of vs) { v.dues = 0; v.levy = 0; v.refusing = false; mark(this, v, 10, 'You gave in to the faction', 2400); recall(this, v, 'Won light dues from you with the faction'); }
       this.log(`You give way: ${vs.map(v => v.name).join(', ')} pay light dues and send light levies.`, 1);
       return;
@@ -1732,15 +1742,21 @@ export class World {
       for (const p of holdingsOf(this, v)) {
         // A titled lord who rises draws twice the men to their banner (vassals.js TITLED).
         if (!yes && v.title) for (const u of p.garrison || []) u.count *= TITLED.faction;
-        p.vassal = null; p.owner = null; p.free = v.name;
+        p.vassal = null; p.owner = c ?? null; p.free = c != null ? null : v.name;
       }
       v.gone = true; v.council = false; v.seat = null;
       v.rebel = !yes;
       recall(this, v, yes ? 'Released from your service' : 'Rose against you');
     }
     for (const o of living(this)) mark(this, o, yes ? -5 : 8, yes ? 'You let the faction go' : 'Stood by you when others rose', 2400);
-    this.log(yes ? `${vs.map(v => v.name).join(', ')} hold their villages free of you now.` : `${vs.map(v => v.name).join(', ')} have risen against you! Their villages are free of you; take them back by force.`, 1);
+    if (c == null) this.log(yes ? `${vs.map(v => v.name).join(', ')} hold their villages free of you now.` : `${vs.map(v => v.name).join(', ')} have risen against you! Their villages are free of you; take them back by force.`, 1);
     this.chron(yes ? `${vs.map(v => v.name).join(', ')} were let go from your service.` : `${vs.map(v => v.name).join(', ')} rose against you.`);
+    if (c != null) {
+      this.chron(`${vs.map(v => v.name).join(', ')} swore to ${K.name} as their king.`);
+      this.log(`${vs.map(v => v.name).join(', ')} hold their villages for ${K.name} now, and ${K.name} goes to war on you.`, 1);
+      this.dip[c].allied = false; this.dip[c].opinion = Math.min(this.dip[c].opinion, 0);
+      this.declareWar(c, 0);
+    }
     if (!yes) this.hooks.herald?.({ house: { name: vs[0]?.name || 'Your vassals', color: vs[0]?.color || '#8a6a3a' }, title: 'Your vassals rise', text: `${vs.map(v => v.name).join(', ')} refuse you as their lord. Their villages stand against you now.` });
   }
 

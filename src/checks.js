@@ -468,6 +468,14 @@ async function worldChecks(w) {
     for (const H of V2.suitors(w)) { const c = V2.matchCost(w, H.index); if (!(c >= 25) || c % 25) out.push(`a match with ${H.name} costs ${c}`); }
     return out;
   });
+  // A faction's king is a real house at peace with you, never your vassal (a different king, 2026-11-21).
+  await check("a faction's would-be king is a living house at peace with you", async () => {
+    const V2 = await import('./world/vassals.js'), out = [], F = w.faction;
+    if (F?.demand === 'king' && F.claimant != null) { const H = w.houses[F.claimant]; if (!H?.alive) out.push(`the faction's king, house ${F.claimant}, is gone`); }
+    const mem = (F?.members || []).map(id => w.vassals.find(o => o.id === id)).filter(Boolean), c = mem.length ? V2.claimant(w, mem) : null;
+    if (c && (!w.houses[c.house].alive || w.atWar(0, c.house) || w.dip[c.house].vassal)) out.push(`${w.houses[c.house].name} would be named king while at war with you, dead or your vassal`);
+    return out;
+  });
   // A petition you can't afford lights up when the purse fills while it waits (QC, 2026-11-21).
   // Nothing is chosen; the purse is put back.
   await check("a petition's cost is read live", () => {

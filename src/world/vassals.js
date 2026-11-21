@@ -364,9 +364,12 @@ function tickFaction(w) {
     if (!F.asked && w.time - F.since > ULTIMATUM) {
       F.asked = true;
       const vs = F.members.map(id => w.vassals.find(o => o.id === id));
-      F.demand = vs.every(v => v.dues === 0 && v.levy === 0) ? 'free' : 'dues';
+      const c = claimant(w, vs), H = c && w.houses[c.house];
+      F.demand = c ? 'king' : vs.every(v => v.dues === 0 && v.levy === 0) ? 'free' : 'dues';
+      F.claimant = c?.house ?? null;
       w.hooks.offer?.({ house: { alive: true, name: 'Your vassals' }, title: 'Your vassals make a demand',
-        text: `${vs.map(v => v.name).join(', ')} ${F.demand === 'free' ? 'demand to hold their villages free of you' : 'demand light dues and light levies for all of them'}. Refuse, and they rise.`,
+        text: c ? `${vs.map(v => v.name).join(', ')} will have ${H.lord} of ${H.name} (${c.why}) for their king in your place. Give way, and they pay light dues and send light levies, and ${H.name} becomes your ally. Refuse, and they rise, holding their villages for ${H.name}, and ${H.name} goes to war on you.`
+          : `${vs.map(v => v.name).join(', ')} ${F.demand === 'free' ? 'demand to hold their villages free of you' : 'demand light dues and light levies for all of them'}. Refuse, and they rise.`,
         accept: () => w.factionAnswer(true), decline: () => w.factionAnswer(false) });
     }
     return;
@@ -376,6 +379,22 @@ function tickFaction(w) {
     w.log(`${angry.map(v => v.name).join(' and ')} have formed a faction against you.`, 1);
     w.hooks.sound?.('boom'); // audio
   }
+}
+
+// The king a faction would have in your place (2026-11-21, roadmap "a faction demanding a different
+// king"): the house one of its members is wed into, else, once you are a duke and they are a real force
+// (30% of your men), the strongest house they know. The house must be at peace with you and not your
+// vassal. null: they ask for dues or freedom as before.
+export const CLAIMANT_FORCE = 0.3;
+export function claimant(w, members) {
+  const ok = H => H && H.alive && w.knows(H.index) && !w.atWar(0, H.index) && !w.dip[H.index].vassal;
+  const kin = members.filter(isWed).map(v => w.houses[v.wed.house]).filter(ok).sort((a, b) => w.dip[b.index].opinion - w.dip[a.index].opinion)[0];
+  if (kin) return { house: kin.index, why: 'the house one of them is wed into' };
+  if (!['Duke', 'King'].includes(w.rank)) return null;
+  const men = members.reduce((n, v) => n + powerOf(w, v).men * (v.title ? TITLED.faction : 1), 0);
+  if (men < CLAIMANT_FORCE * yourMen(w)) return null;
+  const best = greatHouses(w).filter(ok).sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
+  return best ? { house: best.index, why: 'the strongest house they know' } : null;
 }
 
 // What one of a vassal's places earns this step is split between the vassal and you.
