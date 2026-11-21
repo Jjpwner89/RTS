@@ -472,7 +472,7 @@ The north star asks for an interface that *enables* depth rather than suffering 
 1. **Village HUD**: the unlocks table and New callouts; the stock strip that folds; one-height build bar with Defences as its Walls tab; the keep panel trimmed (prose behind "more"); styled tooltips; top-bar hotkeys; small-window layout; parchment-legible colours in these panels.
 2. **World map**: goals that end, a message lane that never covers labels or panels, the realm panel by rank, Needs you only for what needs you, event cards whose greyed choice looks greyed, place labels told apart from UI.
 3. **Battle**: cards with labelled bars and a clear selection, orders bar that fits, deploy bar and messages apart.
-4. **Realm screen frame**: tabs by rank and event (contents stay the vassals session's).
+4. **Realm screen frame**: tabs by rank and event (contents stay the vassals session's). *Built 2026-11-22:* the Vassals tab arrives with the first vassal, Houses with the first house met, Council at Count (the overview's council and houses boxes with them); Treasury, Villages and Supplies come with the screen at Lord. Each new tab wears the "New" seal and gets its one-line slip inside the Realm screen (with the screen shut, the Realm button stands in). Duke's *Gather your armies here* and King's decrees are introduced the same way. The frame is sized in its own zoomed units, and the map's panels step aside while it is open (skin.css).
 5. **Menus**: the title page and loading screen in the game's look, help per screen instead of one wall, the Muster in parchment.
 
 ## Game feel (fx.js, rts-feel session, 2026-11-21)

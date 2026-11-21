@@ -42,7 +42,8 @@ export function tick(w) {
   for (const el of sealed) if (!want.has(el)) { el.classList.remove('is-new'); sealed.delete(el); }
   for (const el of want) { el.classList.add('is-new'); sealed.add(el); }
   // Never over a decision: while a card, the deploy bar or the help is open, the line waits.
-  if (first && [...document.querySelectorAll('#prompt, #result, #end, #deploy, #help, #terms, #duel, #realm')].some(visible)) first = null;
+  // (The Realm screen is a place to look, not a decision: its own new tabs are introduced inside it.)
+  if (first && [...document.querySelectorAll('#prompt, #result, #end, #deploy, #help, #terms, #duel, #realm')].some(b => visible(b) && !b.contains(first[1]))) first = null;
   if (!first) { slip.classList.remove('show'); shown = null; return; }
   const [key, el] = first;
   if (shown !== key) {
@@ -62,10 +63,16 @@ export function tick(w) {
 const AVOID = '#wpanel, #info, #build, #stock, #orders, #cards, #alerts, #goals, #defences, #log > div:not(.fade)';
 function place(el) {
   const r = el.getBoundingClientRect(), s = slip.getBoundingClientRect(), pad = 8;
-  const boxes = [...document.querySelectorAll(AVOID)].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect());
+  const boxes = [...document.querySelectorAll(AVOID)].filter(b => b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden').map(b => b.getBoundingClientRect());
   const cx = r.left + r.width / 2 - s.width / 2, cy = r.top + r.height / 2 - s.height / 2;
   const cands = [[r.right + 10, cy, 'right'], [cx, r.bottom + 10, 'below'], [cx, r.top - s.height - 10, 'above'], [r.left - s.width - 10, cy, 'left']];
   if (el.closest('#top')) cands.unshift(cands.splice(1, 1)[0]);   // the next button is to the right: go under the bar
+  // A Realm tab: under the whole tab row (beside the tab it would hide its neighbours), by the tab.
+  const row = el.closest('#realm nav');
+  if (row) cands.unshift([Math.min(r.left, innerWidth - s.width - pad), row.closest('header').getBoundingClientRect().bottom + 6, 'below']);
+  // A button inside a docked panel: beside the panel (a slip beside the button would sit on the panel).
+  const dock = el.closest('#wpanel, #info, #stock, #alerts, #defences');
+  if (dock) { const d = dock.getBoundingClientRect(); cands.unshift([d.left - s.width - 10, cy, 'left'], [d.right + 10, cy, 'right']); }
   const ok = ([x, y]) => x >= pad && y >= pad && x + s.width <= innerWidth - pad && y + s.height <= innerHeight - pad;
   const clear = ([x, y]) => boxes.every(b => x >= b.right || x + s.width <= b.left || y >= b.bottom || y + s.height <= b.top);
   const pick = cands.find(c => ok(c) && clear(c));

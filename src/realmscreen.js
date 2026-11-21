@@ -20,6 +20,7 @@ import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } f
 import { alerts } from './world/alerts.js';
 import { ROAD_UPKEEP, decreed } from './world/decrees.js';
 import { ico } from './icons.js';
+import { unlocked } from './ui/unlocks.js';
 
 const TABS = [['realm', 'Realm'], ['villages', 'Villages'], ['supplies', 'Supplies'], ['vassals', 'Vassals'], ['council', 'Council'], ['houses', 'Houses'], ['treasury', 'Treasury']];
 const ARMS = GOOD_GROUPS[2][1];
@@ -214,7 +215,10 @@ export class RealmScreen {
     if (!now && (t - this.at < 1000 || this.pressed || this.el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT')) return;
     this.at = t;
     const w = this.w;
-    const tabs = TABS.map(([k, name]) => `<button data-act="tab:${k}" class="${this.tab === k ? 'on' : ''}">${name}${this.badge(k)}</button>`).join('');
+    // A tab shows once what it is about has arrived (ui/unlocks.js); one that has not is never offered.
+    const shown = ([k]) => unlocked(w, `tab:${k}`);
+    if (!shown([this.tab])) this.tab = 'realm';
+    const tabs = TABS.filter(shown).map(([k, name]) => `<button data-act="tab:${k}" class="${this.tab === k ? 'on' : ''}">${name}${this.badge(k)}</button>`).join('');
     const body = this[`tab_${this.tab}`]?.() ?? this.tab_realm();
     const html = `<header><h2>${ico('crown', '#e8c45a')} Your realm <small>${esc(w.rank)} · ${plural(w.pois.filter(p => p.owner === 0).length, 'place')} · ${num(FACTIONS[0].gold)} gold</small></h2>
       <nav>${tabs}</nav><button data-act="close" class="close" title="Close (Tab or Esc)">✕</button></header><div class="body">${body}</div>`;
@@ -283,7 +287,7 @@ export class RealmScreen {
       + worst.map(r => `<div class="line"><span class="grow">Least content: <b>${esc(r.p.name)}</b></span><span class="${r.mood >= 45 ? 'good' : r.mood >= 30 ? 'warn' : 'bad'}">${townMood(r.mood)} (${Math.round(r.mood)})</span></div>`).join('')
       + (hungry ? `<div class="line"><span class="grow">Shortest of food: <b>${esc(hungry.p.name)}</b></span><span class="${hungry.food < 3 ? 'bad' : ''}">${Math.round(hungry.food)} min</span><span class="acts"><button data-act="supply::${hungry.p.id}:food">Send food</button></span></div>` : '') : '<p class="note">You run no village yourself.</p>'}<p class="note"><button data-act="tab:villages">All villages</button></p></section>`;
 
-    return tiles + `<div class="boxes">${needBox}${counsel}${vbox}${vilbox}${hbox}</div>`;
+    return tiles + `<div class="boxes">${needBox}${unlocked(w, 'tab:council') ? counsel : ''}${vbox}${vilbox}${unlocked(w, 'tab:houses') ? hbox : ''}</div>`;
   }
 
   factionLine(fv) {
