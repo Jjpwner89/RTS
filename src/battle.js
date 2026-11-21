@@ -1038,7 +1038,9 @@ export class Battle {
     if (say) this.saidBreach = this.time;
     if (!best) {
       if (say) this.event(0, r.T.mounted ? `${this.label(r)} can't ride ${t.move ? 'in' : 'at men'} behind a wall: break a gate first.` : `${this.label(r)} can't find a way in${t.move ? '' : ' to them'}.`);
-      if (!r.T.mounted) console.warn(`breachFor: no gate or wall ${r.name} can reach on the way to ${t.name}`);
+      // Once for each foe, not again every second the order is tried.
+      if (!r.T.mounted && r.noWayTo !== t) console.warn(`breachFor: no gate or wall ${r.name} can reach on the way to ${t.name}`);
+      r.noWayTo = t;
       r.targetReg = null;
       return true;
     }

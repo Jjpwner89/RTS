@@ -2610,7 +2610,9 @@ export class Town {
           if (Math.hypot(g.entry.x - r.cx, g.entry.z - r.cz) < 20) b.disband(r);
           continue;
         }
-        const near = defenders.filter(d => Math.hypot(d.cx - r.cx, d.cz - r.cz) < (r.T.range ? r.T.range : 45))
+        // Only men they can get at: one across a standing wall is the siege's business, and sending
+        // them at him anyway failed the way-in search once a second (QC, 2026-11-21: breachFor warnings).
+        const near = defenders.filter(d => Math.hypot(d.cx - r.cx, d.cz - r.cz) < (r.T.range ? r.T.range : 45) && (!b.nav.any || b.shoots(r) || b.reaches(r, d)))
           .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
         if (near) { if (r.targetReg !== near) b.orderAttack([r], near); continue; }
         if (r.targetReg) continue;

@@ -831,10 +831,10 @@ export function thinkTownSiege(town) {
     if (g.leaving) continue;
     const regs = g.regs.filter(r => usable(r));
     if (!regs.length) continue;
-    const army = centroid(regs);
-    const inside = W.pieces.some(p => p.side === 0 && (p.state === 'broken' || p.forced)) && b.nav.reachable(1, army.cx, army.cz, 0, 0);
-    // Engines always stay under siege orders; the rest until there is a way in.
-    for (const r of regs) r.ai = r.engine || !inside ? 'siege' : null;
+    // Engines always stay under siege orders; the rest until there is a way in, each for itself:
+    // a regiment still shut out while the rest are through keeps working the walls.
+    const open = W.pieces.some(p => p.side === 0 && (p.state === 'broken' || p.forced));
+    for (const r of regs) r.ai = r.engine || !(open && b.nav.reachable(1, r.cx, r.cz, 0, 0)) ? 'siege' : null;
     const siege = regs.filter(r => r.ai === 'siege');
     if (siege.length) thinkSiegeAttack(b, 1, { regs: siege, prepare: g.mode === 'siege' });
   }
