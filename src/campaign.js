@@ -20,6 +20,7 @@ import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS, walledPlace } from './world/world.js';
+import { why } from './ui/why.js';
 import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
@@ -954,7 +955,7 @@ function worldPanel() {
       // read "No village has food to send" at home): say how they will eat instead.
       const land = !w && homeland(world, it);
       set('wagon', coming ? `${ico('food')} A wagon is on its way` : w ? `${ico('food')} Send ${w.load} food from ${w.p.name}` : land ? `${ico('food')} No village has food to spare for a wagon; in your own lands the farms round ${land.name} will feed them` : `${ico('food')} No village has food to send`);
-      if (btn) btn.disabled = coming || !w || !!fedAt(world, it);
+      if (btn) why(btn, coming ? 'A wagon is already on its way.' : !w ? (land ? 'No village has food to spare for a wagon.' : 'No village has food to send.') : '');
       if (btn) btn.hidden = !!fedAt(world, it);
     }
     set('units', know < 3 ? 'Too far off to make out which troops' : it.units.map(u => `${u.name}: ${u.count}`).join(' · '));
@@ -971,7 +972,7 @@ function worldPanel() {
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     set('works', worksBox(it));
     set('market', marketBox(it));
-    if (it.owner === 0) { const n = world.gatherable(it).length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); const gb = el.querySelector('[data-f="gather"]'); if (gb) gb.disabled = !n; }
+    if (it.owner === 0) { const n = world.gatherable(it).length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); why(el.querySelector('[data-f="gather"]'), n ? '' : 'None of your armies is free to march here.'); }
     if (it.town) {
       const can = world.canGrant(it);
       for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; b.title = can.ok ? can.warn || '' : can.why; b.classList.toggle('warn', !!can.warn); }
