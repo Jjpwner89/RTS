@@ -26,6 +26,7 @@ export const BUILD_KEYS = {};
 {
   const taken = new Set();
   for (const [k, B] of Object.entries(BUILDINGS)) {
+    if (B.camp) continue;   // (found in the north's camps, never built)
     const letter = [...B.name.toLowerCase().replace(/[^a-z]/g, ''), ...'abcdefghijklmnopqrstuvwxyz'].find(c => !taken.has(c));
     taken.add(letter);
     BUILD_KEYS[letter] = k;
@@ -139,7 +140,7 @@ export class TownHud {
 
   buildMenu() {
     const tabs = [...BUILD_GROUPS, 'Towns'].map(g => `<button class="tab" data-tab="${g}">${g}</button>`).join('');
-    const items = Object.entries(BUILDINGS).map(([k, B]) => `
+    const items = Object.entries(BUILDINGS).filter(([, B]) => !B.camp).map(([k, B]) => `
       <button class="item" data-build="${k}" data-group="${B.group}" title="${B.desc}">
         ${ico(B.icon)}<span>${B.name}</span><small>${listCost(B.cost)}</small><kbd>${KEY_OF[k].toUpperCase()}</kbd>
       </button>`).join('') + `
@@ -305,7 +306,7 @@ export class TownHud {
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
-    if (b.state === 'active' && UPGRADES[2] && b.kind !== 'well' && b.kind !== 'house') {
+    if (b.state === 'active' && UPGRADES[2] && b.kind !== 'well' && b.kind !== 'house' && !B.camp) {
       const U = UPGRADES[(b.level || 1) + 1], next = (b.level || 1) + 1;
       const gain = B.haul ? 'one more hauler' : B.jobs ? `work for ${B.jobs * next}, a little faster` : B.mood ? 'lifts the mood more' : 'sturdier';
       if (U) rows.push(`<button data-act="upgrade" class="wide"><span>Upgrade to level ${next} · ${U.gold ? `${U.gold} ${goldIco()} + ` : ''}${this.goodsList(U.cost)}</span><small></small></button><p class="kit">${gain}</p>`);

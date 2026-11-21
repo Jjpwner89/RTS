@@ -117,6 +117,11 @@ export const BUILDINGS = {
     desc: 'Lookouts who see far across the realm: armies and places further off show on the map.' },
   hall: { name: "Knights' hall", icon: 'hall', group: 'Military', cost: { planks: 40, stone: 60 }, radius: 7, build: 45, hp: 400, hall: true,
     desc: "Trains veterans into men-at-arms and knights: slow, costly and worth it. From the rank of Count, in a village whose keep is level 3." },
+  // The northern host's camps are tents and horse lines, not houses (places.js): found there, never built.
+  tent: { name: 'Tent', icon: 'house', group: 'Camp', camp: true, cost: { wood: 4 }, radius: 2.6, build: 4, housing: 4, hp: 40,
+    desc: 'A soldier\'s tent of the northern host: room for four men.' },
+  picket: { name: 'Picket line', icon: 'stable', group: 'Camp', camp: true, cost: { wood: 6 }, radius: 4.5, build: 5, hp: 60,
+    desc: 'Stakes and a rope where the host\'s horses are tied, with their hay.' },
 };
 // Building upgrades (creator, 2026-11-20): an upgraded building is simply better. Each
 // level adds as many work places again as the first, and works a little faster, so one
@@ -1210,7 +1215,7 @@ export class Town {
 
   upgradeCheck(b) {
     const U = UPGRADES[(b.level || 1) + 1];
-    if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.kind === 'house') return { ok: false, reason: 'Fully upgraded', done: true };
+    if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.B.camp || b.kind === 'house') return { ok: false, reason: 'Fully upgraded', done: true };
     if (U.gold && this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
     if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
     return { ok: true, U };
@@ -2053,7 +2058,7 @@ export class Town {
   // The people of a place you are storming: about their houses and workshops until your
   // men come near, then running for the keep, where they hide until it is decided.
   townsfolk(n) {
-    const homes = this.buildings.filter(b => b.state === 'active' && b.kind === 'house');
+    const homes = this.buildings.filter(b => b.state === 'active' && (b.kind === 'house' || b.kind === 'tent'));
     const spots = homes.length ? homes : this.buildings.filter(b => b.state === 'active');
     for (let i = 0; i < n; i++) {
       const b = spots[i % Math.max(1, spots.length)], a = this.rand() * Math.PI * 2, r = b ? b.B.radius + 1.5 : 14;

@@ -242,8 +242,31 @@ export const castleModel = (level = 2) => buildingModel('castle.' + level) || bu
 // A fort: forts and army camps.
 // What stands at a place's heart: its keep, or at an abbey the abbey church, which is its
 // store and its last stand as a keep is.
-export const heartModel = (kind, level) => (kind === 'monastery' && buildingModel('monastery')) || keepModel({ palisade: false, level });
+// A war camp's is its timber fort.
+export const heartModel = (kind, level) => (kind === 'monastery' && buildingModel('monastery')) || (kind === 'warcamp' && fortModel()) || keepModel({ palisade: false, level });
 export const fortModel = () => buildingModel('fort') || keepModel({ palisade: false, level: 1 });
+// The northern host's camp (economy.js camp buildings): the baked soldier's tent in grey
+// canvas, and a horse line of stakes and a rope with hay at the ends.
+const CANVAS = '#9a9284', camp = {};
+export const campModel = kind => (kind in camp ? camp[kind] : (camp[kind] = makeCamp(kind)));
+function makeCamp(kind) {
+  if (kind === 'tent') {
+    const T = unitModel('tent');
+    if (!T) return mergeGeometries([part(new THREE.ConeGeometry(2.3, 3, 8), CANVAS, { y: 1.5 }), part(cyl(0.08, 0.08, 3.6, 4), WOOD, { y: 1.8 })]);
+    const cloth = asPart(T.cloth), c = cloth.attributes.color, k = new THREE.Color(CANVAS);
+    for (let i = 0; i < c.count; i++) c.setXYZ(i, c.getX(i) * k.r, c.getY(i) * k.g, c.getZ(i) * k.b);
+    return mergeGeometries([asPart(T.gear), cloth]);
+  }
+  if (kind === 'picket') {
+    const parts = [];
+    for (let x = -3.6; x <= 3.7; x += 1.8) parts.push(part(cyl(0.09, 0.11, 1.5, 5), WOOD, { x, y: 0.75 }));
+    parts.push(part(box(7.4, 0.06, 0.06), '#c8b890', { y: 1.3 }));
+    for (const x of [-4.4, 4.4]) parts.push(part(new THREE.ConeGeometry(0.9, 1, 7), THATCH, { x, y: 0.5, z: 1.2 }));
+    parts.push(part(box(2, 0.5, 0.7), WOOD, { y: 0.25, z: -1.6 }));
+    return mergeGeometries(parts);
+  }
+  return null;
+}
 // Houses come in three styles; `style` picks one.
 export function houseModel(style = 0) {
   const baked = buildingModel('house.' + (style % HOUSE_STYLES));

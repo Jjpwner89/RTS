@@ -30,7 +30,7 @@ const FIELDS = new Set(['farm', 'flax']);
 // What stands in a castle's bailey, when the place has it.
 const BAILEY = ['barracks', 'stable', 'hall', 'siegeworks', 'weaponsmith', 'armourer', 'storehouse', 'well'];
 // The open square at the heart of a town, by kind: a market town's is the biggest.
-const SQUARE = { village: 9, market: 16, ford: 10, mine: 8, monastery: 9, seat: 12, crown: 18, castle: 7 };
+const SQUARE = { village: 9, market: 16, ford: 10, mine: 8, monastery: 9, seat: 12, crown: 18, castle: 7, warcamp: 0, pass: 0 };
 const HOUSE_STYLES = 6;   // picked per house; the views take it modulo their own count
 
 const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -68,7 +68,9 @@ function site(p) {
 
 const kindOf = p => (p.kind === 'crown' ? 'crown' : p.seat !== undefined ? 'seat' : p.kind);
 // Castles, seats and the royal city have a curtain round the keep.
-const hasCastle = p => ['castle', 'seat', 'crown'].includes(kindOf(p));
+const hasCastle = p => ['castle', 'seat', 'crown', 'pass'].includes(kindOf(p));
+// The northern host lives in tents in lines, not houses along streets.
+const CAMP = new Set(['warcamp', 'pass']);
 
 // Whether a place stands behind walls: as remembered if it has been seen up close, else
 // by its numbers, else by its kind.
@@ -80,8 +82,9 @@ export const wallMaterial = p => {
     : p.kind === 'warcamp' || (p.kind === 'village' && (p.eco?.level ?? 1) < 2) ? 'wood' : 'stone';
 };
 
-// The keep a place shows: a lord's seat one level up, a castle or the royal city a stone keep at least.
-export const keepLevelFor = p => p.mem?.keepLevel || p.mem?.keepShown
+// The keep a place shows: a lord's seat one level up, a castle or the royal city a stone keep at least,
+// the mountain gate the greatest there is.
+export const keepLevelFor = p => p.mem?.keepLevel || p.mem?.keepShown || (p.kind === 'pass' ? 5 : 0)
   || Math.min(5, Math.max(p.kind === 'castle' || p.kind === 'crown' ? 3 : 1, (p.eco?.level ?? 1) + (p.seat !== undefined ? 1 : 0)));
 
 // The tally a layout must show: the place's numbers, or a rough village for a place
@@ -89,6 +92,9 @@ export const keepLevelFor = p => p.mem?.keepLevel || p.mem?.keepShown
 export function tallyOf(p) {
   if (p.eco?.buildings) return { ...p.eco.buildings };
   const pop = p.eco?.pop ?? 20, n = (k, lo, hi) => Math.max(lo, Math.min(hi, Math.round(k)));
+  // a war camp: tents, horse lines and the host's stores; the mountain gate the same round its great castle
+  if (p.kind === 'warcamp') return { tent: n(pop / 4, 16, 40), picket: n(pop / 25, 2, 5), storehouse: 2, well: 1, weaponsmith: 1 };
+  if (p.kind === 'pass') return { tent: n(pop / 4, 18, 40), picket: n(pop / 30, 2, 4), barracks: 1, stable: 1, weaponsmith: 1, armourer: 1, storehouse: 2, well: 1 };
   return { house: n(pop / 5, 3, 24), farm: n(pop / 14, 1, 7), storehouse: 1, woodcutter: 1, hunter: 1 };
 }
 
@@ -162,12 +168,13 @@ export function rebuild(town, mem, side, mended) {
 
 // Streets: polylines with a half-width and a cost (main streets cheapest, so they fill first).
 // A castle's burgh (`burgh`) lives along the one road to its gate: the other roads come last.
-function makeStreets(t, roads, sq, inner, rand, extra = [], burgh = false) {
+// A camp (`camp`) lives in its tent lines (`extra`), with no lanes and no houses on its roads.
+function makeStreets(t, roads, sq, inner, rand, extra = [], { burgh = false, camp = false } = {}) {
   const out = [];
   const line = (a, r0, r1) => [{ x: Math.sin(a) * r0, z: Math.cos(a) * r0 }, { x: Math.sin(a) * r1, z: Math.cos(a) * r1 }];
-  roads.forEach((a, i) => out.push({ pts: line(a, inner, 165), half: STREET, cost: burgh && i ? 90 : 0, main: !burgh || !i, road: true }));
+  roads.forEach((a, i) => out.push({ pts: line(a, inner, 165), half: STREET, cost: (burgh && i) || camp ? 90 : 0, main: !camp && (!burgh || !i), road: true }));
   // With one road in, the street runs on through the village the other way a little.
-  if (roads.length === 1) out.push({ pts: line(roads[0] + Math.PI, inner, 85), half: LANE, cost: 6 });
+  if (roads.length === 1 && !camp) out.push({ pts: line(roads[0] + Math.PI, inner, 85), half: LANE, cost: 6 });
   // The square's edge is a street too: houses and shops face onto it.
   if (sq?.court) {
     // an abbey's cloister: a square court, its ranges built tight round all four sides
@@ -199,13 +206,24 @@ function makeStreets(t, roads, sq, inner, rand, extra = [], burgh = false) {
     }
   }
   // A ring lane joins streets that are far apart, round the old town.
-  const sorted = burgh ? [] : [...roads].sort((a, b) => a - b);
+  const sorted = burgh || camp ? [] : [...roads].sort((a, b) => a - b);
   for (let i = 0; i < sorted.length && sorted.length > 1; i++) {
     const a = sorted[i], b = sorted[(i + 1) % sorted.length], gap = ((b - a) % TAU + TAU) % TAU;
     if (gap < 1.2) continue;
     const R = inner + 46, pts = [];
     for (let k = 1; k < 10; k++) { const c = a + gap * k / 10; pts.push({ x: Math.sin(c) * R, z: Math.cos(c) * R }); }
     out.push({ pts, half: LANE, cost: 14, ring: true });
+  }
+  return out;
+}
+
+// A camp's tent lines: `rows` lanes 18.5 m apart (a tent either side, back to back with the
+// next line's), running along bearing `a` through point c, `len` metres each way.
+function tentLines(c, a, rows, len) {
+  const ux = Math.sin(a), uz = Math.cos(a), vx = uz, vz = -ux, out = [];
+  for (let i = 0; i < rows; i++) {
+    const v = (i - (rows - 1) / 2) * 18.5, x = c.x + vx * v, z = c.z + vz * v;
+    out.push({ pts: [{ x: x - ux * len, z: z - uz * len }, { x: x + ux * len, z: z + uz * len }], half: LANE, cost: 0, camp: true });
   }
   return out;
 }
@@ -248,7 +266,10 @@ function frontage(streets, r, step = 2.5) {
 // 'stone') when given.
 function plan(p, { fresh = false, tally = null, walls = null } = {}) {
   const t = site(p), rand = rng(p.seed + 101), kind = kindOf(p);
-  const roads = t.roadAngles.length ? t.roadAngles : [0];
+  // (the mountain gate faces the realm: its gate is on the road from there)
+  const face = Math.atan2(-p.x, -p.z);
+  const roads = t.roadAngles.length ? [...t.roadAngles] : [kind === 'pass' ? face : 0];
+  if (kind === 'pass') roads.sort((a, b) => Math.abs(angDiff(a, face)) - Math.abs(angDiff(b, face)));
   const main = roads[0];
   const unplaced = [];
   const want = tally ? { ...tally } : tallyOf(p);
@@ -333,7 +354,13 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
     const a = Math.atan2(lode.x, lode.z), d = hyp(lode.x, lode.z) - 16;
     if (d > inner + 12) extra.push({ pts: [{ x: Math.sin(a) * inner, z: Math.cos(a) * inner }, { x: Math.sin(a) * d, z: Math.cos(a) * d }], half: STREET, cost: -4, main: true, ore: true });
   }
-  streets = makeStreets(t, roads, sq, inner, rand, extra, kind === 'castle');
+  // A war camp's tent lines run along its road round the fort; the mountain gate's behind its
+  // castle, across the pass.
+  if (CAMP.has(kind) && !kept) {
+    if (kind === 'warcamp') extra.push(...tentLines({ x: 0, z: 0 }, main, 6, 60));
+    else { const d = -(inner + 34); extra.push(...tentLines({ x: Math.sin(face) * d, z: Math.cos(face) * d }, face + Math.PI / 2, 4, 75)); }
+  }
+  streets = makeStreets(t, roads, sq, inner, rand, extra, { burgh: kind === 'castle', camp: CAMP.has(kind) });
   for (const s of streets) if (s.square) s.c = sq;
 
   // ---- round the square: well, market, chapel, cathedral, a store ----
@@ -381,7 +408,8 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
     const r = BUILDINGS[k].radius, own = s => (s.street.square ? sq : null);
     let list = front(r);
     // at the edge of the town as it stands (worked out once, so they don't lead each other out along a road)
-    if (edge) list = list.filter(s => !s.dead).sort((a, b) => Math.abs(hyp(a.x, a.z) - reach) - Math.abs(hyp(b.x, b.z) - reach));
+    // (a camp's horse lines among its tents, not out on its roads)
+    if (edge) list = list.filter(s => !s.dead && (k !== 'picket' || s.street.camp)).sort((a, b) => Math.abs(hyp(a.x, a.z) - reach) - Math.abs(hyp(b.x, b.z) - reach));
     const s = list.find(s => !s.dead && (fits(k, s.x, s.z, own(s)) || (s.dead = true, false)));
     if (!s) return false;
     s.dead = true;
@@ -411,12 +439,13 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
   const gathering = () => { for (const k of ['mine', 'quarry', 'woodcutter', 'hunter']) for (let n = count(k); n > 0; n--) if (gather(k)) take(k); else break; };
   if (kind === 'mine') gathering();
 
-  const shops = Object.keys(want).filter(k => count(k) && !GATHER.has(k) && !FIELDS.has(k) && !SMELLY.has(k) && k !== 'house' && k !== 'mill' && k !== 'watchtower')
+  const home = CAMP.has(kind) ? 'tent' : 'house';
+  const shops = Object.keys(want).filter(k => count(k) && !GATHER.has(k) && !FIELDS.has(k) && !SMELLY.has(k) && !['house', 'tent', 'picket', 'mill', 'watchtower'].includes(k))
     .flatMap(k => Array(count(k)).fill(k));
-  const houses = count('house');
+  const houses = count(home);
   const every = Math.max(1, Math.floor(houses / (shops.length + 1)));
   for (let i = 0, s = 0; i < houses || s < shops.length; i++) {
-    if (i < houses && onStreet('house')) take('house');
+    if (i < houses && onStreet(home)) take(home);
     if (s < shops.length && (i % every === every - 1 || i >= houses)) { const k = shops[s++]; if (onStreet(k)) take(k); }
   }
   const far = t.buildings.filter(b => !GATHER.has(b.kind) && !FIELDS.has(b.kind)).map(b => hyp(b.x, b.z)).sort((a, b) => a - b);
@@ -432,7 +461,8 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
     const sp = first('smelter', spots.sort((a, b) => a.rank - b.rank));
     if (sp) { put('smelter', sp.x, sp.z, sp.angle); take('smelter'); }
   }
-  for (const k of ['tanner', 'smelter', 'mill', 'watchtower']) for (let n = count(k); n > 0; n--) if (onStreet(k, true)) take(k); else break;
+  // (and the horse lines at the camp's edge)
+  for (const k of ['tanner', 'smelter', 'mill', 'watchtower', 'picket']) for (let n = count(k); n > 0; n--) if (onStreet(k, true)) take(k); else break;
 
   // ---- walls round the town ----
   const material = walls && walls !== 'none' ? walls : wallMaterial(p);
@@ -443,7 +473,15 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
     if (kind !== 'castle') {
       const core = t.buildings.filter(b => !GATHER.has(b.kind) && !FIELDS.has(b.kind));
       const least = castle ? curtain + 22 : KEEP_CLEAR + 16;
-      ring(t, W, roads, bearing => edgeAt(core, bearing, least, sq), material, rand, {});
+      // the mountain gate's runs straight across the pass just before its castle's gate, two
+      // hundred metres from end to end, and back round the host's camp behind
+      const D = curtain + 24, across = bearing => {
+        const e = edgeAt(core, bearing, least, sq), d = Math.abs(angDiff(bearing, face));
+        // (the wings swing back to the camp's edge over a few bearings, not at a step)
+        const k = Math.max(0, Math.min(1, (1.5 - d) / 0.4));
+        return k ? e + Math.max(0, Math.min(D / Math.cos(Math.min(d, 1.4)), 130) - e) * k : e;
+      };
+      ring(t, W, roads, kind === 'pass' ? across : bearing => edgeAt(core, bearing, least, sq), material, rand, { gatehouse: kind === 'pass' });
     }
     W.centre[1] = { x: 0, z: 0 };
   }
@@ -525,8 +563,8 @@ function lanePart(s, buildings) {
       n++;
     }
   }
-  // a lane off a street starts at the street; a ring lane only runs between its houses
-  if (!s.ring) from = 0;
+  // a lane off a street starts at the street; a ring lane or a tent line only runs between its houses
+  if (!s.ring && !s.camp) from = 0;
   else if (n < 3) return null;
   if (len - from < 6) return null;
   const pts = [];

@@ -510,7 +510,8 @@ async function findAssets() {
   const noModel = [];
   for (const kind of Object.keys(BUILDINGS)) {
     const base = kind === 'house' ? 'house.0' : kind === 'monastery' ? 'chapel' : kind;
-    if (!buildingModel(base) && !buildingModel(kind)) noModel.push(`building '${kind}'`);
+    // (a camp's tent is the baked soldier's tent)
+    if (!buildingModel(base) && !buildingModel(kind) && !(kind === 'tent' && unitModel('tent'))) noModel.push(`building '${kind}'`);
   }
   for (const [key, T] of Object.entries(TYPES)) {
     // a kind without its own model borrows the nearest one (battle.js lookChain)
