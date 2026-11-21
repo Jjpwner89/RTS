@@ -12,10 +12,10 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 
 | Basic | Status | Notes |
 |---|---|---|
-| Walk, run and idle animations; feet don't skate | ❓ | Units slid with a bob until the animation wiring (2026-11-20). 21 Nov: stills show spearmen in stride, spears upright, shields on; the clip follows each man's speed (march under 3.6 m/s, run above). Skating needs a visible pane |
+| Walk, run and idle animations; feet don't skate | ⚠️ | Units slid with a bob until the animation wiring (2026-11-20). 21 Nov, measured: each planted sole point's slide from touch-down to lift, stepped at 1/60 s, line formation, no fighting. Median slide per step: walk 2–4 cm, run 1.5–2.6 cm. Faults: (1) crossbowmen and archers ordered off mid-reload keep their shooting pose and glide with feet planted, up to 12 s (about 34 m); (2) on the march each man stops dead for one step in every 8–10, so his clip flickers to Stand several times a second; (3) in the schiltron men move sideways (13 cm median, the worst tenth over 50 cm). Notes and the probe are in the group's notes folder, qc-foot-slide-2026-11-21.md |
 | Attack, block, hit and death animations that read at battle distance | ❓ | |
 | Weapons and kit held the right way round, every unit, in every clip | ❌ | Added 2026-11-21: the creator spotted a second kit-orientation bug by eye. The archer's bow is reversed at Bow_Loose (string on the far side, limbs curved the wrong way); rts-animations is fixing it with a check. QC will look at every unit's weapon in its use clip, in the viewer and in a battle, from several angles |
-| Riders and horses walk, trot and gallop by speed | ❓ | 21 Nov: stills show knights seated with lances, horses mid-stride; trot under 5 m/s and gallop above in the code. Needs a visible pane to judge |
+| Riders and horses walk, trot and gallop by speed | ✅ | 21 Nov, measured on the hooves in line formation: trot slides 1.8–3.2 cm per step at 3–5 m/s, gallop 3.5–7.5 cm at 6–8 m/s. Horses in square formation move sideways (22 cm) |
 | Villagers visibly do their job: chop, mine, hoe, carry, build | ❓ | |
 | Corpses or a fall, not units vanishing | ❓ | |
 | Units turn to face where they move and fight | ✅ | 21 Nov: a long move turns the men to march; short moves sideways, back or forward keep their facing exactly (3b0afe1). Facing in a melee not checked |
