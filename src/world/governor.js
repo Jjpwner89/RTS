@@ -41,7 +41,7 @@ function wanted(t) {
   // A barracks, so the village can be called to arms (the governor never calls it).
   if (t.population >= 40 && !n('barracks')) return 'barracks';
   // Hands with nothing to do: another workplace for them, taking turns.
-  if (t.idle >= 15) {
+  if (t.idle >= Math.max(6, t.population * 0.25)) {
     const more = [n('woodcutter') < 4 && 'woodcutter', n('quarry') < 2 && 'quarry', n('hunter') < 3 && 'hunter', 'farm'].filter(Boolean);
     return more[(t.govTurn = (t.govTurn || 0) + 1) % more.length];
   }

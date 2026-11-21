@@ -55,6 +55,15 @@ const whyNot = c => {
 };
 const food = t => t.free('food') + t.free('bread');
 
+// What taking newcomers in would do, for the card: room, minutes of food now and after, and how many
+// the larder can feed and still keep three minutes of meals in hand (playtest round 3, 2026-11-21).
+const minsText = m => m < 1 ? 'under a minute' : `${Math.round(m * 10) / 10} min`;
+function advice(t, n) {
+  const pop = t.population, room = Math.max(0, t.housing - pop), meals = Math.max(0, Math.floor(food(t)));
+  return { pop, room, meals, mins: pop ? meals / pop : 0, after: meals / (pop + n), safe: Math.max(0, Math.min(n, room, Math.floor(meals / 3) - pop)) };
+}
+const factsOf = (p, A) => `${p.name} has ${minsText(A.mins)} of food for ${A.pop} people and room for ${A.room} more.`;
+
 const EVENTS = {
   harvest: {
     when: (w, p) => p.town.buildings.some(b => b.kind === 'farm' && b.state === 'active'),
@@ -101,19 +110,25 @@ const EVENTS = {
     ],
   },
   refugees: {
-    when: w => w.part === 2 || [...w.wars].length > 0,
+    // shares its cooldown with the homeless families of the settlers group
+    when: w => (w.part === 2 || [...w.wars].length > 0) && w.time - (w.settlerSeen?.refugees?.at ?? -1e9) >= SETTLE_COOLDOWN,
     title: p => `Refugees at the gates of ${p.name}`,
-    text: (w, p, e) => `${e.n} families, driven from their homes by ${w.part === 2 ? 'the northmen' : 'the fighting'}, are camped at ${p.name}'s gate with what they could carry.`,
+    text: (w, p, e) => `${e.n} families, driven from their homes by ${w.part === 2 ? 'the northmen' : 'the fighting'}, are camped at ${p.name}'s gate with what they could carry. ${factsOf(p, advice(p.town, e.n))}`,
     choices: (w, p, e) => {
-      const t = p.town;
-      return [
-        { label: `Take them in (${e.n} people)`, run: () => {
-          for (let i = 0; i < e.n; i++) t.addVillager((t.rand() - 0.5) * 12, (t.rand() - 0.5) * 12);
-          spell(t, -6, 'strangers in the village', 480);
-          return `${e.n} families settle at ${p.name}. Not everyone is glad of them.`;
-        } },
-        { label: 'Turn them away', run: () => { spell(t, -3, 'turned the hungry away', 240); return 'The refugees trudge on down the road.'; } },
-      ];
+      const t = p.town, A = advice(t, e.n);
+      const settle = k => () => {
+        for (let i = 0; i < k; i++) t.addVillager((t.rand() - 0.5) * 12, (t.rand() - 0.5) * 12);
+        spell(t, k < e.n ? -3 : -6, 'strangers in the village', 480);
+        return `${k} ${k < e.n ? 'of the refugees' : 'families'} settle at ${p.name}.${k >= e.n ? ' Not everyone is glad of them.' : ''}`;
+      };
+      const away = { label: 'Turn them away', run: () => { spell(t, -3, 'turned the hungry away', 240); return 'The refugees trudge on down the road.'; } };
+      const all = { label: `Take them in (${e.n} people${A.safe < e.n ? `; food for ${minsText(A.after)} after` : ''})`, ok: () => advice(t, e.n).room >= e.n,
+        why: () => `Room for only ${advice(t, e.n).room} more: build houses first`, run: settle(e.n) };
+      // The blue first button is the safe one: all of them if the village can feed and house them,
+      // otherwise as many as it can, otherwise none.
+      if (A.safe >= e.n) return [all, away];
+      const some = { label: `Take ${A.safe} (all the village can feed and house)`, run: settle(A.safe) };
+      return A.safe > 0 ? [some, away, all] : [away, all];
     },
   },
   fair: {
@@ -335,6 +350,15 @@ const GROUPS = {
       (p, n) => `${n} charcoal-burners and fellers, put out when their wood was enclosed, bring seasoned timber to ${p.name}. They ask to settle at the forest's edge.`] },
 };
 
+// The blue first button is the safe one: when food or room is short, as many as the village can feed
+// and house, or sending them on, comes before taking them all.
+function safeFirst(choices, A, n, take) {
+  if (A.safe >= n) return choices;
+  const away = choices.at(-1), rest = choices.slice(0, -1);
+  if (A.safe > 0) return [{ label: `Take ${A.safe} (all the village can feed and house)`, run: take(A.safe) }, away, ...rest];
+  return [away, ...rest];
+}
+
 function settlerEvent(w, p, id) {
   const G = GROUPS[id], t = p.town;
   const n = G.n[0] + Math.floor(w.rand() * (G.n[1] - G.n[0] + 1));
@@ -342,21 +366,22 @@ function settlerEvent(w, p, id) {
   const seen = (w.settlerSeen ??= {})[id] ??= { at: -1e9, variant: -1 };
   const variants = G.texts.map((_, i) => i).filter(i => i !== seen.variant), variant = variants[Math.floor(w.rand() * variants.length)];
   seen.at = w.time; seen.variant = variant;
-  const meals = Math.floor(food(t)), room = () => t.housing - t.population;
+  const room = () => t.housing - t.population;
   const brings = Object.entries(G.bring).map(([g, q]) => `${q} ${g}`).join(', ');
   const take = k => () => {
     for (let i = 0; i < k; i++) { const a = t.rand() * Math.PI * 2; const v = t.addVillager(Math.sin(a) * 30, Math.cos(a) * 30); v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 }; }
     for (const [g, q] of Object.entries(G.bring)) t.put(t.keep, g, q);
     return `${k} newcomers settle at ${p.name}${brings ? `, with ${brings}` : ''}.`;
   };
+  const A = advice(t, n);
   const choices = [
-    { label: `Take them in (${n} people${brings ? `, ${brings}` : ''})`, ok: () => room() >= n, why: () => `Room for only ${Math.max(0, room())} more: build houses first`, run: take(n) },
+    { label: `Take them in (${n} people${brings ? `, ${brings}` : ''}${A.safe < n && A.room >= n ? `; food for ${minsText(A.after)} after` : ''})`, ok: () => room() >= n, why: () => `Room for only ${Math.max(0, room())} more: build houses first`, run: take(n) },
     ...(id === 'refugees' ? [{ label: `Take the strongest (${Math.ceil(n / 2)} people)`, ok: () => room() >= Math.ceil(n / 2), why: () => `Room for only ${Math.max(0, room())} more: build houses first`, run: () => { spell(t, -3, 'families split at the gate', 300); return take(Math.ceil(n / 2))(); } }] : []),
     { label: 'Send them on their way', run: () => `The ${id} go on down the road.` },
   ];
   const ev = { id: `settlers-${id}`, image: picture(id), title: G.title(p),
-    text: `${G.texts[variant](p, n)} ${p.name} has ${meals} meals in store for ${t.population} people${room() < n ? `, and room for only ${Math.max(0, room())} more: build houses first` : ''}.`, at: p,
-    choices: choices.map(c => live(w, c)) };
+    text: `${G.texts[variant](p, n)} ${factsOf(p, A)}${room() < n ? ' Build houses first.' : A.safe < n ? ' The larder is thin: more mouths would leave it short.' : ''}`, at: p,
+    choices: safeFirst(choices, A, n, take).map(c => live(w, c)) };
   if (w.hooks.choice) w.hooks.choice(ev);
   else ev.choices.at(-1).run();
   return ev;
@@ -402,6 +427,7 @@ export function fire(w, id, p) {
   if (id === 'tournament') extra.champ = (w.captains || []).filter(c => c.alive && c.side === 0 && c.captive === undefined).sort((a, b) => b.level - a.level)[0] || null;
   if (id === 'scheme') { const t = turncoat(w); Object.assign(extra, { cap: t.c, army: t.a, house: schemer(w) }); }
   w.lastEvent = id;
+  if (id === 'refugees') ((w.settlerSeen ??= {}).refugees ??= { at: -1e9, variant: -1 }).at = w.time;
   const choices = E.choices(w, p, extra);
   const ev = { id, image: picture(id), title: E.title(p), text: E.text(w, p, extra), at: p,
     choices: choices.map(c => live(w, c)) };

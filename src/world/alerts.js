@@ -44,6 +44,13 @@ export function alerts(w) {
     if (t.revolt) add(4, `${p.name} is in revolt`, p, 'warning');
     else if (t.misery > 30) add(3, `${p.name} is close to revolt (mood ${Math.round(t.mood)})`, p, 'people');
     if (t.hungry) add(5, `${p.name} is going hungry: ${hungerWhy(t)}`, p, 'food');
+    else {
+      // Food seen coming up short, early, with the cause and the fix (playtest round 3).
+      const fo = t.foodOutlook();
+      if (fo) add(fo.level, `${p.name}: ${fo.text}. ${fo.fix[0].toUpperCase()}${fo.fix.slice(1)}`, p, 'food');
+    }
+    const jo = !t.underAttack && !t.hostile && t.jobsOutlook();
+    if (jo) add(2, `${p.name}: ${jo.text}`, p, 'people');
     const dry = t.buildings.filter(b => b.dry && b.state === 'active');
     if (dry.length) {
       // Click to go to the nearest deposit nobody is working, when there is one.
