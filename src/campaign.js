@@ -1192,8 +1192,11 @@ function newsLine(logEl, ev, key = '', life = 7000) {
   setTimeout(() => line.classList.add('fade'), life);
   setTimeout(() => line.remove(), life + 1000);
 }
+let introDone = false;
 function worldLog() {
   const logEl = $('log'), toast = $('toast');
+  // The opening lines wait behind the intro card: they used to fade while it was still being read.
+  if (!introDone) { if ($('help').classList.contains('open')) return; introDone = true; }
   while (seenWorld < world.events.length) {
     const ev = world.events[seenWorld++];
     if (toast.classList.contains('show') && toast.textContent === ev.text) continue;
@@ -1216,7 +1219,7 @@ function topBar() {
     $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';
     document.body.classList.toggle('paused', paused);
     for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === speed);
-    const foes = world.armies.filter(a => a.side !== 0 && a.visible && !a.retreating && a.mode !== 'column' && world.atWar(0, a.side));
+    const foes = world.armies.filter(a => a.side !== 0 && a.visible && !a.wagon && !a.retreating && a.mode !== 'column' && world.atWar(0, a.side));   // a caravan or supply wagon threatens nobody (and has no head count)
     { const html = foes.length ? `${ico('warning', '#ffb05a')} ${foes.map(a => `${a.name} (${headcount(a.units)})`).join(', ')} on the march` : ''; if ($('strength').dataset.was !== html) { $('strength').dataset.was = html; $('strength').innerHTML = html; $('strength').title = html.replace(/<[^>]*>/g, '').trim(); } }
   }
   if (mode === 'town') $('clock').textContent = clock(world.time);

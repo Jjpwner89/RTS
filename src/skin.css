@@ -234,12 +234,15 @@ body.mode-world #top #strength { flex: 0 1 auto; min-width: 0; max-width: 22em; 
 .card .bar { display: flex; align-items: center; gap: 4px; height: auto; background: none; border-radius: 0; overflow: visible; }
 .card .bar b { flex: none; width: 27px; font: 600 8px/1 var(--body-font); letter-spacing: .02em; text-transform: uppercase; color: var(--dim); }
 .card .bar u { flex: 1; height: 5px; border-radius: 3px; overflow: hidden; text-decoration: none; }
-.card.routing .name::after { content: ' · routing'; color: var(--bad); font-weight: 400; }
+/* A routing card keeps its name: a red stripe down its side says it (and a RUNNING tag where the state line is hidden). */
+.card.routing { box-shadow: inset 5px 0 0 var(--bad); }
+.card.routing::after { display: none; content: 'Running'; position: absolute; right: 3px; bottom: 2px; padding: 1px 4px; border-radius: 2px; background: var(--bad); color: #fff; font: 700 8px/1.2 var(--body-font); text-transform: uppercase; }
 /* A small window: the cards give up their state line (the bars, a blink while routing and the tooltip say it) and their width, so two rows take a fifth of the window, not two fifths. */
 @media (max-width: 800px), (max-height: 600px) {
   .card { width: 86px; padding: 3px 4px; gap: 1px 4px; grid-template-columns: 24px 1fr; }
   .card canvas { width: 24px; height: 24px; }
   .card .state { display: none; }
+  .card.routing::after { display: block; }
   .card .bar b { display: none; }
   .card .kit .ico { width: 11px; height: 11px; }
 }
@@ -264,3 +267,7 @@ body:has(#realm:not([hidden])) :is(#wpanel, #goals, #alerts, #paused-tag) { visi
   #realm :is(th, td) { padding: 5px 4px; }
   #realm .acts button { margin-left: 2px; padding: 2px 6px; }
 }
+
+/* The paused hint on the world map sat clipped between the panels; the Pause button already says it (its tooltip has the hint), so the button turns to blue cloth while paused. */
+body.mode-world #paused-tag { display: none !important; }
+body.paused.mode-world #pause { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
