@@ -122,10 +122,10 @@ const hooks = {
     showResult('You are crowned', `${how} Long live the king.`, 'Continue', () => crownedThenNorth(), true);
   },
   herald: msg => herald(msg),
-  rankUp: () => { audio.play('drums'); setTimeout(() => audio.play('horn'), 900); },
+  rankUp: what => audio.play(what === 'hall' ? 'title' : 'rankup'), // audio: a new rank, or a knights' hall standing
   sound: name => audio.play(name), // audio: realm news from the world files
   offer: o => asks.push({ kind: 'offer', ...o }),
-  choice: ev => { audio.play('scroll'); asks.push({ kind: 'choice', ev }); }, // audio
+  choice: ev => { audio.play(String(ev.id).startsWith('petition') ? 'petition' : 'scroll'); asks.push({ kind: 'choice', ev }); }, // audio
 };
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
 
@@ -1289,8 +1289,8 @@ function frame(now) {
   goals();
   alertList();
   worldLog();
-  audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events, world } // audio
-    : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events, world });
+  audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events, world, fx: stage.current().userData.fx } // audio
+    : { battle: current.town?.battle || current.battle, town: current.town, field: mode === 'field', siege: current.assault, paused, log: world.events, world, fx: stage.current().userData.fx });
   stage.renderer.render(stage.current(), cam);
   renderAway();
   requestAnimationFrame(frame);

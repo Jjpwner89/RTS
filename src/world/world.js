@@ -776,6 +776,7 @@ export class World {
       p.garrison = p.garrison.filter(u => u.count >= 3);
       if (-p.siegeFood > STARVE || !p.garrison.length) {
         this.log(`${p.name} is starved into surrender!`);
+        this.hooks.sound?.('siegeends'); // audio
         this.chron(`${p.name} was starved into surrender.`);
         a.siege = null;
         delete p.siegeFood;

@@ -60,6 +60,7 @@ export const RESERVE = { wood: 20, planks: 25 };
 // waits until a house or two and a workshop are covered.
 export const WOOD_FIRST = 36;
 const CLEAR_TIME = 25;
+const CRAFT_SOUND = { carpenter: 'saw', bowyer: 'saw', smelter: 'smith', weaponsmith: 'smith', armourer: 'smith' };   // audio: the rest hammer
 export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers, and a hearth that burns a little wood. Newcomers come for food, a good mood and the village\'s name.' },
@@ -982,7 +983,7 @@ export class Town {
       regs.push(r);
     }
     this.musterAt = this.time;
-    audio.play('horn', this.keep, this.battle); audio.play('drums', this.keep, this.battle); // audio: the militia called out
+    audio.play('muster', this.keep, this.battle); // audio: the bell rings and the village turns out
     this.event(`The whole village turns out: ${men.length} villagers took up axes, flails and pitchforks.`, 1);
     return { ok: true, regs };
   }
@@ -1901,7 +1902,7 @@ export class Town {
     if (b.recipe) {
       b.timer -= dt * b.workers.filter(o => o.atDoor && o.job === b).length;
       v.phase += dt * 4;
-      audio.tick('hammer', b, dt, 0.6, this.battle); // audio
+      audio.tick(CRAFT_SOUND[b.kind] || 'hammer', b, dt, 0.6, this.battle); // audio: a saw or a smith's hammer, else a hammer
       if (b.timer <= 0) {
         for (const [k, n] of Object.entries(b.recipe.out)) this.put(b, k, n);
         if (b.recipe.gold) { this.purse.gold += b.recipe.gold; this.earned = (this.earned || 0) + b.recipe.gold; }

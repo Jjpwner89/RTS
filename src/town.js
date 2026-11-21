@@ -100,7 +100,7 @@ function frame(now) {
   townHud.update(selected, [...controls.selection], placing);
   roadView.update({ from: placing === 'road' ? road.roadFrom : null, at: hoverAt });
   labels.update(town, camera, { hoverAt, placing, roadFrom: road.roadFrom });
-  audio.frame(camera, controls.cam, { battle, town, paused }); // audio
+  audio.frame(camera, controls.cam, { battle, town, paused, fx: scene.userData.fx }); // audio
   siege.update(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);

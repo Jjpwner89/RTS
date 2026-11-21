@@ -407,7 +407,7 @@ function outlawMind(w, h) {
   const first = o.wave === 1;
   // a band is small enough to count: its true size (QC, 2026-11-21: "about 20" for 15)
   w.log(`Outlaws out of the greenwood are on the road to ${home.name}: ${n} men, come for your stores.${armed ? ' Order your retinue at them when they reach the village.' : ' Nobody in the village is under arms.'}`, 1);
-  w.hooks.sound?.('warcry'); // audio: outlaws on the road
+  w.hooks.sound?.('outlaws'); // audio: outlaws on the road
   if (first) w.hooks.herald?.({ house: h, title: 'Outlaws on the road', text: `A band of ${n} outlaws is coming for ${home.name}'s stores. Keep your retinue at home: when the band reaches the village, select the retinue and right-click the outlaws to fight them, or call your people out to meet them. Beaten off, they take nothing; let them be, and they leave with a share of the stores and the purse.` });
 }
 

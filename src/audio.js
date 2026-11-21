@@ -36,7 +36,7 @@ const SOUNDS = {
   built:    { files: ['sfx/built'], vol: 0.7, gap: 0.5, cap: 2 },
   horn:     { files: ['sfx/horn'], vol: 0.8, gap: 4, cap: 1 },
   drums:    { files: ['sfx/drums'], vol: 0.7, gap: 4, cap: 1 },
-  clash:    { files: ['sfx/clash1', 'sfx/clash2', 'sfx/clash3', 'sfx/clash4', 'sfx/clash5', 'sfx/clash6'], vol: 0.4, gap: 0.06, cap: 6, pitch: 0.15 },
+  clash:    { files: ['sfx/clash1', 'sfx/clash2', 'sfx/clash3', 'sfx/clash4', 'sfx/clash5', 'sfx/clash6', 'sfx/hit1', 'sfx/hit2', 'sfx/hit3'], vol: 0.4, gap: 0.06, cap: 6, pitch: 0.15 },
   bow:      { files: ['sfx/bow1', 'sfx/bow2'], vol: 0.35, gap: 0.15, cap: 4, pitch: 0.12 },
   arrowhit: { files: ['sfx/arrowhit1', 'sfx/arrowhit2', 'sfx/arrowhit3'], vol: 0.35, gap: 0.08, cap: 4, pitch: 0.15 },
   warcry:   { files: ['sfx/warcry1', 'sfx/warcry2', 'sfx/warcry3'], vol: 0.7, gap: 2.5, cap: 2, pitch: 0.06 },
@@ -68,22 +68,47 @@ const SOUNDS = {
   boom:     { files: ['sfx/boom'], vol: 0.85, gap: 3, cap: 1 },
   cart:     { files: ['sfx/cart'], vol: 0.5, gap: 4, cap: 1 },
   // Game feel (fx.js): an order heard, a charge, a building site passing a third of its work.
-  // Stand-ins from the sounds already here until their own arrive.
-  order:    { files: ['ui/click1'], vol: 0.3, gap: 0.25, cap: 1 },
-  charge:   { files: ['sfx/warcry3'], vol: 0.6, gap: 2, cap: 1 },
-  stage:    { files: ['sfx/hammer1'], vol: 0.5, gap: 0.5, cap: 2 },
+  order:    { files: ['sfx/order1', 'sfx/order2', 'sfx/order3', 'sfx/order4'], vol: 0.45, gap: 0.4, cap: 1, pitch: 0.05 },
+  charge:   { files: ['sfx/charge'], vol: 0.7, gap: 2, cap: 1 },
+  stage:    { files: ['sfx/stage'], vol: 0.55, gap: 0.5, cap: 2, pitch: 0.08 },
+  // The interface: a page turning, panels opening, a new thing unlocked, a greyed button.
+  tab:      { files: ['ui/tab'], vol: 0.35, gap: 0.08, cap: 1, pitch: 0.06 },
+  open:     { files: ['ui/open'], vol: 0.4, gap: 0.2, cap: 1 },
+  close:    { files: ['ui/close'], vol: 0.4, gap: 0.2, cap: 1 },
+  unlock:   { files: ['ui/unlock'], vol: 0.5, gap: 1, cap: 1 },
+  deny:     { files: ['ui/deny'], vol: 0.35, gap: 0.3, cap: 1, pitch: 0.05 },
+  // The climb: ranks, titles, petitions, outlaws, fallen seats, the crown.
+  rankup:   { files: ['sfx/fanfare'], vol: 0.75, gap: 6, cap: 1, then: [['horn', 0.35]] },
+  title:    { files: ['sfx/fanfare'], vol: 0.6, gap: 3, cap: 1, rate: 0.92 },
+  petition: { files: ['ui/petition'], vol: 0.6, gap: 1, cap: 1 },
+  outlaws:  { files: ['sfx/horn'], vol: 0.55, gap: 8, cap: 1, rate: 0.7 },
+  seatfalls: { files: ['sfx/collapse'], vol: 0.8, gap: 4, cap: 1, then: [['drums', 0.4]] },
+  siegeends: { files: ['sfx/parley'], vol: 0.7, gap: 4, cap: 1, then: [['cheer', 1.2]] },
+  crown:    { files: ['sfx/fanfare'], vol: 0.9, gap: 10, cap: 1, then: [['horn', 0.25], ['bells', 1.5]] },
+  // The militia turning out of the village.
+  muster:   { files: ['sfx/muster'], vol: 0.7, gap: 8, cap: 1, then: [['musterfolk', 0.5]] },
+  musterfolk: { files: ['sfx/musterfolk'], vol: 0.55, gap: 8, cap: 1 },
+  // A village going about its day: crafts, animals, the chapel bell, thunder in the rain.
+  saw:      { files: ['sfx/saw'], vol: 0.4, gap: 2.5, cap: 1, pitch: 0.05 },
+  smith:    { files: ['sfx/smith1', 'sfx/smith2', 'sfx/smith3', 'sfx/smith4'], vol: 0.5, gap: 0.3, cap: 2, pitch: 0.08 },
+  farm:     { files: ['sfx/sheep', 'sfx/hen', 'sfx/cow', 'sfx/goat'], vol: 0.45, gap: 4, cap: 2, pitch: 0.1 },
+  rooster:  { files: ['sfx/rooster'], vol: 0.4, gap: 30, cap: 1, pitch: 0.04 },
+  chapel:   { files: ['sfx/muster'], vol: 0.4, gap: 40, cap: 1 },
+  thunder:  { files: ['sfx/thunder'], vol: 0.6, gap: 20, cap: 1, pitch: 0.05 },
 };
 // The same blow sounds different from a dog or a Norrhold axe, and a javelin is no arrow.
 const VARIANT = { clash: { wardog: 'dog', axeman: 'axeshield' }, bow: { javelin: 'javelin' } };
 // Gathering sounds by the resource worked, so economy.js can pass the node kind.
 const ALIAS = { tree: 'chop', rock: 'pick', ore: 'pick' };
 // Looping beds, mixed by what is on screen.
-const BEDS = { village: 'amb/village', forest: 'amb/forest', wind: 'amb/wind', din: 'amb/din', march: 'amb/march', fire: 'amb/fire',
+const BEDS = { mill: 'amb/mill', mapair: 'amb/mapair', run: 'amb/run', swim: 'amb/swim', birds: 'amb/birds', village: 'amb/village', forest: 'amb/forest', wind: 'amb/wind', din: 'amb/din', march: 'amb/march', fire: 'amb/fire',
   gallop: 'amb/gallop', mail: 'amb/mail', wade: 'amb/wade', rain: 'amb/rain', fog: 'amb/fog', night: 'amb/night', blizzard: 'amb/blizzard' };
 // How much a regiment's armour clinks on the march.
 const CLINK = { none: 0, leather: 0.2, mail: 0.7, plate: 1 };
+const RUN_PACE = 2.6;             // m/s: men on foot faster than this are running (a charge, a rout, a Run order)
+const paceMemo = new WeakMap();
 
-const UI = new Set(['click', 'notify', 'alert']);
+const UI = new Set(['click', 'notify', 'alert', 'tab', 'deny', 'open', 'close', 'unlock']);
 const MAX_VOICES = 24;
 const FADE = 2.5;               // seconds of music crossfade
 const KEY = 'rts.audio';
@@ -97,6 +122,8 @@ const buffers = new Map();      // path → AudioBuffer, or a Promise while load
 const voices = [];              // { src, gain, name, level }
 const beds = {};                // name → { gain, started }
 const lastPlayed = {};
+const warned = new Set();         // sound names asked for that don't exist, warned once each
+const dropped = {};               // plays skipped by the caps or before a file had loaded, by name (status())
 let deck = null;                // the music playing: { el, gain, mood }
 let mood = null, pending = null, trackTurn = {};
 const ear = { x: 0, z: 0, dist: 100, rx: 1, rz: 0, scope: null, on: false };
@@ -106,7 +133,7 @@ const ear = { x: 0, z: 0, dist: 100, rx: 1, rz: 0, scope: null, on: false };
 function unlock() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
+  if (!AC) { console.warn('[audio] this browser has no Web Audio: the game is silent'); removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true); return; }
   ctx = new AC();
   master = ctx.createGain();
   musicBus = ctx.createGain();
@@ -121,7 +148,8 @@ function unlock() {
 addEventListener('pointerdown', unlock, true);
 addEventListener('keydown', unlock, true);
 // Every button in the HUD clicks.
-addEventListener('click', e => { if (e.target.closest?.('button')) play('click'); }, true);
+// Tabs, panels, greyed buttons and new unlocks have their own sounds (ui/sounds.js).
+addEventListener('click', e => { if (e.target.closest?.('button:not([data-tab], #realm nav button, .close-t, #realm .close, :disabled)')) play('click'); }, true);
 
 function applyVolumes() {
   if (!ctx) return;
@@ -137,7 +165,7 @@ function load(path) {
     .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
     .then(b => ctx.decodeAudioData(b))
     .then(buf => { buffers.set(path, buf); return buf; })
-    .catch(() => { buffers.set(path, null); return null; });
+    .catch(e => { console.warn(`[audio] couldn't load ${ROOT}${path}.mp3: ${e}`); buffers.set(path, null); return null; });
   buffers.set(path, p);
   return p;
 }
@@ -173,7 +201,8 @@ function startTrack(m) {
     if (pending) { const p = pending; pending = null; mood = p; startTrack(p); }
     else if (!ONCE.has(m)) startTrack(m);       // the next track of the same mood
   });
-  el.play().catch(() => {});
+  el.addEventListener('error', () => console.warn(`[audio] couldn't play music ${el.src}: ${el.error?.message || el.error?.code}`));
+  el.play().catch(e => { if (e.name !== 'AbortError') console.warn(`[audio] music ${el.src} didn't start: ${e.message}`); });
   const t = ctx.currentTime;
   gain.gain.setTargetAtTime(MUSIC_VOL[m] ?? 0.8, t, FADE / 3);
   if (deck) {
@@ -200,26 +229,28 @@ export function play(name, pos = null, scope = null) {
   name = ALIAS[name] || name;
   name = VARIANT[name]?.[pos?.reg?.T?.key] || name;
   const S = SOUNDS[name];
-  if (!S) return;
+  if (!S) { if (!warned.has(name)) { warned.add(name); console.warn(`[audio] no sound called '${name}' in audio.js`); } return; }
   if (scope && scope !== ear.scope) return;
   if (pos && !Number.isFinite(pos.x)) pos = null;
   if (pos && !ear.on) return;
   const now = ctx.currentTime;
-  if (now - (lastPlayed[name] ?? -9) < S.gap) return;
+  if (now - (lastPlayed[name] ?? -1e9) < S.gap) return;
   const h = pos ? hear(pos) : { level: 1, pan: 0 };
   const level = h.level * S.vol;
   if (level < 0.015) return;
   const buf = ready(S.files[Math.floor(Math.random() * S.files.length)]);
-  if (!buf) return;
+  if (!buf) { dropped[name] = (dropped[name] || 0) + 1; return; }   // still loading, or failed (warned in load)
   // Over the cap, a louder sound replaces the quietest; a quieter one is dropped.
   const same = voices.filter(v => v.name === name);
-  if (same.length >= (S.cap || 4) && !steal(same, level)) return;
-  if (voices.length >= MAX_VOICES && !steal(voices, level)) return;
+  if ((same.length >= (S.cap || 4) && !steal(same, level)) || (voices.length >= MAX_VOICES && !steal(voices, level))) {
+    dropped[name] = (dropped[name] || 0) + 1;   // a busy mix: shown by audio.status()
+    return;
+  }
   lastPlayed[name] = now;
   if (!pos && !UI.has(name)) lastNews = now;
   const src = ctx.createBufferSource();
   src.buffer = buf;
-  if (S.pitch) src.playbackRate.value = 1 + (Math.random() * 2 - 1) * S.pitch;
+  src.playbackRate.value = (S.rate || 1) * (1 + (Math.random() * 2 - 1) * (S.pitch || 0));
   const gain = ctx.createGain();
   gain.gain.value = level;
   let out = gain;
@@ -230,6 +261,8 @@ export function play(name, pos = null, scope = null) {
   voices.push(v);
   src.onended = () => { const i = voices.indexOf(v); if (i >= 0) voices.splice(i, 1); gain.disconnect(); };
   src.start();
+  // A layered moment: more sounds follow this one (the crown's bells after its fanfare).
+  for (const [next, after] of S.then || []) setTimeout(() => play(next, pos, scope), after * 1000);
 }
 
 function steal(list, level) {
@@ -276,7 +309,6 @@ function setBed(name, level) {
 
 const announced = new WeakSet();     // battles whose victory or defeat has been played
 const wasEngaged = new WeakMap();
-const burnedAt = new WeakMap();    // building → when it was first seen burned
 let calmFor = 0, fightMood = null, lastNow = 0, seenLog = new WeakMap(), lastNews = -9;
 
 // camera: the three.js camera; cam: the controls' { x, z, dist, yaw }. ctx: what is on
@@ -298,25 +330,32 @@ export function frame(camera, cam, scene = {}) {
   const winter = !!world?.winter;
   if (map) {
     setMood('map');
-    for (const n in BEDS) setBed(n, n === 'wind' ? (winter ? 0.1 : 0.25) : n === 'blizzard' ? (winter ? 0.3 : 0) : 0);
+    // Open country: a soft breeze with birds, or the winter wind; smoke over a place at war is heard as a low din.
+    for (const n in BEDS) setBed(n, n === 'wind' ? (winter ? 0.1 : 0.2) : n === 'mapair' ? (winter ? 0.1 : 0.4) : n === 'blizzard' ? (winter ? 0.3 : 0) : n === 'din' ? Math.min(0.25, warSmoke(scene.fx) * 0.12) : 0);
     return;
   }
   if (battle) battleNews(battle, dt);
 
   // How much fighting and marching the camera can hear.
-  let din = 0, march = 0, gallop = 0, mail = 0, wade = 0, fighting = false;
+  let din = 0, march = 0, run = 0, gallop = 0, mail = 0, wade = 0, swim = 0, fighting = false;
   for (const r of battle ? battle.regs : []) {
     if (r.gone) continue;
     const at = { x: r.cx, z: r.cz }, heard = hear(at).level;
+    // Ground speed from the centre's last move, in game time: running men sound like it.
+    const last = paceMemo.get(r), gt = battle.time;
+    if (!last || gt - last.t > 0.25) {
+      if (last && gt > last.t) r._audioPace = Math.hypot(r.cx - last.x, r.cz - last.z) / (gt - last.t);
+      paceMemo.set(r, { x: r.cx, z: r.cz, t: gt });
+    }
     if (r.engaged > 0) {
       fighting = true;
       din += Math.min(r.engaged, 60) * heard;
       if (!wasEngaged.get(r) && !r.T.range && !r.routing && r.T.key !== 'wardog') play('warcry', at, battle);
     } else if (r.dest || r.routing) {
-      const n = r.alive * heard;
-      if (r.T.mounted) gallop += n; else march += n;
+      const n = r.alive * heard, deep = battle.waterAt?.(r.cx, r.cz) || 0;
+      if (r.T.mounted) gallop += n; else if ((r._audioPace || 0) > RUN_PACE || r.routing) run += n; else march += n;
       mail += n * (CLINK[r.armour || r.T.armour] || 0);
-      if (battle.waterAt?.(r.cx, r.cz) > 0) wade += n;
+      if (r.swim && deep > 1) swim += n; else if (deep > 0) wade += n;
     }
     if (r.T.key === 'wardog' && (r.dest || r.engaged > 0)) tick('dog', at, dt, 1.5, battle);
     wasEngaged.set(r, r.engaged > 0);
@@ -339,7 +378,9 @@ export function frame(camera, cam, scene = {}) {
   setBed('march', q * Math.min(0.6, march / 150));
   setBed('gallop', q * Math.min(0.7, gallop / 60));
   setBed('mail', q * Math.min(0.5, mail / 120));
+  setBed('run', q * Math.min(0.55, run / 100));
   setBed('wade', q * Math.min(0.7, wade / 60));
+  setBed('swim', q * Math.min(0.6, swim / 50));
   // Weather and the hour: rain, fog and night hush the birds; winter brings its wind.
   const sky = battle?.weather || 'clear', near = Math.min(1, 140 / Math.max(60, ear.dist));
   const hush = sky === 'clear' ? 1 : 0.35;
@@ -347,17 +388,49 @@ export function frame(camera, cam, scene = {}) {
   setBed('fog', sky === 'fog' ? 0.35 : 0);
   setBed('night', sky === 'night' ? 0.45 : 0);
   setBed('blizzard', winter ? (town ? 0.15 : 0.3) : 0);
+  // Day birds over a village in the warm seasons, hushed by weather, war and winter.
+  setBed('birds', town && !winter && sky === 'clear' && !attackers ? 0.3 * near : 0);
   setBed('village', town ? (attackers ? 0.15 : 0.4) * near * (sky === 'night' ? 0.3 : 1) : 0);
   setBed('forest', (town ? 0.3 : 0.12) * hush * (winter ? 0.3 : 1));
   setBed('wind', (town ? 0.08 + 0.15 * (1 - near) : 0.3) * (winter ? 0.5 : 1));
   let fires = 0;
-  for (const b of town?.buildings || []) {
-    if (b.state !== 'ruined') continue;
-    if (!burnedAt.has(b)) burnedAt.set(b, now);
-    if (now - burnedAt.get(b) < 60) fires += hear(b).level;
-  }
+  // fx.js lists what burns in a village: a hurt building by its damage, a fresh ruin fading (level 1 to 0).
+  for (const f of scene.fx?.fires || []) fires += hear(f).level * f.level;
   for (const b of battle?.river?.bridges || []) if (b.burning > 0) fires += hear(b).level;
   setBed('fire', Math.min(0.6, fires * 0.5));
+  village(town, sky, winter, !!attackers, dt, battle);
+}
+
+// The village's own small sounds: a mill's wheel, animals about the farms, the chapel bell
+// by day, thunder when it rains. Each is placed at the building it comes from.
+let farmT = 8, bellT = 25, thunderT = 20;
+function village(town, sky, winter, attackers, dt, battle) {
+  const sites = kind => (town?.buildings || []).filter(b => b.kind === kind && b.state === 'active');
+  let mill = 0;
+  for (const b of sites('mill')) if (b.workers?.length) mill = Math.max(mill, hear(b).level);
+  setBed('mill', attackers ? 0 : Math.min(0.35, mill * 0.5));
+  if (sky === 'rain' && (town || battle)) { thunderT -= dt; if (thunderT < 0) { thunderT = 25 + Math.random() * 45; play('thunder'); } }
+  if (!town || attackers) return;
+  const day = sky === 'clear' || sky === 'rain';
+  farmT -= dt; bellT -= dt;
+  if (farmT < 0) {
+    farmT = 9 + Math.random() * 16;
+    const farms = sites('farm');
+    if (farms.length && day && !winter && sky === 'clear') play(Math.random() < 0.15 ? 'rooster' : 'farm', farms[Math.floor(Math.random() * farms.length)], battle);
+  }
+  if (bellT < 0) {
+    bellT = 70 + Math.random() * 50;
+    const chapels = [...sites('monastery'), ...sites('cathedral')];
+    if (chapels.length && day) play('chapel', chapels[Math.floor(Math.random() * chapels.length)], battle);
+  }
+}
+
+// Places at war that the map camera can hear: each smoking place (fx.warSmoke) adds a little
+// distant din, more the nearer it is to where the camera looks.
+function warSmoke(fx) {
+  let n = 0;
+  for (const p of fx?.warSmoke || []) n += hear(p).level;
+  return n;
 }
 
 // What changed in a battle since the last frame, heard from its state: oil poured, mines
@@ -456,7 +529,7 @@ if (document.readyState === 'loading') addEventListener('DOMContentLoaded', pane
 
 // For checking from the console: what is playing now.
 export function status() {
-  return { state: ctx?.state ?? 'waiting for a click', mood, track: deck?.el.src.split('/').pop(), voices: voices.map(v => v.name),
+  return { state: ctx?.state ?? 'waiting for a click', mood, track: deck?.el.src.split('/').pop(), voices: voices.map(v => v.name), dropped: { ...dropped },
     beds: Object.fromEntries(Object.entries(beds).map(([n, b]) => [n, +b.gain.gain.value.toFixed(2)])) };
 }
 
