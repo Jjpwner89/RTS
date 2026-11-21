@@ -1262,7 +1262,7 @@ function frame(now) {
     if (mode === 'town') {
       const st = b.st;
       if (st.selected?.removed) st.selected = null;
-      b.townView.update(st.selected);
+      b.townView.update(st.selected, st.hoverAt);
       const ghost = ghostKind(st.placing);
       b.townView.showGhost(ghost, st.hoverAt, ghost && st.hoverAt && b.town.canPlace(ghost, st.hoverAt.x, st.hoverAt.z).ok);
       const tpl = st.placing?.startsWith('tpl:') && st.hoverAt ? st.placing.slice(4) : null;

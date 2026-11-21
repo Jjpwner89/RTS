@@ -304,7 +304,7 @@ export class TownView {
     this.territoryRing.visible = true;
   }
 
-  update(selected) {
+  update(selected, hoverAt = null) {
     const town = this.town;
     // While you storm a place its defenders wear their house's colour.
     if (town.battle) town.battle.sideColors = town.hostile ? [SIDE_COLORS[0], town.hostile.color] : null;
@@ -352,7 +352,17 @@ export class TownView {
         o.icon.material.needsUpdate = true;
       }
       o.icon.material.opacity = b.state === 'active' ? 1 : 0.55;
+      // A pin only where it says something: a building with a problem, one being built or
+      // broken, the one under the pointer or selected (Manager, 2026-11-22: twenty pins over a
+      // captured village drowned the town).
+      const problem = warn || b.state !== 'active' || /^(No haulers|Yard full|Store full|Deposit worked out|Game hunted out|No trees left)/.test(b.status || '');
+      const near = hoverAt && Math.hypot(b.x - hoverAt.x, b.z - hoverAt.z) < (b.B.radius || 4) + 1.5;
+      o.problem = problem; o.pointed = near || b === selected;
     }
+    // Past a few problems they fold into the stuck line (townlabels.js): then only the pointed-at pin shows.
+    let problems = 0;
+    for (const o of this.meshes.values()) if (o.problem) problems++;
+    for (const o of this.meshes.values()) o.icon.visible = o.pointed || (o.problem && problems <= 6);
 
     const f = this.found, fl = f && performance.now() < f.until;
     this.findRing.visible = !!fl;

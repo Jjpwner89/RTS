@@ -91,7 +91,7 @@ function frame(now) {
   controls.update(dt);
   placeSun(controls.cam, heightAt);
   view.update(controls.selection);
-  townView.update(selected);
+  townView.update(selected, hoverAt);
   const ghost = placing === 'road' || placing?.startsWith('tpl:') ? null : placing;
   townView.showGhost(ghost, hoverAt, ghost && hoverAt && town.canPlace(ghost, hoverAt.x, hoverAt.z).ok);
   const tpl = placing?.startsWith('tpl:') && hoverAt ? placing.slice(4) : null;
