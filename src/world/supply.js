@@ -8,7 +8,8 @@
 // round about, which the villagers resent. An army sitting down to a blockade forages the
 // fields round the place and eats a quarter of its usual.
 
-import { FACTIONS, power } from './world.js';
+import { FACTIONS, power, headcount } from './world.js';
+import { housing, kits, takeKit, AT_WORK } from './holdings.js';
 import { workDone } from './works.js';
 
 export const EAT = 1 / 120;        // food per man per second
@@ -291,6 +292,52 @@ export function sendRun(w, from, to, what, families) {
   w.hooks.sound?.('cart'); // audio
   return { ok: true, wagon: wag };
 }
+// A house's own carts (Orchestrator, 2026-11-21: a house's economy on your rules): every
+// minute it looks over its places, and sends a cart from the one with the most to spare to
+// the one that wants it most, as your Realm > Supplies wagons do: food to the hungriest, or
+// failing that, kit to a place short of its guard that has people to arm and nothing to arm
+// them with. It takes the road's real time, and an enemy who meets it takes the food.
+// (Houses' places with a real economy only: holdings.js; camps and the north keep their ways.)
+export const HOUSE_RUN = { every: 60, carts: 2, short: 3, spare: 6, keep: 4, fill: 8, most: 600, kitMen: 30 };   // minutes of food, but most and kitMen
+const meals = st => (st.food || 0) + (st.bread || 0);
+export function houseRuns(w, h) {
+  const ai = h.ai;
+  if (!ai || w.time < (ai.cartAt ?? 0)) return null;
+  ai.cartAt = w.time + HOUSE_RUN.every;
+  if (w.armies.filter(a => a.side === h.index && a.wagon?.run && !a.gone).length >= HOUSE_RUN.carts) return null;
+  const busy = new Set(w.armies.filter(a => a.wagon?.run && !a.gone).flatMap(a => [a.wagon.from, a.wagon.to]));
+  const safe = p => p.owner === h.index && p.eco?.buildings && !p.town && !p.falling && !busy.has(p) && !w.armies.some(a => !a.gone && a.siege === p);
+  const mine = w.pois.filter(safe).map(p => {
+    const men = headcount(p.garrison), perMin = p.eco.pop + men;   // a head a minute, people and men alike (holdings.js)
+    return { p, perMin, mins: meals(p.eco.stock) / Math.max(1, perMin), short: w.keepHome(p) - men, kits: kits(p.eco) };
+  });
+  let to = mine.filter(o => o.mins < HOUSE_RUN.short || o.p.eco.hungry).sort((a, b) => a.mins - b.mins)[0], from, goods = {};
+  if (to) {
+    from = mine.filter(o => o !== to && o.mins > HOUSE_RUN.spare).sort((a, b) => b.mins - a.mins)[0];
+    if (!from) return null;
+    const st = from.p.eco.stock;
+    let food = Math.floor(Math.min(HOUSE_RUN.most, meals(st) - from.perMin * HOUSE_RUN.keep, to.perMin * HOUSE_RUN.fill - meals(to.p.eco.stock)));
+    if (food < 20) return null;
+    for (const g of ['food', 'bread']) { const k = Math.min(food, Math.floor(st[g] || 0)); if (k > 0) { st[g] -= k; goods[g] = k; food -= k; } }
+  } else {
+    const arms = o => o.p.eco.pop - housing(o.p.eco) * AT_WORK.guard;
+    to = mine.filter(o => o.short > 6 && !o.kits && arms(o) > 6).sort((a, b) => b.short - a.short)[0];
+    from = to && mine.filter(o => o !== to && o.kits - Math.max(0, o.short) > 10).sort((a, b) => b.kits - a.kits)[0];
+    if (!from) return null;
+    goods = takeKit(from.p.eco, Math.min(HOUSE_RUN.kitMen, to.short, Math.floor(arms(to)), from.kits - Math.max(0, from.short)));
+    if (!Object.keys(goods).length) return null;
+  }
+  const cart = w.spawnArmy(h.index, [], from.p, `${h.short} supply cart from ${from.p.name}`, 'wagon');
+  cart.wagon = { run: true, house: true, goods, people: 0, to: to.p, from: from.p };
+  cart.at = null;
+  return cart;
+}
+// A house's cart in: into the stores of the place, if the house still holds it.
+function unloadHouse(cart, p) {
+  const st = p.eco.stock;
+  for (const [g, n] of Object.entries(cart.wagon.goods)) st[g] = (st[g] || 0) + n;
+}
+
 export const loadText = W => [...Object.entries(W.goods).map(([g, n]) => `${n} ${g}`), W.people ? `${W.people} families` : ''].filter(Boolean).join(', ') || 'nothing';
 function unload(w, cart, p) {
   const W = cart.wagon, t = p.town;
@@ -324,6 +371,11 @@ function moveCaravan(w, cart, dt) {
   const d = Math.hypot(to.x - cart.x, to.z - cart.z), step = WAGON_SPEED * 0.8 * dt * (cart.side === 0 && w.decrees?.on?.roads ? 1.2 : 1);
   cart.heading = Math.atan2(to.x - cart.x, to.z - cart.z);
   if (d > Math.max(step, 6)) { cart.x += (to.x - cart.x) / d * step; cart.z += (to.z - cart.z) / d * step; return; }
+  if (W.run && W.house) {
+    if (to.owner === cart.side && to.eco?.stock) unloadHouse(cart, to);
+    else if (to !== W.from && W.from.owner === cart.side && W.from.eco?.stock) { W.to = W.from; return; }
+    return w.removeArmy(cart);
+  }
   if (W.run) {
     // Still yours: unloaded. Lost on the way: it turns for home, and failing that is gone.
     if (to.owner === 0 && to.town) unload(w, cart, to);
@@ -354,6 +406,13 @@ export function catchWagons(w, meet) {
     if (guard) {
       if (power(e.units) < power(guard.units) * 0.8) { w.retreat(e); if (guard.side === 0) w.log(`${guard.name} drove ${e.name} off the caravan.`); continue; }
       if (guard.side === 0 && !w.encounter) { guard.escort = null; w.ask({ kind: 'field', army: guard, enemy: e, poi: null }); }
+      continue;
+    }
+    if (wag.wagon.house) {
+      const food = (wag.wagon.goods.food || 0) + (wag.wagon.goods.bread || 0);
+      e.food = (e.food || 0) + food;
+      if (e.side === 0) w.log(`${e.name} caught a ${FACTIONS[wag.side]?.short || ''} supply cart from ${wag.wagon.from.name} and took its ${food} food.`);
+      w.removeArmy(wag);
       continue;
     }
     if (wag.wagon.run) {

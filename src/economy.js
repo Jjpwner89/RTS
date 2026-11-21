@@ -181,8 +181,9 @@ export const TAXES = [
   { name: 'High taxes', gold: 1.6, mood: -12 }, { name: 'Cruel taxes', gold: 2.3, mood: -26 },
 ];
 // Hired men, paid in gold at the keep. They cost no villagers. The household guard also draws a wage, a little under
-// a sellsword's (creator, 2026-11-21): 30 men cost 12 gold a minute from the treasury (world/treasury.js).
-export const HOUSEHOLD_PAY = 0.4;
+// a sellsword's (creator, 2026-11-21): 30 men cost 22.5 gold a minute from the treasury (world/treasury.js).
+// Every wage was scaled by 1.8 the same day (Orchestrator: an army is what gold caps).
+export const HOUSEHOLD_PAY = 0.75;
 export const HIRES = ['sellsword', 'hiredxbow', 'household'].map(k => ({ key: k, name: TYPES[k].name, count: TYPES[k].count, gold: TYPES[k].gold * TYPES[k].count }));
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
 // Town templates, from the rank of Lord: a block of buildings laid out at once round the
@@ -277,8 +278,8 @@ export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 
 // their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most. On
 // the campaign they draw pay every minute (gold per man; world/treasury.js).
 export const ELITE = {
-  maa: { fee: 8, drill: 45, pay: 0.6 },
-  knight: { fee: 20, drill: 75, pay: 1.5 },
+  maa: { fee: 8, drill: 45, pay: 1.1 },
+  knight: { fee: 20, drill: 75, pay: 2.7 },
 };
 export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least experience (Blooded)
 // The keep grows with the village to level 3 and never shrinks back (keepPeak) when levies

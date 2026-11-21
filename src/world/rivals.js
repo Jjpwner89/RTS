@@ -14,7 +14,8 @@
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit } from './world.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
-import { standDown } from './holdings.js';
+import { standDown, AT_WORK } from './holdings.js';
+import { houseRuns } from './supply.js';
 import { TYPES } from '../battle.js';
 
 export const STAGES = ['Settling', 'Expanding', 'Contending'];
@@ -53,8 +54,8 @@ function climb(w, h) {
   if (!w.knows(h.index)) return;
   if (s === 1) w.log(`${h.name} is reaching beyond its own lands. Its lord has an eye on the free villages further out, and on weak neighbours.`, 2);
   else {
-    w.log(`${h.lord} means to win the realm. ${h.name} will go for whoever leads, and for Kingsbridge.`, 1);
-    w.hooks.herald?.({ house: h, title: `${h.name} reaches for the crown`, text: `${h.lord} has stopped building and started conquering. From now on ${h.name} goes for whoever leads the realm, joins any league against them, and pushes for Kingsbridge.` });
+    w.log(`${h.lord} means to win the realm. ${h.name} will reach further for its wars, and for Kingsbridge.`, 1);
+    w.hooks.herald?.({ house: h, title: `${h.name} reaches for the crown`, text: `${h.lord} has stopped building and started conquering. From now on ${h.name} looks further afield for weak or rich neighbours to make war on, presses the wars it has, and pushes for Kingsbridge.` });
   }
 }
 const THINK = 8;
@@ -160,8 +161,11 @@ function houseMind(w, h) {
   if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
   if (!arming && !plan && muster.eco?.buildings) {
     const over = headcount(muster.garrison) - (w.keepHome(muster) + SETTLED_RESERVE);
-    if (over > 0) standDown(muster.eco, muster.garrison, Math.min(over, 6));
+    if (over > 0) standDown(muster.eco, muster.garrison, Math.min(over, 6), mine.filter(p => p.eco?.buildings && !p.town));
   }
+
+  // Food, and kit for an unarmed guard, from its fullest larder to its emptiest (supply.js).
+  houseRuns(w, h);
 
   // A rich lord at war hires a mercenary company rather than sit on his gold, and pays
   // its wages from then on (companies.js). Not while the house is still settling.
@@ -218,7 +222,7 @@ function thinkWars(w, h, B, stage) {
   // border, weakness, worth and claims, never who leads. Each neighbour's places within reach
   // of ours (further once the house contends) are weighed by the men the house could field
   // against the men and walls there, by what the place is worth, by a claim on it, and, for
-  // you, by a lord's grudge; a full purse draws any house, and a neighbour holding more places
+  // any side, by a lord's grudge against it; a full purse draws any house, and a neighbour holding more places
   // than it does is a threat as well as a prize (the league's reason, diplomacy.js
   // leagueReason). The best place names the war.
   const mine = held(w, h), reach = stage === 2 ? 700 : 420;
@@ -231,7 +235,7 @@ function thinkWars(w, h, B, stage) {
     if ((leagued(w, h.index) && leagued(w, i)) || (i === 0 && protectedFrom(w, 0, h.index)) || (FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20)) continue;
     if (!mine.some(q => dist(p, q) < reach)) continue;
     bigger[i] ??= count(i) > own;
-    const score = preyScore(w, h, B, p, field) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) * (FACTIONS[i].gold > 5000 ? 1.2 : 1) * (bigger[i] ? THREAT : 1);
+    const score = preyScore(w, h, B, p, field) * (1 + Math.min(0.5, grudgeWeight(w, h, i) / 40)) * (FACTIONS[i].gold > 5000 ? 1.2 : 1) * (bigger[i] ? THREAT : 1);
     if (score > (best.get(i)?.score ?? 0)) best.set(i, { i, p, score });
   }
   const pick = [...best.values()].sort((a, b) => b.score - a.score)[0];
@@ -250,7 +254,7 @@ function preyScore(w, h, B, p, field) {
   const weak = field / (w.defence(p) * B.need + 20);
   const people = p.town ? p.town.population : p.eco?.pop ?? 0;
   const worth = Math.min(5, (people + 10) / 60) * (p.seat !== undefined ? 1.3 : 1) * (p.kind === 'crown' ? 1.5 : 1);
-  return weak * worth * (p.owner === 0 && wantsBack(w, h, p) ? 1.5 : 1);
+  return weak * worth * (wantsBack(w, h, p) ? 1.5 : 1);
 }
 
 // Raiders against an enemy the plan is not about, so a war is felt even while the house's
@@ -294,7 +298,7 @@ function choosePlan(w, h, B, stage, arming = true) {
     let prize = p.kind === 'crown' ? (stage === 2 ? 0.45 : 0.7) : p.seat !== undefined ? 0.8 : 1;
     if (h.invader && p.owner === 0) prize *= 0.6;   // the north comes for the king first
     if (p.owner === 0 && leagued(w, h.index)) prize *= 0.7;   // a coalition is about you
-    if (p.owner === 0 && wantsBack(w, h, p)) prize *= 0.6;    // and a lord wants back what you took
+    if (wantsBack(w, h, p)) prize *= 0.6;    // and a lord wants back what was taken from him
     if (enemy && stage === 2) prize *= 0.6;   // a war is fought for, yours or a house's
     options.push({ p, staging: from.place, score: (def + from.length * 0.15) * prize });
   }
@@ -417,7 +421,7 @@ export function musterProblems(w) {
     // Judged on what the house saw at its last think, not now: men can reach the muster
     // between thinks (every 8 s), and it marches at the next (seed 21, minute 49).
     if (P.seen?.ready) out.push(`${h.name} saw it could march on ${P.target.name} at its last think and did not (waited ${P.waited} s)`);
-    const people = w.pois.some(p => p.owner === h.index && p.eco?.buildings && p.eco.pop - Math.max(12, w.popCap(p) * 0.45) >= 6);
+    const people = w.pois.some(p => p.owner === h.index && p.eco?.buildings && p.eco.pop - Math.max(12, w.popCap(p) * AT_WORK.field) >= 6);   // as World.raiseFromPeople keeps
     if (h.ai.stance === 'war' && h.arms >= 12 && people && w.time - (h.ai.raisedAt ?? -Infinity) > 60) out.push(`${h.name} has ${Math.round(h.arms)} arms and people to spare, and raised nobody for ${P.target.name}`);
   }
   return out;

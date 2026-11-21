@@ -52,7 +52,7 @@ export const FOCUS_NAMES = { farming: 'farms and families', military: 'arms and 
 
 // Kit for the soldiers a place can raise, best first: the goods each man needs.
 const RAISE = ['sword', 'spear', 'archer', 'militia'];
-const kitOf = k => (TYPES[k].kit ? weaponKit(k) : {});
+export const kitOf = k => (TYPES[k].kit ? weaponKit(k) : {});
 
 // ---- making a place ----
 
@@ -201,7 +201,10 @@ function nextBuild(e) {
   if (builtCount(e) >= (e.maxBuilt ?? 40)) { clear(e); return null; }
   if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
   if (e.cold && (B_count(e, 'woodcutter') < 1 + (e.buildings.house || 0) / 8)) return 'woodcutter';
-  if (e.pop >= housing(e) - 3 && housing(e) < (e.maxPop ?? 120)) return 'house';
+  // Homes ahead of the people, as you build them: once its people reach the share a house
+  // keeps at work (AT_WORK; Orchestrator, 2026-11-21: places ran at a quarter of their land, a
+  // house only going up when the last was full, while men were drafted as fast as people came).
+  if (e.pop >= Math.min(housing(e) - 3, housing(e) * AT_WORK.field) && housing(e) < (e.maxPop ?? 120)) return 'house';
   if (e.planAt < plan.length) return plan[e.planAt];
   if ((s.wood || 0) < 40) return 'woodcutter';
   // a little more of its trade, every other turn
@@ -240,6 +243,20 @@ export function kits(e) {
   return n;
 }
 
+// Weapons for up to n men out of the stores, best kit first, for a cart to carry (supply.js
+// houseRuns). Returns the goods.
+export function takeKit(e, n) {
+  const goods = {};
+  for (const k of RAISE) {
+    const kit = Object.entries(kitOf(k));
+    const m = kit.length ? Math.floor(Math.min(n, ...kit.map(([g, q]) => (e.stock[g] || 0) / q))) : 0;
+    if (m <= 0) continue;
+    for (const [g, q] of kit) { e.stock[g] -= q * m; goods[g] = (goods[g] || 0) + q * m; }
+    n -= m;
+  }
+  return goods;
+}
+
 // Arms up to n men from the stores and the people, best kit first. A place keeps at
 // least `keep` people at work. Returns [{ key, count }].
 // Men raised from a tracked village take weapons, and armour and shields by their lord's
@@ -263,24 +280,40 @@ export function arm(e, n, keep = 12, policy = 'best') {
 }
 
 // Men under arms eat as they did at work (your soldiers are villagers and eat at the
-// hearths): a house's garrison is fed from its place's stores. Returns how many went unfed.
+// hearths): a house's garrison is fed from its place's stores. The people eat first
+// (Orchestrator, 2026-11-21: as in your places): the garrison has only what is left once a
+// meal for the people is kept back, as your villages keep one back when an army draws on
+// them (supply.js spareFood). Returns how many went unfed.
+export const PEOPLE_FIRST = 0.5;   // food a head
+// How many of its room a house's place keeps at work when it arms men: three in five for its
+// guard, a little more before men go to its field army (Orchestrator, 2026-11-21: rival places
+// ran at 40% of room, drafted down as fast as people settled, where a player who means to
+// grow keeps most of his people working). Its vassal's places are yours and keep 40%.
+export const AT_WORK = { guard: 0.6, field: 0.65 };
 export function feedMen(e, men, dt) {
-  let need = men * EAT * dt;
-  for (const g of ['bread', 'food']) { const k = Math.min(need, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; need -= k; }
+  let need = men * EAT * dt, spare = Math.max(0, (e.stock.food || 0) + (e.stock.bread || 0) - e.pop * PEOPLE_FIRST);
+  for (const g of ['bread', 'food']) { const k = Math.min(need, spare, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; need -= k; spare -= k; }
   return need / (EAT * dt);
 }
 
-// Up to n men go home to work: back among the people, their weapons back in the stores
-// (armour is kept by the men who wore it). The plainest go first.
-export function standDown(e, garrison, n) {
-  let left = Math.floor(n);
+// Up to n men go home to work, their weapons back in the stores where they stand (armour
+// is kept by the men who wore it). The plainest go first. Given the house's places, they go
+// home to those that raised them (e.raised, men given and not yet back), as far as each
+// has room (Orchestrator, 2026-11-21: not all into one village); the rest stay where they are.
+export function standDown(e, garrison, n, places = null) {
+  let left = Math.floor(n), home = 0;
   for (let i = garrison.length - 1; i >= 0 && left > 0; i--) {
     const u = garrison[i];
     if (u.until || !TYPES[u.key] || TYPES[u.key].engine) continue;
     const k = Math.min(u.count, left);
-    u.count -= k; left -= k; e.pop += k;
+    u.count -= k; left -= k; home += k;
     for (const [g, q] of Object.entries(kitOf(u.key))) e.stock[g] = (e.stock[g] || 0) + q * k;
   }
+  for (const p of [...(places || [])].sort((a, b) => (b.eco.raised || 0) - (a.eco.raised || 0))) {
+    const o = p.eco, back = Math.min(home, Math.floor(housing(o) - o.pop), Math.floor(o.raised || 0));
+    if (back > 0) { o.pop += back; o.raised -= back; home -= back; }
+  }
+  e.pop += home;
   for (let i = garrison.length - 1; i >= 0; i--) if (garrison[i].count <= 0) garrison.splice(i, 1);
   return Math.floor(n) - left;
 }

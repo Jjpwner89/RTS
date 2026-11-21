@@ -444,6 +444,18 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Leagues on one rule for every side (Orchestrator, 2026-11-21): of two equal reasons, one
+  // against you and one against a house, the nearer side is chosen, and so not always you;
+  // a stronger reason beats a nearer one.
+  await check('leagues: equal reasons against you and a house go to the nearer, not always to you', async () => {
+    const { strongestReason } = await import('./world/diplomacy.js'), out = [];
+    const you = d => ({ R: 'you', n: 2, d }), house = d => ({ R: 'house', n: 2, d });
+    if (strongestReason([you(300), house(200)])?.R !== 'house') out.push('a nearer house with an equal reason lost to you');
+    if (strongestReason([house(300), you(200)])?.R !== 'you') out.push('you, nearer with an equal reason, lost to a house');
+    if (strongestReason([{ R: 'house', n: 3, d: 900 }, you(100)])?.R !== 'house') out.push('a claim on a far house lost to a wrong by a near you');
+    return out;
+  });
+
   await check('houses and armies: numbers are sane', () => {
     const out = [];
     for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);

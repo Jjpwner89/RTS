@@ -39,19 +39,23 @@ const GRUDGES = {
   father: { n: 30, fade: Infinity, line: p => `You killed my father at ${p}. I will see you in the ground.`, why: p => `You killed his father at ${p}` },
   broke: { n: 6, fade: 4800, line: () => 'You broke your word to me once. You will not have the chance again.', why: () => 'You broke your word' },
 };
-export function grudge(w, h, kind, place = '') {
+// A house holds grudges against other houses too (Orchestrator, 2026-11-21: leagues on the
+// same reasons for every side): g.by is who did it, you when it is missing.
+export function grudge(w, h, kind, place = '', by = 0) {
   const H = FACTIONS[h];
-  if (!H || h === 0 || H.bandit || H.invader || !GRUDGES[kind]) return;
+  if (!H || h === 0 || H.bandit || H.invader || !GRUDGES[kind] || by === h || (by && (!FACTIONS[by] || FACTIONS[by].bandit || FACTIONS[by].invader))) return;
   const list = (H.grudges ||= []);
-  list.push({ kind, place, at: Math.round(w.time) });
-  if (list.length > 10) list.splice(list.findIndex(g => g.kind !== 'father'), 1);
+  list.push(by ? { kind, place, at: Math.round(w.time), by } : { kind, place, at: Math.round(w.time) });
+  // Ten at most against any one side.
+  const theirs = list.filter(g => (g.by ?? 0) === by);
+  if (theirs.length > 10) list.splice(list.indexOf(theirs.find(g => g.kind !== 'father')), 1);
 }
-const live = (w, H) => (H.grudges || []).filter(g => w.time - g.at < GRUDGES[g.kind].fade)
+const live = (w, H, by = 0) => (H.grudges || []).filter(g => (g.by ?? 0) === by && w.time - g.at < GRUDGES[g.kind].fade)
   .map(g => ({ ...g, weight: GRUDGES[g.kind].n * (GRUDGES[g.kind].fade === Infinity ? 1 : 1 - (w.time - g.at) / GRUDGES[g.kind].fade) }));
-export const grudgeWeight = (w, H) => live(w, H).reduce((n, g) => n + g.weight, 0);
+export const grudgeWeight = (w, H, by = 0) => live(w, H, by).reduce((n, g) => n + g.weight, 0);
 export const grudgeLines = (w, H) => live(w, H).sort((a, b) => b.weight - a.weight).map(g => GRUDGES[g.kind].why(g.place));
-// A lord still sore over a place he lost to you goes back for it first.
-export const wantsBack = (w, H, p) => live(w, H).some(g => g.kind === 'took' && g.place === p.name);
+// A lord still sore over a place he lost goes back for it first, from you or from a house.
+export const wantsBack = (w, H, p) => p.owner !== null && live(w, H, p.owner).some(g => g.kind === 'took' && g.place === p.name);
 // A taunt: one of his two heaviest grudges more often than not, else one of his house's sayings.
 export function tauntFor(w, H) {
   const top = live(w, H).sort((a, b) => b.weight - a.weight).slice(0, 2), g = top[Math.floor(w.rand() * top.length)];
@@ -129,17 +133,27 @@ const great = () => FACTIONS.filter(H => H.index !== 0 && !H.bandit && !H.invade
 // house that runs away with the realm. A border is a reason only when the side over it holds
 // more places than the house does (Orchestrator, 2026-11-21: a league against the one that
 // borders and threatens): a bigger neighbour, not any neighbour.
-// Returns the reason, as the coalition's herald says it to you, or nothing.
+// Grudges and claims count against a house as against you (Orchestrator, 2026-11-21), and the
+// reasons rank: a war the side started, then a claim, then a wrong, then a bigger neighbour.
+// Returns { why, n, d }: the reason as the coalition's herald says it to you, its rank, and
+// how near the side's lands are; or nothing.
+const LEAGUE_WHY = [null, 'your lands border theirs', 'you have wronged them', 'you hold what they claim', 'you made war on them'];
 function leagueReason(w, H, side) {
   const theirs = w.pois.filter(p => p.owner === side && p.kind !== 'camp'), mine = w.pois.filter(p => p.owner === H.index && p.kind !== 'camp');
   if (!theirs.length || !mine.length) return null;
+  let d = Infinity;
+  for (const p of theirs) for (const q of mine) d = Math.min(d, Math.hypot(p.x - q.x, p.z - q.z));
   // A war is a reason when the side started it; one the house started itself is not (a
   // war from a save that didn't record who started it still counts).
-  if (w.atWar(side, H.index) && (w.warBy?.[w.warKey(side, H.index)] ?? side) === side) return 'you made war on them';
-  if (side === 0 && grudgeWeight(w, H) > 0) return 'you have wronged them';
-  if (side === 0 && theirs.some(p => wantsBack(w, H, p))) return 'you hold what they claim';
-  return theirs.length > mine.length && theirs.some(p => mine.some(q => Math.hypot(p.x - q.x, p.z - q.z) < LEAGUE_BORDER)) ? 'your lands border theirs' : null;
+  const n = w.atWar(side, H.index) && (w.warBy?.[w.warKey(side, H.index)] ?? side) === side ? 4
+    : theirs.some(p => wantsBack(w, H, p)) ? 3
+    : grudgeWeight(w, H, side) > 0 ? 2
+    : theirs.length > mine.length && d < LEAGUE_BORDER ? 1 : 0;
+  return n ? { why: LEAGUE_WHY[n], n, d } : null;
 }
+// Of a house's reasons, the one it acts on: the strongest, and of equals the nearer side.
+// The same for you and every house: nobody comes first for being you.
+export const strongestReason = rs => rs.filter(Boolean).sort((a, b) => b.n - a.n || a.d - b.d)[0] || null;
 const leagueReady = (w, H) => H.ai?.stance === 'war' && !(H.arriere?.rest > w.time) && H.gold >= banCost(w, H);
 export const leagued = (w, h) => !!w.coalition?.members.includes(h);
 
@@ -236,18 +250,45 @@ function endLeague(w, C, over) {
 // A league against a house, on the same reasons: those with one go to war on it together
 // and make peace among themselves. There is no one host: each marches its own (rivals.js).
 // The league holds LEAGUE_LONG, then the house may be leagued against again after a rest.
-function thinkRivalLeagues(w) {
+function rivalLeague(w, R, join) {
+  const ids = join.map(H => H.index);
+  for (const a of ids) for (const b of ids) if (a < b && w.atWar(a, b)) w.makePeace(a, b);
+  for (const h of ids) if (!w.atWar(h, R.index)) w.declareWar(h, R.index);
+  w.leagues.push({ target: R.index, members: ids, since: w.time });
+  R.ai.leagueRest = w.time + LEAGUE_LONG + LEAGUE_REST;
+  w.log(`${join.map(H => H.name).join(', ')} have leagued together against ${R.name}.`, 2);
+}
+
+// Every league that forms this tick, against you or a house, on one rule (Orchestrator,
+// 2026-11-21: no player-first order): each free house that is arming and can pay weighs its
+// reason against every side it could league against, and joins against the one its
+// strongest reason names (strongestReason). A side two or more houses choose is leagued
+// against. A house whose choice found no partner tries its next reason.
+function formLeagues(w, C) {
   w.leagues = (w.leagues || []).filter(L => w.time - L.since < LEAGUE_LONG && FACTIONS[L.target]?.alive);
-  for (const R of great()) {
-    if (w.leagues.some(L => L.target === R.index) || (R.ai?.leagueRest ?? 1200) > w.time) continue;
-    const join = great().filter(H => H !== R && !leagued(w, H.index) && !w.leagues.some(L => L.members.includes(H.index)) && leagueReady(w, H) && leagueReason(w, H, R.index));
-    if (join.length < 2) continue;
-    const ids = join.map(H => H.index);
-    for (const a of ids) for (const b of ids) if (a < b && w.atWar(a, b)) w.makePeace(a, b);
-    for (const h of ids) if (!w.atWar(h, R.index)) w.declareWar(h, R.index);
-    w.leagues.push({ target: R.index, members: ids, since: w.time });
-    R.ai.leagueRest = w.time + LEAGUE_LONG + LEAGUE_REST;
-    w.log(`${join.map(H => H.name).join(', ')} have leagued together against ${R.name}.`, 2);
+  const busy = H => leagued(w, H.index) || w.leagues.some(L => L.members.includes(H.index));
+  const you = !C?.members.length && !w.crowned && w.time >= (C?.rest ?? 1200);
+  // Peace, a marriage, an alliance or tribute keeps a house out of a league against you, as before.
+  const friendly = H => { const d = w.dip[H.index]; return d.allied || d.married || d.vassal || d.backs || d.opinion >= 25 || d.paidUntil > w.time; };
+  const open = R => R.index === 0 ? you : !w.leagues.some(L => L.target === R.index) && (R.ai?.leagueRest ?? 1200) <= w.time;
+  const free = great().filter(H => !busy(H) && leagueReady(w, H));
+  const sides = [FACTIONS[0], ...great()].filter(open);
+  const reasons = new Map(free.map(H => [H, sides.filter(R => R !== H && !(R.index === 0 && friendly(H)))
+    .map(R => { const r = leagueReason(w, H, R.index); return r && { ...r, R }; }).filter(Boolean)]));
+  for (let round = 0; round < 6; round++) {
+    const pick = new Map();
+    for (const [H, rs] of reasons) { const r = strongestReason(rs); if (r) (pick.get(r.R) || pick.set(r.R, []).get(r.R)).push([H, r]); }
+    let formed = false, dropped = false;
+    for (const [R, list] of pick) {
+      if (list.length < 2) { const [H, r] = list[0]; reasons.get(H).splice(reasons.get(H).indexOf(r), 1); dropped = true; continue; }
+      const join = list.map(([H]) => H);
+      if (R.index === 0) leagueAgainstYou(w, join, new Map(list.map(([H, r]) => [H, r.why])));
+      else rivalLeague(w, R, join);
+      for (const H of join) reasons.delete(H);
+      for (const rs of reasons.values()) for (let i = rs.length - 1; i >= 0; i--) if (rs[i].R === R) rs.splice(i, 1);
+      formed = true;
+    }
+    if (!formed && !dropped) break;
   }
 }
 
@@ -272,22 +313,15 @@ function thinkCoalition(w) {
       const a = hostOf(w);
       if (a && !a.retreating) w.retreat(a);
       endLeague(w, C, over);
+      return;
     }
-    return;
   }
-  // The league against you is weighed first, then those against houses with whoever is left
-  // (QC: two house leagues took every house with a reason against you in the same tick).
-  leagueAgainstYou(w, C);
-  thinkRivalLeagues(w);
+  // Leagues against houses still form while one is against you, from the houses not in it.
+  formLeagues(w, w.coalition);
 }
 
-function leagueAgainstYou(w, C) {
-  if (w.crowned || w.time < (C?.rest ?? 1200)) return;
-  // Houses with a reason, arming and able to pay; peace, a marriage, an alliance or tribute
-  // keeps a house out, as before.
-  const why = new Map();
-  const join = great().filter(H => { const d = w.dip[H.index]; if (!leagueReady(w, H) || (w.leagues || []).some(L => L.members.includes(H.index)) || d.allied || d.married || d.vassal || d.backs || d.opinion >= 25 || d.paidUntil > w.time) return false; const r = leagueReason(w, H, 0); if (r) why.set(H, r); return !!r; });
-  if (join.length < 2) return;
+// Houses with a reason against you, arming and able to pay, league together (formLeagues).
+function leagueAgainstYou(w, join, why) {
   const ids = join.map(H => H.index);
   for (const a of ids) for (const b of ids) if (a < b) w.makePeace(a, b);
   for (const h of ids) { w.dip[h].truceUntil = 0; w.declareWar(h, 0, true); }

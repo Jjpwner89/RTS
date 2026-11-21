@@ -7,7 +7,7 @@ import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, kingGift, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
-import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
+import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
@@ -300,12 +300,12 @@ export class World {
     else if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
     else e.gold += taxes * 0.5 + traded;
     const want = this.keepHome(p), have = headcount(p.garrison);
-    if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * 0.4), v ? 'best' : armourPolicy(h)))
+    if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * (v ? 0.4 : AT_WORK.guard)), v ? 'best' : armourPolicy(h)))
       recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`, null, gearFields(u));
     // A house's men eat from the stores; those it cannot feed go home to their fields.
     if (h && !h.bandit && !v) {
       const unfed = p.garrison.length ? feedMen(e, headcount(p.garrison), dt) : 0;
-      if (unfed >= 1) standDown(e, p.garrison, Math.min(Math.ceil(unfed), 6));
+      if (unfed >= 1) standDown(e, p.garrison, Math.min(Math.ceil(unfed), 6), this.pois.filter(q => q.owner === p.owner && q.eco?.buildings && !q.town));
       h.arms += kits(e);
     }
     if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainHall(p, e, h, dt);
@@ -359,7 +359,7 @@ export class World {
     let raised = 0;
     // Places with a real economy arm men from their own stores and people.
     const real = this.pois.filter(p => p.owner === h.index && p.eco?.buildings).sort((p, q) => kits(q.eco) - kits(p.eco));
-    const keep = p => Math.max(12, housing(p.eco) * 0.45);
+    const keep = p => Math.max(12, housing(p.eco) * AT_WORK.field);
     const take = (p, stock) => {
       const e = stock ? { ...p.eco, stock } : p.eco;
       for (const u of arm(e, Math.min(n - raised, 6), keep(p), armourPolicy(h))) {
@@ -1096,6 +1096,8 @@ export class World {
   // A place changes hands. Seats move to the house's next-best place when lost.
   takePlace(p, owner) {
     const was = p.owner;
+    // A house that takes another's place is owed a grudge, as you are (diplomacy.js grudge).
+    if (owner && was && owner !== was) grudge(this, was, 'took', p.name, owner);
     p.owner = owner;
     p.free = null;
     const who = i => (i === null ? 'the free folk' : i === this.bandits ? 'outlaws' : FACTIONS[i]?.name);

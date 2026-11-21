@@ -20,7 +20,11 @@ import { WAGE as HIRED } from './companies.js';
 // Gold per man per minute. A sellsword company's wage is its own (companies.js); men hired at
 // the keep pay the same rate. The arrière-ban is paid up front when called (arriere.js) and
 // the village militia called out to fight is not soldiers at all, so neither draws a wage.
-export const WAGES = { levy: 0.2, foot: 0.3, heavy: 0.35 };
+// (Orchestrator, 2026-11-21: every wage scaled by 1.8, the household's and elites' too, in
+// the same order, so a Count's 300 men take about two fifths of his taxes at minute 80 and
+// gold is what caps an army: levy 0.35 < foot 0.55 < mail and horse 0.65 < household 0.75
+// < man-at-arms 1.1 < knight 2.7; sellswords 0.9, crossbowmen 1.1.)
+export const WAGES = { levy: 0.35, foot: 0.55, heavy: 0.65 };
 // Men in each place, the cheapest first, who are its home guard and draw nothing. The
 // household, hired men and the elite always draw pay.
 export const HOME_GUARD = 12;

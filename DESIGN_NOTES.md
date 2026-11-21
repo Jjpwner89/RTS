@@ -481,6 +481,7 @@ Rival houses grow by your rules, so a gap compounds. Nothing in this section ada
   - Household: 0.4, unchanged.
   - Sellswords hired at the keep: their company rate, 0.5 to 0.6.
   - Men-at-arms 0.6 and knights 1.5, unchanged.
+  - (All scaled by 1.8 the same day: see "Wages scaled" below.)
 
   Not paid by this: a hired company (it is paid by companies.js), the arrière-ban (paid up front), the village militia called out to fight, and engines. An army has no home guard. Unpaid men grumble after 45 s, then a company at a time stands down from 150 s, as the elite did before. The realm's treasury shows "Soldiers' wages (N men)", and the top bar says "your soldiers draw N a minute".
 - **The share it takes.** Count test save at minute 24: 78 men paid, 23 a minute of 139 tax. In the sims the peaceful bot's wages run at a fifth to a half of its tax: 133 of 683 (seed 21), 122 of 272 (seed 7) and 176 of 335 (seed 91) at minute 120, with 20,000–47,000 gold still banked. The tax grows with the people far faster than an army's wages. With the household's 12 a minute kept as the dearest native wage, gold does not become the limit on army size; the Orchestrator has the question. Rival houses take in about 70–90 a minute and pay 10–90, and none ran short in nine runs.
@@ -490,6 +491,45 @@ Rival houses grow by your rules, so a gap compounds. Nothing in this section ada
   - Blight comes in summer or autumn.
   - Tournaments come in spring or summer; pilgrims in spring to autumn.
   - No event comes twice in a year (`EVENT_AGAIN`, `w.eventAt`, saved). Round 4 had fevers again and again.
+
+### A house's economy on your rules; wages scaled; leagues the same for every side (2026-11-21, Orchestrator)
+- **Carts between a house's places** (supply.js `houseRuns`, `HOUSE_RUN`). Once a minute each house looks over its places with a real economy. The one with the fewest minutes of food (under 3, or hungry) gets a cart from the one with the most (over 6), carrying up to 600 food: enough for 8 minutes there, while the sender keeps 4. A minute's food is one a head, people and garrison alike. With nobody hungry, a place short of its guard that has people to arm and no kit gets weapons for up to 30 men from the place with the most kit to spare. Carts are wagon armies of the house (`wagon.run` with `house: true`). They drive straight at the road's real speed, at most two out per house and one per place, and an enemy army that meets one takes its food. Their panel note says what they are. Before this, Hollbury held 8,600 food while Millbury starved; now hungry places are fed within a few minutes.
+- **The people eat first** (holdings.js `feedMen`, `PEOPLE_FIRST`). A garrison eats only what is left once one meal for the people is kept back, as your villages keep one back when an army draws on them. A garrison that can't be fed stands down.
+- **Men stood down go home** (holdings.js `standDown`). Men go back to the house's places that gave them (`e.raised`, men given and not yet back), most owed first, as far as each has room. Any left over stay where they stand. Before, every one went into the muster village.
+- **A house keeps its people working** (holdings.js `AT_WORK`). A house's place arms men for its guard only down to 60% of its homes, and for the field army down to 65% (it was 40% and 45%). It also builds a house once its people reach 65% of its homes, ahead of them as you would, instead of waiting until it was nearly full. A vassal's place, being yours, still keeps 40%.
+- **How full rival places run.** Before (seed 21, minute 80), people filled 39–46% of their homes and 20–25% of the land they could clear (`maxPop`). Now, across nine runs at minute 80, they fill 52–77% of their homes (mostly 57–65%) and 31–48% of their land. The land can't fill further because a place's building slots (`maxBuilt`, at most twice its start) fill with farms and workshops before houses. Men under arms per house stay about where they were: 63–311 at minute 80.
+- **Wages scaled** (treasury.js `WAGES`, economy.js `HOUSEHOLD_PAY` and `ELITE`, companies.js `WAGE`). Every wage is ×1.8, in the same order, for you and the houses. Gold a man a minute:
+
+  | Levy | Foot | Mail or horse | Household | Sellsword | Crossbowman | Man-at-arms | Knight |
+  |---|---|---|---|---|---|---|---|
+  | 0.35 | 0.55 | 0.65 | 0.75 (22.5 for 30) | 0.9 | 1.1 | 1.1 | 2.7 |
+
+  The 12 free home guard per place stay.
+- **What wages take now.** The peaceful bot (30 men a place, Ashford growing, a field army) is paying wages for its garrisons:
+
+  | Seed | Places at min 80 | Men | Wages / tax at min 80 | At min 120 | Gold at 80 / 120 |
+  |---|---|---|---|---|---|
+  | 21 (Count-sized) | 3, 5 by min 100 | 273 | 141 / 390 (36%) | 260 / 774 (34%) | 11,767 / 44,839 |
+  | 7 | 4 | 298 | 148 / 171 (87%) | 291 / 324 (90%) | 5,786 / 14,631 |
+  | 91 | 3 | 286 | 138 / 228 (61%) | 302 / 422 (72%) | 4,675 / 19,247 |
+
+  - Seed 21 lands in the 35–45% band; the smaller realms of seeds 7 and 91 pay far more for the same 300 men, which is gold capping an army.
+  - On seed 7, men stood down unpaid 16 times. That came from the bot's extra garrisons, not its home guard.
+  - The passive bot pays 0–4 a minute, from its home guard alone, and was never broke: 785–921 gold at minute 40 and 1,745–1,898 at minute 60.
+  - Rival houses pay 20–180 a minute, and none ran short.
+- **Where the idle gold comes from.** Gold still builds up, mostly from **plunder**, not tax. On seed 21, minutes 80 to 90, the player took in 705 a minute from coin found in places taken, against 336 of tax, 118 from workshops and 30 from caravans, while paying 110 in wages. A market town keeps half its trade as coin (World.tickEconomy, `e.gold`), so one taken at minute 88 held 7,050 gold. Not changed here; it's the Orchestrator's question.
+- **Leagues on one rule** (diplomacy.js `leagueReason`, `strongestReason`, `formLeagues`).
+  - Grudges and claims now count against houses as against you. A house that takes another's place leaves a "took" grudge against the taker (World.takePlace, `grudge(..., by)`, saved in the house's grudges; one without `by` is against you, so old saves load). A house's claim, its grudge factor in choosing a war, and its wish to take back what was taken now work against any side.
+  - The reasons rank: a war the other side started (4) > a claim (3) > a wrong (2) > a bigger neighbour on the border (1). Each free house that is arming and can pay joins against the side its strongest reason names, and of equal reasons the nearer side. Anyone two or more houses choose is leagued against. A house whose choice found no partner tries its next reason.
+  - You are not weighed first. Leagues against houses form even while one is against you, from the houses not in it.
+  - Peace, marriage, alliance and tribute still keep a house out of a league against you. The herald's quarrel lines are unchanged.
+  - checks(): "leagues: equal reasons against you and a house go to the nearer, not always to you".
+- **The climb's wording** (rivals.js `climb`). A house contending for the crown "looks further afield for weak or rich neighbours to make war on, presses the wars it has, and pushes for Kingsbridge", in place of "goes for whoever leads", which stopped being true with the leagues' ruling.
+- **Sims** (seeds 7, 21, 91, to minute 120, after all the above):
+  - Passive: alive on all three to minute 120 (before, seed 21 fell at minute 99). First war on it at minutes 22, 27 and 108.
+  - Peaceful: no war on seeds 7 and 21; war at minute 59 on seed 91 (48 before).
+  - Fighter: the same as peaceful, because its declare path still never fires (a known sim bug, skipped by ruling).
+  - Leagues: house-against-house leagues formed in every run (two to four), none against you.
 
 ## Test campaigns (built 2026-11-20)
 
