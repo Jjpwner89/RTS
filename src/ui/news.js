@@ -57,6 +57,8 @@ function place(el) {
   const r = el.getBoundingClientRect(), s = slip.getBoundingClientRect(), pad = 8;
   let x = r.right + 10, y = r.top + r.height / 2 - s.height / 2, side = 'right';
   if (x + s.width > innerWidth - pad) { x = r.left + r.width / 2 - s.width / 2; y = r.top - s.height - 10; side = 'above'; }
+  // Something in the top bar: right of it is the next button or a side panel, so go under it.
+  if (el.closest('#top')) { x = r.left + r.width / 2 - s.width / 2; y = r.bottom + 10; side = 'below'; }
   if (y < pad) { y = r.bottom + 10; side = 'below'; }
   x = Math.max(pad, Math.min(innerWidth - s.width - pad, x));
   // Not over the news lines under the top bar: step below them.

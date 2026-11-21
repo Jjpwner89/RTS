@@ -173,3 +173,15 @@ body.campaign.mode-town #info, body.town #info { max-height: calc(100vh - 180px)
   #top :is(#to-world, #realm-toggle, #retreat) { font-size: 0; padding: 4px 8px; }
   #top :is(#to-world, #realm-toggle, #retreat) .ico { width: 18px; height: 18px; }
 }
+
+/* World map panels fold to their heading (ui/fold.js): the map first, the lists on a click. */
+#alerts { max-height: 38vh; overflow-y: auto; }
+#alerts h4, #wpanel.is-realm > h3 { cursor: pointer; }
+#alerts h4::before, #wpanel.is-realm > h3::before { content: '▾ '; color: var(--dim); }
+#alerts.folded h4::before, #wpanel.is-realm.folded > h3::before { content: '▸ '; }
+#alerts.folded h4 { margin-bottom: 2px; }
+#alerts.folded h4::after { content: ' · ' attr(data-n); color: var(--dim); font-weight: 400; }
+#alerts.folded > div { display: none; }
+#wpanel.is-realm.folded > :not(h3, [data-f="rank"], [data-f="realm"]) { display: none; }
+#wpanel.is-realm.folded { padding-bottom: 8px; }
+#alerts.folded h4 small { display: none; }
