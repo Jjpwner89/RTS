@@ -124,15 +124,20 @@ export function thinkDiplomacy(w, dt) {
 
 const great = () => FACTIONS.filter(H => H.index !== 0 && !H.bandit && !H.invader && H.alive);
 // Why a house would league against a side (Orchestrator, 2026-11-21: on real reasons, never
-// on who leads): that side borders it, has warred on it or wronged it, or holds a place it
+// on who leads): that side borders it, has made war on it or wronged it, or holds a place it
 // claims; and the house is arming and can pay its own arrière-ban. The same for you and for a
-// house that runs away with the realm.
+// house that runs away with the realm. A border is a reason only when the side over it holds
+// more places than the house does (Orchestrator, 2026-11-21: a league against the one that
+// borders and threatens): a bigger neighbour, not any neighbour.
 function leagueReason(w, H, side) {
-  const theirs = w.pois.filter(p => p.owner === side), mine = w.pois.filter(p => p.owner === H.index);
+  const theirs = w.pois.filter(p => p.owner === side && p.kind !== 'camp'), mine = w.pois.filter(p => p.owner === H.index && p.kind !== 'camp');
   if (!theirs.length || !mine.length) return false;
-  if (w.atWar(side, H.index) || (side === 0 && grudgeWeight(w, H) > 0)) return true;
+  // A war is a reason when the side started it; one the house started itself is not (a
+  // war from a save that didn't record who started it still counts).
+  const war = w.atWar(side, H.index) && (w.warBy?.[w.warKey(side, H.index)] ?? side) === side;
+  if (war || (side === 0 && grudgeWeight(w, H) > 0)) return true;
   if (side === 0 && theirs.some(p => wantsBack(w, H, p))) return true;
-  return theirs.some(p => mine.some(q => Math.hypot(p.x - q.x, p.z - q.z) < LEAGUE_BORDER));
+  return theirs.length > mine.length && theirs.some(p => mine.some(q => Math.hypot(p.x - q.x, p.z - q.z) < LEAGUE_BORDER));
 }
 const leagueReady = (w, H) => H.ai?.stance === 'war' && !(H.arriere?.rest > w.time) && H.gold >= banCost(w, H);
 export const leagued = (w, h) => !!w.coalition?.members.includes(h);

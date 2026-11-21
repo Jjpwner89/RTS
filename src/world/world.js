@@ -182,6 +182,7 @@ export class World {
   declareWar(i, j, quiet = false) {
     if (i === j || this.atWar(i, j)) return;
     this.wars.add(this.warKey(i, j));
+    (this.warBy ||= {})[this.warKey(i, j)] = i;   // who started it (diplomacy.js leagueReason)
     const a = FACTIONS[i], b = FACTIONS[j];
     if (i === 0) this.meet(j);
     if (j === 0) {
@@ -202,6 +203,7 @@ export class World {
 
   makePeace(i, j) {
     if (!this.wars.delete(this.warKey(i, j))) return;
+    if (this.warBy) delete this.warBy[this.warKey(i, j)];
     const a = FACTIONS[i], b = FACTIONS[j];
     if (i === 0 || j === 0) { this.log(`Peace is made with ${(i === 0 ? b : a).name}.`); this.chron(`Peace was made with ${(i === 0 ? b : a).name}.`); this.hooks.peace?.(i === 0 ? b : a); }
     else if (this.knows(i) || this.knows(j)) this.log(`${a.name} and ${b.name} have made peace.`, 2);

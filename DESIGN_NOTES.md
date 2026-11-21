@@ -447,6 +447,32 @@ Rival houses grow by your rules, so a gap compounds. Nothing in this section ada
   - Engaged, seed 91: Varn and Stonemere league against you at minute 37 (host about 350). Ravenham changes hands four times, and the bot ends with 5 places and 509 men, the most men in the realm. The league's second host at minute 49 had no levies: its members' countryside was resting.
   - Leagues are 2 houses each, as the Orchestrator expected. There is one muster-stall minute in seed 21 passive, not yet looked into.
 
+### Houses have ambition (2026-11-21, Orchestrator: lords at peace with nothing left to settle go looking for land)
+- **Ambition** (rivals.js `chooseStance`, `ambitionOf`). Past its first stage, a house counts the time from when it has nothing left to settle: no free place in reach that it could take with twice its spare men (kit in the stores is not men, and Kingsbridge doesn't count), nobody hungry (or a larder of 3), and its places at least half manned. The longer that lasts, the more it leans toward arming: a point every 300 s for raiders and hotheads, 600 s for schemers and steady turtlers, and 1,100 s for merchants and builders, up to 2.5. That is enough for even a builder with a thin larder to arm in about half an hour. A hungry spell or a free place coming into reach wears ambition down twice as fast as it grew.
+- **Prey** (`thinkWars`, `preyScore`). The same inputs for every target, the player too. Each neighbour's places within reach (420, or 700 once a house contends, for everyone; before, 700 applied to you alone) are scored by weakness, worth, threat, claims, grudges and purse:
+  - Weakness: the spare men the house could field against the place's men and walls.
+  - Worth: its people, (people + 10) / 60 up to 5, ×1.3 for a seat and ×1.5 for Kingsbridge.
+  - A claim (a place the lord wants back) ×1.5, and for you a lord's grudge.
+  - A full purse ×1.2.
+  - A neighbour holding more places than the house ×1.6, as a threat.
+
+  The best place names the war if its score × the temper's war factor beats 0.6.
+- **League reasons, tightened** (diplomacy.js `leagueReason`). A border counts only when the side over it holds more places than the house (the one that borders and threatens). A war counts only when the other side started it: `w.warBy`, saved, records who declared. Houses that declared on a weak player no longer league up on that war alone (seed 21 passive had a coalition at minute 33 and fell at 39 before this).
+- **Muster fix.** A house that saw it could march but couldn't take a single man out, or had no road, now passes that target for 15 minutes instead of retrying every think (seed 21: Dunmore on near-empty Dunden, four stall minutes).
+- **Sims to minute 120, seeds 7, 21 and 91.** Three bots: *passive*; *peaceful* (the old engaged bot: 30 men in every place, a field army on free or enemy places, never declares war; its army now carries food, and it skips a place it failed to take twice); and *fighter* (the same, but with nothing to take it declares on the house whose place it can beat nearest).
+
+  | Seed | Passive | Peaceful | Fighter |
+  |---|---|---|---|
+  | 7 | Varn at war from 13; falls at 113 | no war on you; 2 places, 277 men | as peaceful (never found a house to declare on) |
+  | 21 | Wyndham at war from 13, Varn from 23; falls at 68 | no war on you; 6 places, 515 men | declared on Wyndham at 117; 6 places, 566 men |
+  | 91 | Varn at war from 60; alive at 120 with 13 men | Varn at war from 95; 6 places, 516 men | as peaceful |
+
+  - Houses now arm once settled and fight each other all game.
+  - Leagues against a house formed 2–5 times a run, including against the runaway Penhallow (seed 7 at 115, 21 at 82, 91 at 70).
+  - No league formed against you in any run.
+  - No muster stalls.
+- **The gap left.** By these inputs the peaceful bot is the hardest target in reach, so it is picked last. Its places hold 30+ men, and towns count their people as defenders. Rival places stand at 0–40 men because rival villages sit at 20–30% of their room: food doesn't move between a house's places, garrisons eat the rest, and stood-down men overfill one village while another holds 8,000 food. Scores at seed 21, minute 113: a Dunmore village 7.1, the player's best 4.3. Making the player a natural target needs either houses whose places are manned (the economics) or a looser bot.
+
 ## Test campaigns (built 2026-11-20)
 
 The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.

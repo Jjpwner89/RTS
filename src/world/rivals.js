@@ -101,8 +101,17 @@ function nearestOwn(w, h, target) {
 // house that arms grows less and one that builds is weaker in the field.
 export const STANCE = { war: 'is arming', build: 'is building' };
 const LEAN = { raider: 0.6, hothead: 0.5, schemer: 0.1, merchant: -0.3, builder: -0.4, turtler: -0.2, invader: 2 };
-export function stanceScore({ temper, wars, threat, prey, larder, stage }) {
-  return (LEAN[temper] ?? 0) + (wars ? 0.5 : 0) + (threat ? 1 : 0) + (prey ? 0.5 : 0) - (larder < 3 ? 0.8 : 0) - (stage === 0 ? 0.3 : 0);
+// Ambition (Orchestrator, 2026-11-21, after M&B and Pendor): a lord at peace with full stores
+// and nothing left to settle goes looking for land. Past its first stage, from the moment no
+// free place is in reach, nobody goes hungry and its places are manned, a house leans toward
+// arming, a point every AMBITION seconds up to AMBITION_MAX: raiders and hotheads soon,
+// schemers and steady turtlers later, merchants and builders slowly, but not never (even a
+// thin larder's lean against war, stanceScore, is overcome in time).
+const AMBITION = { raider: 300, hothead: 300, schemer: 600, turtler: 600, merchant: 1100, builder: 1100 };
+const AMBITION_MAX = 2.5;
+export const ambitionOf = (temper, idle) => Math.min(AMBITION_MAX, Math.max(0, idle) / (AMBITION[temper] ?? 600));
+export function stanceScore({ temper, wars, threat, prey, larder, stage, ambition = 0 }) {
+  return (LEAN[temper] ?? 0) + (wars ? 0.5 : 0) + (threat ? 1 : 0) + (prey ? 0.5 : 0) - (larder < 3 ? 0.8 : 0) - (stage === 0 ? 0.3 : 0) + ambition;
 }
 function chooseStance(w, h, B, stage, mine) {
   const wars = FACTIONS.some(o => o !== h && o.alive && !o.bandit && w.atWar(h.index, o.index));
@@ -113,7 +122,19 @@ function chooseStance(w, h, B, stage, mine) {
     && mine.some(q => dist(p, q) < 600) && w.defence(p) * B.need + 20 < field);
   const eco = mine.filter(p => p.eco?.buildings), mouths = eco.reduce((n, p) => n + p.eco.pop + headcount(p.garrison), 0);
   const larder = eco.reduce((n, p) => n + (p.eco.stock.food || 0) + (p.eco.stock.bread || 0), 0) / Math.max(1, mouths);
-  const score = stanceScore({ temper: h.trait, wars, threat, prey, larder, stage });
+  // Nothing left to settle: no free place in reach it could hope to take with the men it has
+  // to spare (twice them; kit in the stores is not men, and not Kingsbridge, a prize of its
+  // own), nobody hungry, or stores enough to feed them, and its places at least half manned.
+  const men = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0);
+  const free = w.pois.some(p => p.owner === null && p.kind !== 'camp' && p.kind !== 'crown' && w.canAttack(h.index, p) && mine.some(q => dist(p, q) < 600) && w.defence(p) * B.need + 20 < men * 2);
+  const fed = larder >= 3 || !eco.some(p => p.eco.hungry);
+  const manned = mine.reduce((n, p) => n + headcount(p.garrison), 0) >= mine.reduce((n, p) => n + w.keepHome(p), 0) * 0.5;
+  const idle = stage > 0 && !free && fed && manned;
+  // A hungry spell or a free place in reach wears ambition down, twice as fast as it grew.
+  const since = h.ai.idleSince;
+  h.ai.idleSince = idle ? since ?? w.time : since != null && since + 3 * THINK < w.time ? since + 3 * THINK : null;
+  const ambition = h.ai.idleSince != null ? ambitionOf(h.trait, w.time - h.ai.idleSince) : 0;
+  const score = stanceScore({ temper: h.trait, wars, threat, prey, larder, stage, ambition });
   return score > (h.ai.stance === 'war' ? 0.2 : 0.5) ? 'war' : 'build';
 }
 
@@ -193,29 +214,43 @@ function thinkWars(w, h, B, stage) {
   // A settling house makes no wars; an expanding one one at a time.
   if (stage === 0) return;
   if (enemies.length >= (stage === 1 ? 1 : B.war > 1.2 ? 2 : 1)) return;
-  // Neighbours: houses holding a place within a short march of one of ours.
-  const mine = held(w, h);
-  const near = new Map();
+  // Prey (Orchestrator, 2026-11-21): the same inputs for every target, the player too: a
+  // border, weakness, worth and claims, never who leads. Each neighbour's places within reach
+  // of ours (further once the house contends) are weighed by the men the house could field
+  // against the men and walls there, by what the place is worth, by a claim on it, and, for
+  // you, by a lord's grudge; a full purse draws any house, and a neighbour holding more places
+  // than it does is a threat as well as a prize (the league's reason, diplomacy.js
+  // leagueReason). The best place names the war.
+  const mine = held(w, h), reach = stage === 2 ? 700 : 420;
+  const count = i => w.pois.filter(p => p.owner === i && p.kind !== 'camp').length, own = count(h.index), bigger = {};
+  const field = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0) + h.arms;
+  const best = new Map();
   for (const p of w.pois) {
-    if (p.owner === null || p.owner === h.index || p.owner === w.bandits || !FACTIONS[p.owner].alive) continue;
-    const d = Math.min(...mine.map(q => dist(p, q)));
-    if (d < (p.owner === 0 && stage === 2 ? 700 : 420)) near.set(p.owner, Math.min(near.get(p.owner) ?? Infinity, d));
+    const i = p.owner;
+    if (i === null || i === h.index || i === w.bandits || !FACTIONS[i].alive || p.kind === 'camp' || w.atWar(h.index, i)) continue;
+    if ((leagued(w, h.index) && leagued(w, i)) || (i === 0 && protectedFrom(w, 0, h.index)) || (FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20)) continue;
+    if (!mine.some(q => dist(p, q) < reach)) continue;
+    bigger[i] ??= count(i) > own;
+    const score = preyScore(w, h, B, p, field) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) * (FACTIONS[i].gold > 5000 ? 1.2 : 1) * (bigger[i] ? THREAT : 1);
+    if (score > (best.get(i)?.score ?? 0)) best.set(i, { i, p, score });
   }
-  // A contending house reaches further for you, and a rich purse draws it.
-  const strength = i => w.strength(i);
-  const ours = strength(h.index);
-  const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || !protectedFrom(w, 0, h.index))
-    && !(FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20))
-    // A lord with a grudge against you fancies his chances more than he should, and a full
-    // purse draws any house. Nobody is picked for leading (the leader weights were a rubber
-    // band, cut 2026-11-21): odds, borders, grudges and temper, the same for every target.
-    .map(i => ({ i, odds: ours / Math.max(1, strength(i)) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) * (FACTIONS[i].gold > 5000 ? 1.2 : 1) }))
-    .sort((a, b) => b.odds - a.odds);
-  const pick = choices[0];
-  if (pick && pick.odds * B.war > 0.9 && w.rand() < 0.7) {
+  const pick = [...best.values()].sort((a, b) => b.score - a.score)[0];
+  if (pick && pick.score * B.war > PREY_BAR && w.rand() < 0.7) {
     w.declareWar(h.index, pick.i);
     ai.warsSince[pick.i] = w.time;
   }
+}
+
+// How tempting a place is: the men the house could field against what it would take to win
+// it (its men and walls, as World.defence), times its worth, times a claim (a place the lord
+// wants back). Worth goes with its people, who pay the taxes and fill the levies: a town of
+// two hundred is worth four villages of fifty (a seat and Kingsbridge a little more).
+const PREY_BAR = 0.6, THREAT = 1.6;
+function preyScore(w, h, B, p, field) {
+  const weak = field / (w.defence(p) * B.need + 20);
+  const people = p.town ? p.town.population : p.eco?.pop ?? 0;
+  const worth = Math.min(5, (people + 10) / 60) * (p.seat !== undefined ? 1.3 : 1) * (p.kind === 'crown' ? 1.5 : 1);
+  return weak * worth * (p.owner === 0 && wantsBack(w, h, p) ? 1.5 : 1);
 }
 
 // Raiders against an enemy the plan is not about, so a war is felt even while the house's
@@ -318,13 +353,15 @@ function runPlan(w, h, B, plan) {
     // A contending house marches with most of what it has, not just enough to win: its
     // hosts are the realm's danger (creator, 2026-11-21: hosts of 20 men).
     const want = stageOf(h) === 2 ? Math.max(need * 1.15, spare * 0.75) : need * 1.15;
+    // Men it can't take out or a host with no road: it looks elsewhere, as when it gives up.
+    const pass = () => { (h.ai.passed ||= {})[T.id] = w.time + 900; h.ai.plan = null; h.ai.cool = 90; };
     const units = takeUnits(S.garrison, Math.min(spare, want));
-    if (!units.length) return;
+    if (!units.length) { pass(); return; }
     const besiege = T.owner === 0;
     if (besiege) for (const [key, count] of siegeTrain(w, h)) units.push({ key, count, name: `${h.short} ${TYPES[key].name.toLowerCase()}` });
     const host = w.spawnArmy(h.index, units, S, `The ${h.short} host`, besiege ? 'siege' : 'assault');
     // No road after all: the men go back into the garrison (they used to vanish with the host).
-    if (!w.order(host, T)) { w.removeArmy(host); mergeInto(S.garrison, host.units.filter(u => !TYPES[u.key]?.engine)); return; }
+    if (!w.order(host, T)) { w.removeArmy(host); mergeInto(S.garrison, host.units.filter(u => !TYPES[u.key]?.engine)); pass(); return; }
     plan.phase = 'march';
     plan.host = host;
     // Word of a host on the march: as big as rumour makes it, not the true count.
