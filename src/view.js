@@ -744,7 +744,7 @@ export class BattleView {
     for (const o of this.outlines.children) o.geometry.dispose();
     this.outlines.clear();
     const cam = LOD.camera?.position;
-    this.markWidth = r => Math.max(0.3, Math.min(2.4, (cam ? cam.distanceTo(new THREE.Vector3(r.cx ?? r.x, 0, r.cz ?? r.z)) : 60) * 0.009));
+    this.markWidth = r => Math.max(0.3, Math.min(3.6, (cam ? cam.distanceTo(new THREE.Vector3(r.cx ?? r.x, 0, r.cz ?? r.z)) : 60) * 0.009));
     for (const r of selection) {
       if (r.gone || r.routing) continue;
       this.addRect(r, r.x, r.z, r.angle, r.files, r.side === 0 ? '#ffd970' : '#ff7a6a', 1);
@@ -791,6 +791,8 @@ export class BattleView {
       const [ax, az] = corners[i], [bx, bz] = corners[(i + 1) % 4];
       for (let k = 0; k < 8; k++) pts.push(at(ax + (bx - ax) * k / 8, az + (bz - az) * k / 8));
     }
+    // a dark casing under the coloured band, so it reads on pale hazed ground from a storm's height
+    this.addBand(pts, this.markWidth(r) * 1.9, true, this.markMaterial('#2a1a0c', 0.55 * opacity));
     this.addBand(pts, this.markWidth(r), true, this.markMaterial(color, opacity));
     // the fill: a faint wash over the footprint, in strips across it
     const rows = 6, fill = [], idx = [];
@@ -802,7 +804,7 @@ export class BattleView {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
     g.setIndex(idx);
-    const m = new THREE.Mesh(g, this.markMaterial(color, opacity * 0.16));
+    const m = new THREE.Mesh(g, this.markMaterial(color, opacity * 0.26));
     m.renderOrder = 4;
     this.outlines.add(m);
   }

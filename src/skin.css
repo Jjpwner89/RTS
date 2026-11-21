@@ -289,3 +289,5 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 
 /* The map answers the pointer: a place or army under it lights its label (and gets a pale ring, worldview.js). */
 .wlabel.hover { border-color: var(--gold); background: var(--btn-hover); box-shadow: var(--surface-shadow), 0 0 0 2px var(--gold); z-index: 2; }
+/* A card's state line ("80 · Steady · Hidden in the woods · 24 arrows") ends in an ellipsis at the card's edge instead of running onto its neighbour. */
+.card .state { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
