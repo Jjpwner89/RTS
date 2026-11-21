@@ -137,13 +137,17 @@ const hooks = {
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
 // The seasons and the day turn on the campaign's clock (look.js), but a fight in a village or
 // town you are watching keeps the hour it began at, deployment and all, so a storm that forms
-// up at dusk isn't fought in the dark. (A field battle stops the world's clock anyway.)
-let foughtAt = null;
+// up at dusk isn't fought in the dark. (A field battle stops the world's clock anyway.) Once
+// it is over the light catches up with the clock over five seconds rather than jumping.
+let foughtAt = null, catchUp = null;
 look.clock = () => {
   const b = mode === 'town' && current?.town?.battle;
   const on = b && b.winner === null && (b.deploying || b.regs.some(r => r.side === 1 && !r.gone && r.alive > 0));
-  foughtAt = on ? foughtAt ?? world.time : null;
-  return foughtAt ?? world.time;
+  if (on) { foughtAt ??= catchUp ? look.clock.shown : world.time; catchUp = null; return (look.clock.shown = foughtAt); }
+  if (foughtAt !== null) { catchUp = { from: foughtAt, at: world.time }; foughtAt = null; }
+  const k = catchUp ? Math.min(1, (world.time - catchUp.at) / 5) : 1;
+  if (k >= 1) catchUp = null;
+  return (look.clock.shown = catchUp ? catchUp.from + (world.time - catchUp.from) * k : world.time);
 };
 
 // A lord's words or big news, shown for a while at the top without stopping the game.
