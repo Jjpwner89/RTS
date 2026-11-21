@@ -325,6 +325,19 @@ A simpler, high-level strategy game in the vein of War of Dots or Line Battle: a
 - The Storm prompt warns when the place is walled and the army brings no ladders, ram or engines.
 - In a storm, ladders, rams and engines ordered onto an enemy wall go for the wall, even with its defenders standing on it.
 
+## Walking pace (decided 2026-11-21: "B: walk and run")
+
+The creator chose option B after seeing all three in the viewer. It replaces option A (units jogging at the game's paces).
+- **Walk by default.** Normal movement is a walk, about 1.5–1.8 m/s for villagers and for soldiers in formation, so the walk clips plant their feet.
+- **When units run.** Running is for charging, fleeing and routing, and for a Run order: double-click a move target, or the Run toggle on the orders bar (with its key shown). Running tires a regiment through the existing fatigue rule.
+- **Roads.** Roads keep their speed bonus: villagers on a paved road walk briskly or jog, so roads matter more.
+- **One place.** The paces live in anim.js and Art's pace table, and gaits still come from measured strides.
+- **Tempo doesn't halve.**
+  - The economy keeps its 2.5-minute farm timing and growth targets by adjusting work and carry amounts, not walking speed.
+  - Battles re-checks march-to-contact times and the storm countdown.
+  - World-map travel times don't change; only the figures' animation follows.
+- **Done means** the village, a field battle, a storm and Muster are played by hand in a visible pane, with no skating at ½×, 1× and 4×, and checks() clean.
+
 ## Rivals' pace and gold (decided 2026-11-19)
 
 The creator: rivals start stronger than you but take a slow road to conquest, and grow more aggressive until they play to win from where they stand; you close the gap, then get attacked. Gold should matter, but nothing should buy power outright.
