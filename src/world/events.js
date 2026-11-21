@@ -152,6 +152,7 @@ const EVENTS = {
 // Tournaments at Kingsbridge: a champion of yours rides for gold, renown and knights.
 // The best captain you have (or you yourself) jousts; a good one wins more often.
 EVENTS.tournament = {
+  any: true,   // held at the realm's seat, whether or not it is a village you run: the purse is the realm's
   when: (w, p) => w.rank !== 'Reeve' && p === (FACTIONS[0].seat || w.home) && !!w.crown && w.time > 1800,
   title: () => 'A tournament at Kingsbridge',
   text: (w, p, e) => `Heralds cry a tournament at Kingsbridge: a purse of 200 gold, and the eyes of every great house on the lists. ${e.champ ? `Captain ${e.champ.name} asks to ride for you.` : 'You have no captain fit to ride.'}`,
@@ -161,12 +162,12 @@ EVENTS.tournament = {
       if (w.rand() < odds) {
         FACTIONS[0].gold += 200;
         for (const H of FACTIONS) if (H.index && w.dip?.[H.index] && !H.bandit) w.dip[H.index].opinion += 6;
-        w.spawnArmy(0, [{ key: 'knight', count: 4, name: 'Tourney knights', xp: 1, elite: true, armour: 'plate', shield: true }], p, 'Tourney knights');
+        w.spawnArmy(0, [{ key: 'knight', count: 4, name: 'Tourney knights', xp: 1, elite: true, armour: 'plate', shield: true }], FACTIONS[0].seat || p, 'Tourney knights');
         w.chron(`${who} won the tournament at Kingsbridge.`);
-        return `${who} wins the tournament! 200 gold, the realm's applause, and four knights who saw it ride home to serve you.`;
+        return `${who} ${who === 'You' ? 'win' : 'wins'} the tournament! 200 gold, the realm's applause, and four knights who saw it ride home to serve you.`;
       }
       hurt();
-      return `${who} is unhorsed in the third course. The purse goes elsewhere.${who === 'You' ? ' You are bruised and cannot ride with an army for five minutes.' : ''}`;
+      return `${who} ${who === 'You' ? 'are' : 'is'} unhorsed in the third course. The purse goes elsewhere.${who === 'You' ? ' You are bruised and cannot ride with an army for five minutes.' : ''}`;
     };
     return [
       { label: e.champ ? `Send Captain ${e.champ.name} (50 gold)` : 'No captain to send', ok: () => !!e.champ && gold() >= 50, why: e.champ ? null : 'None of your captains is free to ride',

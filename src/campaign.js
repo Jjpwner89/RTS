@@ -564,7 +564,8 @@ function nextAsk() {
   pic.hidden = true;
   if (a.kind === 'choice') {
     const ev = a.ev;
-    if (ev.at.owner !== 0 || !ev.at.town) {
+    // The tournament is the realm's, not a village's: it is always put to you.
+    if (ev.id !== 'tournament' && (ev.at.owner !== 0 || !ev.at.town)) {
       ev.choices.at(-1).run();
       flash(`${ev.title}: it passes without you, as ${ev.at.name} ${ev.at.owner !== 0 ? 'is no longer yours' : 'is not a village you run'}.`, false);
       return nextAsk();
