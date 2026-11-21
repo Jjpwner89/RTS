@@ -328,3 +328,4 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 .modal .whyline { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
 /* A news card waits in the corner: the map under it and the clock go on. */
 #prompt.soft { top: auto; bottom: 120px; left: 50%; transform: translateX(-50%); width: min(380px, calc((100vw - 32px) / var(--hud))); }
+#herald p { white-space: pre-line; }

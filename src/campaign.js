@@ -168,7 +168,7 @@ function showHerald() {
   el.style.setProperty('--hc', h.color);
   el.innerHTML = `<div class="face">${h.id && !h.bandit ? `<img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')">` : initials}</div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
   el.classList.add('show');
-  setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500);
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500 + Math.max(0, (msg.text || '').length - 140) * 40);   // a long herald stays longer
 }
 
 let worldView = new WorldView(stage, world);
@@ -928,7 +928,7 @@ function worldPanel() {
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('caravan', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
-    else if (it.wagon?.house) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">A house's cart, carrying food, and sometimes kit, from one of its places to another that is short. An army at war with that house that meets it on the road takes the food.</p>`;
+    else if (it.wagon?.house) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">A house's cart, bringing food (and sometimes arms) to a place of theirs that is short. Meet it on the road at war, and the food is yours.</p>`;
     else if (it.wagon?.run) el.innerHTML = `<h3>${ico('village')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Spare goods and a few families for another of your villages. A raider who meets it on the road seizes the lot; one of your armies can ride with it.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
     else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`

@@ -330,8 +330,8 @@ function leagueAgainstYou(w, join, why) {
   w.log(`${names} have leagued together against you!`, 1);
   w.hooks.sound?.('boom'); // audio
   w.chron(`${names} leagued together against you.`);
-  const quarrels = join.map(H => `${H.short}: ${why.get(H)}.`).join(' ');
-  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `Each has a quarrel with you. ${quarrels} ${names} have made peace among themselves and declared war on you together, and will raise one host between them. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
+  const quarrels = join.map(H => `${H.short}: ${why.get(H)}.`).join('\n');
+  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `Each has a quarrel with you:\n${quarrels}\n\nThey have made peace among themselves, declared war on you together, and will raise one host. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
   raiseHost(w);
 }
 

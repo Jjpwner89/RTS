@@ -55,7 +55,7 @@ function climb(w, h) {
   if (s === 1) w.log(`${h.name} is reaching beyond its own lands. Its lord has an eye on the free villages further out, and on weak neighbours.`, 2);
   else {
     w.log(`${h.lord} means to win the realm. ${h.name} will reach further for its wars, and for Kingsbridge.`, 1);
-    w.hooks.herald?.({ house: h, title: `${h.name} reaches for the crown`, text: `${h.lord} has stopped building and started conquering. From now on ${h.name} looks further afield for weak or rich neighbours to make war on, presses the wars it has, and pushes for Kingsbridge.` });
+    w.hooks.herald?.({ house: h, title: `${h.name} reaches for the crown`, text: `${h.lord} has stopped building and begun to conquer. Expect ${h.name} to press its wars, to look to its weaker and richer neighbours, and to make for Kingsbridge.` });
   }
 }
 const THINK = 8;
