@@ -37,8 +37,10 @@ button:hover { background: var(--btn-hover); }
 button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #result button, #deploy .go, #terms .yes, #duel .yes, #help-close { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border, var(--btn-border)); }
 /* A choice you can't take looks it, even when it is the first (QC, 2026-11-21). */
 .modal .row button:disabled { background: var(--btn); color: var(--btn-ink); border: var(--btn-border); opacity: 0.5; cursor: default; }
-#cards .card.selected { outline: 2px solid var(--gold); outline-offset: 1px; }
-.card .bar { background: var(--track); }
+/* The selected card stands out from across the table: a thick seal-red ring and a lift. */
+#cards .card.selected { outline: none; border-color: var(--gold); background: var(--hilite-card, #f1dcae); transform: translateY(-4px); box-shadow: 0 0 0 3px var(--gold), 0 0 0 4px #4a3018, 0 6px 12px rgba(0, 0, 0, .4); z-index: 1; }
+.card .kit { margin: 0 0 -4px 0; }
+.card .bar u { background: var(--track); }
 .card .strength i { background: var(--strength); }
 #build .item .ico, #info h3 .ico { color: var(--icon); }
 #stock .people .ico { color: var(--gold); }
@@ -226,3 +228,18 @@ body.mode-world #log { top: auto; bottom: 16px; flex-direction: column-reverse; 
    ellipsises, and in a small window gives way to its icon (the full text is in the tooltip). */
 body.mode-world #top #strength { flex: 0 1 auto; min-width: 0; max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: inherit; line-height: inherit; text-align: left; }
 @media (max-width: 800px) { body.mode-world #top #strength { max-width: 24px; } }
+
+/* Battle cards: rows come out even (hud.js sets --cols), and each bar says what it is. */
+#cards { padding: 7px 6px 2px; margin: 0 -6px; display: grid; grid-template-columns: repeat(var(--cols, 10), max-content); justify-content: center; align-content: end; flex-wrap: nowrap; }
+.card .bar { display: flex; align-items: center; gap: 4px; height: auto; background: none; border-radius: 0; overflow: visible; }
+.card .bar b { flex: none; width: 27px; font: 600 8px/1 var(--body-font); letter-spacing: .02em; text-transform: uppercase; color: var(--dim); }
+.card .bar u { flex: 1; height: 5px; border-radius: 3px; overflow: hidden; text-decoration: none; }
+.card.routing .name::after { content: ' · routing'; color: var(--bad); font-weight: 400; }
+/* A small window: the cards give up their state line (the bars, a blink while routing and the tooltip say it) and their width, so two rows take a fifth of the window, not two fifths. */
+@media (max-width: 800px), (max-height: 600px) {
+  .card { width: 86px; padding: 3px 4px; gap: 1px 4px; grid-template-columns: 24px 1fr; }
+  .card canvas { width: 24px; height: 24px; }
+  .card .state { display: none; }
+  .card .bar b { display: none; }
+  .card .kit .ico { width: 11px; height: 11px; }
+}

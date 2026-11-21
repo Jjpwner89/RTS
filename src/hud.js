@@ -159,8 +159,8 @@ export class Hud {
     el.append(icon);
     el.insertAdjacentHTML('beforeend', `
       <span class="name">${r.name}</span>
-      <span class="bar strength"><i></i></span>
-      <span class="bar morale"><i></i></span>
+      <span class="bar strength" title="Men left"><b>Men</b><u><i></i></u></span>
+      <span class="bar morale" title="Morale: when it runs out, the regiment breaks"><b>Nerve</b><u><i></i></u></span>
       <span class="state"></span>
       <span class="kit">${kitBadge(r)}</span>
       <span class="grp" title="Control group: press its number to select it"></span>`);
@@ -171,9 +171,19 @@ export class Hud {
     return { r, el, strength: el.querySelector('.strength i'), morale: el.querySelector('.morale i'), state: el.querySelector('.state'), kit: el.querySelector('.kit'), grp: el.querySelector('.grp'), worn: '' };
   }
 
+  // However many cards, the rows come out even: 11 cards in a row of 10 would leave one alone.
+  fitCards() {
+    const el = this.cardsEl, first = this.cards[0]?.el;
+    if (!first) return;
+    const w = first.offsetWidth + 6, fit = Math.max(1, Math.floor((el.clientWidth + 6) / w));
+    const cols = Math.ceil(this.cards.length / Math.ceil(this.cards.length / fit));
+    if (el.dataset.cols !== String(cols)) { el.dataset.cols = cols; el.style.setProperty('--cols', cols); }
+  }
+
   update(selection, paused, speed) {
     const b = this.battle;
     this.syncCards();
+    this.fitCards();
     for (const c of this.cards) {
       const r = c.r;
       c.strength.style.width = (100 * Math.max(0, r.alive) / r.initial) + '%';
