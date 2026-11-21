@@ -12,13 +12,23 @@ import { lamps } from './look.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 // anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
-// quarrying, digging ore or hoeing at his job, hammering at a building site (while it has the materials to go on) or
-// a smithy's door, sawing at a carpenter's or bowyer's, working at another workshop's, running from raiders, or
+// quarrying, picking at ore or hoeing at his job, hammering at a building site (while it has the materials to go on)
+// or on the anvil at a smithy's door, sawing at a carpenter's or bowyer's, working at another workshop's, running from raiders, or
 // standing about. `dt` is village time since the last frame.
 const WORK_CLIP = { tree: 'Chop', rock: 'Pickaxe', ore: 'Pickaxe', field: 'Hoe' };
 const CRAFT_CLIP = { weaponsmith: 'Hammer', armourer: 'Hammer', smelter: 'Hammer', carpenter: 'Saw', bowyer: 'Saw' };
 // Going from one clip to the next he eases out of the last over FADE seconds (anim.js setBlend).
 const FADE = 0.3;
+// Where Hammer's blow lands, in front of a smith at the door (lineup/skin.js: bent 35 degrees), and Hammer_Low's
+// reach, a builder's (bent 55: he steps in until it lands on the site's wall, at 0.75 m or above).
+const BLOW = { ahead: 0.8, right: 0.08, y: 0.87 }, LOW_REACH = 0.74, LOW_Y = 0.8;
+// An anvil on a block of oak, its face just under where the blow lands (BLOW), its horn to the smith's left.
+function anvil() {
+  const top = BLOW.y - 0.03, block = top - 0.2;
+  return mergeGeometries([part(cyl(0.21, 0.25, block, 8), WOOD, { y: block / 2 }), part(box(0.24, 0.05, 0.18), DARK, { y: block + 0.025 }),
+    part(box(0.16, 0.08, 0.11), DARK, { y: block + 0.09 }), part(box(0.44, 0.07, 0.18), METAL, { y: top - 0.035 }),
+    part(cyl(0.004, 0.065, 0.22, 6), METAL, { x: 0.32, y: top - 0.04, rz: -Math.PI / 2 })]);
+}
 // A walker's gait and its pace follow how fast he really covers the ground (faster on a road: economy.js walk),
 // measured from where he has got to, so his feet keep pace (anim.js gaitFor).
 function villagerClip(v, dt, town) {
@@ -31,7 +41,7 @@ function villagerClip(v, dt, town) {
   const craft = v.state === 'work' && !v.v && v.atDoor && v.job?.recipe && (CRAFT_CLIP[v.job.kind] || 'Work');
   const site = v.site, building = v.state === 'build' && site && (site.state === 'ruined' || site.progress < town.delivered(site) - 1e-6);
   const g = v.v ? gaitFor('male', v.carry ? ['CarryWalk', 'CarryRun'] : ['Walk', 'Run'], Math.max(0.5, v.animV || v.v))
-    : { name: work ? WORK_CLIP[work.node] || 'Idle' : craft || (building ? 'Hammer' : 'Idle'), rate: 1 };
+    : { name: work ? WORK_CLIP[work.node] || 'Idle' : craft || (building ? 'Hammer_Low' : 'Idle'), rate: 1 };
   if (g.name !== v.animName) {
     if (v.animName) { v.fromName = v.animName; v.fromT = v.animT; v.fade = 0; }
     v.animName = g.name;
@@ -278,6 +288,25 @@ export class TownView {
   }
   cached(key, make) { return this.geos[key] || (this.geos[key] = make()); }
 
+  // How tall a building's model stands (its geometry's top).
+  topOf(mesh) {
+    const g = mesh.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    return Math.max(0.5, g.boundingBox.max.y);
+  }
+  // How far a builder at the site steps in toward its middle for his blow (LOW_REACH ahead) to land on its wall: where
+  // the line from him to the middle meets the model's footprint.
+  stepIn(v, site) {
+    const o = this.meshes.get(site);
+    if (!o) return 0;
+    const g = o.mesh.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const B = g.boundingBox, dx = v.x - site.x, dz = v.z - site.z, d = Math.hypot(dx, dz);
+    if (d < 1e-6) return 0;
+    const c = Math.cos(site.angle), sn = Math.sin(site.angle), lx = (dx * c - dz * sn) / d, lz = (dx * sn + dz * c) / d;   // (into the model's own frame)
+    const edge = Math.min(Math.abs(lx) > 1e-6 ? (lx > 0 ? B.max.x : -B.min.x) / Math.abs(lx) : Infinity, Math.abs(lz) > 1e-6 ? (lz > 0 ? B.max.z : -B.min.z) / Math.abs(lz) : Infinity);
+    return Math.max(0, d - edge - LOW_REACH);
+  }
   icon(b, warn) {
     const key = b.kind + (warn ? '!' : '');
     return this.icons[key] || (this.icons[key] = iconTexture(b.B.icon, warn));
@@ -353,6 +382,7 @@ export class TownView {
     for (const [b, o] of this.meshes) {
       if (!b.removed) continue;
       this.scene.remove(o.mesh, o.icon);
+      if (o.anvil) this.scene.remove(o.anvil);
       this.meshes.delete(b);
     }
     for (const b of town.buildings) {
@@ -370,9 +400,24 @@ export class TownView {
         this.scene.add(mesh, icon);
         this.meshes.set(b, o = { mesh, icon, state: null, warn: null, level: b.level || 1 });
         this.cover?.clear(b.x, b.z, b.B.radius + 1);
+        // a hammering smith's anvil, where the blow lands in front of him at the door (economy.js door), and the
+        // trodden ground he works on
+        const door = { x: b.x + Math.sin(b.angle) * (b.B.radius + 1), z: b.z + Math.cos(b.angle) * (b.B.radius + 1) };
+        if (CRAFT_CLIP[b.kind] === 'Hammer') {
+          const yaw = b.angle + Math.PI, x = door.x + Math.sin(yaw) * BLOW.ahead - Math.cos(yaw) * BLOW.right, z = door.z + Math.cos(yaw) * BLOW.ahead + Math.sin(yaw) * BLOW.right;
+          o.anvil = new THREE.Mesh(this.anvilGeo ||= anvil(), this.mat);
+          o.anvil.position.set(x, this.heightAt(door.x, door.z), z);
+          o.anvil.rotation.y = yaw;
+          o.anvil.castShadow = o.anvil.receiveShadow = true;
+          o.anvil.visible = b.state === 'active';
+          this.scene.add(o.anvil);
+        }
+        this.cover?.clear(door.x, door.z, 1.3);
       }
       if ((b.level || 1) !== o.level) { o.level = b.level || 1; o.mesh.geometry = this.geo(b.kind, b.style, o.level); }
-      if (b.state === 'site') o.mesh.scale.y = Math.max(0.08, b.progress);
+      // (once building has begun its walls stand at least as high as a builder's blow: LOW_Y)
+      if (b.state === 'site') o.mesh.scale.y = Math.max(0.08, b.progress, b.progress > 0 ? LOW_Y / this.topOf(o.mesh) : 0);
+      if (o.anvil) o.anvil.visible = b.state === 'active';
       if (o.state !== b.state) {
         o.state = b.state;
         o.mesh.material = b.state === 'site' ? this.siteMat : b.state === 'ruined' ? this.ruinMat : this.mat;
@@ -421,7 +466,10 @@ export class TownView {
       const bob = this.anim ? 0 : Math.abs(Math.sin(v.phase)) * 0.1;
       const clip = this.anim && villagerClip(v, dt, town);   // anim
       const was = clip && fadeOf(v) > 0 ? clipOf('male', v.fromName) : null;   // anim
-      d.position.set(v.x, v.y + bob, v.z);
+      // a builder hammering steps in from where he stands (economy.js doBuild) until his blow lands on the site's wall
+      const stepTo = clip && v.animName === 'Hammer_Low' && v.site ? this.stepIn(v, v.site) : 0;
+      v.stepIn = (v.stepIn || 0) + (stepTo - (v.stepIn || 0)) * Math.min(1, dt * 4);
+      d.position.set(v.x + Math.sin(v.yaw) * v.stepIn, v.y + bob, v.z + Math.cos(v.yaw) * v.stepIn);
       d.rotation.set(0, v.yaw, 0);
       d.scale.setScalar(1);
       d.updateMatrix();

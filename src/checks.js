@@ -877,7 +877,7 @@ async function findAssets() {
   const { footGaits } = await import('./view.js');
   const { HORSE_GAITS } = await import('./view.js');
   const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Death_Fwd', 'Hit', 'Hit_2', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed', 'Turn', 'TurnArmed', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
-  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Hoe', 'Hammer', 'Saw', 'Pickaxe', 'Work', 'Idle'];
+  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Hoe', 'Hammer', 'Hammer_Low', 'Saw', 'Pickaxe', 'Work', 'Idle'];
   const DOG = ['Idle', 'Walk', 'Trot', 'Run', 'Rout', 'Bite', 'Death'];
   const GAITS = ['Walk', 'Trot', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed'];
   const noClip = new Set();
