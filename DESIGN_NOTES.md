@@ -537,3 +537,23 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
   - Varn sent three relief columns, and each was fought off in the field.
   - Emberley starved into surrender at minute 49.
   - Before, the same blockade starved the besiegers in three minutes.
+
+### Round 2 fixes on the climb (2026-11-21, from the playtester's seed-61 round)
+
+- **Tribute buys what it says.** Before, the demands cost 500 gold in 22 minutes, and Varn declared war seven minutes after being paid.
+  - A house's demand now says "Paying buys 20 minutes of peace with …".
+  - Paid, the house keeps a 20-minute truce. Its war choice already respects truces, and no league against you takes it in while the truce lasts (`dip.paidUntil`).
+  - No house demands within 10 minutes of another's demand (`w.tributeAt`).
+  - One payment to an outlaw chief now buys peace from every band for 20 minutes, and no other chief asks while it holds.
+  - Numbers in diplomacy.js `TRIBUTE`.
+- **Goals never lag behind.** A goal is ticked quietly when a later one is already done. The Lord test save showed "Arm them" with 56 men and a castle; now it shows "Become a count". (`goals.js updateGoals`)
+- **The attack prompt gives the odds**: "Your 36 against about 90. Auto-resolve: all but certain to fail."
+  - `world.autoOdds` works out auto-resolve's real chance from the same power roll it uses (a 0.85–1.15 roll on each side), with the folk who turn out and the walls. It also gives what a win would cost.
+  - Checked against a real auto-resolve on the Lord test save: 36 against 90, predicted certain to fail, and it failed.
+- **The spy can be followed.** The target's map label reads "your spy · back in 2:14", the place panel shows the same countdown, and the send message gives the minutes to expect.
+- **Worn-down companies are put to you.** When a hired company falls below a quarter of its size, its captain asks: fill the ranks (the hiring price for the missing men), let them go, or keep them. Before, the Black Lanterns sat at 10 men on full wages. A company that breaks up below 3 men takes its last stragglers with it, so no "Grey Company: 1" is left under a dead name. (companies.js `askWeak`, `refillPrice`)
+- `checks()` Journey group adds four checks:
+  - no company of yours stays worn down without being asked;
+  - a broken or free company leaves nobody behind;
+  - no house paid tribute is in a league;
+  - no goal shown has already been passed.

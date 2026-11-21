@@ -36,7 +36,7 @@ const pay = n => { FACTIONS[0].gold -= n; };
 // Why a choice is greyed: its own reason, or the gold its label asks for.
 // A choice as the box shows it: ok and why are read afresh each time (the purse may have changed
 // since the event came), and a click that is no longer allowed is refused with the reason.
-const live = (w, c) => ({
+export const live = (w, c) => ({
   label: c.label,
   get ok() { return can(c); },
   get why() { return whyNot(c); },
@@ -129,9 +129,10 @@ const EVENTS = {
     },
   },
   bandits: {
-    when: (w, p) => !!camp(w, p),
+    // (not while another chief's price still holds: one payment buys peace from every band)
+    when: (w, p) => !!camp(w, p) && !(w.banditPeace > w.time),
     title: () => 'A bandit chief sends word',
-    text: (w, p, e) => `${e.name}, who leads the outlaws at ${camp(w, p).name}, offers terms: pay, and the band leaves your villages alone. Or pay more, and they fight for you.`,
+    text: (w, p, e) => `${e.name}, who leads the outlaws at ${camp(w, p).name}, offers terms: pay, and every band leaves your villages alone for twenty minutes. Or pay more, and they fight for you.`,
     choices: (w, p, e) => {
       const c = camp(w, p), men = headcount(c.garrison), hireAt = Math.max(160, men * 3);   // always dearer than peace
       return [

@@ -145,7 +145,7 @@ function thinkCoalition(w) {
   const { mine, ratio } = threat(w);
   if (mine < LEAGUE_SHARE && !(ratio > 1.8 && mine > 0.2)) return;
   // Only houses playing to win (rivals.js STAGES: Contending) join a league.
-  const join = great().filter(H => { const d = w.dip[H.index]; return (H.ai?.stage ?? 0) >= 2 && !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25; });
+  const join = great().filter(H => { const d = w.dip[H.index]; return (H.ai?.stage ?? 0) >= 2 && !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25 && !(d.paidUntil > w.time); });
   if (join.length < 2) return;
   const ids = join.map(H => H.index);
   for (const a of ids) for (const b of ids) if (a < b) w.makePeace(a, b);
@@ -162,6 +162,8 @@ function thinkCoalition(w) {
 const OFFER_GAP = 120;        // seconds between any two houses' proposals
 const TRIBUTE_EVERY = 1800;   // one house's tribute demands, at most this often
 const TRIBUTE_PEACE = 900;    // and none this soon after making peace with you
+const TRIBUTE_GAP = 600;      // nor this soon after any house's demand
+export const TRIBUTE = { gold: 150, buys: 1200 };   // what a demand asks, and the peace paying it buys
 function offerFrom(w, H, d) {
   const h = H.index, mine = w.strength(0), theirs = w.strength(h);
   // One house's proposal at a time across the realm: a second waits for its next turn.
@@ -185,10 +187,21 @@ function offerFrom(w, H, d) {
       () => act(w, h, 'marry', true), () => { d.opinion -= 5; });
   } else if (!d.allied && d.opinion >= 40) {
     ask(`${H.lord} proposes an alliance`, `${H.name} will join your wars, and you theirs.`, () => act(w, h, 'ally', true), () => { d.opinion -= 3; });
-  } else if ((H.trait === 'raider' || H.trait === 'schemer') && theirs > mine * 1.8 && w.time > 600 && FACTIONS[0].gold >= 150 && w.time > (d.demanded ?? 0) && w.time - (d.peaceAt ?? -Infinity) > TRIBUTE_PEACE) {
+  } else if ((H.trait === 'raider' || H.trait === 'schemer') && theirs > mine * 1.8 && w.time > 600 && FACTIONS[0].gold >= TRIBUTE.gold && w.time > (d.demanded ?? 0)
+    && w.time - (d.peaceAt ?? -Infinity) > TRIBUTE_PEACE && w.time - (w.tributeAt ?? -Infinity) > TRIBUTE_GAP) {
+    // Paid, they keep the peace they sold: a truce no war choice of theirs breaks, and no
+    // league against you takes them in while it lasts.
+    const mins = Math.round(TRIBUTE.buys / 60);
     d.demanded = w.time + TRIBUTE_EVERY;   // they do not ask again for a long while
-    ask(`${H.lord} demands tribute`, `“Pay me 150 gold and my men will stay home.” Refuse, and ${H.lord} may come for it.`,
-      () => { FACTIONS[0].gold -= 150; d.opinion += 15; d.truceUntil = Math.max(d.truceUntil, w.time + 400); w.log(`You paid ${H.name} 150 gold.`, 1); },
+    w.tributeAt = w.time;
+    ask(`${H.lord} demands tribute`, `“Pay me ${TRIBUTE.gold} gold and my men will stay home.” Paying buys ${mins} minutes of peace with ${H.name}. Refuse, and ${H.lord} may come for it.`,
+      () => {
+        if (FACTIONS[0].gold < TRIBUTE.gold) { w.log(`You no longer have ${TRIBUTE.gold} gold for ${H.name}.`, 1); console.warn('tribute: purse too light'); return { ok: false, text: `You have only ${Math.floor(FACTIONS[0].gold)} gold.` }; }
+        FACTIONS[0].gold -= TRIBUTE.gold; d.opinion += 15;
+        d.truceUntil = d.paidUntil = Math.max(d.truceUntil, w.time + TRIBUTE.buys);
+        w.log(`You paid ${H.name} ${TRIBUTE.gold} gold: ${mins} minutes of peace.`, 1);
+        return { ok: true, text: `${H.name} will keep the peace for ${mins} minutes.` };
+      },
       () => { d.opinion -= 15; if (w.rand() < 0.5) w.declareWar(h, 0); });
   }
 }

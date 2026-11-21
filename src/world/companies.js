@@ -9,6 +9,7 @@
 // and armies on the map.
 import { FACTIONS, headcount, unit } from './world.js';
 import { TYPES } from '../battle.js';
+import { live } from './events.js';
 
 const NAMES = ['the Grey Company', 'the Black Lanterns', 'the Red Hounds', 'the Salt Brothers', 'the White Ash Company', 'the Ninefold',
   'the Hollow Crowns', 'the Iron Wake'];
@@ -18,6 +19,7 @@ const Name = c => c.name[0].toUpperCase() + c.name.slice(1);
 const WAGE = { sellsword: 0.5, hiredxbow: 0.6 };   // gold per man per minute
 const UNPAID_GRUMBLE = 45, UNPAID_DESERT = 150;     // seconds behind with their pay
 const REFORM = 600;                                  // seconds before a broken company is hiring again
+export const WEAK = 0.25;                                   // under this share of its size, its captain asks you what now
 export const MOOD = -4;                              // a village's mood, per company in it
 
 export function makeCompanies(w) {
@@ -127,6 +129,32 @@ export function release(w, c, why) {
   if (was === 0) w.log(why === 'unpaid' ? `${Name(c)} have deserted: you could not pay them.` : `${Name(c)} have left your service.`, why === 'unpaid' ? 1 : 0);
 }
 
+// A company of yours worn down to a handful: its captain asks to fill the ranks again (at
+// the hiring price for the men missing), to be let go, or to serve on as it is.
+export const refillPrice = c => Math.round(hirePrice(c) * Math.max(0, c.size - c.men) / c.size);
+function askWeak(w, c) {
+  const at = w.home?.owner === 0 && w.home.town ? w.home : w.pois.find(p => p.owner === 0 && p.town);
+  if (!at || !w.hooks.choice) return;
+  const price = refillPrice(c);
+  const choices = [
+    { label: `Fill the ranks (${price} gold)`, ok: () => FACTIONS[0].gold >= refillPrice(c) && c.employer === 0, why: () => c.employer !== 0 ? 'They have left your service' : `Needs ${refillPrice(c)} gold`, run: () => {
+      const cost = refillPrice(c), n = c.size - menOf(w, c);
+      FACTIONS[0].gold -= cost;
+      // the new men join the biggest part of the company
+      const part = find(w, c).sort((x, y) => (y.regs ? y.regs.reduce((k, r) => k + r.alive, 0) : headcount(y.units)) - (x.regs ? x.regs.reduce((k, r) => k + r.alive, 0) : headcount(x.units)))[0];
+      if (part?.regs) { const r = part.regs[0]; part.at.town.battle.addRegiment(0, c.key, r.cx, r.cz, r.angle || 0, { count: n, name: c.name }); }
+      else if (part) part.list.push(unit(c.key, n, c.name));
+      c.men = c.size;
+      return `${n} new men join ${c.name} under ${c.captain}.`;
+    } },
+    { label: 'Let them go', run: () => { release(w, c, 'dismissed'); return `${Name(c)} take their pay and go.`; } },
+    { label: 'Keep them as they are', run: () => `${Name(c)} serve on, ${c.men} strong.` },
+  ];
+  w.hooks.choice({ id: `company-${c.id}`, image: null, at, title: `${Name(c)} are down to ${c.men} men`,
+    text: `${c.captain} reports that ${c.name} are down to ${c.men} of their ${c.size}, and still on your wages (${wage(c)} gold a minute). Fill the ranks again, or let them go?`,
+    choices: choices.map(o => live(w, o)) });
+}
+
 // Every few seconds: wages, grumbling, desertion, and companies cut to nothing.
 export function tickCompanies(w, dt) {
   w.companies ??= makeCompanies(w);
@@ -136,9 +164,12 @@ export function tickCompanies(w, dt) {
     c.men = menOf(w, c);
     if (!H?.alive || c.men < 3) {
       if (c.employer === 0 && c.men < 3) w.log(`${Name(c)} are no more: too few left to call a company.`, 1);
+      pull(w, c);   // its last men go too (stragglers, or a broken house's), not left standing unpaid under its name
       c.employer = null; c.back = w.time + REFORM * 2; c.men = c.size;
       continue;
     }
+    if (c.employer === 0 && c.men < c.size * WEAK && !c.askedWeak) { c.askedWeak = true; askWeak(w, c); }
+    if (c.men >= c.size * WEAK) c.askedWeak = false;
     const due = wage(c) * dt / 60;
     if (H.gold >= due) { H.gold -= due; c.unpaid = Math.max(0, c.unpaid - dt); if (!c.unpaid) c.grumbled = false; }
     else {

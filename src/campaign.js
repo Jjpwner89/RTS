@@ -587,7 +587,7 @@ function nextAsk() {
     if (!a.house.alive) return nextAsk();
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;
-    buttons.push(['Accept', () => { const r = a.accept(); if (r?.text) flash(r.text, true); }], ['Decline', () => a.decline()]);
+    buttons.push(['Accept', () => { const r = a.accept(); if (r?.text) flash(r.text, r.ok ?? true); }], ['Decline', () => a.decline()]);
   } else if (a.kind === 'alarm') {
     const p = a.poi;
     if (!p.town) return nextAsk();
@@ -611,6 +611,10 @@ function nextAsk() {
     box.querySelector('p').textContent = enc.kind === 'assault'
       ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${/^House /.test(ownerOf(enc.poi).name) ? ownerOf(enc.poi).name : ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${folk ? ` Outnumbered, its people will take up tools too: about ${folk} more, weak but many.` : ''}${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
       : `${army.name} (${us} men) has met ${enc.enemy.name} (${them} men).`;
+    // The odds, said plainly (world.autoOdds): both sides' numbers, and what auto-resolve would likely do.
+    const o = world.autoOdds(enc), tenths = Math.round(o.chance * 10);
+    const word = o.chance >= 0.95 ? 'all but certain to win' : o.chance >= 0.65 ? 'likely to win' : o.chance >= 0.35 ? 'a gamble' : o.chance >= 0.05 ? 'likely to fail' : 'all but certain to fail';
+    box.querySelector('p').textContent += ` Your ${us} against about ${o.them}. Auto-resolve: ${word}${tenths > 0 && tenths < 10 ? ` (about ${tenths} in 10)` : ''}${o.chance >= 0.05 ? `, and a win would cost about ${Math.max(1, Math.round(us * o.winLoss))} men` : ''}.`;
     buttons.push([enc.kind === 'assault' ? 'Storm it' : 'Fight it', () => {
       // A place is fought for in the place itself; armies on the road meet in the open.
       if (enc.kind === 'assault') { world.storm(enc); enterTown(enc.poi); } else startField(enc);
@@ -952,11 +956,11 @@ function worldPanel() {
         set('feud', foe ? `<p><b class="war">Feuding with ${foe.name}</b>: both their villages suffer, and both mind that you do nothing.</p>`
           + `<div class="row"><button data-act="v:judge" title="They are pleased; ${foe.name} is not">Judge for them</button><button data-act="v:reconcile" title="Both a little pleased">${ico('gold', '#e8c45a')} Reconcile (${RECONCILE})</button></div>` : '');
       }
-      const btn = el.querySelector('[data-f="spy"]'), can = world.canSpy(it), going = world.spies.some(s => s.at === it.id);
+      const btn = el.querySelector('[data-f="spy"]'), can = world.canSpy(it), going = world.spies.find(s => s.at === it.id);
       if (btn) {
         btn.hidden = !it.seen || it.owner === 0 || !it.eco?.buildings;
         btn.disabled = !can.ok;
-        set('spy', going ? 'A spy is on the way' : `${ico('watchtower')} Send a spy (${world.spyCost(it)} gold)${can.ok ? `<small>${Math.round(world.spyRisk(it) * 100)}% chance of being caught</small>` : `<small>${can.why}</small>`}`);
+        set('spy', going ? `${ico('watchtower')} A spy is on the way<small>back in about ${clock(Math.max(0, going.back - world.time))}</small>` : `${ico('watchtower')} Send a spy (${world.spyCost(it)} gold)${can.ok ? `<small>${Math.round(world.spyRisk(it) * 100)}% chance of being caught</small>` : `<small>${can.why}</small>`}`);
       }
     }
   }

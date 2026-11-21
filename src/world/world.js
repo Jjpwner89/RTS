@@ -894,13 +894,31 @@ export class World {
 
   defenceBonus(p) { return 1.2 * KINDS[p.kind].defence * (p.kind === 'crown' && workDone(this, 'walls') ? 1.5 : 1); }
 
-  autoResolve(enc) {
-    // Walls stormed with no ladders, ram or engines cost as dearly here as by hand (battle.js).
+  // Who an auto-resolved fight sets against you: the defenders, the folk who turn out for
+  // a place, and how much the place helps them. Walls stormed with no ladders, ram or
+  // engines cost as dearly here as by hand (battle.js).
+  autoSides(enc) {
     const p = enc.poi, walled = p && walledPlace(p);
     const bare = enc.kind === 'assault' && walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
     const folk = enc.kind === 'assault' ? turnOut(p, enc.army.units, FACTIONS[p.owner]) : [];
+    return { folk, D: [...enc.defenders, ...folk], bonus: enc.kind === 'assault' ? this.defenceBonus(p) * (bare ? 1.4 : 1) : 1, bare };
+  }
+
+  // What auto-resolve would likely do, without rolling: its chance of winning (resolve's
+  // luck is a 0.85–1.15 roll on each side) and the share of your men a win would cost.
+  autoOdds(enc) {
+    const { D, bonus, bare } = this.autoSides(enc);
+    const a = power(enc.army.units), d = power(D) * bonus, N = 24;
+    let win = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (a * (0.85 + 0.3 * (i + 0.5) / N) > d * (0.85 + 0.3 * (j + 0.5) / N)) win++;
+    const ratio = Math.min(a, d) / Math.max(a, d, 1);
+    return { us: headcount(enc.army.units), them: headcount(D), chance: win / (N * N), winLoss: 0.12 + 0.45 * ratio * ratio, bare };
+  }
+
+  autoResolve(enc) {
+    const p = enc.poi, { folk, D, bonus } = this.autoSides(enc);
     if (folk.length) this.log(`The people of ${p.name} have turned out to defend it.`);
-    const r = this.resolve(enc.army.units, [...enc.defenders, ...folk], enc.kind === 'assault' ? this.defenceBonus(enc.poi) * (bare ? 1.4 : 1) : 1);
+    const r = this.resolve(enc.army.units, D, bonus);
     r.D = sendHome(p, folk, r.D);
     this.settle(enc, r.attackerWins, r.A, r.D);
     return r.attackerWins;
@@ -1681,8 +1699,9 @@ export class World {
     if (!this.canSpy(p).ok) return false;
     FACTIONS[0].gold -= this.spyCost(p);
     const from = this.home && this.home.owner === 0 ? this.home : p;
-    this.spies.push({ at: p.id, back: this.time + 25 + Math.hypot(p.x - from.x, p.z - from.z) * 0.25 });
-    this.log(`A spy sets out for ${p.name}.`);
+    const secs = 25 + Math.hypot(p.x - from.x, p.z - from.z) * 0.25;
+    this.spies.push({ at: p.id, back: this.time + secs });
+    this.log(`A spy sets out for ${p.name} dressed as a pedlar: expect word in about ${Math.max(1, Math.round(secs / 60))} minute${secs >= 90 ? 's' : ''}.`);
     return true;
   }
   tickSpies() {

@@ -345,6 +345,13 @@ async function worldChecks(w) {
     .flatMap(a => a.path.slice(0, -1).filter(q => w.canAttack(0, q)).map(q => `${a.name} would pass ${q.name}`)));
   await check("every free place's fealty has a price", () => w.pois.filter(p => p.owner === null && p.kind !== 'camp' && p.kind !== 'crown')
     .filter(p => bad(w.treatPrice(p)) || w.treatPrice(p) <= 0).map(p => `${p.name}: ${w.treatPrice(p)}`));
+  // Round 2 fixes (2026-11-21): companies worn down are put to you, a broken one leaves
+  // nobody behind, a house paid off stays out of a league, and no goal shown is already passed.
+  const Co = await import('./world/companies.js'), Go = await import('./world/goals.js');
+  await check('a company of yours worn down to a handful is put to you', () => (w.companies || []).filter(c => c.employer === 0 && c.men >= 3 && c.men < c.size * Co.WEAK && !c.askedWeak).map(c => `${c.name}: ${c.men} of ${c.size}, never asked`));
+  await check('a broken or free company leaves nobody behind', () => (w.companies || []).filter(c => (c.employer === null || c.employer === undefined) && Co.menOf(w, c) > 0).map(c => `${c.name}: ${Co.menOf(w, c)} men still under its name`));
+  await check('a house paid tribute is in no league against you', () => (w.coalition?.members || []).filter(h => w.dip?.[h]?.paidUntil > w.time).map(h => `${w.houses[h].name}, paid until ${Math.round(w.dip[h].paidUntil)}`));
+  await check('the goal shown is not one already passed', () => Go.GOALS.slice((w.goals ?? 0) + 1).some(g => g.done(w, {})) ? [`goal ${w.goals} shown, a later one is done`] : []);
   await check('the outlaw bands come in order', () => (w.outlaws && (!Number.isInteger(w.outlaws.wave) || w.outlaws.wave < 0 || w.outlaws.wave > Riv.OUTLAWS.length)) ? [`wave ${w.outlaws.wave}`] : []);
 
   // Vassals and the Realm screen (Manager review, 2026-11-21).

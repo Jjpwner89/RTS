@@ -420,8 +420,11 @@ export class WorldView {
       const told = p.epithet && p.seen && camera.position.distanceTo(v.set(p.x, this.heightAt(p.x, p.z), p.z)) < 420 ? `<small class="epithet">${p.epithet}</small>` : '';
       // a place a vassal holds for you names them (vassals.js)
       const liege = shown === 0 && p.vassal ? w.vassals?.find(o => o.id === p.vassal) : null;
+      // a spy of yours on the way there, and when to expect the report
+      const spy = w.spies?.find(o => o.at === p.id), back = spy ? Math.max(0, Math.ceil(spy.back - w.time)) : 0;
+      const spyLine = spy ? `<small class="spy">${ico('watchtower')} your spy · back in ${Math.floor(back / 60)}:${String(back % 60).padStart(2, '0')}</small>` : '';
       const html = !p.seen ? `<b style="color:${own.color}">${ico(K.icon)} ${p.name}</b><small>unexplored</small>`
-        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
+        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>${spyLine}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46, el: o.label });

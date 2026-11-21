@@ -26,6 +26,13 @@ export const GOALS = [
 export function updateGoals(w, seen) {
   w.goals = w.goals ?? 0;
   const now = [];
-  while (w.goals < GOALS.length && GOALS[w.goals].done(w, seen)) now.push(GOALS[w.goals++]);
+  while (w.goals < GOALS.length) {
+    if (GOALS[w.goals].done(w, seen)) { now.push(GOALS[w.goals++]); continue; }
+    // Already past it: a later goal is done (a test campaign, or a lord who took a village
+    // before raising a levy). The ones skipped are ticked quietly; the later one is told.
+    const later = GOALS.findIndex((g, i) => i > w.goals && g.done(w, seen));
+    if (later < 0) break;
+    w.goals = later;
+  }
   return now;
 }
