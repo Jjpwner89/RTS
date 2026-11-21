@@ -6,6 +6,7 @@
 // (testsaves.js), so trying one never overwrites the real campaign.
 import { World, FACTIONS } from './world.js';
 import { restoreWorks } from './works.js';
+import { relayOld } from './places.js';
 
 const KEY = 'rts.campaign.save';
 export const TEST_KEY = 'rts.campaign.test';
@@ -236,6 +237,8 @@ export function loadGame(data, hooks) {
   w.home = FACTIONS[0].seat || w.home;
   if (w.works) restoreWorks(w);
   for (const s of data.towns) unpackTown(w, w.pois[s.i], s);
+  // places remembered under the old layout rule are laid out anew, once (places.js)
+  relayOld(w);
   w.encounter = null;
   w.hooks = hooks;
   w.updateVision();

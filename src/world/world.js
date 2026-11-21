@@ -916,6 +916,9 @@ export class World {
     // their walls, with a gate on every road. Walls broken in a storm stay broken a while.
     const walledR = layPlace(town, p, 1, { mended: !p.mem || this.time - p.mem.at > 240 });
     p.mem = null;
+    // its numbers' walls are the walls that stand (remembered ones may be a lord's own work)
+    const stood = town.battle.walls.pieces.find(q => q.side === 1);
+    if (p.eco?.walls) p.eco.walls = stood ? stood.material : 'none';
     const walled = walledR > 0;
     town.keepLevel = town.keepLevel || keepLevelFor(p);
     const H = owner === null ? NEUTRAL : FACTIONS[owner];

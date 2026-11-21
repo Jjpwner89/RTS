@@ -30,7 +30,7 @@ const FIELDS = new Set(['farm', 'flax']);
 // What stands in a castle's bailey, when the place has it.
 const BAILEY = ['barracks', 'stable', 'hall', 'siegeworks', 'weaponsmith', 'armourer', 'storehouse', 'well'];
 // The open square at the heart of a town, by kind: a market town's is the biggest.
-const SQUARE = { village: 9, market: 16, ford: 10, mine: 8, monastery: 9, seat: 12, crown: 18, castle: 0 };
+const SQUARE = { village: 9, market: 16, ford: 10, mine: 8, monastery: 9, seat: 12, crown: 18, castle: 7 };
 const HOUSE_STYLES = 6;   // picked per house; the views take it modulo their own count
 
 const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -113,6 +113,8 @@ export function grownLevels(town, e) {
 
 // A place keeps its streets and walls when it changes hands: what stood is put back up
 // the next time anyone fights there. Burned buildings and unfinished sites are gone.
+// (`v` is the layout rule it was kept under: older ones are laid out afresh, see relayOld)
+const LAYOUT = 2;
 export function remember(t, side, time) {
   const W = t.battle.walls, idx = new Map();
   const nodes = W.nodes.filter(n => n.side === side).map((n, i) => {
@@ -121,7 +123,7 @@ export function remember(t, side, time) {
   });
   const pieces = W.pieces.filter(p => p.side === side && p.state !== 'site' && idx.has(p.a) && idx.has(p.b))
     .map(p => ({ a: idx.get(p.a), b: idx.get(p.b), material: p.material, gate: p.gate, broken: p.state === 'broken' }));
-  return { at: time, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, centre: W.centre[side], lanes: t.lanes || [],
+  return { v: LAYOUT, at: time, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, centre: W.centre[side], lanes: t.lanes || [],
     buildings: t.buildings.filter(b => b.state === 'active').map(b => ({ kind: b.kind, x: b.x, z: b.z, level: b.level || 1, angle: b.angle, style: b.style })), nodes, pieces };
 }
 
@@ -159,10 +161,11 @@ export function rebuild(town, mem, side, mended) {
 // ---- planning ----
 
 // Streets: polylines with a half-width and a cost (main streets cheapest, so they fill first).
-function makeStreets(t, roads, sq, inner, rand, extra = []) {
+// A castle's burgh (`burgh`) lives along the one road to its gate: the other roads come last.
+function makeStreets(t, roads, sq, inner, rand, extra = [], burgh = false) {
   const out = [];
   const line = (a, r0, r1) => [{ x: Math.sin(a) * r0, z: Math.cos(a) * r0 }, { x: Math.sin(a) * r1, z: Math.cos(a) * r1 }];
-  for (const a of roads) out.push({ pts: line(a, inner, 165), half: STREET, cost: 0, main: true });
+  roads.forEach((a, i) => out.push({ pts: line(a, inner, 165), half: STREET, cost: burgh && i ? 90 : 0, main: !burgh || !i, road: true }));
   // With one road in, the street runs on through the village the other way a little.
   if (roads.length === 1) out.push({ pts: line(roads[0] + Math.PI, inner, 85), half: LANE, cost: 6 });
   // The square's edge is a street too: houses and shops face onto it.
@@ -188,7 +191,7 @@ function makeStreets(t, roads, sq, inner, rand, extra = []) {
         let len = 0;
         for (let d = 6; d <= 40; d += 2) {
           const x = o.x + nx * d, z = o.z + nz * d;
-          if (mains.some(m => m !== s && nearLine(x, z, m.pts) < 16) || (sq && hyp(x - sq.x, z - sq.z) < sq.r + 8)) break;
+          if (out.some(m => m.road && m !== s && nearLine(x, z, m.pts) < 16) || (sq && hyp(x - sq.x, z - sq.z) < sq.r + 8)) break;
           len = d;
         }
         if (len >= 18) out.push({ pts: [o, { x: o.x + nx * len, z: o.z + nz * len }], half: LANE, cost: 10 + along * 0.05 });
@@ -196,7 +199,7 @@ function makeStreets(t, roads, sq, inner, rand, extra = []) {
     }
   }
   // A ring lane joins streets that are far apart, round the old town.
-  const sorted = [...roads].sort((a, b) => a - b);
+  const sorted = burgh ? [] : [...roads].sort((a, b) => a - b);
   for (let i = 0; i < sorted.length && sorted.length > 1; i++) {
     const a = sorted[i], b = sorted[(i + 1) % sorted.length], gap = ((b - a) % TAU + TAU) % TAU;
     if (gap < 1.2) continue;
@@ -241,15 +244,17 @@ function frontage(streets, r, step = 2.5) {
 
 // Plans place p: returns its layout in the remembered form (see remember) plus what could not
 // be placed. Built on a throwaway village; deterministic for the same place and numbers.
-function plan(p) {
+// `fresh` plans it anew over what is remembered, to `tally` and `walls` ('none', 'wood' or
+// 'stone') when given.
+function plan(p, { fresh = false, tally = null, walls = null } = {}) {
   const t = site(p), rand = rng(p.seed + 101), kind = kindOf(p);
   const roads = t.roadAngles.length ? t.roadAngles : [0];
   const main = roads[0];
   const unplaced = [];
-  const want = tallyOf(p);
+  const want = tally ? { ...tally } : tallyOf(p);
   // What is remembered stands where it stood; only what it lacks is new.
   let kept = false;
-  if (p.mem) {
+  if (p.mem && !fresh) {
     rebuild(t, p.mem, 1, false);
     kept = true;
     for (const b of p.mem.buildings) if (want[b.kind] > 0) want[b.kind]--;
@@ -317,7 +322,8 @@ function plan(p) {
       sorted.forEach((x, i) => { const y = sorted[(i + 1) % sorted.length], g = ((y - x) % TAU + TAU) % TAU || TAU; if (g > best) { best = g; gapA = x + g / 2; } });
       a = gapA;
     }
-    const d = inner + sr + (kind === 'monastery' ? 2 : 0);
+    // (a castle's market place stands a little out from its gate)
+    const d = inner + sr + (kind === 'monastery' ? 2 : kind === 'castle' ? 14 : 0);
     sq = { x: Math.sin(a) * d, z: Math.cos(a) * d, r: sr, a, court: kind === 'monastery' };
     zones.push(sq);
   }
@@ -327,7 +333,7 @@ function plan(p) {
     const a = Math.atan2(lode.x, lode.z), d = hyp(lode.x, lode.z) - 16;
     if (d > inner + 12) extra.push({ pts: [{ x: Math.sin(a) * inner, z: Math.cos(a) * inner }, { x: Math.sin(a) * d, z: Math.cos(a) * d }], half: STREET, cost: -4, main: true, ore: true });
   }
-  streets = makeStreets(t, roads, sq, inner, rand, extra);
+  streets = makeStreets(t, roads, sq, inner, rand, extra, kind === 'castle');
   for (const s of streets) if (s.square) s.c = sq;
 
   // ---- round the square: well, market, chapel, cathedral, a store ----
@@ -429,8 +435,8 @@ function plan(p) {
   for (const k of ['tanner', 'smelter', 'mill', 'watchtower']) for (let n = count(k); n > 0; n--) if (onStreet(k, true)) take(k); else break;
 
   // ---- walls round the town ----
-  const material = wallMaterial(p);
-  if (!kept && walledPlace(p)) {
+  const material = walls && walls !== 'none' ? walls : wallMaterial(p);
+  if (!kept && (walls ? walls !== 'none' : walledPlace(p))) {
     const W = t.battle.walls;
     if (castle) ring(t, W, roads, bearing => curtainAt(t, bearing, curtain), material, rand, { gatehouse: true });
     // a seat and the royal city: a walled town round the castle (a castle alone keeps its village outside)
@@ -457,7 +463,8 @@ function plan(p) {
     const edge = Math.max(wallR(a) + 4, edgeAt(coreB, a, KEEP_CLEAR + 8, sq));
     for (let k = 0; k < 6; k++) {
       const r = edge + 12 + k * 20;
-      fieldSpots.push({ x: Math.sin(a) * r, z: Math.cos(a) * r, angle: a, rank: k * 1000 + Math.abs(angDiff(a, main + Math.PI)) });
+      // behind the town, away from the road in; a castle's beside its burgh, out along the road
+      fieldSpots.push({ x: Math.sin(a) * r, z: Math.cos(a) * r, angle: a, rank: k * 1000 + Math.abs(angDiff(a, kind === 'castle' ? main : main + Math.PI)) });
     }
   }
   fieldSpots.sort((a, b) => a.rank - b.rank);
@@ -487,7 +494,7 @@ function plan(p) {
     }
   }
   // The lanes as far as anything stands on them (an empty lane is no lane).
-  if (!kept) t.lanes = streets.filter(s => (!s.main || s.ore) && !s.square).map(s => lanePart(s, t.buildings)).filter(Boolean);
+  if (!kept) t.lanes = streets.filter(s => (!s.road || s.ore) && !s.square).map(s => lanePart(s, t.buildings)).filter(Boolean);
   // ... and an abbey's cloister walk round its court
   const court = streets.find(s => s.court);
   if (court && !kept) t.lanes.push({ pts: court.pts.map(q => [Math.round(q.x * 10) / 10, Math.round(q.z * 10) / 10]), width: 3 });
@@ -652,6 +659,12 @@ export function layPlace(town, p, side, { mended = true } = {}) {
   const L = layoutOf(p);
   rebuild(town, L, side, mended);
   town.lanes = L.lanes;
+  // its yards and lanes are clear of trees (a building fells only those it stands on)
+  const yards = town.buildings.filter(b => !GATHER.has(b.kind) && !FIELDS.has(b.kind));
+  const lanes = L.lanes.map(l => ({ pts: l.pts.map(([x, z]) => ({ x, z })), w: l.width / 2 + 1.5 }));
+  for (const t of town.nodes.tree) {
+    if (t.standing && (yards.some(b => hyp(b.x - t.x, b.z - t.z) < b.B.radius + 5) || lanes.some(l => nearLine(t.x, t.z, l.pts) < l.w))) town.trees.fell(t);
+  }
   // its keep is the one the place shows on the map: a castle's stays a castle's whoever holds it
   if (!town.keepLevel && L.keepShown) {
     town.keepPeak = Math.max(town.keepPeak || 1, L.keepShown);
@@ -660,6 +673,94 @@ export function layPlace(town, p, side, { mended = true } = {}) {
   if (L.unplaced.length) town.event(`No room was found in ${p.name} for: ${L.unplaced.join(', ')}.`, side);
   const mine = town.battle.walls.pieces.filter(q => q.side === side);
   return mine.length ? Math.max(...mine.map(q => hyp(q.x, q.z))) : 0;
+}
+
+// ---- places remembered under the old rule ----
+
+// A place remembered before this generator (saves from before 21 Nov 2026) is laid out
+// afresh, once, when the save loads. It keeps its owner, its numbers (people, stock and
+// tally: these aren't touched), its buildings' levels, its keep, and its damage: a stretch
+// of wall broken then is broken in the new wall on that side. Walls a player built (anything
+// but the old six- or eight-sided fort a storm put up) stand as they were, with the
+// streets inside them. What can't be carried over is said, in the console and the log.
+export function relayOld(w) {
+  const said = [];
+  for (const p of w.pois) {
+    const old = p.mem;
+    if (!old) continue;
+    // (kept under this rule already, before it was marked; or a village in hand)
+    const lost = old.v >= LAYOUT || old.lanes || p.town ? [] : relayOne(p, old);
+    p.mem.v = LAYOUT;
+    // its numbers' walls are the walls that stand
+    const m = p.mem.pieces.find(q => !q.broken) || p.mem.pieces[0];
+    if (p.eco?.walls) p.eco.walls = m ? m.material : 'none';
+    cache.delete(p);
+    for (const what of lost) {
+      const text = `${p.name}, laid out anew: ${what}.`;
+      console.warn(`places.js: ${text}`);
+      w.log(text);
+      said.push(text);
+    }
+  }
+  return said;
+}
+
+function relayOne(p, old) {
+  const lost = [], c = old.centre || { x: 0, z: 0 };
+  const bearing = q => Math.atan2(q.x - c.x, q.z - c.z);
+  // the old storm's fort: a hexagon at 24 m (an octagon at 30 m round Kingsbridge), its
+  // corners on the circle and the runs between them inside it
+  const fort = old.pieces.length > 0 && [24, 30].some(R => old.nodes.every(n => {
+    const d = hyp(n.x - c.x, n.z - c.z);
+    return d > R * 0.86 - 1 && d < R + 1;
+  }));
+  if (old.pieces.length && !fort) {
+    old.lanes = [];
+    console.info(`places.js: ${p.name} keeps its hand-built walls and the streets inside them`);
+    return lost;
+  }
+  // its tally: its numbers, or what stood if it has none
+  let tally = null;
+  if (!p.eco?.buildings) {
+    tally = {};
+    for (const b of old.buildings) if (BUILDINGS[b.kind]) tally[b.kind] = (tally[b.kind] || 0) + 1;
+      else lost.push(`no ${b.kind} is built any more`);
+  }
+  const was = old.pieces.find(q => !q.broken) || old.pieces[0];
+  const walls = was ? was.material : null;
+  const L = plan(p, { fresh: true, tally, walls });
+  for (const k of L.unplaced) lost.push(`no room for its ${k}`);
+  // levels go to the buildings of each kind nearest the keep, the best first
+  const levels = {};
+  for (const b of old.buildings) (levels[b.kind] ||= []).push(b.level || 1);
+  for (const [k, ls] of Object.entries(levels)) {
+    ls.sort((a, b) => b - a);
+    const now = L.buildings.filter(b => b.kind === k).sort((a, b) => hyp(a.x, a.z) - hyp(b.x, b.z));
+    now.forEach((b, i) => { if (ls[i] > 1) b.level = ls[i]; });
+    const unmatched = ls.slice(now.length).filter(l => l > 1).length;
+    if (unmatched) lost.push(`${unmatched} raised ${k}${unmatched > 1 ? 's' : ''} no longer stand${unmatched > 1 ? '' : 's'}`);
+  }
+  // damage: the new wall is broken where the old one was, by bearing from the keep
+  const spans = old.pieces.filter(q => q.broken).map(q => {
+    const a = bearing(old.nodes[q.a]), b = bearing(old.nodes[q.b]), mid = a + angDiff(b, a) / 2;
+    return { mid, half: Math.abs(angDiff(b, a)) / 2 + 0.05, hit: false };
+  });
+  for (const q of L.pieces) {
+    const a = L.nodes[q.a], b = L.nodes[q.b], m = Math.atan2((a.x + b.x) / 2, (a.z + b.z) / 2);
+    const s = spans.find(o => Math.abs(angDiff(m, o.mid)) < o.half);
+    if (s) { q.broken = true; s.hit = true; }
+  }
+  const missed = spans.filter(s => !s.hit).length;
+  if (missed) lost.push(`${missed} broken stretch${missed > 1 ? 'es' : ''} of wall had no new wall to fall on`);
+  const towers = L.nodes.filter(n => n.tower);
+  for (const o of old.nodes.filter(n => n.tower?.broken)) {
+    const ob = bearing(o), t = towers.filter(n => !n.tower.broken).sort((x, y) => Math.abs(angDiff(Math.atan2(x.x, x.z), ob)) - Math.abs(angDiff(Math.atan2(y.x, y.z), ob)))[0];
+    if (t && Math.abs(angDiff(Math.atan2(t.x, t.z), ob)) < 0.5) t.tower.broken = true;
+    else lost.push('a broken tower had no new tower to stand for it');
+  }
+  const { unplaced, ms, ...mem } = L;
+  p.mem = { ...mem, at: old.at, v: LAYOUT };
+  return lost;
 }
 
 // ---- checking ----
@@ -676,6 +777,10 @@ export function checkPlaces(w) {
     for (const [k, n] of Object.entries(want)) if ((have[k] || 0) < n) out.push(`${p.name}: ${k} ${have[k] || 0} of ${n} laid out`);
     if (L.unplaced.length) out.push(`${p.name}: no room for ${L.unplaced.join(', ')}`);
     if (walledPlace(p) !== L.pieces.length > 0) out.push(`${p.name}: walled by its numbers ${walledPlace(p)}, ${L.pieces.length} wall pieces laid out`);
+    // what is remembered standing and what its numbers say agree (the map and the realm go by both)
+    if (p.mem && p.eco?.walls && (p.eco.walls !== 'none') !== p.mem.pieces.length > 0)
+      out.push(`${p.name}: its numbers say ${p.eco.walls} walls, ${p.mem.pieces.length} wall pieces remembered`);
+    if (p.mem && p.mem.v !== LAYOUT) out.push(`${p.name}: remembered under an old layout rule`);
     const mat = wallMaterial(p);
     if (L.pieces.length && L.pieces.some(q => q.material !== mat)) out.push(`${p.name}: walls should be ${mat}`);
     // a town in hand (stormed or looked round) shows exactly its layout
