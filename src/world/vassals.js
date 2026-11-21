@@ -15,6 +15,7 @@
 import { worksPride } from './works.js';
 import { decreeOpinion, decreed } from './decrees.js';
 import { PAINTED } from './events.js';
+import { BUILDINGS } from '../economy.js';
 
 export const DUES = [
   { name: 'Light', share: 0.15, mood: 10 },
@@ -522,11 +523,12 @@ const PETITIONS = {
   build: {
     when: (w, v) => v.gold >= 80,
     make: (w, v, p) => {
-      const k = ['chapel', 'market', 'well'].find(b => !p.eco?.buildings?.[b]) || 'house';
-      const what = { chapel: 'a chapel', market: 'a market', well: 'a well', house: 'new houses' }[k];
+      // BUILDINGS keys only: the chapel is `monastery` (a made-up kind froze the map, 2026-11-21)
+      const k = ['monastery', 'market', 'well'].find(b => !p.eco?.buildings?.[b]) || 'house';
+      const what = { monastery: 'a chapel', market: 'a market', well: 'a well', house: 'new houses' }[k];
       return { title: `${v.name} asks leave to build`, text: `${v.name} would raise ${what} at ${p.name} from their own purse, and asks your leave.`,
         choices: [
-          { label: 'Give your leave', need: () => v.gold < 60 && `${v.name} no longer has the 60 gold to build with`, run: () => { v.gold -= 60; if (p.eco?.buildings) p.eco.buildings[k] = (p.eco.buildings[k] || 0) + 1; mark(w, v, 6, 'You let them build', 1200); remember(w, v, `Built ${what} at ${p.name}`); return `${v.name} builds ${what} at ${p.name}.`; } },
+          { label: 'Give your leave', need: () => v.gold < 60 && `${v.name} no longer has the 60 gold to build with`, run: () => { v.gold -= 60; if (p.eco?.buildings && BUILDINGS[k]) p.eco.buildings[k] = (p.eco.buildings[k] || 0) + 1; mark(w, v, 6, 'You let them build', 1200); remember(w, v, `Built ${what} at ${p.name}`); return `${v.name} builds ${what} at ${p.name}.`; } },
           { label: 'Forbid it', run: () => { mark(w, v, -6, 'You forbade them to build', 1200); return `${v.name} is told no.`; } },
         ] };
     },

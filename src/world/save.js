@@ -7,6 +7,7 @@
 import { World, FACTIONS } from './world.js';
 import { restoreWorks } from './works.js';
 import { relayOld } from './places.js';
+import { BUILDINGS } from '../economy.js';
 
 const KEY = 'rts.campaign.save';
 export const TEST_KEY = 'rts.campaign.test';
@@ -151,6 +152,8 @@ function unpackTown(w, p, s) {
     if (n && left !== null && left !== undefined) { n.left = left; if (left <= 0) n.standing = false; }
   });
   for (const b of s.buildings) {
+    if (!BUILDINGS[b.kind] && RENAMED[b.kind]) b.kind = RENAMED[b.kind];
+    if (!BUILDINGS[b.kind]) { console.warn(`[save] ${p.name}: dropped a '${b.kind}', not a building`); continue; }
     const r = t.place(b.kind, b.x, b.z, { ready: true });
     const nb = r.building;
     if (!nb) continue;
@@ -202,6 +205,19 @@ function unpackTown(w, p, s) {
 
 // ---- loading ----
 
+// A place's building numbers hold BUILDINGS kinds only. Saves from before 2026-11-21 may hold
+// a vassal's 'chapel' (the chapel is `monastery`), which froze the map on every frame.
+const RENAMED = { chapel: 'monastery' };
+export function fixKinds(tally, where) {
+  for (const k of Object.keys(tally)) {
+    if (BUILDINGS[k]) continue;
+    const to = RENAMED[k], n = tally[k];
+    delete tally[k];
+    if (to) tally[to] = (tally[to] || 0) + n;
+    console.warn(`[save] ${where}: building kind '${k}' ${to ? `is now '${to}'` : 'is not a building; dropped'} (${n})`);
+  }
+}
+
 export function loadGame(data, hooks) {
   // The map from its seed, quietly: no heralds while it is being put back.
   const quiet = { ...hooks, herald: () => {}, offer: () => {}, ask: () => {}, townAttacked: () => {} };
@@ -226,6 +242,7 @@ export function loadGame(data, hooks) {
     for (const k of DYNAMIC) if (!(k in p)) delete live[k];
     Object.assign(live, dec(p));
   });
+  for (const p of w.pois) if (p.eco?.buildings) fixKinds(p.eco.buildings, p.name);
   for (const a of data.armies) Object.assign(armyById.get(a.id), dec(a));
   // Fights waiting on a decision are not saved; their armies are free to move again.
   for (const a of w.armies) a.halted = false;

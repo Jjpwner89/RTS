@@ -330,6 +330,10 @@ async function worldChecks(w) {
   await check('titles are real and named', () => kept.filter(v => !Number.isInteger(v.title ?? 0) || (v.title || 0) < 0 || (v.title || 0) >= V.TITLES.length || !v.name.startsWith(`${V.titleName(v)} `))
     .map(v => `${v.name}: title ${v.title}`));
   await check("no vassal's purse below nothing", () => kept.filter(v => bad(v.gold) || v.gold < -1e-6).map(v => `${v.name}: ${v.gold} gold`));
+  // Every building in a place's numbers is a real kind: a made-up 'chapel' froze the map (2026-11-21).
+  const { BUILDINGS } = await import('./economy.js');
+  await check("every place's building kinds are real", () => w.pois.filter(p => p.eco?.buildings).flatMap(p =>
+    Object.keys(p.eco.buildings).filter(k => !BUILDINGS[k]).map(k => `${p.name}: '${k}'`)));
   // A petition you can't afford lights up when the purse fills while it waits (QC, 2026-11-21).
   // Nothing is chosen; the purse is put back.
   await check("a petition's cost is read live", () => {
