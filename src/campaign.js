@@ -768,8 +768,10 @@ function worldPanel() {
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
         + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
-        + (own ? (q => q.length ? `<div class="runs"><p class="note">Send half its spare food and building goods, and four families if it can spare them, to another of your villages.</p>`
-          + q.map(o => `<button data-act="run:${o.id}" class="wide" data-f="run${o.id}">${ico('village')} Supply run to ${o.name}</button>`).join('') + '</div>' : '')(world.pois.filter(o => o !== it && o.owner === 0 && o.town).sort((a, b) => Math.hypot(a.x - it.x, a.z - it.z) - Math.hypot(b.x - it.x, b.z - it.z)).slice(0, 4)) : '')
+        // (creator, 2026-11-20) Supplies are asked for by the village that needs them: another
+        // of your villages sends half its spare food and building goods here.
+        + (own ? (q => q.length ? `<div class="runs"><p class="note">Ask another of your villages for supplies: it sends half its spare food and building goods here, and four families if it can spare them.</p>`
+          + q.map(o => `<button data-act="run:${o.id}" class="wide" data-f="run${o.id}">${ico('village')} Ask ${o.name} for supplies</button>`).join('') + '</div>' : '')(world.pois.filter(o => o !== it && o.owner === 0 && o.town).sort((a, b) => Math.hypot(a.x - it.x, a.z - it.z) - Math.hypot(b.x - it.x, b.z - it.z)).slice(0, 4)) : '')
         + (own && world.rank !== 'Reeve' && world.home !== it ? `<div class="grant"><p class="note">Give it to a vassal to run for you: a share of its gold and men, and one less village to watch. You can take it back.</p>`
           + `<button data-act="grant" class="wide" data-f="grant">${ico('crown')} Give it to a new vassal</button>`
           + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('')
@@ -868,7 +870,7 @@ function worldPanel() {
     if (it.town) {
       const can = world.canGrant(it);
       for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; b.title = can.ok ? can.warn || '' : can.why; b.classList.toggle('warn', !!can.warn); }
-      for (const b of el.querySelectorAll('[data-act^="run:"]')) { const r = runCheck(world, it, world.byId[b.dataset.act.slice(4)]); b.disabled = !r.ok; b.title = r.ok ? loadText(r.load) : r.why; }
+      for (const b of el.querySelectorAll('[data-act^="run:"]')) { const r = runCheck(world, world.byId[b.dataset.act.slice(4)], it); b.disabled = !r.ok; b.title = r.ok ? `It would send ${loadText(r.load)}` : r.why; }
       set('men', `${it.town.atWork} at work · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers${it.town.underArms ? `, ${it.town.underArms} of them levies` : ''}`);
       set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
       const mb = el.querySelector('[data-act="muster"]'), men = it.town.garrison().reduce((n, r) => n + r.alive, 0);
@@ -989,7 +991,7 @@ $('wpanel').onclick = e => {
   if (act?.startsWith('decree:')) { const r = toggleDecree(world, act.slice(7)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('work:')) { const r = startWork(world, it, act.slice(5)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('buy:') && it) { const r = buy(world, it, act.slice(4)); flash(r.ok ? r.text : r.why, r.ok); }
-  if (act?.startsWith('run:')) { const r = sendRun(world, it, world.byId[act.slice(4)]); flash(r.ok ? `The wagon sets out: ${loadText(r.wagon.wagon)}.` : r.why, r.ok); }
+  if (act?.startsWith('run:')) { const from = world.byId[act.slice(4)], r = sendRun(world, from, it); flash(r.ok ? `A wagon sets out from ${from.name}: ${loadText(r.wagon.wagon)}.` : r.why, r.ok); }
   if (act?.startsWith('escort:')) { const c = world.armies.find(a => a.id === +act.slice(7)); if (!escort(world, it, c)) flash('That caravan is gone.'); panelKey = null; }
   if (act === 'wagon' && it.units && !it.wagon && !it.gone) { if (!sendWagon(world, it)) flash('No village has food to spare.'); }
 };
