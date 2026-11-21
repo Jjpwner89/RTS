@@ -2098,7 +2098,14 @@ export class Battle {
         const onGoal = (goal.perch || null) === (s.perch || null) || (goal.perch && s.level === 1 && s.perch === goal.perch);
         if (onGoal) { r._lagSum += d; r._lagN++; }
         else { r._lagSum += 6; r._lagN++; }
-        if (!onGoal || d > 0.15) this.travel(s, goal, T.speed * (d > 2 || !onGoal ? 1.35 : 1.08) * (FORMATIONS[r.formation]?.speed || 1), dt);
+        // Far off, he hurries to his place. Near it he keeps step with it as it moves (on the
+        // march or in a wheel), closing what gap is left smoothly, so he never halts a step to
+        // let it catch up; only a place that stands still lets him stop just short of it.
+        const gv = s.gpx === undefined || !(dt > 0) ? 0 : Math.min(20, Math.hypot(goal.x - s.gpx, goal.z - s.gpz) / dt);
+        s.gpx = goal.x; s.gpz = goal.z;
+        const full = T.speed * (FORMATIONS[r.formation]?.speed || 1) * 1.35;
+        const sp = d > 2 || !onGoal ? full : Math.min(full, gv / Math.max(0.2, this.paceOf(r)) + d * 2 + 0.05);
+        if (!onGoal || d > (gv > 0.05 ? 0.01 : 0.15)) this.travel(s, goal, sp, dt);
         if (onGoal && d < 0.8) {
           const face = goal.face ?? (r.posts ? r.angle : r.angle);
           s.yaw = turnToward(s.yaw, face, dt * 4);
