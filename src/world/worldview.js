@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
-import { part, box, keepModel, heartModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD, soldierClip } from '../view.js';
+import { part, box, keepModel, heartModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, campModel, SKIN, WOOD, soldierClip } from '../view.js';
 import { deposit } from '../townview.js';
 import { animGeometry, animMaterial, animDepthMaterial, setClip, clipOf, gaitFor } from '../anim.js';
 import { unitModel, unitLook, hasLevels, buildingModel, HOUSE_STYLES } from '../models.js';
@@ -680,7 +680,7 @@ export class WorldView {
       centre = this.miniature(put, heart(keepLevelOf(t)), t.buildings.filter(b => b.state === 'active'), worked(t),
         W.pieces.filter(q => q.state !== 'site').map(q => ({ a: q.a, b: q.b, material: q.material, gate: q.gate, broken: q.state === 'broken' })),
         W.nodes.filter(n => n.tower && n.tower.state !== 'site').map(n => ({ x: n.x, z: n.z, material: n.tower.material, broken: n.tower.state === 'broken' })));
-    } else if (!['pass', 'warcamp'].includes(p.kind) && p.seen) {
+    } else if (p.seen) {
       // anyone else's place: the same layout you would find there (places.js), in miniature
       const L = layoutOf(p);
       centre = this.miniature(put, heart(L.keepShown || level), L.buildings, L.deposits || [],
@@ -782,7 +782,7 @@ export class WorldView {
       const base = b.kind === 'house' ? `house.${(b.style || 0) % HOUSE_STYLES}` : b.kind === 'monastery' ? 'chapel' : b.kind;
       let geo = null;
       for (let l = b.level || 1; l > 1 && !geo; l--) geo = buildingModel(`${base}.${l}`);
-      geo ||= b.kind === 'house' ? houseModel(b.style || 0) : buildingModel(base) || buildingModel(b.kind);
+      geo ||= b.kind === 'house' ? houseModel(b.style || 0) : buildingModel(base) || buildingModel(b.kind) || campModel(b.kind);
       const q = at(b);
       put(geo, q.x, q.z, b.angle || 0, M);
     }

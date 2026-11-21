@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, heartModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
+import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, heartModel, keepTop, houseModel, campModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
 import { BUILDINGS } from './economy.js';
@@ -242,7 +242,7 @@ export class TownView {
     // (a village's chapel is the monastery kind, drawn as the smaller timber chapel)
     const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind === 'monastery' ? 'chapel' : kind === 'cathedral' && !buildingModel('cathedral') ? 'monastery' : kind;
     for (let l = level; l > 1; l--) if (buildingModel(`${base}.${l}`)) return this.cached(`${base}.${l}`, () => buildingModel(`${base}.${l}`));
-    return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(base) || buildingModel(kind)) || (MODELS[kind] || MODELS.storehouse)());
+    return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(base) || buildingModel(kind)) || campModel(kind) || (MODELS[kind] || MODELS.storehouse)());
   }
   cached(key, make) { return this.geos[key] || (this.geos[key] = make()); }
 
