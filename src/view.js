@@ -11,7 +11,7 @@ import { fxFor } from './fx.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
-const kitOf = r => `${r.vet || 0}|${r.armour || ''}`;
+const kitOf = r => `${r.vet || 0}|${r.armour || ''}|${r.group || ''}`;   // what its banner shows (redrawn when it changes)
 const lookKey = s => s.look || (s.reg.armour || s.reg.shield === false ? `${s.reg.T.key}|${s.reg.armour || ''}|${s.reg.shield !== false}` : s.reg.T.key);
 
 // Units without their own model or icon borrow the nearest one (battle.js lookChain).
@@ -335,11 +335,20 @@ function bannerTexture(colour, key, selected, r = {}) {
   ctx.beginPath();
   ctx.moveTo(6, 6); ctx.lineTo(58, 6); ctx.lineTo(58, 50); ctx.lineTo(32, 74); ctx.lineTo(6, 50); ctx.closePath();
   ctx.fillStyle = colour;
+  if (selected) { ctx.shadowColor = '#ffd970'; ctx.shadowBlur = 9; }   // chosen: it glows gold
   ctx.fill();
   ctx.lineWidth = selected ? 6 : 3;
   ctx.strokeStyle = selected ? '#ffd970' : 'rgba(20,16,12,0.85)';
   ctx.stroke();
+  ctx.shadowBlur = 0;
   drawIcon(ctx, key, 32, 34, 34);
+  // its control group (controls.js: Ctrl + a number), in a chip at the top left
+  if (r.group) {
+    ctx.beginPath(); ctx.arc(13, 13, 11, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(20,16,12,0.9)'; ctx.fill();
+    ctx.fillStyle = '#f2ead8'; ctx.font = 'bold 15px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(r.group), 13, 14);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const vet = Math.min(3, r.vet || 0), armour = r.armour && r.armour !== 'none' ? r.armour : null;
@@ -627,7 +636,7 @@ export class BattleView {
       if (sel !== bn.selected) {
         bn.selected = sel;
         bn.sprite.material.map = bn.tex[sel ? 1 : 0];
-        bn.sprite.scale.set(sel ? 0.038 : 0.032, sel ? 0.0475 : 0.04, 1);
+        bn.sprite.scale.set(sel ? 0.046 : 0.032, sel ? 0.0575 : 0.04, 1);
       }
       bn.sprite.material.opacity = r.routing ? 0.45 + 0.3 * Math.sin(b.time * 6) : 1;
     }
@@ -635,17 +644,44 @@ export class BattleView {
     this.fx.battle(b, this, selection);   // fx
   }
 
-  // Rectangles on the ground: where selected regiments stand, and where they are heading.
+  // Marks on the ground: where selected regiments stand, where they are heading, and whom they attack. Each is a
+  // band, not a line (WebGL lines are a pixel thin), with a faint fill for a footprint; bands widen with the
+  // camera's distance, so they read from a storm's height.
   drawOutlines(selection) {
-    for (const o of this.outlines.children) { o.geometry.dispose(); o.material.dispose(); }
+    for (const o of this.outlines.children) o.geometry.dispose();
     this.outlines.clear();
+    const cam = LOD.camera?.position;
+    this.markWidth = r => Math.max(0.3, Math.min(2.4, (cam ? cam.distanceTo(new THREE.Vector3(r.cx ?? r.x, 0, r.cz ?? r.z)) : 60) * 0.009));
     for (const r of selection) {
       if (r.gone || r.routing) continue;
       this.addRect(r, r.x, r.z, r.angle, r.files, r.side === 0 ? '#ffd970' : '#ff7a6a', 1);
-      if (r.dest && !r.targetReg) this.addRect(r, r.dest.x, r.dest.z, r.dest.angle, r.files, '#9fe6a0', 0.7);
-      if (r.targetReg && !r.targetReg.gone) this.addLine(r.cx, r.cz, r.targetReg.cx, r.targetReg.cz, '#ff5a4a');
+      if (r.dest && !r.targetReg) this.addRect(r, r.dest.x, r.dest.z, r.dest.angle, r.files, '#9fe6a0', 0.8);
+      if (r.targetReg && !r.targetReg.gone) this.addLine(r, r.cx, r.cz, r.targetReg.cx, r.targetReg.cz, '#ff5a4a');
     }
     for (const p of this.preview) this.addRect(p.r, p.x, p.z, p.angle, p.files, '#ffffff', 0.85);
+  }
+  // one material per colour and strength, kept (the marks are redrawn every frame)
+  markMaterial(color, opacity) {
+    const key = color + opacity;
+    this.markMats ??= new Map();
+    if (!this.markMats.has(key)) this.markMats.set(key, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+    return this.markMats.get(key);
+  }
+  // A flat band through ground points [x, z] (closed: back round to the first), `w` wide, lying on the ground.
+  addBand(pts, w, closed, material) {
+    const n = pts.length, pos = new Float32Array(n * 6), idx = [];
+    pts.forEach(([x, z], i) => {
+      const a = pts[closed ? (i + n - 1) % n : Math.max(0, i - 1)], b = pts[closed ? (i + 1) % n : Math.min(n - 1, i + 1)];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / len * w / 2, nz = (b[0] - a[0]) / len * w / 2;
+      pos.set([x + nx, this.heightAt(x + nx, z + nz) + 0.35, z + nz, x - nx, this.heightAt(x - nx, z - nz) + 0.35, z - nz], i * 6);
+    });
+    for (let i = 0; i < (closed ? n : n - 1); i++) { const j = (i + 1) % n; idx.push(i * 2, i * 2 + 1, j * 2, i * 2 + 1, j * 2 + 1, j * 2); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    const m = new THREE.Mesh(g, material);
+    m.renderOrder = 5;
+    this.outlines.add(m);
   }
 
   addRect(r, x, z, angle, files, color, opacity) {
@@ -655,30 +691,32 @@ export class BattleView {
     const hw = (f - 1) / 2 * T.spacing + 1, back = (ranks - 1) * (T.depth || T.spacing) + 1;
     const sin = Math.sin(angle), cos = Math.cos(angle);
     const corners = [[-hw, 1], [hw, 1], [hw, -back], [-hw, -back]];
+    const at = (lx, lz) => [x + cos * lx + sin * lz, z - sin * lx + cos * lz];
+    // the border: a band round the footprint, the corners sampled close so it bends over the ground
     const pts = [];
     for (let i = 0; i < 4; i++) {
       const [ax, az] = corners[i], [bx, bz] = corners[(i + 1) % 4];
-      for (let k = 0; k < 8; k++) {
-        const lx = ax + (bx - ax) * k / 8, lz = az + (bz - az) * k / 8;
-        const wx = x + cos * lx + sin * lz, wz = z - sin * lx + cos * lz;
-        pts.push(new THREE.Vector3(wx, this.heightAt(wx, wz) + 0.35, wz));
-      }
+      for (let k = 0; k < 8; k++) pts.push(at(ax + (bx - ax) * k / 8, az + (bz - az) * k / 8));
     }
-    const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthTest: false }));
-    line.renderOrder = 5;
-    this.outlines.add(line);
+    this.addBand(pts, this.markWidth(r), true, this.markMaterial(color, opacity));
+    // the fill: a faint wash over the footprint, in strips across it
+    const rows = 6, fill = [], idx = [];
+    for (let j = 0; j <= rows; j++) for (let i = 0; i <= 4; i++) {
+      const [wx, wz] = at(-hw + 2 * hw * i / 4, 1 - (1 + back) * j / rows);
+      fill.push(wx, this.heightAt(wx, wz) + 0.3, wz);
+      if (i && j) { const q = j * 5 + i; idx.push(q - 6, q - 1, q - 5, q - 1, q, q - 5); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
+    g.setIndex(idx);
+    const m = new THREE.Mesh(g, this.markMaterial(color, opacity * 0.16));
+    m.renderOrder = 4;
+    this.outlines.add(m);
   }
 
-  addLine(x0, z0, x1, z1, color) {
+  addLine(r, x0, z0, x1, z1, color) {
     const pts = [];
-    for (let k = 0; k <= 16; k++) {
-      const x = x0 + (x1 - x0) * k / 16, z = z0 + (z1 - z0) * k / 16;
-      pts.push(new THREE.Vector3(x, this.heightAt(x, z) + 0.6, z));
-    }
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8, depthTest: false }));
-    line.renderOrder = 5;
-    this.outlines.add(line);
+    for (let k = 0; k <= 16; k++) pts.push([x0 + (x1 - x0) * k / 16, z0 + (z1 - z0) * k / 16]);
+    this.addBand(pts, this.markWidth(r) * 0.8, false, this.markMaterial(color, 0.8));
   }
 }
