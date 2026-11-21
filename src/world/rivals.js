@@ -14,7 +14,7 @@
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit } from './world.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
-import { standDown, AT_WORK } from './holdings.js';
+import { standDown, AT_WORK, housing } from './holdings.js';
 import { houseRuns } from './supply.js';
 import { TYPES } from '../battle.js';
 
@@ -85,6 +85,25 @@ export function thinkHouses(w, dt) {
 const held = (w, h) => w.pois.filter(p => p.owner === h.index);
 const spareAt = (w, p) => power(p.garrison) - w.keepHome(p);
 
+// The men a house could put in the field: those its places can spare, and as many more as it
+// has both kit for and people it could draft now, above the floor World.raiseFromPeople keeps.
+// Kit in the stores is not men (Orchestrator, 2026-11-21: it was counted as men, so a house
+// with 218 sets of kit and 63 men to spare thought it had 281).
+export function fieldOf(w, h, mine = held(w, h)) {
+  const spare = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0);
+  const draft = mine.reduce((n, p) => n + (!p.eco ? 0 : Math.max(0, p.eco.pop - (p.eco.buildings ? Math.max(12, housing(p.eco) * AT_WORK.field) : w.popCap(p) * 0.45))), 0);
+  return spare + Math.min(Math.max(0, h.arms), draft);
+}
+// The men a house has tied up in the wars it is in: enemy hosts within a march of its places,
+// which it must answer, and the host it is gathering against an enemy's place.
+function committed(w, h, mine, B) {
+  let n = 0;
+  for (const a of w.armies) if (!a.gone && !a.wagon && a.side != null && a.side !== h.index && a.side !== w.bandits && w.atWar(h.index, a.side) && mine.some(p => dist(a, p) < 400)) n += headcount(a.units);
+  const P = h.ai.plan, T = P?.target;
+  if (T && P.phase !== 'march' && T.owner !== null && T.owner !== w.bandits) n += w.defence(T) * B.need + 20;
+  return n;
+}
+
 // The house's own place nearest to `target` by road.
 function nearestOwn(w, h, target) {
   let best = null, bd = Infinity;
@@ -118,7 +137,7 @@ function chooseStance(w, h, B, stage, mine) {
   const wars = FACTIONS.some(o => o !== h && o.alive && !o.bandit && w.atWar(h.index, o.index));
   const threat = w.armies.some(a => !a.gone && !a.wagon && a.side !== h.index && a.side !== w.bandits && w.atWar(h.index, a.side) && mine.some(p => dist(a, p) < 300));
   // Something weak in reach: a free place or an enemy's, held by fewer than the house could put in the field.
-  const field = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0) + h.arms;
+  const field = fieldOf(w, h, mine);
   const prey = w.pois.some(p => p.owner !== h.index && p.owner !== w.bandits && (p.owner === null || w.atWar(h.index, p.owner)) && w.canAttack(h.index, p)
     && mine.some(q => dist(p, q) < 600) && w.defence(p) * B.need + 20 < field);
   const eco = mine.filter(p => p.eco?.buildings), mouths = eco.reduce((n, p) => n + p.eco.pop + headcount(p.garrison), 0);
@@ -215,9 +234,10 @@ function thinkWars(w, h, B, stage) {
   }
   if (ai.warClock > 0 || ai.stance !== 'war') return;
   ai.warClock = (260 + w.rand() * 220) / B.war;
-  // A settling house makes no wars; an expanding one one at a time.
+  // A settling house makes no wars. (An expanding one made one at a time and a contending
+  // one two at most, a cap only the houses had, cut 2026-11-21: now a house in a war takes on
+  // another only when it has the men for it, below.)
   if (stage === 0) return;
-  if (enemies.length >= (stage === 1 ? 1 : B.war > 1.2 ? 2 : 1)) return;
   // Prey (Orchestrator, 2026-11-21): the same inputs for every target, the player too: a
   // border, weakness, worth and claims, never who leads. Each neighbour's places within reach
   // of ours (further once the house contends) are weighed by the men the house could field
@@ -227,7 +247,7 @@ function thinkWars(w, h, B, stage) {
   // leagueReason). The best place names the war.
   const mine = held(w, h), reach = stage === 2 ? 700 : 420;
   const count = i => w.pois.filter(p => p.owner === i && p.kind !== 'camp').length, own = count(h.index), bigger = {};
-  const field = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0) + h.arms;
+  const field = fieldOf(w, h, mine);
   const best = new Map();
   for (const p of w.pois) {
     const i = p.owner;
@@ -239,7 +259,11 @@ function thinkWars(w, h, B, stage) {
     if (score > (best.get(i)?.score ?? 0)) best.set(i, { i, p, score });
   }
   const pick = [...best.values()].sort((a, b) => b.score - a.score)[0];
-  if (pick && pick.score * B.war > PREY_BAR && w.rand() < 0.7) {
+  // Another war on top of those it has (Orchestrator, 2026-11-21, a judgement, not a cap): the
+  // men it has free, its field less what its wars tie up, must beat the new target's defence
+  // by its temper's margin, as a host must before it marches (runPlan).
+  const free = field - committed(w, h, mine, B);
+  if (pick && pick.score * B.war > PREY_BAR && (!enemies.length || free >= w.defence(pick.p) * B.need + 20) && w.rand() < 0.7) {
     w.declareWar(h.index, pick.i);
     ai.warsSince[pick.i] = w.time;
   }

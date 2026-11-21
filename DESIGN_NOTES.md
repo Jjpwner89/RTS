@@ -573,7 +573,29 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
     - Every house is at its limit of wars: one at a time, two for a raider or hothead past its first stage. Each is at war with other houses, wars the leagues feed. On seed 7 at minute 90, Penhallow is building, not arming.
     - When a war ends, thinkWars takes the best place of any neighbour. Another house's nearly empty place scores 3.5–9.8 (defence 0–32), against 1.2–4.5 for the player's.
   - Grudges, claims and a full purse play no part: their factors are 1 throughout (the player stays under 5,000 gold). The bigger-neighbour factor (×1.6) applies once: Varn on seed 21 at minute 90, with 2 places to the player's 4.
-  - Note: `field` counts a house's kit in store (`h.arms`) as men, in thinkWars and chooseStance. Varn's 281 at minute 90 on seed 7 includes 218 sets of kit.
+  - Note: `field` counts a house's kit in store (`h.arms`) as men, in thinkWars and chooseStance. Varn's 281 at minute 90 on seed 7 includes 218 sets of kit. (Fixed below.)
+
+### No war cap for the houses; kit is not men (2026-11-21, Orchestrator's rulings)
+- **The war cap is cut** (rivals.js thinkWars). A house used to make one war at a time, or two for a raider or hothead past its first stage. That was a count only the houses had; you have no such limit. Now a house already at war takes on another only when its free men beat the new target's defence by its temper's margin (defence × `need` + 20, as a host must before it marches). Free men are its field less what its wars tie up: enemy hosts within 400 of its places, and the host it is gathering against an enemy's place (`committed`). The target is still the best by preyScore. A settling house still makes no wars.
+- **Kit is not men** (rivals.js `fieldOf`, used by thinkWars and chooseStance). A house's field is the men its places can spare, plus its kit only as far as it has people it could draft now, above the floor World.raiseFromPeople keeps. Fields fell from 140–280 (mostly kit) to 7–160 at minute 90.
+- **Outcome** (seeds 7, 21, 91, to minute 120):
+
+  | Run | First war on you | Banked 60 / 90 / 120 | Fell |
+  |---|---|---|---|
+  | Engaged 7 | none | 384 / 417 / 5 | alive |
+  | Engaged 21 | none | 755 / 6,165 / 16,580 | alive |
+  | Engaged 91 | none | 116 / 1,505 / 1,783 | alive |
+  | Passive 7 | Varn 13, Wyndham 27 | n/a | 50 |
+  | Passive 21 | Varn 13, Wyndham 25 | 1,006 at 60 | 61 |
+  | Passive 91 | Varn 15 | 1,651 / 2,736 at 60 / 90 | 94 |
+
+  - Seed 21's engaged bot banked more this run (16,600 against 10,900): it holds the same four places, two of them market towns, and its tax was 24,800 by minute 120 against 20,100.
+  - **What keeps the houses off the engaged player now:**
+    - Seed 7 at minute 60: Varn has only 15 men to spare and three wars, so you score 0.16 against its bar of 0.46. Penhallow is building.
+    - Seed 7 at minute 90: Varn's best target is you (1.21, over its bar), but its free men are 20 (77 in the field, 57 tied up in its two wars) against the 159 that Brackholm needs. The new test holds it back. The other houses score you 0.03–0.43, under their bars, or are building.
+    - Seed 91 at minute 90: Varn (0.95) and Penhallow (1.66, with 157 free against 139 needed) rate you over their bars. But Stonemere's nearly empty Redholm (needs 33–34) scores higher for both (2.11 and 3.80), and Stonemere scores you 0.73 against its bar of 1.20.
+  - So it is honest: houses with few men to spare, other prey that is easier, and once a house's free men against your defences.
+- checks(): Lord 71/0, Count 90/0, King 126/0.
 
 ## Test campaigns (built 2026-11-20)
 
