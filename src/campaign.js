@@ -135,7 +135,16 @@ const hooks = {
   choice: ev => { audio.play(String(ev.id).startsWith('petition') ? 'petition' : 'scroll'); asks.push({ kind: 'choice', ev }); }, // audio
 };
 const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
-look.clock = () => world.time;   // the seasons and the day turn on the campaign's clock (look.js)
+// The seasons and the day turn on the campaign's clock (look.js), but a fight in a village or
+// town you are watching keeps the hour it began at, deployment and all, so a storm that forms
+// up at dusk isn't fought in the dark. (A field battle stops the world's clock anyway.)
+let foughtAt = null;
+look.clock = () => {
+  const b = mode === 'town' && current?.town?.battle;
+  const on = b && b.winner === null && (b.deploying || b.regs.some(r => r.side === 1 && !r.gone && r.alive > 0));
+  foughtAt = on ? foughtAt ?? world.time : null;
+  return foughtAt ?? world.time;
+};
 
 // A lord's words or big news, shown for a while at the top without stopping the game.
 const heraldQueue = [];

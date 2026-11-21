@@ -857,7 +857,7 @@ export class Battle {
   orderMove(regs, x, z, angle, width = null) {
     regs = regs.filter(r => this.usable(r));
     if (!regs.length) return;
-    for (const r of regs) { this.clearPosts(r); r.runOnce = false; r.cover = null; }
+    for (const r of regs) { this.clearPosts(r); r.runOnce = false; r.cover = null; r.hold = false; }
     const gap = 4;
     const sin = Math.sin(angle), cos = Math.cos(angle);
     if (width) {
@@ -985,7 +985,7 @@ export class Battle {
       this.clearPosts(r);
       r.targetReg = target;
       r.dest = null;
-      r.runOnce = false; r.cover = null;
+      r.runOnce = false; r.cover = null; r.hold = false;   // a new order ends a Hold
       if (this.nav.any && this.breachFor(r, target, gate)) gate = r.targetWall || gate;
       else if (gate && this.shoots(r) && !this.reaches(r, target) && Math.hypot(target.cx - r.cx, target.cz - r.cz) > this.rangeOf(r)) this.coverGate(r, gate, target);
     }
@@ -1102,6 +1102,7 @@ export class Battle {
         }
       }
       if (!t) { if (r.side === 0 && !(this.time - this.saidCharge < 3)) { this.saidCharge = this.time; this.event(0, `${this.label(r)} has nobody near enough to charge.`); } continue; }
+      if (r.hold && r.side === 0) this.event(0, `${this.label(r)} leave off holding and charge.`);
       this.orderAttack([r], t);
       r.chargeUntil = this.time + 10;
       r.charges = (r.charges || 0) + 1;
