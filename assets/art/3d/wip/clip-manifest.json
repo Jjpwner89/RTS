@@ -217,6 +217,10 @@
           "event": "foot-in-stirrup"
         },
         {
+          "time": 0.66,
+          "event": "string-caught"
+        },
+        {
           "time": 1.35,
           "event": "string-spanned"
         },

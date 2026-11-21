@@ -43,6 +43,10 @@ function boneAt(frame, bone, out) {
   for (let i = 0; i < 12; i++) out[i] = data[at + i];
   return out;
 }
+// The bone numbers of the props a soldier holds (skin.js PROP: 'R', 'BOW', 'SHIELD', ...).
+export const propSlots = () => table?.prop || {};
+// Where a clip has one bone (or prop slot) at a frame: a 3x4 matrix, rows first.
+export const boneOf = (rig, name, frame, bone) => { const c = clipOf(rig, name); return boneAt(c.start + Math.min(frame, c.frames - 1), bone, new Float32Array(12)); };
 // Positions for a baked geometry posed at a clip's frame (the rider's clip for people, the horse's for the horse);
 // `only` poses just those vertices (the rest of `out` stays zero).
 export function poseOf(geo, rig, name, horseName = 'Idle', frame = 0, only = null) {

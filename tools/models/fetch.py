@@ -10,7 +10,7 @@ def save(url, dst):
 # Knight (helmets, shoulder pads), horse and medieval weapons, 2018 packs (FBX)
 B = 'beep2bleep/FreeAssetsByKenneyNLandQuaternius'
 tree = json.loads(get(f'https://api.github.com/repos/{B}/git/trees/master?recursive=1'))['tree']
-WEAPONS = 'Spear Shield_Round Shield_Round_2 Shield_Heater Shield_Heater_2 Bow_Wooden Bow_Wooden2 Sword Sword_2 Axe Arrow Hammer_Small'.split()
+WEAPONS = 'Spear Shield_Round Shield_Round_2 Shield_Heater Shield_Heater_2 Bow_Wooden Bow_Wooden2 Sword Sword_2 Axe Axe_Small Arrow Hammer_Small'.split()
 for x in tree:
     p = x['path']
     url = f'https://raw.githubusercontent.com/{B}/master/' + urllib.parse.quote(p)

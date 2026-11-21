@@ -432,13 +432,14 @@ async function hang(fig, { item, model, at, off = [0, 0, 0], rot = [0, 0, 0], le
 }
 
 // Held gear in a hand's prop frame (skin.js): +x along the shaft toward the head with the grip at the origin, the
-// blade's width along z; a bow's limbs along x with its back toward +y; a shield facing +y, its top toward +z,
-// standing a little off the hand. `grip` is how far up the shaft the hand holds it (a lance further back).
+// blade's width along z; a bow's limbs along x with its back toward +y (the knuckles, so the target) and its string
+// toward -y; a shield facing +y, its top toward +z, standing a little off the hand. `grip` is how far up the shaft
+// the hand holds it (a lance further back). (The pack's bow has its string on its own +x.)
 const BLADE = new THREE.Matrix4().set(0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1);
-const BOW = new THREE.Matrix4().set(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1);
+const BOW = new THREE.Matrix4().set(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 const SHIELD = new THREE.Matrix4().set(-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1);
 const HELD = {
-  W_Spear: { basis: BLADE, grip: len => len >= 3 ? 0.28 : 0.35 }, W_Sword: { basis: BLADE }, W_Axe: { basis: BLADE },
+  W_Spear: { basis: BLADE, grip: len => len >= 3 ? 0.28 : 0.35 }, W_Sword: { basis: BLADE }, W_Axe: { basis: BLADE }, W_Axe_Small: { basis: BLADE, grip: () => 0.05 },
   W_Bow_Wooden: { basis: BOW }, W_Shield_Round: { basis: SHIELD, out: 0.08 }, W_Shield_Heater: { basis: SHIELD, out: 0.08 }, W_Shield_Heater_2: { basis: SHIELD, out: 0.08 },
 };
 function heldFrame(item, box, size, k, len) {
@@ -465,10 +466,12 @@ async function fitPads(fig) {
 
 // Gear kits, shared by the rigged families so each shows the same equipment.
  // `hand` and `shield` place an item on figures posed in holding stances; the others use `at`, `off` and `rot`.
+// (The pack's arrow runs along its own +z from the nock, its origin, to the head: rot x near 100 hangs it from the
+// nock down the back, the fletching just over the shoulder.)
 const KIT = {
   spear: [{ item: 'W_Spear', hand: 'R', at: 'R', len: 2.7, off: [0, -0.02, 0.04], rot: [8, 0, 0] }, { item: 'W_Shield_Round', shield: 'L', at: 'L', len: 0.62, off: [0.06, 0.22, 0.12], rot: [0, -15, 0], tint: { LightWood: 'team' } }],
   sword: [{ item: 'W_Sword', hand: 'R', at: 'R', len: 0.95, off: [0, 0, 0.02], rot: [35, 0, 0] }, { item: 'W_Shield_Heater', shield: 'L', at: 'L', len: 0.72, off: [0.06, 0.25, 0.12], rot: [0, -15, 0], tint: { LightWood: 'team' } }],
-  archer: [{ item: 'W_Bow_Wooden', hand: 'L', twist: 180, at: 'L', len: 1.45, off: [0.02, 0.1, 0.06], rot: [0, -90, 0] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.12, 0.05, -0.2], rot: [-150, 0, 15] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.16, 0.05, -0.2], rot: [-150, 0, 22] }],
+  archer: [{ item: 'W_Bow_Wooden', hand: 'L', twist: 180, at: 'L', len: 1.45, off: [0.02, 0.1, 0.06], rot: [0, -90, 0] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.12, 0.2, -0.17], rot: [100, -10, 0] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.16, 0.18, -0.17], rot: [104, 12, 0] }],
   villager: [{ item: 'W_Axe', hand: 'R', grip: 0.1, edge: [0, 0, 1], at: 'R', len: 0.8, off: [0, 0, 0.03], rot: [20, 90, 0] }],
   cav: [{ item: 'W_Spear', hand: 'R', at: 'R', len: 3.3, off: [0, 0, 0.05], rot: [55, 0, 0] }, { item: 'W_Shield_Heater_2', shield: 'L', at: 'L', len: 0.66, off: [0.08, 0.2, 0.05], rot: [0, -20, 0], tint: { LightWood: 'team' } }],
 };

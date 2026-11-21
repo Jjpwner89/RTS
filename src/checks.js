@@ -643,7 +643,183 @@ async function findAssets() {
     if (other && !rigOffset()) noClip.add(`${key}: a man and a woman ride in one model but their clips are not aligned`);
   }
   push('soldier and villager clips', [...noClip]);
+  if (animReady()) push('weapons held the right way round', await kitProblems([...Object.keys(TYPES), 'villager', 'captain'], unitModel));
   return out;
+}
+
+// What each soldier holds, posed in its own clips (anim.js poseOf) and measured, because the props come from models
+// in packs whose axes the bake has to guess at (tools/models/lineup: roster.js HELD, skin.js). Model space: +z is
+// where the man faces, +y up.
+export async function kitProblems(keys, unitModel) {
+  const A = await import('./anim.js'), P = A.propSlots(), bad = [];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const len = a => Math.hypot(...a), unit = a => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const mean = vs => vs.reduce((s, v) => [s[0] + v[0] / vs.length, s[1] + v[1] / vs.length, s[2] + v[2] / vs.length], [0, 0, 0]);
+  // the main axes of a cloud of points, longest first
+  const axes = vs => {
+    const c = mean(vs), m = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (const v of vs) { const d = sub(v, c); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m[i][j] += d[i] * d[j]; }
+    const out = [];
+    for (let k = 0; k < 3; k++) {
+      let x = [1, 0.7, 0.4 + k];
+      for (let it = 0; it < 60; it++) {
+        for (const o of out) { const d = dot(x, o); x = sub(x, o.map(e => e * d)); }
+        x = unit([dot(m[0], x), dot(m[1], x), dot(m[2], x)]);
+      }
+      for (const o of out) { const d = dot(x, o); x = unit(sub(x, o.map(e => e * d))); }
+      out.push(x);
+    }
+    return { c, axes: out };
+  };
+  for (const key of keys) {
+    const look = unitModel(key), a = look?.anim;
+    if (!a) continue;
+    const geos = [look.gear, look.cloth].filter(Boolean), horseClip = 'Idle';
+    // the vertices each prop slot carries (whole weight on it), per geometry
+    const slotOf = s => geos.map(g => { const B = g.attributes.aBones, W = g.attributes.aWeights, l = []; for (let i = 0; i < B.count; i++) if (B.getX(i) === s && W.getX(i) > 0.99) l.push(i); return l; });
+    const has = s => s != null && slotOf(s).some(l => l.length);
+    const posed = (clip, f, s, horse = horseClip) => {
+      const out = [];
+      slotOf(s).forEach((l, gi) => { if (!l.length) return; const p = A.poseOf(geos[gi], a.rig, clip, horse, f, l); for (const i of l) out.push([p[i * 3], p[i * 3 + 1], p[i * 3 + 2]]); });
+      return out;
+    };
+    const at = (clip, f, s) => { const m = A.boneOf(a.rig, clip, f, s); return [m[3], m[7], m[11]]; };
+    const frameAt = (clip, t) => { const c = A.clipOf(a.rig, clip); return c ? Math.max(0, Math.min(c.frames - 1, Math.round(t * c.fps))) : -1; };
+    const ev = (clip, e) => A.clipOf(a.rig, clip)?.events?.[e];
+
+    // A bow: at full draw the string runs from the tips to the draw hand, and the limbs curve back toward the archer
+    // (the bow's back faces the target).
+    if (a.weapon === 'bow' && ev('Bow_Loose', 'loose') != null) {
+      const f = frameAt('Bow_Loose', ev('Bow_Loose', 'loose') - 0.1), grip = at('Bow_Loose', f, P.BOW), hand = at('Bow_Loose', f, P.R);
+      const d = unit(sub(grip, hand)), bow = posed('Bow_Loose', f, P.BOW);
+      const far = bow.map(v => len(sub(v, grip))).sort((x, y) => y - x)[Math.floor(bow.length * 0.04)];
+      const tips = mean(bow.filter(v => len(sub(v, grip)) >= far));
+      const lean = dot(sub(tips, grip), d);
+      if (lean > -0.05) bad.push(`${key}: at full draw in Bow_Loose the bow's tips are ${lean.toFixed(2)} m toward the target from the grip: its limbs curve the wrong way (held backwards)`);
+      if (!has(P.STRING_A) || !has(P.STRING_B)) bad.push(`${key}: the bowstring isn't a prop of its own (skin.js PROP.STRING_A/B), so it can't be drawn to the hand`);
+      else {
+        const str = [...posed('Bow_Loose', f, P.STRING_A), ...posed('Bow_Loose', f, P.STRING_B)];
+        const mid = str.reduce((b, v) => (dot(v, d) < dot(b, d) ? v : b));
+        const off = len(sub(mid, hand)), inside = dot(sub(mid, hand), d) > -0.06 && dot(sub(grip, mid), d) > 0;
+        if (off > 0.09 || !inside) bad.push(`${key}: at full draw the bowstring's middle is ${off.toFixed(2)} m from the draw hand${inside ? '' : ', not between the grip and the hand'}`);
+        const ends = str.filter(v => len(sub(v, mid)) > 0.5 * Math.max(...str.map(w => len(sub(w, mid)))));
+        const loose = Math.max(...ends.map(v => Math.min(...bow.map(w => len(sub(v, w)))))) ;
+        if (loose > 0.06) bad.push(`${key}: at full draw the bowstring's ends are ${loose.toFixed(2)} m off the bow's tips`);
+        // after the loose, the string is straight again from tip to tip
+        const r = frameAt('Bow_Loose', ev('Bow_Loose', 'loose') + 0.15), s2 = [...posed('Bow_Loose', r, P.STRING_A), ...posed('Bow_Loose', r, P.STRING_B)];
+        const { c, axes: [x] } = axes(s2), bent = Math.max(...s2.map(v => { const q = sub(v, c); return len(sub(q, x.map(e => e * dot(q, x)))); }));
+        if (bent > 0.03) bad.push(`${key}: after the loose the bowstring is still bent ${bent.toFixed(2)} m off straight`);
+      }
+    }
+
+    // A weapon's head points where it's used: the shaft from the grip toward the bulk of the weapon.
+    const USE = { spear: [['Spear_Thrust', 'thrust', 0.85], ['Spear_Brace', 'brace-held', 0.5]], lance: [['Ride_Couch', 'lance-couched', 0.85]],
+      sword: [['Sword_Slash', null, -1]], axe: [['Sword_Slash', null, -1]], crossbow: [['Crossbow_Span', 'shoot', 0.85]] };
+    if (key === 'javelin') USE.spear = [['Javelin_Throw', 'release-javelin', 0.3]];
+    for (const [clip, e, need] of USE[a.weapon] || []) {
+      if (!A.clipOf(a.rig, clip) || !has(P.R)) continue;
+      const t = e ? ev(clip, e) - (e === 'release-javelin' || e === 'shoot' ? 0.05 : 0) : A.clipOf(a.rig, clip).duration * 0.5, f = frameAt(clip, t);
+      const grip = at(clip, f, P.R), w = posed(clip, f, P.R), head = unit(sub(mean(w), grip));
+      if (need > -1 && head[2] < need) bad.push(`${key}: in ${clip}${e ? ` at '${e}'` : ''} the ${a.weapon}'s head points ${head.map(v => v.toFixed(2)).join(', ')}, not forward`);
+      if (a.weapon === 'crossbow') {
+        // the prod sits across the front of the stock, its tips swept back toward the shooter
+        const along = v => dot(sub(v, grip), head), side = v => len(sub(sub(v, grip), head.map(x => x * along(v))));
+        const tipAt = Math.max(...w.map(side)), tips = w.filter(v => side(v) > tipAt * 0.9), front = Math.max(...w.filter(v => side(v) < 0.05).map(along));
+        const back = tips.reduce((t, v) => t + along(v), 0) / tips.length, mid = Math.max(...w.filter(v => side(v) > 0.06 && side(v) < tipAt * 0.5).map(along));
+        if (back > mid - 0.02) bad.push(`${key}: the crossbow's prod has its tips ${(back - mid).toFixed(2)} m ahead of its middle: it's on backwards`);
+        if (front - mid > 0.2 || mid < 0.25) bad.push(`${key}: the crossbow's prod sits ${mid.toFixed(2)} m along a stock reaching ${front.toFixed(2)} m: not at its front`);
+        if (!has(P.CSTRING_A) || !has(P.CSTRING_B)) bad.push(`${key}: the crossbow's string isn't a prop of its own (skin.js PROP.CSTRING_A/B), so spanning doesn't draw it back`);
+        else {
+          const sp = ev('Crossbow_Span', 'string-spanned'), str = t => [...posed('Crossbow_Span', frameAt('Crossbow_Span', t), P.CSTRING_A), ...posed('Crossbow_Span', frameAt('Crossbow_Span', t), P.CSTRING_B)];
+          // how far the string's middle is drawn from the line between its ends
+          const drawn = t => { const s = str(t), e0 = s.reduce((b, v) => (v[1] > b[1] ? v : b)), e1 = s.reduce((b, v) => (len(sub(v, e0)) > len(sub(b, e0)) ? v : b)), u = unit(sub(e1, e0));
+            return Math.max(...s.map(v => { const q = sub(v, e0); return len(sub(q, u.map(x => x * dot(q, u)))); })); };
+          if (drawn(sp + 0.2) < 0.15) bad.push(`${key}: once spanned the crossbow's string isn't drawn back (it lies ${drawn(sp + 0.2).toFixed(2)} m deep)`);
+          if (drawn(ev('Crossbow_Span', 'shoot') + 0.1) > 0.05) bad.push(`${key}: after the shot the crossbow's string stays drawn`);
+        }
+      }
+    }
+
+    // A spear runs beside the shield, never through it.
+    if (has(P.R) && has(P.SHIELD) && (a.weapon === 'spear' || a.weapon === 'lance')) {
+      for (const clip of a.horse ? ['Ride_Idle', 'Ride_Trot', 'Ride_Couch', 'Ride_Charge'] : ['Stand', 'WalkArmed', 'March_Upright', 'Spear_Thrust', 'Spear_Brace', 'Shield_Wall']) {
+        const c = A.clipOf(a.rig, clip);
+        if (!c) continue;
+        let worst = null;
+        for (let k = 0; k < 10; k++) {
+          const f = Math.round(k * (c.frames - 1) / 9), sh = posed(clip, f, P.SHIELD), sp = posed(clip, f, P.R);
+          if (!sh.length || !sp.length) continue;
+          const { c: sc, axes: [, , n] } = axes(sh), rad = sh.map(v => { const q = sub(v, sc); return len(sub(q, n.map(e => e * dot(q, n)))); }).sort((x, y) => x - y)[Math.floor(sh.length * 0.9)];
+          const { c: pc, axes: [x] } = axes(sp), ts = sp.map(v => dot(sub(v, pc), x)), lo = Math.min(...ts), hi = Math.max(...ts);
+          for (let j = 0; j <= 60; j++) {
+            const p = pc.map((e, i) => e + x[i] * (lo + (hi - lo) * j / 60)), q = sub(p, sc), h = dot(q, n), r = len(sub(q, n.map(e => e * h)));
+            if (Math.abs(h) < 0.04 && r < rad * 0.85) { worst = Math.round(100 * f / (c.frames - 1)); break; }
+          }
+          if (worst != null) break;
+        }
+        if (worst != null) bad.push(`${key}: in ${clip} at ${worst}% the ${a.weapon}'s shaft passes through the shield`);
+      }
+    }
+
+    // A villager's tools, each shown only in its own work, and shaped for it (in the hand's frame: x along the haft).
+    if (a.weapon === 'tools') {
+      // goods ride in a sack over the shoulder, only while carrying (townview.js draws no crate for a baked villager)
+      if (!has(P.SACK)) bad.push(`${key}: no sack to carry goods in (prop SACK)`);
+      else for (const clip of ['CarryWalk', 'CarryRun', 'Walk', 'Idle', 'Chop']) {
+        const m = A.clipOf(a.rig, clip) && A.boneOf(a.rig, clip, 0, P.SACK), shown = m && Math.hypot(m[0], m[1], m[2]) > 0.01;
+        if (shown !== clip.startsWith('Carry')) bad.push(`${key}: the sack is ${shown ? 'shown' : 'hidden'} in ${clip}`);
+      }
+      for (const [slot, clip, shape] of [['AXE', 'Chop', 'axe'], ['PICK', 'Mine', 'pick'], ['HOE', 'Hoe', 'hoe']]) {
+        if (!has(P[slot])) { bad.push(`${key}: no ${shape} (prop ${slot})`); continue; }
+        for (const other of ['Chop', 'Mine', 'Hoe', 'Walk', 'CarryWalk', 'Idle']) {
+          const m = A.clipOf(a.rig, other) && A.boneOf(a.rig, other, 0, P[slot]), shown = m && Math.hypot(m[0], m[1], m[2], m[4], m[5], m[6]) > 0.01;
+          if (shown !== (other === clip)) bad.push(`${key}: the ${shape} is ${shown ? 'shown' : 'hidden'} in ${other}`);
+        }
+        const vs = [];
+        slotOf(P[slot]).forEach((l, gi) => { const b = geos[gi].attributes.bind; for (const i of l) vs.push([b.getX(i), b.getY(i), b.getZ(i)]); });
+        const top = Math.max(...vs.map(v => v[0])), head = vs.filter(v => v[0] > top - 0.32 && Math.hypot(v[1], v[2]) > 0.03);
+        // the head's reach to each side of the haft, along the way it juts most (a pick: both ways; a blade: one)
+        let best = null;
+        for (let k = 0; k < 72; k++) {
+          const u = [0, Math.cos(k * Math.PI / 36), Math.sin(k * Math.PI / 36)], s = head.map(v => dot(v, u)), lo = -Math.min(0, ...s), hi = Math.max(0, ...s);
+          if (!best || (shape === 'pick' ? lo + hi > best.lo + best.hi : hi > best.hi)) best = { lo, hi, u };
+        }
+        const near = Math.min(best.lo, best.hi), farSide = Math.max(best.lo, best.hi);
+        // a pick's two arms taper to points; an axe's and a hoe's blade juts to one side only
+        const pointy = () => [1, -1].every(sg => { const end = head.filter(v => sg * dot(v, best.u) > (sg > 0 ? best.hi : best.lo) - 0.04); return Math.max(...end.map(v => v[0])) - Math.min(...end.map(v => v[0])) < 0.05; });
+        if (shape === 'pick' ? !(near > 0.12 && pointy()) : !(farSide > 0.1 && near < 0.4 * farSide))
+          bad.push(`${key}: the ${shape}'s head reaches ${best.hi.toFixed(2)} and ${best.lo.toFixed(2)} m to either side of the haft: it doesn't read as ${shape === 'axe' ? 'an axe' : 'a ' + shape}`);
+        // when it strikes, the edge (or point) leads the stroke; the hoe's blade is on the soil
+        const hit = { Chop: 'axe-contact', Mine: 'pick-contact', Hoe: 'pull-soil' }[clip], t = ev(clip, hit);
+        if (t == null) { bad.push(`${key}: ${clip} has no '${hit}' event to check the ${shape} at`); continue; }
+        const f = frameAt(clip, t), now = posed(clip, f, P[slot]), lead = best.hi >= best.lo ? best.u : best.u.map(e => -e);
+        const tip = lead.map(e => e * farSide), m = A.boneOf(a.rig, clip, f, P[slot]);
+        const edge = unit([0, 1, 2].map(i => m[i * 4 + 1] * tip[1] + m[i * 4 + 2] * tip[2]));
+        if (shape === 'hoe') {
+          const low = Math.min(...now.map(v => v[1]));
+          if (low < -0.04 || low > 0.06) bad.push(`${key}: at '${hit}' the hoe's blade is ${low.toFixed(2)} m ${low < 0 ? 'under' : 'above'} the soil`);
+        } else {
+          // (a pick has a point each way, so either may lead)
+          const swing = unit(sub(mean(now), mean(posed(clip, f - 2, P[slot])))), along = shape === 'pick' ? Math.abs(dot(edge, swing)) : dot(edge, swing);
+          if (along < 0.8) bad.push(`${key}: at '${hit}' the ${shape}'s ${shape === 'pick' ? 'point' : 'edge'} is ${Math.round(Math.acos(Math.max(-1, Math.min(1, along))) * 180 / Math.PI)}° off the stroke`);
+        }
+      }
+    }
+
+    // Nothing slung on the body stands up above the head (spare javelins, arrows in a quiver). (Men only: a dog's
+    // bones aren't a man's.)
+    if (a.rig !== 'male' && a.rig !== 'female') continue;
+    const rest = a.horse ? 'Ride_Idle' : 'Stand', top = [];
+    geos.forEach(g => {
+      const B = g.attributes.aBones, W = g.attributes.aWeights, l = [];
+      for (let i = 0; i < B.count; i++) if (B.getX(i) < 24) l.push(i);
+      const p = A.poseOf(g, a.rig, A.clipOf(a.rig, rest) ? rest : 'Idle', horseClip, 0, l);
+      for (const i of l) top.push([p[i * 3 + 1], B.getX(i) === 7 && W.getX(i) > 0.5]);
+    });
+    const crown = Math.max(...top.filter(([, h]) => h).map(([y]) => y)), high = Math.max(...top.filter(([, h]) => !h).map(([y]) => y));
+    if (high > crown + 0.05) bad.push(`${key}: something slung on the back stands ${(high - crown).toFixed(2)} m above the head`);
+  }
+  return bad;
 }
 
 // ---- the page as a whole ----

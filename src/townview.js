@@ -387,8 +387,9 @@ export class TownView {
         if (clip) for (const m of [P.gear, P.cloth]) setClip(m.geometry, n, clip, v.animT);   // anim
         n++;
       }
-      // Anything carried goes in a crate held in front, its contents showing over the rim.
-      if (v.carry) {
+      // Anything carried goes in a crate held in front, its contents showing over the rim; a baked villager carries
+      // it in the shoulder sack that the carrying clips show (anim)
+      if (v.carry && !this.anim) {
         d.position.set(v.x + Math.sin(v.yaw) * 0.42, v.y + bob + 0.92, v.z + Math.cos(v.yaw) * 0.42);
         d.updateMatrix();
         P.crate.setMatrixAt(k, d.matrix);

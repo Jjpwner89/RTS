@@ -1,7 +1,7 @@
 [
   {
     "file": "clips-foot.glb",
-    "bytes": 3226012,
+    "bytes": 3226052,
     "joints": 62,
     "checks": "passed",
     "clips": [
@@ -38,7 +38,7 @@
         "duration": 3,
         "loop": false,
         "tracks": 186,
-        "maxFrameRotationDegrees": 39.827547868753314
+        "maxFrameRotationDegrees": 51.56821428096715
       },
       {
         "name": "Shield_Block",

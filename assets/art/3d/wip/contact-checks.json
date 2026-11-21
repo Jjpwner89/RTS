@@ -19,7 +19,7 @@
     },
     {
       "name": "Crossbow_Span",
-      "maxGripError": 0
+      "maxGripError": 0.2616061139710961
     },
     {
       "name": "Shield_Block",

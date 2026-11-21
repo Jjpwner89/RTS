@@ -6,24 +6,36 @@
 // Four skeletons: the Quaternius modular men (one skeleton shared by the adventurer, farmer and king), the women
 // (the same bones in a different rest pose, so clips are retargeted onto it), the 2018 horse, and the war dog (made
 // here, its clips worked out in code: see the end).
-// A human has 24 bones (fingers fold into the wrist, curled round a grip) and seven "prop" bones that carry what a
-// soldier holds: right-hand weapon, bow, shield, and the villagers' axe, pick and hoe. Each clip decides
-// where a prop goes or hides it (a zero matrix). Horse vertices use bone numbers from 128.
+// A human has 24 bones (fingers fold into the wrist, curled round a grip) and eleven "prop" bones that carry what a
+// soldier holds: right-hand weapon, bow, shield, the villagers' axe, pick, hoe and sack, and the two halves of a bow's
+// and a crossbow's string. Each clip decides where a prop goes or hides it (a zero matrix). Horse vertices use bone
+// numbers from 128.
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
 
 const R = window.__roster, { THREE, C } = R;
-export const SLOTS = 32, HORSE = 128, FPS = 20;
+export const SLOTS = 35, HORSE = 128, FPS = 20;
 export const HUMAN = ['Root', 'Body', 'Hips', 'Abdomen', 'Torso', 'Chest', 'Neck', 'Head', 'ShoulderL', 'UpperArmL', 'LowerArmL', 'WristL',
   'ShoulderR', 'UpperArmR', 'LowerArmR', 'WristR', 'UpperLegL', 'LowerLegL', 'UpperLegR', 'LowerLegR', 'FootL', 'PTL', 'FootR', 'PTR'];
-export const PROP = { R: 24, BOW: 25, SHIELD: 26, AXE: 27, PICK: 28, HOE: 29 };
+export const PROP = { R: 24, BOW: 25, SHIELD: 26, AXE: 27, PICK: 28, HOE: 29, STRING_A: 30, STRING_B: 31, CSTRING_A: 32, CSTRING_B: 33, SACK: 34 };
+// A string hangs between its weapon's tips in two halves, each hinged at its own tip, so its middle can be drawn back
+// while its ends stay on the tips. `on` is the weapon's prop, `tips` where the string's ends are in that prop's frame
+// (bake.js split() puts the string's vertices on these props, and stops if a baked string isn't there), `nut` where a
+// spanned crossbow's string is caught.
+export const STRINGS = {
+  W_Bow_Wooden: { on: 'BOW', halves: ['STRING_A', 'STRING_B'], tips: [[0.68, -0.271, 0], [-0.68, -0.271, 0]] },
+  crossbow: { on: 'R', halves: ['CSTRING_A', 'CSTRING_B'], tips: [[0.384, 0.291, 0], [0.384, -0.291, 0]], nut: [0.12, 0, 0] },
+};
 const FINGER = /^(Index|Middle|Ring|Pinky|Thumb)\d([LR])$/;
 const RIGHT_ARM = ['ShoulderR', 'UpperArmR', 'LowerArmR', 'WristR'];
 const UPPER = ['Abdomen', 'Torso', 'Chest', 'Neck', 'Head', 'ShoulderL', 'UpperArmL', 'LowerArmL', 'WristL', ...RIGHT_ARM];
 // Where a held thing sits in the wrist's frame (INTEGRATION.txt).
 const GRIP = new THREE.Vector3(0, 0.135, -0.035);
-// Clips where the left hand grips the shield; in the rest it rides strapped to the forearm.
-const SHIELD_IN_HAND = new Set(['Shield_Block', 'Shield_Wall', 'Spear_Thrust', 'Spear_Brace', 'Cheer']);
+// Clips where the left hand grips the shield; in the rest it rides strapped to the forearm (as it does when the
+// left hand is on a spear's shaft, so the shaft runs beside the shield, not through it).
+const SHIELD_IN_HAND = new Set(['Shield_Block', 'Shield_Wall', 'Cheer']);
+// How far a spearman's shield's middle keeps from the shaft (the round shield is 0.31 m across to its rim).
+const SHIELD_CLEAR = 0.34;
 const TOOLS = { Chop: 'AXE', Mine: 'PICK', Hoe: 'HOE' };
 
 // The clips each skeleton gets. `src` names the source clip; `arm` takes the right arm from March_Upright at that
@@ -158,6 +170,14 @@ function armShield(r) {
   return b.matrixWorld.clone().multiply(new THREE.Matrix4().compose(s.get('LowerArmL').p, s.get('LowerArmL').q, new THREE.Vector3(1, 1, 1)).invert()).multiply(rest);
 }
 
+// A carried sack (Carry: "sack on right shoulder", the right hand at its neck): on top of the right shoulder, turned
+// with the chest. Its frame: +z forward, +y up, as the man stands.
+function shoulderSack(r) {
+  const m = (r.from || r), turn = m.bones.get('Chest').getWorldQuaternion(new THREE.Quaternion()).multiply(m.rest.get('Chest').q.clone().invert());
+  const at = r.bones.get('UpperArmR').getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.02, 0.09, -0.04).applyQuaternion(turn));
+  return new THREE.Matrix4().compose(at, turn, new THREE.Vector3(1, 1, 1));
+}
+
 function props(r, name, def, t) {
   const meta = rigs.meta[def.weapon || def.src] || {}, w = meta.weapon || {}, out = {};
   const axis = def.arm != null ? rigs.meta.March_Upright.weapon.axis : w.bone === 'Wrist.R' ? w.axis : null;
@@ -173,8 +193,42 @@ function props(r, name, def, t) {
   // left hand: the bow rides the wrist; the shield the hand or the forearm
   out.BOW = none ? ZERO : hand(r, 'L', w.bone === 'Wrist.L' ? w.axis : null);
   out.SHIELD = none ? ZERO : SHIELD_IN_HAND.has(def.src) ? hand(r, 'L', null) : armShield(r);
+  // with both hands on a spear, the strapped shield stands off the shaft (the kneeling brace brings it in close)
+  if (!none && /^Spear_/.test(def.src)) {
+    const grip = new THREE.Vector3().setFromMatrixPosition(out.R), along = new THREE.Vector3().setFromMatrixColumn(out.R, 0).normalize();
+    const c = new THREE.Vector3(0, 0.08, 0).applyMatrix4(out.SHIELD).sub(grip), off = c.clone().addScaledVector(along, -c.dot(along)), d = off.length();
+    if (d < SHIELD_CLEAR) out.SHIELD = new THREE.Matrix4().makeTranslation(...off.normalize().multiplyScalar(SHIELD_CLEAR - d).toArray()).multiply(out.SHIELD);
+  }
   for (const k of ['AXE', 'PICK', 'HOE']) out[k] = TOOLS[name] === k ? hand(r, 'R', axis) : ZERO;
+  out.SACK = (def.weapon || def.src) === 'Carry' ? shoulderSack(r) : ZERO;
+  // the strings: a bow's drawn to the right hand from the nock to the loose; a crossbow's drawn by both hands from
+  // the prod up the stock while spanning, then caught on the nut until the shot; otherwise straight from tip to tip
+  const ev = e => meta.events?.find(x => x.event === e)?.time;
+  const bow = def.src === 'Bow_Loose' ? ramp(t, ev('nock'), ev('nock') + 0.15) * (1 - ramp(t, ev('loose'), ev('loose') + 0.03)) : 0;
+  const draw = hand(r, 'R', null);
+  for (const [item, S] of Object.entries(STRINGS)) {
+    const m = out[S.on], live = m.determinant() !== 0, inv = live && m.clone().invert();
+    const rest = new THREE.Vector3(...S.tips[0]).add(new THREE.Vector3(...S.tips[1])).multiplyScalar(0.5);
+    let mid = rest;
+    if (live && item !== 'crossbow' && bow > 0) mid = rest.clone().lerp(new THREE.Vector3().setFromMatrixPosition(draw).applyMatrix4(inv), bow);
+    if (live && item === 'crossbow' && def.src === 'Crossbow_Span' && t >= ev('string-caught')) {
+      const nut = new THREE.Vector3(...S.nut), hands = new THREE.Vector3().setFromMatrixPosition(draw).add(new THREE.Vector3().setFromMatrixPosition(hand(r, 'L', null))).multiplyScalar(0.5).applyMatrix4(inv);
+      const k = t >= ev('string-spanned') ? 1 : Math.min(1, Math.max(0, (rest.x - hands.x) / (rest.x - nut.x)));
+      mid = rest.clone().lerp(nut, k * (1 - ramp(t, ev('shoot'), ev('shoot') + 0.03)));
+    }
+    S.halves.forEach((h, i) => { out[h] = m.clone().multiply(hinge(new THREE.Vector3(...S.tips[i]), rest, mid)); });
+  }
   return out;
+}
+// The affine map that keeps `tip` where it is and takes `from` to `to`: turned and stretched along the string.
+function hinge(tip, from, to) {
+  const a = from.clone().sub(tip), b = to.clone().sub(tip), u = a.clone().normalize();
+  const k = b.length() / a.length() - 1, st = new THREE.Matrix4().set(
+    1 + k * u.x * u.x, k * u.x * u.y, k * u.x * u.z, 0,
+    k * u.y * u.x, 1 + k * u.y * u.y, k * u.y * u.z, 0,
+    k * u.z * u.x, k * u.z * u.y, 1 + k * u.z * u.z, 0, 0, 0, 0, 1);
+  const turn = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(u, b.normalize()));
+  return new THREE.Matrix4().makeTranslation(tip.x, tip.y, tip.z).multiply(turn).multiply(st).multiply(new THREE.Matrix4().makeTranslation(-tip.x, -tip.y, -tip.z));
 }
 
 // One frame: SLOTS matrices as rows of a 3x4, in the rig's metres.

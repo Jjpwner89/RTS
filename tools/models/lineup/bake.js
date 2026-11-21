@@ -26,6 +26,21 @@ function shifts(group) {
   group.traverse(o => { if (o.userData.skin && o.userData.skin.rig !== 'horse') humans.add(o.userData.skin.rig); if (o.userData.shift) marked = true; });
   return marked || humans.size > 1 ? { lead: [...humans][0] } : null;   // (the lead is animInfo's rig: the first found)
 }
+const propOf = m => { for (let p = m; p; p = p.parent) if (p.userData.prop) return p.userData.prop; return null; };
+// A bow's string (its white part) goes on the two string props, each half on its own tip's (skin.js STRINGS), so it
+// can be drawn; a string that isn't where skin.js expects it would come loose from the tips when drawn.
+function stringOf(part, sk, gr, mats) {
+  const S = SK.STRINGS[propOf(part)?.item], m = mats[gr.materialIndex] || mats[0];
+  if (!S || m.name !== 'White') return;
+  const tips = S.tips.map(t => new THREE.Vector3(...t)), v = new THREE.Vector3(), line = new THREE.Line3(...tips), q = new THREE.Vector3();
+  let worst = 0;
+  for (let i = gr.start; i < gr.start + gr.count; i++) {
+    v.fromArray(sk.bind, i * 3);
+    worst = Math.max(worst, line.closestPointToPoint(v, true, q).distanceTo(v));
+    sk.bones[i * 4] = SK.PROP[S.halves[v.distanceTo(tips[0]) < v.distanceTo(tips[1]) ? 0 : 1]];
+  }
+  if (worst > 0.015) throw new Error(`${propOf(part).item}: its string is ${worst.toFixed(3)} m off the line between skin.js STRINGS tips`);
+}
 function split(group, want) {
   group.updateMatrixWorld(true);
   const inv = group.matrixWorld.clone().invert(), out = { gear: [], cloth: [] }, anim = animated(group), two = anim && shifts(group);
@@ -49,6 +64,7 @@ function split(group, want) {
     const mats = [].concat(part.material), n = g.attributes.position.count;
     const groups = Array.isArray(part.material) && src.groups.length ? src.groups : [{ start: 0, count: n, materialIndex: 0 }];
     const vc = g.attributes.color, c = new THREE.Color();
+    if (sk) for (const gr of groups) stringOf(part, sk, gr, mats);
     for (const gr of groups) {
       const m = mats[gr.materialIndex] || mats[0], team = m.userData.team;
       const end = Math.min(n, gr.start + gr.count), pos = [], col = [], bones = [], weights = [], shift = [];
@@ -121,7 +137,7 @@ const UNITS = {
     await R.hang(f, R.KIT.villager[0]);
     return f;
   },
-  villager: async () => { const f = await people('Male_Farmer', { tint: FARMER }); tools(f); return f; },
+  villager: async () => { const f = await people('Male_Farmer', { tint: FARMER }); await tools(f); return f; },
   // a village's militia, everyone called out: undyed clothes, a pitchfork, and the village's colour only in the
   // neckerchief and a sash tied round the waist
   folk: async () => {
@@ -328,7 +344,8 @@ async function mount(fig, { caparison } = {}) {
   return g;
 }
 // A crossbow in the right hand: a stock with the bow turned crosswise at its front. Built in the hand's prop frame
-// (skin.js): the stock along +x from the grip, the bow's limbs along y, its back toward +x.
+// (skin.js): the stock along +x from the grip, the bow's limbs along y, its back toward +x and its string toward the
+// grip (the pack's bow has its string on its own +x, so it is turned round).
 async function crossbow(fig) {
   const g = new THREE.Group();
   g.userData.prop = { slot: 'R', item: 'crossbow', canon: new THREE.Matrix4() };
@@ -339,27 +356,49 @@ async function crossbow(fig) {
   bow.updateMatrixWorld(true);
   const s = new THREE.Box3().setFromObject(bow).getSize(new THREE.Vector3());
   bow.scale.multiplyScalar(0.62 / Math.max(s.x, s.y, s.z));
+  bow.rotation.y = Math.PI;
   bow.position.x = 0.5;
   g.add(bow);
   placeHeld(fig, g, 'R');
 }
 // Until a clip moves it, a held thing made here sits at the hand as the bake posed it (the game redraws it anyway).
 function placeHeld(fig, g, at) { g.position.copy(fig.bones[at]); fig.group.add(g); }
-// A villager's tools, each shown only while its work clip plays (skin.js): an axe, a pick and a hoe, held as the
-// clip review holds them. (What he carries the game draws itself: a crate of the goods, in his arms.)
-function tools(fig) {
-  const wood = plain('#7a5a3a'), iron = plain('#8d979c');
-  const tool = (slot, shaft, head, at) => {
+// A villager's tools, each shown only while its work clip plays (skin.js): the pack's small axe, and a pick and a hoe
+// made here, held as the clip review holds them. Built in the hand's prop frame: the haft along +x from the grip, the
+// edge or point toward +z, then turned about the haft by `roll` degrees so it leads the stroke when it strikes (Chop
+// and Mine come straight down; the hoe's blade points down and back, toward the villager). Goods carried
+// ride in a sack over the shoulder, shown only in CarryWalk and CarryRun.
+async function tools(fig) {
+  const wood = plain('#7a5a3a'), iron = plain('#8d979c'), roll = deg => new THREE.Matrix4().makeRotationX(deg * Math.PI / 180);
+  const axe = (await R.hang(fig, { item: 'W_Axe_Small', at: 'R', len: 0.75 })).userData.prop;
+  axe.slot = 'AXE';
+  axe.canon.premultiply(roll(73));
+  const tool = (slot, shaft, parts, turn = 0) => {
     const g = new THREE.Group();
-    g.userData.prop = { slot, item: 'tool', canon: new THREE.Matrix4() };
+    g.userData.prop = { slot, item: slot.toLowerCase(), canon: roll(turn) };
     const s = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.019, shaft, 6), wood);
-    s.rotation.z = -Math.PI / 2; s.position.x = shaft * 0.15; g.add(s);
-    head.position.x = at; g.add(head);
+    s.rotation.z = -Math.PI / 2; s.position.x = shaft * 0.42; g.add(s);
+    for (const p of parts) g.add(p);
     placeHeld(fig, g, 'R');
   };
-  tool('AXE', 0.85, new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.045, 0.28), iron), 0.55);
-  tool('PICK', 0.85, new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 4).rotateX(Math.PI / 2), iron), 0.55);
-  tool('HOE', 1.5, new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.15), iron), 1.0);
+  // a pick: two arms tapering to points either side of the haft's head, curving a little down toward the hands
+  const arm = side => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.27, 6).rotateX(side * Math.PI / 2), iron); m.position.set(0.76, 0, side * 0.135); m.rotation.y = -side * 0.18; return m; };
+  const eye = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.06), iron);
+  eye.position.x = 0.78;
+  tool('PICK', 0.85, [arm(1), arm(-1), eye], 85);
+  // a hoe: a flat blade on a neck at the end of the haft, its edge on the soil as Hoe pulls it
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.06), iron), blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.12), iron);
+  neck.position.set(0.95, 0, 0.03); blade.position.set(0.93, 0, 0.1); blade.rotation.y = 0.3;
+  tool('HOE', 1.05, [neck, blade]);
+  // a sack, slung over the right shoulder while carrying (skin.js shoulderSack): its body down the back, its neck
+  // forward in the hand
+  const sack = new THREE.Group(), cloth = plain('#b39a6c');
+  sack.userData.prop = { slot: 'SACK', item: 'sack', canon: new THREE.Matrix4() };
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1).scale(0.17, 0.15, 0.24), cloth);
+  body.position.set(0, -0.02, -0.13); body.rotation.x = 0.5; sack.add(body);
+  const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 0.12, 6).rotateX(Math.PI / 2), cloth);
+  mouth.position.set(-0.01, 0.02, 0.1); sack.add(mouth);
+  placeHeld(fig, sack, 'R');
 }
 // A pitchfork along +y, the tines at the top spread along x (a spear's blade width), for hang's `model`.
 function pitchfork() {
@@ -503,7 +542,8 @@ const NORRHOLD = {
     const f = await people('Male_Adventurer', { hold: ['Hold_Spear_R'], trimHair: true, armour: [{ bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: '#7a5a3c' }, FUR] });
     await R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
     await R.hang(f, { item: 'W_Spear', hand: 'R', len: 1.9 });
-    for (const [x, t] of [[-0.04, 8], [0, 10], [0.04, 12]]) await R.hang(f, { item: 'W_Spear', at: 'chest', len: 1.45, off: [x, -0.15, -0.24], rot: [-12, 0, -t] });
+    // slung across the back, heads down by the right hip and butts up past the left shoulder
+    for (const [x, t] of [[-0.03, 124], [0, 127], [0.03, 130]]) await R.hang(f, { item: 'W_Spear', at: 'chest', len: 1.45, off: [x, -0.14, -0.2], rot: [-8, 0, t] });
     return f;
   },
   wardog: async () => warDog(),

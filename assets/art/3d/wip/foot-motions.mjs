@@ -43,6 +43,13 @@ export function spearPose(h,u,k){
  spearArms(h,g);
 }
 
+// Slerp from a to b without first turning b to the near side (so the long way round can be taken).
+function raw(a,b,w){
+ const d=Math.max(-1,Math.min(1,a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w)),th=Math.acos(d),s=Math.sin(th);
+ const k0=s<1e-6?1-w:Math.sin((1-w)*th)/s,k1=s<1e-6?w:Math.sin(w*th)/s;
+ return a.clone().set(a.x*k0+b.x*k1,a.y*k0+b.y*k1,a.z*k0+b.z*k1,a.w*k0+b.w*k1).normalize();
+}
+const spanArms=[];
 export function footMotions(h){
  const r=h.r,S=s=>r.pos('UpperArm.'+s),at=(s,v)=>S(s).add(V(v));
  function ready(y=.80,z=.02,lean=4,twist=0){h.reset();h.body(y,z,lean,twist);h.legs();}
@@ -93,8 +100,11 @@ export function footMotions(h){
   // right hip and lay it, raise and shoot. While held, the crossbow rides on the right hand's
   // grip with the barrel to +Z and the bow level from side to side; while spanning it rests
   // nose-down on the ground (see the weapon metadata), and the hands work around it.
+  // Spanning: the crossbowman stoops to the string at the prod, close above the foot in the stirrup, and draws
+  // it with both hands up the stock to the nut (Claude, 2026-11-21).
   const held=curve(u,[[0,1],[.06,1],[.15,0],[.70,0],[.84,1],[1,1]]),bend=curve(u,[[0,0],[.13,1],[.22,1],[.45,.65],[.68,.6],[.84,0],[1,0]]),kick=curve(u,[[0,0],[.92,0],[.94,1],[1,0]]);
-  ready(.81-.23*bend,.02+.04*bend,6+26*bend-5*kick,-16+13*bend);
+  const stoop=curve(u,[[.13,0],[.21,1],[.27,1],[.43,0]]);
+  ready(.81-.23*bend-.10*stoop,.02+.04*bend,6+26*bend-5*kick+24*stoop,-16+13*bend);
   r.turn('Head',[1,0,0],8*(1-bend));r.turn('Shoulder.L',[0,1,0],-10*held);
   const stirrup=curve(u,[[0,0],[.12,0],[.19,1],[.64,1],[.72,0],[1,0]]);
   h.legs([.17,.02275,.04],[-.05,.02275+.06*Math.sin(Math.PI*stirrup),-.08+.50*stirrup]);
@@ -110,7 +120,25 @@ export function footMotions(h){
   const AIM_L=[[0,-.71,.71],[-.48,.26,.84],[0,0,1]],STOCK_L=[[-.13,-.97,-.22],[0,-.71,.71],[0,-.995,.1]],
    STRING0_L=[[0,-.87,.5],[-.22,-.97,.13],[-1,0,.05]],STRING1_L=[[.35,-.71,.61],[-.25,-.87,.43],[-1,0,.05]],STEADY_L=[[-.13,-.97,.22],[0,-.97,.26],[0,-.995,.1]];
   keyed(h,'L',[[0,...AIM_L],[.06,...AIM_L],[.12,...STOCK_L],[.21,...STRING0_L],[.47,...STRING1_L],[.53,...STEADY_L],[.67,...STEADY_L],[.73,...STOCK_L],[.84,...AIM_L],[1,...AIM_L]],u,{diag:20});
- },{...weapon('Wrist.R',30,{crossbow:{held:{barrel:[0,0,1],bow:[1,0,0],space:'model',at:'right grip'},grounded:CROSSBOW_GROUND,blendToGround:[.18,.45],blendToHeld:[2.10,2.52]}}),events:[{time:.5,event:'nose-down'},{time:.57,event:'foot-in-stirrup'},{time:1.35,event:'string-spanned'},{time:1.86,event:'bolt-laid'},{time:2.80,event:'shoot'}]}],
+  // On the string, a hand each side of the stock, from the prod (0.384 m down the barrel from the
+  // grip) to the nut (0.12 m): the baked crossbow's measures (tools/models/lineup/skin.js STRINGS),
+  // whose string follows the hands.
+  // The arms turn from the keyed pose to the reach and back joint by joint, so the forearms
+  // don't flip as the hands take and leave the string.
+  const onString=curve(u,[[.13,0],[.22,1],[.45,1],[.54,0]]),drawn=curve(u,[[.22,0],[.43,1]]);
+  if(onString>0){
+   const P=V(CROSSBOW_GROUND.grip).addScaledVector(V(CROSSBOW_GROUND.barrel),.384+(.12-.384)*drawn);
+   const arms=['UpperArm','LowerArm','Wrist'].flatMap(b=>['R','L'].map(s=>r.by[b+'.'+s])),keyedQ=arms.map(b=>b.quaternion.clone());
+   for(const [s,dx] of [['R',-.07],['L',.07]])h.hand(s,P.clone().add(V([dx,0,0])).toArray(),[1,0,0],[0,0,1],0);
+   // (half a turn apart, the shortest way round can swap sides between frames: take the way
+   // nearest the last frame's)
+   arms.forEach((b,i)=>{
+    const a=keyedQ[i],ik=b.quaternion.clone(),flip=ik.clone().set(-ik.x,-ik.y,-ik.z,-ik.w);
+    const ways=[raw(a,ik,onString),raw(a,flip,onString)],last=spanArms[i];
+    b.quaternion.copy(last?ways.reduce((x,y)=>Math.abs(x.dot(last))>=Math.abs(y.dot(last))?x:y):ways[0]);spanArms[i]=b.quaternion.clone();
+   });r.update();
+  }else spanArms.length=0;
+ },{...weapon('Wrist.R',30,{crossbow:{held:{barrel:[0,0,1],bow:[1,0,0],space:'model',at:'right grip'},grounded:CROSSBOW_GROUND,blendToGround:[.18,.45],blendToHeld:[2.10,2.52]}}),events:[{time:.5,event:'nose-down'},{time:.57,event:'foot-in-stirrup'},{time:.66,event:'string-caught'},{time:1.35,event:'string-spanned'},{time:1.86,event:'bolt-laid'},{time:2.80,event:'shoot'}]}],
  ['Shield_Block',18,false,(t,u)=>{
   // Shield arm comes up and braces: forearm forward, so the shield (normal = hand's long axis) faces the blow.
   const k=curve(u,[[0,0],[.38,1],[.64,1],[1,0]]);ready(.81-.05*k,.02+.035*k,3+13*k,-6);
