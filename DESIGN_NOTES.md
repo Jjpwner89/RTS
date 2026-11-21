@@ -363,3 +363,13 @@ The creator, after playing: the opening ran in a straight line to weapons and no
 - **Rivals on the same rules** (holdings.js): their hunters thin the game, their hearths burn wood (a cold place builds a woodcutter first), and they grow by `settleRate` at a steward's middling mood (52) and the same name.
 - **Openings tried** (scripted, Ashford, seed 7): a balanced plan (woodcutter, farm and hunter first, houses as room runs short) went from 12 to 42 people in 20 minutes; houses only starved by minute 5 and stalled at 14.
 - **Seed-7 check after the change** (same scripted runs as in "Rivals' pace and gold"): the rivals' pace barely moved. A passive player: 14 of 34 places free at minute 30, houses Expanding at 20–30 and Contending at 35–55, the first war at minute 38; no rival place ran out of firewood, and rival places held 130–260 people a house by minute 55. A fast player (a village every seven minutes from minute 6): you pass every house by minute 20, Penhallow and Varn declare war at 12 and 17, and Varn gathers a host at 57.
+
+## Test campaigns (built 2026-11-20)
+
+The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.
+
+- **Lord**: 2 places at minute 10, 800 gold, Ashford at 35 people. About 3 s to prepare.
+- **Count**: 5 places at minute 24, 2,000+ gold, Ashford at 60 (the 60-person templates open). About 13 s. In the check, every house was Contending and Varn at war with you.
+- **Duke**: 11 places at minute 42, 4,000+ gold (about 20,000 with the coin of the places taken), Ashford at 80 (every template open). About 40 s. Every house was at war with you, for testing peace, dowries and buying off a coalition.
+- Ashford gets building stock for templates (250 wood, 200 stone, 80 planks, 30 iron) and finished houses to make room for the people.
+- Test campaigns save to their own slot (`rts.campaign.test`, chosen by `options.test`), so the real campaign is never overwritten; **Continue test** on the title page picks the test one up.

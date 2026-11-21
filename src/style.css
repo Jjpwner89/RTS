@@ -332,3 +332,5 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 #info .row.staff { margin-top: 2px; align-items: center; }
 #info .row.staff span { flex: 1; text-align: center; color: var(--dim); font-size: 12px; }
 #info .row.staff button { flex: 0 0 34px; }
+/* While a test campaign is being played forward (testsaves.js). */
+.test-making { position: fixed; inset: 0; display: grid; place-items: center; z-index: 50; background: #1a1612; color: #f2e6cc; font: 16px/1.4 system-ui, sans-serif; }

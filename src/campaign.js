@@ -24,7 +24,8 @@ import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
-import { canSave, saveGame, readSave, loadGame, clearSave } from './world/save.js';
+import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData } from './world/save.js';
+import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k === 'road' ? null : k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
@@ -43,8 +44,21 @@ import { LOD } from './models.js';
 import { audio } from './audio.js';
 
 const params = new URLSearchParams(location.search);
-// ?continue picks up the saved campaign; otherwise a new one, on ?seed= if given.
-const loaded = params.has('continue') ? readSave() : null;
+// ?continue picks up the saved campaign (?continue=test the test one); ?test=lord, count or
+// duke makes a fresh test campaign at that rank; otherwise a new one, on ?seed= if given.
+const loaded = params.has('continue') ? readSave(params.get('continue') === 'test')
+  : TEST_RANKS[params.get('test')] ? await testCampaign(params.get('test')) : null;
+async function testCampaign(key) {
+  const note = document.createElement('div');
+  note.className = 'test-making';
+  document.body.appendChild(note);
+  const say = m => { note.textContent = `Preparing a ${TEST_RANKS[key].name} test campaign: minute ${m} of ${TEST_RANKS[key].minutes}…`; };
+  say(0);
+  await new Promise(r => setTimeout(r, 50));
+  const data = saveData(await makeTestCampaign(key, say));
+  note.remove();
+  return data;
+}
 const seed = loaded ? loaded.seed : +params.get('seed') || Math.floor(Math.random() * 1e6);
 
 const canvas = document.getElementById('view');
@@ -89,7 +103,7 @@ const hooks = {
   },
   ended: winner => {
     audio.setMood(winner === 0 ? 'victory' : 'defeat'); if (winner === 0) audio.play('bells'); // audio
-    if (winner !== 0 && world.options.ironman) clearSave();   // ironman: a lost campaign is gone
+    if (winner !== 0 && world.options.ironman) clearSave(world.options.test);   // ironman: a lost campaign is gone
     if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload(), true);
     if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload(), true);
     // Crowned: the end of Part 1. The victory card breaks, and the wall with it.

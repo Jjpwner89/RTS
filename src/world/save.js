@@ -2,11 +2,14 @@
 // is everything that has happened since: who holds what, the armies on the roads, the
 // houses' gold, moods and plans, and each of your villages as it stands (buildings,
 // goods, people, regiments and walls). A save is made only between fights, so no battle
-// is ever half-saved. One slot, kept in the browser.
+// is ever half-saved. One slot, kept in the browser, and a second for test campaigns
+// (testsaves.js), so trying one never overwrites the real campaign.
 import { World, FACTIONS } from './world.js';
 import { restoreWorks } from './works.js';
 
 const KEY = 'rts.campaign.save';
+export const TEST_KEY = 'rts.campaign.test';
+const keyOf = test => (test ? TEST_KEY : KEY);
 const VERSION = 1;
 
 // ---- what can be saved ----
@@ -19,25 +22,29 @@ export function canSave(w, { busy = false } = {}) {
   return { ok: true };
 }
 
-export function hasSave() {
-  try { return !!localStorage.getItem(KEY); } catch { return false; }
+export function hasSave(test = false) {
+  try { return !!localStorage.getItem(keyOf(test)); } catch { return false; }
 }
 
-export function saveInfo() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); return s && { at: s.savedAt, time: s.world.time, seed: s.seed, part: s.world.part }; } catch { return null; }
+export function saveInfo(test = false) {
+  try { const s = JSON.parse(localStorage.getItem(keyOf(test))); return s && { at: s.savedAt, time: s.world.time, seed: s.seed, part: s.world.part }; } catch { return null; }
 }
 
-export function readSave() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); return s?.version === VERSION ? s : null; } catch { return null; }
+export function readSave(test = false) {
+  try { const s = JSON.parse(localStorage.getItem(keyOf(test))); return s?.version === VERSION ? s : null; } catch { return null; }
+}
+
+// The campaign as save data, without storing it.
+export function snapshot(w) {
+  return { version: VERSION, seed: w.seed, savedAt: Date.now(), ...pack(w) };
 }
 
 export function saveGame(w) {
-  const data = { version: VERSION, seed: w.seed, savedAt: Date.now(), ...pack(w) };
-  try { localStorage.setItem(KEY, JSON.stringify(data)); return { ok: true }; }
+  try { localStorage.setItem(keyOf(w.options.test), JSON.stringify(snapshot(w))); return { ok: true }; }
   catch (e) { return { ok: false, reason: 'The browser would not store it' }; }
 }
 
-export function clearSave() { try { localStorage.removeItem(KEY); } catch { /* nothing to clear */ } }
+export function clearSave(test = false) { try { localStorage.removeItem(keyOf(test)); } catch { /* nothing to clear */ } }
 
 // ---- turning live objects into plain data and back ----
 
