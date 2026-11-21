@@ -45,4 +45,16 @@ All CC0, from [Poly Pizza](https://poly.pizza) uploads by Quaternius, Kenney and
 | `nobles/King.glb` | An animated king on foot (24 clips): the King rank, the crowning, a court | Quaternius [King](https://poly.pizza/m/I1gTjmuK2m) | Art, animations |
 | `nobles/Crown.glb` | A crown prop for the King rank and the realm screen | Quaternius [Crown](https://poly.pizza/m/i0PZVuVlYv) | Art |
 
-**Siege engines: nothing packaged.** No CC0 trebuchet, siege tower or ram turned up that beats the game's Kenney set; the free catapults on Poly Pizza (Poly/Google, CC-BY) are no better. Per the creator's rule, the better engines are ours to build (BRIEFS 7.3 lists them as a 3D wish, not for Codex). **The lords' parties** (bake.js `lordParty`) already outclass every free mounted-noble model found; the CC-BY carriage is a western stagecoach and was turned down. **Pavilion tents:** only CC-BY gazebos and market canopies were found, none medieval.
+**Siege engines: nothing packaged yet, but two CC0 leads haven't been checked.** The free catapults on Poly Pizza (Poly/Google, CC-BY) are no better than the game's Kenney set. A later search found two candidates that may be. Neither is downloaded or lined up, because both need fetching by hand in a browser.
+- **[Kenney Castle Kit 2.0](https://www.kenney.nl/assets/castle-kit)**, CC0. A full remake released 27 March 2024, while the game uses v1 from 2017. It has a covered ram, trebuchet, siege tower, ballista, broken versions and a ridge tent, in glTF. kenney.nl refuses scripted downloads.
+- **[Ankers "Low Poly Medieval Weapons"](https://ankersassets.itch.io/low-poly-medieval-weapons)**, CC0 as stated on its page; pay what you want, and $0 works. It has a ballista, mangonel, covered ram, trebuchet, siege tower and tall pavise shields. FBX only.
+- **CC-BY fallbacks**, flat colour, credit needed, on Sketchfab (downloading needs a login):
+  - iedalton [Trebuchet](https://sketchfab.com/3d-models/trebuchet-15d2af4910dd456b96bc767b91894a4c), 5k triangles
+  - iedalton [Siege Tower](https://sketchfab.com/3d-models/siege-tower-f2363930fd1b424ba896697528e1c82b), 11k triangles
+  - BlackSpire [Siege Ram](https://sketchfab.com/3d-models/siege-ram-1cc40e0101c74a8c85060fb6777f76cf), 3.8k triangles
+
+If neither CC0 pack beats the current set, the better engines are ours to build. BRIEFS 7.3 lists them as a 3D wish, not for Codex.
+
+**The lords' parties** (bake.js `lordParty`) already outclass every free mounted-noble model found. The CC-BY carriage is a western stagecoach and was turned down.
+
+**Pavilion tents** were not packaged. The CC0 lead is AnyRPG [Medieval Tents](https://opengameart.org/content/medieval-tents) on OpenGameArt: textured, .blend only, 5.6k triangles, not yet lined up. The CC-BY fallback is Carrigan's [General's Tent](https://sketchfab.com/3d-models/generals-tent-siege-equipment-assets-6003a17f60a04a4caa6f619edbe5e91a). The Quaternius tent above reads as a modern camping tent; the Kenney A-frames are the camp pick.
