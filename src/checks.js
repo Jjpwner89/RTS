@@ -569,13 +569,13 @@ async function findAssets() {
   // Clips: the animated soldiers and villagers stand in their bind pose without assets/anim.bin, and play a wrong
   // clip if their skeleton lacks one the views ask for (view.js soldierClip, townview.js villagerClip). A gait whose
   // stride can't be measured (anim.js gaitSpeed) can't keep pace with the ground: its feet would slide.
-  const { animReady, clipOf, gaitSpeed } = await import('./anim.js');
+  const { animReady, clipOf, gaitSpeed, rigOffset } = await import('./anim.js');
   const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
   const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch'], HORSE = ['Idle', 'Trot', 'Gallop'], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Mine', 'Hoe', 'Idle'];
   const GAITS = ['Walk', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun'], HORSE_GAITS = ['Trot', 'Gallop'];
   const noClip = new Set();
   if (!animReady()) noClip.add('assets/anim.json or anim.bin did not load: animated soldiers are left out');
-  else for (const key of [...Object.keys(TYPES), 'villager']) {
+  else for (const key of [...Object.keys(TYPES), 'villager', 'captain', 'lord', 'lady']) {
     const a = unitModel(key)?.anim;
     if (!a) continue;
     for (const n of key === 'villager' ? WORK : a.horse ? RIDE : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
@@ -584,6 +584,16 @@ async function findAssets() {
       const rig = a.horse ? 'horse' : a.rig;
       if (clipOf(rig, n) && !(gaitSpeed(rig, n) > 0)) noClip.add(`can't measure the ${rig} '${n}' stride: it plays at its own pace and its feet slide`);
     }
+  }
+  // A lord rides with his bannerman, a second rider in the same model posed by the same clip (bake.js split()).
+  if (animReady()) for (const key of ['lord', 'lady']) {
+    const m = unitModel(key);
+    if (!m?.anim) { noClip.add(`${key}: not animated, so the ${key} slides over the ground`); continue; }
+    const S = m.gear.attributes.aShift;
+    let beside = false, other = false;
+    for (let i = 0; i < S.count; i++) { if (Math.hypot(S.getX(i), S.getZ(i)) > 0.5) beside = true; if (S.getW(i)) other = true; }
+    if (!beside) noClip.add(`${key}: no bannerman standing beside the lord`);
+    if (other && !rigOffset()) noClip.add(`${key}: a man and a woman ride in one model but their clips are not aligned`);
   }
   push('soldier and villager clips', [...noClip]);
   return out;

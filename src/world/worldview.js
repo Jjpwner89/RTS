@@ -352,12 +352,14 @@ export class WorldView {
       return f;
     });
   }
+  // An army's figures: its men, and its lord's party if one rides with it.
+  allFigures(o) { return [...(o.mesh.userData.figures || []), ...(o.mesh.userData.lord?.userData.figures || [])]; }
   // Each frame: the figures step at the pace the army really covers the map (scaled to the figures), so their
   // feet keep pace with it; at a halt they stand at ease. Soldiers in their battle clips (view.js soldierClip),
   // carters and families in a villager's walk.
   march(o, a) {
-    const figs = o.mesh.userData.figures;
-    if (!figs?.length) return;
+    const figs = this.allFigures(o);
+    if (!figs.length) return;
     // (real time: the figures keep pace with the army as it moves on screen, at any game speed)
     const now = performance.now() / 1000, dt = now - (o.animAt ?? now);
     if (dt > 1) { o.animAt = now; o.animX = a.x; o.animZ = a.z; return; }   // back from a hidden tab: start afresh
@@ -428,7 +430,7 @@ export class WorldView {
       if (!a.gone) continue;
       this.scene.remove(o.mesh);
       o.mesh.traverse(m => { if (m.isMesh && !m.isInstancedMesh && m.material !== this.mat) m.material.dispose(); });   // (figures share theirs)
-      for (const f of o.mesh.userData.figures || []) if (f.anim) { f.gear.geometry.dispose(); f.cloth.geometry.dispose(); }
+      for (const f of this.allFigures(o)) if (f.anim) { f.gear.geometry.dispose(); f.cloth.geometry.dispose(); }
       o.label.remove();
       this.armies.delete(a);
     }
@@ -464,18 +466,18 @@ export class WorldView {
         this.armies.set(a, o = { mesh, label: this.label(`army side${a.side ? 1 : 0}`) });
         o.label.style.borderColor = FACTIONS[a.side].color;
       }
-      // A great lord riding with the army: their figure and bannerman at its head, in their house's colour.
+      // A great lord riding with the army: their figure and bannerman at its head, in their house's colour, a
+      // figure (figures()) that rides in its clips with the army's men.
       const lord = a.wagon ? null : a.lord ?? null;
       if (o.lord !== lord) {
         o.lord = lord;
-        if (o.mesh.userData.lord) { o.mesh.remove(o.mesh.userData.lord); o.mesh.userData.lord.children[1].material.dispose(); o.mesh.userData.lord = null; }
-        const L = lord !== null && o.mesh.userData.ranks && unitModel(/^Lady /.test(FACTIONS[lord]?.lord || '') ? 'lady' : 'lord');
+        const old = o.mesh.userData.lord;
+        if (old) { o.mesh.remove(old); for (const f of old.userData.figures) if (f.anim) { f.gear.geometry.dispose(); f.cloth.geometry.dispose(); } o.mesh.userData.lord = null; }
+        const key = /^Lady /.test(FACTIONS[lord]?.lord || '') ? 'lady' : 'lord', L = lord !== null && o.mesh.userData.ranks && unitModel(key);
         if (L) {
-          const g = new THREE.Group(), cloth = this.mat.clone();
-          cloth.color.set(FACTIONS[lord]?.color || FACTIONS[a.side].color);
-          g.add(new THREE.Mesh(L.gearLight, this.mat), new THREE.Mesh(L.clothLight, cloth));
+          const g = new THREE.Group();
+          g.userData.figures = this.figures(g, [{ look: L, T: { key }, at: [{ x: 0, z: 0, turn: 0 }] }], new THREE.Color(FACTIONS[lord]?.color || FACTIONS[a.side].color));
           g.position.set(...(o.lordAt || [-4, 0, 2]));
-          g.traverse(m => { m.castShadow = true; });
           o.mesh.add(g);
           o.mesh.userData.lord = g;
         }

@@ -14,9 +14,21 @@ const partOf = m => { for (let p = m; p; p = p.parent) if (p.userData.part) retu
 // instead of where the bake posed it; the game poses it.
 const figOf = m => { for (let p = m; p; p = p.parent) if (p.userData.skin) return p; return null; };
 const animated = group => { let a = false; group.traverse(o => { if (o.userData.skin) a = true; }); return a; };
+// A model can hold a second rider (a lord's bannerman): his mount's group is marked `userData.shift` and stands
+// beside the first. Every vertex then also keeps `shift`: how far it stands off in the skin's space (xyz), and which
+// human skeleton it follows against the model's own (w: +1 a woman's in a man's model, -1 a man's in a woman's), so
+// one clip poses both riders (anim.js).
+const RIGS = ['male', 'female'];
+const shiftOf = m => { for (let p = m; p; p = p.parent) if (p.userData.shift) return p; return null; };
+function shifts(group) {
+  const humans = new Set();
+  let marked = false;
+  group.traverse(o => { if (o.userData.skin && o.userData.skin.rig !== 'horse') humans.add(o.userData.skin.rig); if (o.userData.shift) marked = true; });
+  return marked || humans.size > 1 ? { lead: [...humans][0] } : null;   // (the lead is animInfo's rig: the first found)
+}
 function split(group, want) {
   group.updateMatrixWorld(true);
-  const inv = group.matrixWorld.clone().invert(), out = { gear: [], cloth: [] }, anim = animated(group);
+  const inv = group.matrixWorld.clone().invert(), out = { gear: [], cloth: [] }, anim = animated(group), two = anim && shifts(group);
   group.traverse(part => {
     if (!part.isMesh || (want && partOf(part) !== want)) return;
     const src = part.geometry, g = src.index ? src.toNonIndexed() : src.clone();
@@ -26,6 +38,12 @@ function split(group, want) {
       if (!fig) throw new Error(`${part.name || part.parent?.name}: not on an animated figure`);
       sk = g.attributes.bind ? { bind: g.attributes.bind.array, bones: g.attributes.bones.array, weights: g.attributes.weights.array }
         : SK.derive(fig, part, g, fig.matrixWorld.clone().invert().multiply(part.matrixWorld));
+      if (two) {
+        const node = shiftOf(part), rig = fig.userData.skin.rig;
+        if (node && node.quaternion.angleTo(new THREE.Quaternion()) > 1e-6) throw new Error(`${part.name || 'a part'}: a shifted rider must not be turned`);
+        const d = node ? SK.skinStep(fig, node.parent.getWorldPosition(new THREE.Vector3()), node.getWorldPosition(new THREE.Vector3())) : new THREE.Vector3();
+        sk.shift = [d.x, d.y, d.z, rig === 'horse' ? 0 : RIGS.indexOf(rig) - RIGS.indexOf(two.lead)];
+      }
     }
     g.applyMatrix4(inv.clone().multiply(part.matrixWorld));
     const mats = [].concat(part.material), n = g.attributes.position.count;
@@ -33,11 +51,11 @@ function split(group, want) {
     const vc = g.attributes.color, c = new THREE.Color();
     for (const gr of groups) {
       const m = mats[gr.materialIndex] || mats[0], team = m.userData.team;
-      const end = Math.min(n, gr.start + gr.count), pos = [], col = [], bones = [], weights = [];
+      const end = Math.min(n, gr.start + gr.count), pos = [], col = [], bones = [], weights = [], shift = [];
       for (let i = gr.start; i < end; i++) {
         if (team) c.setScalar(team);
         else { c.copy(m.color); if (vc) c.multiply(new THREE.Color(vc.getX(i), vc.getY(i), vc.getZ(i))); }
-        if (sk) { pos.push(...sk.bind.slice(i * 3, i * 3 + 3)); bones.push(...sk.bones.slice(i * 4, i * 4 + 4)); weights.push(...sk.weights.slice(i * 4, i * 4 + 4)); }
+        if (sk) { pos.push(...sk.bind.slice(i * 3, i * 3 + 3)); bones.push(...sk.bones.slice(i * 4, i * 4 + 4)); weights.push(...sk.weights.slice(i * 4, i * 4 + 4)); if (sk.shift) shift.push(...sk.shift); }
         else pos.push(g.attributes.position.getX(i), g.attributes.position.getY(i), g.attributes.position.getZ(i));
         col.push(c.r, c.g, c.b);
       }
@@ -45,6 +63,7 @@ function split(group, want) {
       y.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       y.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
       if (sk) { y.setAttribute('bones', new THREE.Float32BufferAttribute(bones, 4)); y.setAttribute('weights', new THREE.Float32BufferAttribute(weights, 4)); }
+      if (shift.length) y.setAttribute('shift', new THREE.Float32BufferAttribute(shift, 4));
       out[team ? 'cloth' : 'gear'].push(y);
     }
   });
@@ -57,11 +76,12 @@ function compact(geo, tris) {
   let g = mergeVertices(geo, 1e-4);
   let idx = g.index.array;
   if (tris) idx = MeshoptSimplifier.simplify(new Uint32Array(idx), new Float32Array(g.attributes.position.array), 3, Math.min(idx.length, Math.max(3, Math.round(tris) * 3)), 0.06)[0];
-  const remap = new Map(), pos = [], col = [], bones = [], weights = [], P = g.attributes.position, Cc = g.attributes.color, B = g.attributes.bones, W = g.attributes.weights;
+  const remap = new Map(), pos = [], col = [], bones = [], weights = [], shift = [], P = g.attributes.position, Cc = g.attributes.color, B = g.attributes.bones, W = g.attributes.weights, S = g.attributes.shift;
   const keep = tris ? 2 : 4;
   const index = Array.from(idx, i => {
     if (!remap.has(i)) {
       remap.set(i, remap.size); pos.push(P.getX(i), P.getY(i), P.getZ(i)); col.push(Cc.getX(i), Cc.getY(i), Cc.getZ(i));
+      if (S) shift.push(S.getX(i), S.getY(i), S.getZ(i), S.getW(i));
       if (B) {
         const inf = [0, 1, 2, 3].map(j => [B.getComponent(i, j), W.getComponent(i, j)]).sort((a, b) => b[1] - a[1]).slice(0, keep);
         const sum = inf.reduce((a, x) => a + x[1], 0) || 1, w = inf.map(x => Math.round(x[1] / sum * 255));
@@ -76,6 +96,7 @@ function compact(geo, tris) {
   // colours as bytes: a third of the space, and plenty for flat colours
   out.setAttribute('color', new THREE.Uint8BufferAttribute(col.map(v => Math.round(Math.min(1, Math.max(0, v)) * 255)), 3, true));
   if (B) { out.setAttribute('bones', new THREE.Uint8BufferAttribute(bones, 4)); out.setAttribute('weights', new THREE.Uint8BufferAttribute(weights, 4, true)); }
+  if (S) out.setAttribute('shift', new THREE.Float32BufferAttribute(shift, 4));
   out.setIndex(index);
   return out;
 }
@@ -414,20 +435,22 @@ function banner(fig, { h = 3.6, at = fig.bones.R } = {}) {
   add(new THREE.BoxGeometry(0.045, 0.18, 0.9), teamMat(0.55), h - 1.5, -0.47);
   add(new THREE.ConeGeometry(0.06, 0.18, 6), plain(GOLD), h - 0.82);
   g.position.copy(at); fig.group.add(g);
+  return g;
 }
 
-// Lords ride with a bannerman at their shoulder, two riders in one model, so they stay posed (not animated).
+// Lords ride with a bannerman at their shoulder: two riders in one model, both playing the lord's clip (split()).
 async function lordParty(body, tint) {
-  const f = await people(body, { seated: true, hold: ['Hold_Sword_R'], skin: false, armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
+  const f = await people(body, { seated: true, hold: ['Hold_Sword_R'], armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
   coronet(f);
   longCloak(f, true);
   await R.hang(f, R.KIT.sword[0]);
   const lord = await mount(f, { caparison: true });
-  const b = await people('Male_Adventurer', { seated: true, skin: false, armour: [GAMBESON, SURCOAT] });
+  const b = await people('Male_Adventurer', { seated: true, armour: [GAMBESON, SURCOAT] });
   kettleHat(b);
-  banner(b);
+  banner(b).userData.attach = 'Hips';   // (the pole rides upright in its stirrup socket, whatever his arm does)
   const bearer = await mount(b);
   bearer.position.set(1.6, 0, -0.9);
+  bearer.userData.shift = true;
   const g = new THREE.Group(); g.add(lord, bearer);
   return g;
 }

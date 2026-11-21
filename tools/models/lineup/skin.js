@@ -190,7 +190,10 @@ export async function bakeClips() {
   await load();
   const humanDefs = { ...HUMAN_CLIPS, ...Object.fromEntries(FOOT.map(n => [n, { src: n, loop: !!rigs.meta[n].loop, hold: !!rigs.meta[n].hold }])) };
   const riderDefs = { ...Object.fromEntries(RIDE.map(n => [n, { src: n, loop: !!rigs.meta[n].loop, hold: !!rigs.meta[n].hold }])), ...RIDER_CLIPS };
-  const plan = [['male', { ...humanDefs, ...riderDefs }], ['female', humanDefs], ['horse', HORSE_CLIPS]];
+  // (the woman's clips are the man's, in the same order, so each of hers starts a fixed number of frames after his:
+  // a model with both, a lady and her bannerman, plays one clip, anim.js)
+  const humans = { ...humanDefs, ...riderDefs };
+  const plan = [['male', humans], ['female', humans], ['horse', HORSE_CLIPS]];
   const frames = [], table = {};
   for (const [rn, defs] of plan) {
     const r = rigs[rn];
@@ -309,6 +312,13 @@ export function derive(fig, mesh, geo, toFig) {
   }
   if (sk.rig === 'horse') for (let i = 0; i < bones.length; i++) if (weights[i] > 0) bones[i] += HORSE;
   return { bind, bones, weights };
+}
+// How far a step from world point `from` to `to` moves a figure's vertices in its skin space (a rider set beside
+// another in one model, bake.js split()).
+export function skinStep(fig, from, to) {
+  const sk = fig.userData.skin, inv = fig.matrixWorld.clone().invert();
+  const f = v => v.clone().applyMatrix4(inv).divideScalar(sk.k).add(_v.set(0, sk.base, 0)).applyMatrix4(sk.G);
+  return f(to).sub(f(from));
 }
 function nearest(body, v) {
   let best = 0, bd = Infinity;

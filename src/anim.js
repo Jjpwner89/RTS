@@ -3,10 +3,11 @@
 // frame, at about 20 frames a second; assets/anim.json says where each clip starts (tools/models/lineup/skin.js
 // makes both). A baked vertex keeps its bind position and up to four bone weights; each instance names the clip
 // frame it shows, and the shader blends those bones. Horse vertices (bones from 128) follow a second clip, so a
-// rider and his horse move to their own clips.
+// rider and his horse move to their own clips. A model with a second rider (a lord's bannerman) gives each vertex a
+// shift: where it stands off in the model, and whether it follows the other human skeleton (bake.js split()).
 import * as THREE from 'three';
 
-let table = null, data = null, texture = null;
+let table = null, data = null, texture = null, rigStep = 0;
 try {
   const [json, bin] = await Promise.all([
     fetch(new URL('../assets/anim.json', import.meta.url)).then(r => r.ok ? r.json() : Promise.reject(r.status)),
@@ -20,6 +21,10 @@ try {
   texture.needsUpdate = true;
   data = new Float32Array(half.length);
   for (let i = 0; i < half.length; i++) data[i] = THREE.DataUtils.fromHalfFloat(half[i]);
+  // a woman's clips are a man's, in the same order: each starts this many frames after his (skin.js bakeClips)
+  const steps = new Set(Object.entries(json.clips.male).map(([n, c]) => json.clips.female?.[n]?.start - c.start));
+  if (steps.size === 1 && [...steps][0] > 0) rigStep = [...steps][0];
+  else console.warn('anim.json: the woman\'s clips do not follow the man\'s one for one, so a man and a woman in one model (a lady and her bannerman) cannot share a clip; the second rider will be posed wrong.', [...steps]);
 } catch (e) {
   console.warn('Soldier animations did not load; soldiers stand still.', e);
 }
@@ -27,6 +32,8 @@ export const animReady = () => !!table;
 
 // A clip of a skeleton ('male', 'female', 'horse'): { start, frames, fps, duration, loop?, hold?, events? }.
 export const clipOf = (rig, name) => table?.clips[rig]?.[name] || null;
+// How many frames a woman's clip starts after the man's of the same name (0: they are not aligned).
+export const rigOffset = () => rigStep;
 
 // ---- the pose on the CPU, for whoever draws a soldier standing still ----
 
@@ -39,18 +46,18 @@ function boneAt(frame, bone, out) {
 // Positions for a baked geometry posed at a clip's frame (the rider's clip for people, the horse's for the horse);
 // `only` poses just those vertices (the rest of `out` stays zero).
 export function poseOf(geo, rig, name, horseName = 'Idle', frame = 0, only = null) {
-  const bind = geo.attributes.bind, B = geo.attributes.aBones, W = geo.attributes.aWeights, out = new Float32Array(bind.count * 3);
+  const bind = geo.attributes.bind, B = geo.attributes.aBones, W = geo.attributes.aWeights, S = geo.attributes.aShift, out = new Float32Array(bind.count * 3);
   const human = clipOf(rig, name), horse = clipOf('horse', horseName);
   for (let n = only ? only.length : bind.count, j = 0; j < n; j++) {
     const i = only ? only[j] : j;
-    const x = bind.getX(i), y = bind.getY(i), z = bind.getZ(i);
-    let px = 0, py = 0, pz = 0;
+    const x = bind.getX(i), y = bind.getY(i), z = bind.getZ(i), other = S.getW(i) * rigStep;
+    let px = S.getX(i), py = S.getY(i), pz = S.getZ(i);
     for (let k = 0; k < 4; k++) {
       const w = W.getComponent(i, k);
       if (!w) continue;
-      let b = B.getComponent(i, k), c = human;
-      if (b >= table.horse) { b -= table.horse; c = horse; }
-      const m = boneAt(c.start + Math.min(frame, c.frames - 1), b, _m);
+      let b = B.getComponent(i, k), c = human, at = other;
+      if (b >= table.horse) { b -= table.horse; c = horse; at = 0; }
+      const m = boneAt(c.start + at + Math.min(frame, c.frames - 1), b, _m);
       px += w * (m[0] * x + m[1] * y + m[2] * z + m[3]);
       py += w * (m[4] * x + m[5] * y + m[6] * z + m[7]);
       pz += w * (m[8] * x + m[9] * y + m[10] * z + m[11]);
@@ -107,12 +114,17 @@ export function gaitFor(rig, gaits, v, hi = CADENCE.hi) {
   return { name, rate };
 }
 
+// (one figure in a model: no shift. All such geometries share one buffer of zeros, as long as the longest.)
+let still = null;
+const noShift = n => still?.count >= n ? still : (still = new THREE.BufferAttribute(new Float32Array(n * 4), 4));
 // Ready a baked geometry from models.glb: its stored positions are the bind pose; keep them (and their normals) for
 // the shader, and pose `position` in the figure's standing clip for anything drawn without animation.
 export function prepare(geo, info) {
   geo.setAttribute('aBones', geo.attributes._bones);
   geo.setAttribute('aWeights', geo.attributes._weights);
   geo.deleteAttribute('_bones'); geo.deleteAttribute('_weights');
+  geo.setAttribute('aShift', geo.attributes._shift || noShift(geo.attributes.position.count));
+  geo.deleteAttribute('_shift');
   const bind = geo.attributes.position;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', bind);
@@ -158,6 +170,7 @@ attribute vec3 bind;
 attribute vec3 bindNormal;
 attribute vec4 aBones;
 attribute vec4 aWeights;
+attribute vec4 aShift;   // a second rider's place in the model (xyz), and the human skeleton he follows (w)
 attribute vec4 aAnim;    // this instance's clip: first frame, frames (negative: holds at the end), frame now
 attribute vec4 aAnimH;   // and its horse's
 mat4 animBone(float frame, float bone) {
@@ -168,6 +181,7 @@ mat4 animBone(float frame, float bone) {
 mat4 animSkin() {
   bool horse = aBones.x >= ${T.horse}.0;
   vec4 clip = horse ? aAnimH : aAnim;
+  if (!horse) clip.x += aShift.w * ${rigStep}.0;
   vec4 bones = horse ? aBones - ${T.horse}.0 : aBones;
   // (a time at the very end of a loop can round up to its length: wrap it, never read the next clip)
   float n = max(abs(clip.y), 1.0), f0 = floor(clip.z), t = clip.z - f0;
@@ -185,7 +199,7 @@ mat4 animSkin() {
 }`)
       .replace('void main() {', 'void main() {\n  mat4 animM = animSkin();')
       .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = mat3(animM) * bindNormal;')
-      .replace('#include <begin_vertex>', 'vec3 transformed = (animM * vec4(bind, 1.0)).xyz;');
+      .replace('#include <begin_vertex>', 'vec3 transformed = (animM * vec4(bind, 1.0)).xyz + aShift.xyz;');
   };
   m.customProgramCacheKey = () => 'anim' + light;
 }

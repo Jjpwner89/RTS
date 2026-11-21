@@ -122,12 +122,14 @@ for (const { T } of ORDER) {
   } else if (T.key === 'wardog') { meshes(lookOf(T.key), blockSlots(4, 2, 1.3, 1.6), { gait: 'dog' }); depth = 4; }
   else if (T.mounted) { meshes(lookOf(T.key), blockSlots(3, 2, 2.6, 3.6), { gait: 'horse' }); depth = 8; }
   else { meshes(lookOf(T.key), blockSlots(4, 3, 1.5, 1.7), { gait: 'foot' }); depth = 5.5; }
-  // the regiment's banner, carried at its left front
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.05, 10, 1), flagMat);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 4.6, 6), new THREE.MeshLambertMaterial({ color: WOOD }));
-  flag.castShadow = pole.castShadow = true;
-  scene.add(flag, pole);
-  reg.flag = { flag, pole, base: flag.geometry.attributes.position.array.slice(), x: LORDS[T.key] ? 1.6 : -3.6, z: T.engine ? 2 : 1 };
+  // the regiment's banner, carried at its left front (a lord's bannerman carries the house banner in the model)
+  if (!LORDS[T.key]) {
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.05, 10, 1), flagMat);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 4.6, 6), new THREE.MeshLambertMaterial({ color: WOOD }));
+    flag.castShadow = pole.castShadow = true;
+    scene.add(flag, pole);
+    reg.flag = { flag, pole, base: flag.geometry.attributes.position.array.slice(), x: -3.6, z: T.engine ? 2 : 1 };
+  }
   reg.s = front;
   reg.depth = depth;
   front -= depth + 7;
@@ -289,7 +291,8 @@ const swatches = document.getElementById('colours');
 COLOURS.forEach((c, i) => {
   const b = document.createElement('button');
   b.style.background = c; b.title = 'Wear this colour';
-  b.onclick = () => { clothMat.color.set(c); flagMat.color.set(c); for (const x of swatches.children) x.classList.toggle('on', x === b); };
+  // (animated men wear copies of the cloth made for their clips: dye those too)
+  b.onclick = () => { for (const m of [clothMat, animMaterial(clothMat), animMaterial(clothMat, { light: true }), flagMat]) m.color.set(c); for (const x of swatches.children) x.classList.toggle('on', x === b); };
   swatches.append(b);
   if (!i) b.onclick();
 });
@@ -310,7 +313,7 @@ function frame() {
         if (part.anim) x.geometry.attributes.aAnim.needsUpdate = x.geometry.attributes.aAnimH.needsUpdate = true;
       }
     });
-    placeFlag(reg, t);
+    if (reg.flag) placeFlag(reg, t);
   }
   shown.rotation.y += dt * 0.35;
   if (plinthMan) {
