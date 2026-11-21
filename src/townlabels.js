@@ -120,7 +120,8 @@ export class TownLabels {
         this.el.appendChild(tag); this.tags.set(key, tag);
       }
       if (tag.dataset.html !== html) { tag.dataset.html = html; tag.innerHTML = html; }
-      if (tag.className !== cls) tag.className = cls;
+      // Compared apart from 'shy', which the loop below owns: resetting it each frame restarted its fade, so a hidden badge never faded out.
+      if (tag.dataset.cls !== cls) { tag.dataset.cls = cls; tag.className = cls + (tag.classList.contains('shy') ? ' shy' : ''); }
       tag.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
       seen.add(key);
     }
