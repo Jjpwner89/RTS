@@ -128,8 +128,9 @@ export function remember(t, side, time) {
 }
 
 // Puts a remembered place back up for `side`. Left long enough, its holders mend the walls.
-export function rebuild(town, mem, side, mended) {
+export function rebuild(town, mem, side, mended, name = 'A remembered place') {
   for (const b of mem.buildings) {
+    if (!known(name, b.kind)) continue;
     const r = town.place(b.kind, b.x, b.z, { ready: true });
     if (!r.ok) continue;
     if (b.level > 1) r.building.level = b.level;
@@ -156,6 +157,17 @@ export function rebuild(town, mem, side, mended) {
   W.centre[side] = mem.centre || { x: 0, z: 0 };
   W.changed();
   return true;
+}
+
+// A kind of building the game has (economy.js BUILDINGS). A tally or a memory naming one it
+// hasn't (a slip elsewhere, an old save) is left out, said once per place and kind, so a bad
+// number can never stop the map drawing.
+const warned = new Set();
+function known(name, kind) {
+  if (BUILDINGS[kind]) return true;
+  const key = `${name}|${kind}`;
+  if (!warned.has(key)) { warned.add(key); console.warn(`places.js: ${name} names a building '${kind}' the game doesn't have; left out`); }
+  return false;
 }
 
 // ---- planning ----
@@ -252,10 +264,11 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
   const main = roads[0];
   const unplaced = [];
   const want = tally ? { ...tally } : tallyOf(p);
+  for (const k of Object.keys(want)) if (!known(p.name, k)) delete want[k];
   // What is remembered stands where it stood; only what it lacks is new.
   let kept = false;
   if (p.mem && !fresh) {
-    rebuild(t, p.mem, 1, false);
+    rebuild(t, p.mem, 1, false, p.name);
     kept = true;
     for (const b of p.mem.buildings) if (want[b.kind] > 0) want[b.kind]--;
   }
@@ -652,7 +665,13 @@ const signature = p => JSON.stringify([p.kind, p.seat !== undefined, tallyOf(p),
 export function layoutOf(p) {
   const sig = signature(p), c = cache.get(p);
   if (c && c.sig === sig) return c.plan;
-  const t0 = performance.now(), L = plan(p);
+  const t0 = performance.now();
+  let L;
+  try { L = plan(p); } catch (e) {
+    // (said once, as an error, and drawn bare until its numbers change, rather than stopping every frame)
+    console.error(`places.js: ${p.name} could not be laid out`, e);
+    L = { buildings: [], nodes: [], pieces: [], lanes: [], deposits: [], unplaced: [], keepShown: keepLevelFor(p) };
+  }
   L.ms = performance.now() - t0;
   cache.set(p, { sig, plan: L });
   if (L.unplaced.length) console.warn(`places.js: ${p.name} has no room for ${L.unplaced.join(', ')}`);
@@ -664,7 +683,7 @@ export function layoutOf(p) {
 // holders have had the time (`mended`). Returns how far out its walls run (0 for none).
 export function layPlace(town, p, side, { mended = true } = {}) {
   const L = layoutOf(p);
-  rebuild(town, L, side, mended);
+  rebuild(town, L, side, mended, p.name);
   town.lanes = L.lanes;
   // its yards and lanes are clear of trees (a building fells only those it stands on)
   const yards = town.buildings.filter(b => !GATHER.has(b.kind) && !FIELDS.has(b.kind));

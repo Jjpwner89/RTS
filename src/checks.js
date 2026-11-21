@@ -396,6 +396,17 @@ async function worldChecks(w) {
     return sample(out, 10);
   });
 
+  // A place whose numbers name a building the game doesn't have (a slip elsewhere, an old
+  // save) is still drawn, less that one, and the map goes on (places.js known).
+  await check("a building the game doesn't have can't stop the map", async () => {
+    const view = window.game.worldView, p = w.pois.find(q => q.seen && q.eco?.buildings && !q.town);
+    if (!view?.dress || !p) return null;
+    const copy = { ...p, eco: { ...p.eco, buildings: { ...p.eco.buildings, 'no such building': 1 } } };
+    const { Group } = await import('three'), o = { group: new Group(), flag: new Group() };   // (drawn off the map, not added to it)
+    try { view.dress(copy, o); } catch (e) { return [`${p.name} with a bogus building: the map threw ${e.message}`]; }
+    return o.parts?.children.length ? [] : [`${p.name} with a bogus building: nothing drawn`];
+  });
+
   // A place you storm or look round is built from its numbers: it should show all of them.
   // (a look-round's village isn't kept on the place, only on the screen)
   const c = window.game.current;
