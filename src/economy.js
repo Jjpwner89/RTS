@@ -2129,10 +2129,23 @@ export class Town {
           v.state = 'soldier'; v.soldier = s; s.villager = v; v.xp = sp.xp || 0;
         });
       }
-      const stand = { x: Math.sin(angle) * standAt, z: Math.cos(angle) * standAt };
+      // up the road toward the keep, on the nearest open ground (a town's houses front its streets)
+      const stand = this.openGround(Math.sin(angle) * standAt, Math.cos(angle) * standAt, Math.min(22, 5 + Math.sqrt(sp.count) * 1.3));
       r.dest = { x: stand.x, z: stand.z, angle: Math.atan2(stand.x, stand.z) };
     }
     return added;
+  }
+
+  // The nearest point to (x, z) with room for a body of men `r` across: clear of buildings,
+  // the keep and walls. Falls back to (x, z) itself.
+  openGround(x, z, r) {
+    const clear = (px, pz) => !this.buildings.some(b => Math.hypot(b.x - px, b.z - pz) < b.B.radius + r)
+      && Math.hypot(this.keep.x - px, this.keep.z - pz) > this.keep.B.radius + r && !this.battle.walls.pieceAt(px, pz, null, r);
+    for (let d = 0; d <= 60; d += 4) for (let i = 0, n = Math.max(1, Math.round(d / 2)); i < n; i++) {
+      const a = i / n * Math.PI * 2, px = x + Math.sin(a) * d, pz = z + Math.cos(a) * d;
+      if (clear(px, pz)) return { x: px, z: pz };
+    }
+    return { x, z };
   }
 
   // Regiments leaving for the world map. Levies take their villagers with them.
