@@ -313,18 +313,34 @@ function camp(w, p) {
 // stay: you decide whether you can feed them. They come as working adults, and some bring
 // something with them. Their own clock, sooner and more often than the other events.
 const SETTLE_FIRST = 300, SETTLE_EVERY = [360, 540];
+// A kind of newcomer doesn't come twice inside this (playtest, 2026-11-21: homeless families three
+// times and foresters twice in fifty minutes); each kind also tells its story a few ways.
+const SETTLE_COOLDOWN = 1500;
 const GROUPS = {
   refugees: { n: [5, 8], title: p => `Homeless families at ${p.name}`, bring: {},
-    text: (p, n) => `${n} people whose village burned in a quarrel between lords have walked to ${p.name} with nothing but a cart and a cow. They ask for a roof and work.` },
+    texts: [
+      (p, n) => `${n} people whose village burned in a quarrel between lords have walked to ${p.name} with nothing but a cart and a cow. They ask for a roof and work.`,
+      (p, n) => `${n} people, their fields trampled by two armies that were not even fighting each other, have come to ${p.name} on foot. They would work for bread and a corner of a barn.`,
+      (p, n) => `A bad harvest and a worse landlord have driven ${n} people from the hills to ${p.name}. They are thin, and willing, and ask to be taken in.`] },
   masons: { n: [3, 4], title: p => `Masons on the road to ${p.name}`, bring: { stone: 25 },
-    text: (p, n) => `${n} masons, out of work since the abbey they built was finished, stop at ${p.name} with a cartload of dressed stone. They would settle, if there is bread.` },
+    texts: [
+      (p, n) => `${n} masons, out of work since the abbey they built was finished, stop at ${p.name} with a cartload of dressed stone. They would settle, if there is bread.`,
+      (p, n) => `${n} masons whose lord ran out of money halfway up a tower bring their tools and a wagon of cut stone to ${p.name}. They ask for work, and a roof over it.`,
+      (p, n) => `${n} stonecutters, driven from a quarry that fell in on itself, come to ${p.name} with what stone they could carry. They would settle and cut for you.`] },
   foresters: { n: [3, 4], title: p => `Foresters at ${p.name}`, bring: { wood: 30 },
-    text: (p, n) => `${n} foresters, turned out of the king's chase, come to ${p.name} hauling a sledge of seasoned timber. They ask to settle and work the woods.` },
+    texts: [
+      (p, n) => `${n} foresters, turned out of the king's chase, come to ${p.name} hauling a sledge of seasoned timber. They ask to settle and work the woods.`,
+      (p, n) => `${n} woodsmen, whose wood was sold out from under them, arrive at ${p.name} with a sledge of timber and their own axes. They would fell for you, if you will have them.`,
+      (p, n) => `${n} charcoal-burners and fellers, put out when their wood was enclosed, bring seasoned timber to ${p.name}. They ask to settle at the forest's edge.`] },
 };
 
 function settlerEvent(w, p, id) {
   const G = GROUPS[id], t = p.town;
   const n = G.n[0] + Math.floor(w.rand() * (G.n[1] - G.n[0] + 1));
+  // a different telling from the last time this kind came
+  const seen = (w.settlerSeen ??= {})[id] ??= { at: -1e9, variant: -1 };
+  const variants = G.texts.map((_, i) => i).filter(i => i !== seen.variant), variant = variants[Math.floor(w.rand() * variants.length)];
+  seen.at = w.time; seen.variant = variant;
   const meals = Math.floor(food(t)), room = () => t.housing - t.population;
   const brings = Object.entries(G.bring).map(([g, q]) => `${q} ${g}`).join(', ');
   const take = k => () => {
@@ -338,21 +354,23 @@ function settlerEvent(w, p, id) {
     { label: 'Send them on their way', run: () => `The ${id} go on down the road.` },
   ];
   const ev = { id: `settlers-${id}`, image: picture(id), title: G.title(p),
-    text: `${G.text(p, n)} ${p.name} has ${meals} meals in store for ${t.population} people${room() < n ? `, and room for only ${Math.max(0, room())} more: build houses first` : ''}.`, at: p,
+    text: `${G.texts[variant](p, n)} ${p.name} has ${meals} meals in store for ${t.population} people${room() < n ? `, and room for only ${Math.max(0, room())} more: build houses first` : ''}.`, at: p,
     choices: choices.map(c => live(w, c)) };
   if (w.hooks.choice) w.hooks.choice(ev);
   else ev.choices.at(-1).run();
   return ev;
 }
 
-function tickSettlers(w, dt) {
+export const SETTLERS = { COOLDOWN: SETTLE_COOLDOWN, GROUPS };   // for checks()
+export function tickSettlers(w, dt) {
   w.settlerClock = (w.settlerClock ?? SETTLE_FIRST) - dt;
   if (w.settlerClock > 0) return;
   w.settlerClock = SETTLE_EVERY[0] + w.rand() * (SETTLE_EVERY[1] - SETTLE_EVERY[0]);
   const places = w.pois.filter(p => p.owner === 0 && p.town && !p.town.underAttack && !p.town.hostile && !p.town.revolt && !p.town.readOnly);
   if (!places.length) return;
   const p = places[Math.floor(w.rand() * places.length)];
-  const ids = Object.keys(GROUPS).filter(k => k !== w.lastSettlers);
+  const ids = Object.keys(GROUPS).filter(k => k !== w.lastSettlers && w.time - (w.settlerSeen?.[k]?.at ?? -1e9) >= SETTLE_COOLDOWN);
+  if (!ids.length) return;   // every kind came lately: nobody this time
   const id = ids[Math.floor(w.rand() * ids.length)];
   w.lastSettlers = id;
   settlerEvent(w, p, id);

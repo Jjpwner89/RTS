@@ -370,6 +370,37 @@ async function worldChecks(w) {
   const { BUILDINGS } = await import('./economy.js');
   await check("every place's building kinds are real", () => w.pois.filter(p => p.eco?.buildings).flatMap(p =>
     Object.keys(p.eco.buildings).filter(k => !BUILDINGS[k]).map(k => `${p.name}: '${k}'`)));
+  // Newcomers don't repeat: no kind comes twice inside its cooldown, and nothing is asked of the real
+  // world (the clock, the choice hook and the settler state are put back).
+  const Ev = await import('./world/events.js');
+  await check('settlers: no kind twice within 20 minutes', () => {
+    if (!w.pois.some(p => p.owner === 0 && p.town && !p.town.underAttack && !p.town.hostile && !p.town.revolt && !p.town.readOnly)) return null;
+    const keep = { time: w.time, clock: w.settlerClock, seen: w.settlerSeen, last: w.lastSettlers, choice: w.hooks.choice }, came = [], out = [];
+    try {
+      w.settlerSeen = {}; w.lastSettlers = undefined;
+      w.hooks.choice = ev => came.push([ev.id.replace('settlers-', ''), w.time, w.settlerSeen[ev.id.replace('settlers-', '')].variant]);
+      const t0 = w.time;
+      for (let i = 0; i < 300; i++) { w.time = t0 + i * 300; w.settlerClock = 0; Ev.tickSettlers(w, 0); }
+    } finally { Object.assign(w, { time: keep.time, settlerClock: keep.clock, settlerSeen: keep.seen, lastSettlers: keep.last }); w.hooks.choice = keep.choice; }
+    for (let i = 0; i < came.length; i++) {
+      const j = came.slice(0, i).findLastIndex(c => c[0] === came[i][0]);
+      if (j >= 0 && came[i][1] - came[j][1] < 1200) out.push(`${came[i][0]} again after ${Math.round((came[i][1] - came[j][1]) / 60)} min`);
+      if (j >= 0 && came[i][2] === came[j][2]) out.push(`${came[i][0]} told the same way twice`);
+    }
+    if (came.length < 3) out.push(`only ${came.length} came in 300 tries`);
+    return out;
+  });
+  // Worked-out quarries and mines: nobody keeps standing at one, and Find points at a real deposit
+  // (playtest round 2, 2026-11-21).
+  await check('a worked-out workplace frees its workers, and Find points at a deposit still holding some', () => {
+    const out = [];
+    for (const p of w.pois) for (const b of p.town?.buildings || []) {
+      if (b.dry && b.state === 'active' && p.town.time - b.dry > 120 && b.workers.length) out.push(`${p.name}: the ${b.kind} has been dry ${Math.round((p.town.time - b.dry) / 60)} min with ${b.workers.length} workers`);
+      const next = b.state === 'active' && p.town.nextDeposit(b);
+      if (next && !((next.node.standing ?? true) && (next.node.left ?? 1) > 0 && Math.hypot(next.node.x - b.x, next.node.z - b.z) >= b.B.gather.range)) out.push(`${p.name}: Find for the ${b.kind} points at an empty or reachable deposit`);
+    }
+    return out;
+  });
   // A petition you can't afford lights up when the purse fills while it waits (QC, 2026-11-21).
   // Nothing is chosen; the purse is put back.
   await check("a petition's cost is read live", () => {

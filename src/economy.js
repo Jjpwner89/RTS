@@ -1665,7 +1665,11 @@ export class Town {
         // Nothing left to work (playtest, 2026-11-21: a village starved while its people stood at
         // dead mines): its workers go and find other work, and nobody is sent back until there
         // is something to work again (findWork looks every half minute). Said once.
-        if (!b.dry) { b.dry = this.time; b.dryWhy = b.status; this.event(`The ${b.B.name.toLowerCase()} stands idle: ${b.status.toLowerCase()}. Its workers find other work; move it or pull it down.`, 1); }
+        if (!b.dry) {
+          b.dry = this.time; b.dryWhy = b.status;
+          const next = this.nextDeposit(b);
+          this.event(`The ${b.B.name.toLowerCase()} stands idle: ${b.status.toLowerCase()}. Its workers find other work; ${next ? `the nearest unworked ${next.node.kind === 'rock' ? 'outcrop' : 'deposit'} is ${next.m} m to the ${next.to}: select the ${b.B.name.toLowerCase()} and press Find` : 'no other deposit is left in your land'}.`, 1);
+        }
         v.task = null;
         this.release(v);
         return;
@@ -1769,6 +1773,23 @@ export class Town {
     let sum = 0;
     for (const k of cells) { const [i, j] = k.split(',').map(Number); sum += this.gameAt({ x: (i + 0.5) * GAME.cell, z: (j + 0.5) * GAME.cell }); }
     return sum / cells.size;
+  }
+
+  // The deposits a quarry or mine at (x, z) can reach, and what they hold (placing one says so).
+  depositsAt(x, z, g) {
+    const list = this.nodes[g.node].filter(n => (n.standing ?? true) && dist(n, { x, z }) < g.range);
+    return { list, left: list.reduce((n, d) => n + Math.max(0, d.left ?? 0), 0) };
+  }
+
+  // Where to dig next once a quarry or mine has run dry: the nearest deposit out of its reach that
+  // no working quarry or mine of the same kind covers already (playtest, 2026-11-21).
+  nextDeposit(b) {
+    const g = b.B.gather;
+    if (!g || !(g.node === 'rock' || g.node === 'ore')) return null;
+    const worked = this.buildings.filter(o => o !== b && o.state === 'active' && !o.dry && o.B.gather?.node === g.node);
+    const node = this.nodes[g.node].filter(n => (n.standing ?? true) && (n.left ?? 1) > 0 && dist(n, b) >= g.range
+      && !worked.some(o => dist(n, o) < o.B.gather.range)).sort((p, q) => dist(p, b) - dist(q, b))[0];
+    return node ? { node, m: Math.round(dist(node, b)), to: compass({ x: node.x - b.x, z: node.z - b.z }) } : null;
   }
 
   pickSpot(b) {

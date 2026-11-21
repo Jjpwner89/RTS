@@ -57,6 +57,7 @@ const hooks = {
     return true;
   },
   cancelPlacement: () => { if (!placing) return false; if (road.roadFrom) { road.roadFrom = null; return true; } placing = null; return true; },
+  findDeposit: n => { Object.assign(controls.cam, { x: n.x, z: n.z, dist: Math.min(controls.cam.dist, 70) }); townView.markDeposit(n); },
   hover: g => { hoverAt = g; },
   pickBuilding: g => { selected = g ? townView.buildingAt(g) : null; return !!selected; },
   deselect: () => { selected = null; controls.setSelection([]); },

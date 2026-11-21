@@ -32,7 +32,7 @@ function ahead(a) {
 
 export function alerts(w) {
   const out = [];
-  const add = (level, text, at, icon) => out.push({ level, text, at, icon });
+  const add = (level, text, at, icon, find) => out.push({ level, text, at, icon, find });
 
   for (const p of w.pois) {
     const t = p.town;
@@ -45,7 +45,11 @@ export function alerts(w) {
     else if (t.misery > 30) add(3, `${p.name} is close to revolt (mood ${Math.round(t.mood)})`, p, 'people');
     if (t.hungry) add(5, `${p.name} is going hungry: ${hungerWhy(t)}`, p, 'food');
     const dry = t.buildings.filter(b => b.dry && b.state === 'active');
-    if (dry.length) add(2, `${p.name}: ${dry.length > 1 ? `${dry.length} workplaces stand` : `the ${dry[0].B.name.toLowerCase()} stands`} idle, worked out: move or pull down`, p, 'warning');
+    if (dry.length) {
+      // Click to go to the nearest deposit nobody is working, when there is one.
+      const next = dry.map(b => t.nextDeposit(b)).filter(Boolean).sort((a, b) => a.m - b.m)[0];
+      add(2, `${p.name}: ${dry.length > 1 ? `${dry.length} workplaces stand` : `the ${dry[0].B.name.toLowerCase()} stands`} idle, worked out${next ? `: the next deposit is ${next.m} m ${next.to} (click to look)` : `: ${dry.some(b => /^(rock|ore)$/.test(b.B.gather?.node)) ? 'no other deposit left; ' : ''}move or pull down`}`, p, 'warning', next && next.node);
+    }
   }
 
   // Enemy columns you can see, marching on a place of yours.

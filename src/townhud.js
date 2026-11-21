@@ -406,6 +406,7 @@ export class TownHud {
     }
     const buttons = [];
     if (B.jobs && b.state === 'active') buttons.push(`<button data-act="pause"></button>`);
+    if (b.state === 'active' && (B.gather?.node === 'rock' || B.gather?.node === 'ore')) buttons.push(`<button data-act="find" title="Look at the nearest deposit nobody is working">Find a deposit</button>`);
     buttons.push(`<button data-act="demolish">${b.state === 'ruined' ? 'Clear ruin' : 'Demolish'}</button>`);
     rows.push(`<div class="row">${buttons.join('')}</div>`);
     return rows.join('');
@@ -442,7 +443,7 @@ export class TownHud {
     if (f === 'deposit') {
       const g = b.B.gather, near = this.town.nodes[g.node].filter(n => Math.hypot(n.x - b.x, n.z - b.z) < g.range);
       const left = near.reduce((n, d) => n + Math.max(0, d.left ?? 0), 0);
-      return `Left in reach: ${Math.round(left)} ${g.node === 'rock' ? 'stone' : 'ore'} in ${near.filter(d => (d.left ?? 1) > 0).length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}(s). Mines sharing a deposit strip it faster.`;
+      return `Left in reach: ${Math.round(left)} ${g.node === 'rock' ? 'stone' : 'ore'} in ${near.filter(d => (d.left ?? 1) > 0).length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}(s). ${left > 0 ? 'It runs out. ' : 'Worked out. '}Mines sharing a deposit strip it faster.`;
     }
     if (f === 'settlers') return settlerWhy(this.town, this.town.settlers());
     if (f === 'mood') return `${moodWord(this.town.mood)} (${Math.round(this.town.mood)}): ${this.town.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join(', ') || 'nothing much either way'}. A happy village grows faster and pays more tax; a miserable one loses families.`;
@@ -464,6 +465,7 @@ export class TownHud {
     if (act === 'refit') { const c = t.refitCheck(this.reg); return [c.ok, c.reason]; }
     if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
     if (act === 'upgrade') { const c = t.upgradeCheck(this.selected); return [c.ok, c.reason]; }
+    if (act === 'find') return this.town.nextDeposit(this.selected) ? [true] : [false, 'No other deposit is left in your land'];
     if (act === 'staff:-1') return t.staffed(this.selected) > 0 ? [true] : [false, 'Nobody works here'];
     if (act === 'staff:1') return t.staffed(this.selected) < t.jobs(this.selected) ? [true] : [false, 'Every place is wanted; upgrade for more'];
     if (act.startsWith('engine:')) { const c = t.engineCheck(act.slice(7), this.selected); return [c.ok, c.reason]; }
@@ -486,6 +488,10 @@ export class TownHud {
     if (act.startsWith('recipe:')) t.toggleRecipe(this.selected, +act.slice(7));
     if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
     if (act.startsWith('staff:')) t.setStaff(this.selected, t.staffed(this.selected) + +act.slice(6));
+    if (act === 'find') {
+      const n = t.nextDeposit(this.selected);
+      if (n) { this.hooks.findDeposit?.(n.node); this.flash(`Nearest unworked ${n.node.kind === 'rock' ? 'outcrop' : 'deposit'}: ${n.m} m to the ${n.to}. Build a ${this.selected.B.name.toLowerCase()} beside it.`); }
+    }
     if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
     if (act === 'disband' && t.disband(this.reg)) this.hooks.deselect();
     if (act.startsWith('policy:')) this.selected.policy = act.slice(7);

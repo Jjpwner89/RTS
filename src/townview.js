@@ -230,7 +230,8 @@ export class TownView {
     this.territoryRing = circle(town.territory, '#ffd970', 0.35);
     this.territoryRing.position.y = heightAt(0, 0) + 1;
     this.selectRing = circle(1, '#ffd970', 0.9);
-    for (const o of [this.ghostRange, this.territoryRing, this.selectRing]) { o.visible = false; scene.add(o); }
+    this.findRing = circle(1, '#7fd0ff', 0.95);   // a deposit the Find button points at
+    for (const o of [this.ghostRange, this.territoryRing, this.selectRing, this.findRing]) { o.visible = false; scene.add(o); }
   }
 
   // The keep's level: see keepLevelOf.
@@ -276,6 +277,9 @@ export class TownView {
     }
     this.territoryRing.visible = true;
   }
+
+  // The Find button: ring a deposit for a few seconds.
+  markDeposit(node) { this.found = { node, until: performance.now() + 8000 }; }
 
   // A whole template's layout while it is being placed: one ghost for every building, in
   // the colour of whether it can be laid down now.
@@ -350,6 +354,12 @@ export class TownView {
       o.icon.material.opacity = b.state === 'active' ? 1 : 0.55;
     }
 
+    const f = this.found, fl = f && performance.now() < f.until;
+    this.findRing.visible = !!fl;
+    if (fl) {
+      this.findRing.scale.setScalar(5 + 1.5 * Math.sin(performance.now() / 180));
+      this.findRing.position.set(f.node.x, this.heightAt(f.node.x, f.node.z) + 0.6, f.node.z);
+    }
     this.selectRing.visible = !!selected;
     if (selected) {
       this.selectRing.scale.setScalar(selected.B.radius + 2);

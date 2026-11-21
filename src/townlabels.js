@@ -90,10 +90,9 @@ export class TownLabels {
           text = `${Math.round(len)} m, ${town.roadCost(roadFrom, at)} stone` + (c.ok ? '' : `: ${c.reason}`);
         }
       } else if (g && (g.node === 'rock' || g.node === 'ore')) {
-        const near = town.nodes[g.node].filter(n => Math.hypot(n.x - at.x, n.z - at.z) < g.range);
-        const left = near.reduce((n, d) => n + Math.max(0, d.left ?? 0), 0);
+        const { list: near, left } = town.depositsAt(at.x, at.z, g);
         const what = g.node === 'rock' ? 'stone' : 'ore';
-        text = near.length ? `In reach: ${near.length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}${near.length > 1 ? 's' : ''}, ${Math.round(left)} ${what} left` : `No ${g.node === 'rock' ? 'stone outcrop' : 'ore deposit'} in reach`;
+        text = near.length ? `In reach: ${near.length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}${near.length > 1 ? 's' : ''}, ${Math.round(left)} ${what} left, and no more: ${near.length > 1 ? 'they run' : 'it runs'} out` : `No ${g.node === 'rock' ? 'stone outcrop' : 'ore deposit'} in reach`;
       } else {
         const d = [...town.nodes.rock, ...town.nodes.ore].find(n => Math.hypot(n.x - at.x, n.z - at.z) < 7);
         if (d && d.left !== undefined) {

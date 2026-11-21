@@ -195,6 +195,7 @@ function townBundle(p, look = null) {
     hireCompany: id => { const c = world.companies.find(o => o.id === id); return hireCompany(world, c, 0, p); },
     companyOf: r => { const c = (world.companies || []).find(c => c.employer === 0 && c.name === r.name); return c && { ...c, wage: wage(c) }; },
     dismissCompany: r => { const c = (world.companies || []).find(o => o.employer === 0 && o.name === r.name); if (c) release(world, c, 'dismissed'); },
+    findDeposit: n => { Object.assign(b.controls.cam, { x: n.x, z: n.z, dist: Math.min(b.controls.cam.dist, 70) }); townView.markDeposit(n); },
     findAttackers: () => b.controls.focus(town.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.routing)),
     place: (g, e) => {
       if (!st.placing) return false;
@@ -1124,6 +1125,12 @@ $('alerts').onclick = e => {
   const a = shownAlerts[+e.target.closest('[data-alert]')?.dataset.alert];
   if (a?.away) return takeCommand();
   if (!a?.at || a.at.gone) return;
+  // a worked-out quarry or mine: go to its village and ring the next deposit
+  if (a.find && a.at.town) {
+    if (!(mode === 'town' && current.poi === a.at)) enterTown(a.at);
+    if (mode === 'town' && current.poi === a.at) current.hooks.findDeposit(a.find);
+    return;
+  }
   if (mode === 'town') showWorld();
   selected = a.at;
   worldControls.lookAt(a.at);
