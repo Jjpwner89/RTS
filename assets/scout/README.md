@@ -143,3 +143,36 @@ Compared with the game's engines (the Kenney Castle Kit 2.0: ram 1,112 triangles
 | `Rig_Medium_CombatRanged.glb` | `Ranged_Bow_Draw`, `Ranged_Bow_Release`, `Ranged_Bow_Idle`, `Ranged_Bow_Aiming_Idle`, `Ranged_1H`/`2H` aim, shoot and reload, magic |
 
 This fills the villager jobs the free set was missing: **fishing, hammering, sawing, digging, and generic work**. The large rig (`Rig_Large_*`) and the skeleton, advanced-movement and Special files were left out.
+
+### Snowy trees: `vegetation/snow/` (Devil's Work.shop)
+
+Six snow-capped round-top trees (`Low_Poly_Forest_treeRoundTop07–12Snow.fbx`, 98–262 triangles each, one shared texture `treeRoundTopSnow.png`) from Ajay Karat's [Low Poly Forest Pack](https://opengameart.org/content/low-poly-forest-pack) (December 2018). The page's licence field reads "CC0", and its text says "CC0 1.0 Universal. Credits to the author is always appreciate". The zip's own `License.txt` (copied as `DevilsWorkshop_License.txt`) is worded as a purchaser licence: "an ongoing, non-exclusive commercial, worldwide license… You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission". The two read compatibly, and both allow redistribution, so the trees are packaged; the author's credit ("Ajay Karat | Devil's Work.shop") is given here, which they appreciate. FBX 2013 format with a texture, not flat colour, so they won't match the Kenney trees' look without recolouring.
+
+### Mocap falls: `anims/cmu-falls/` (CMU Graphics Lab)
+
+Four motions from the [CMU Motion Capture Database](http://mocap.cs.cmu.edu), as BVH: `90_16.bvh` (subject 90, trial 16, "fall on face"), `90_17.bvh` ("banana peel slip"), `90_18.bvh` ("rug pull fall"), `85_15.bvh` (subject 85, "90 twists fall"). Each is a 3–9 s stunt-style tumble at 120 fps, not a hit reaction. The CMU FAQ says: "The motion capture data may be copied, modified, or redistributed without permission." (Its home page adds that the data may not be resold directly, even in converted form, which a free public repository doesn't do.) This is not CC0, but it is equally free to redistribute. The BVHs are Bruce Hahne's 2010 "Motionbuilder-friendly" conversion (his `READMEFIRST.txt` is copied beside them); skeleton: CMU's 31 joints (`Hips`, `LeftUpLeg`, …), which needs retargeting onto the game's rig. Credit CMU in `credits.html` if used: "The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217."
+
+### Sounds from Freesound: `sounds/freesound/`
+
+22 sounds whose Freesound pages were each read in the built-in browser and show the Creative Commons 0 licence (the page links `creativecommons.org/publicdomain/zero/1.0/`, the only licence link on each page). **The files are Freesound's public high-quality MP3 previews** (128 kbps), because downloading an original needs a login; they carry the sound's licence, and the audio session can re-encode or swap them. No credit is needed.
+
+| File | Fills | Author | Source page |
+|---|---|---|---|
+| `catapult_launch_and_hit.mp3` | A catapult releasing and hitting a target | craigsmith | [479921](https://freesound.org/people/craigsmith/sounds/479921/) |
+| `catapult_loaded_and_shot.mp3` | A catapult loaded, then shot | sukondi | [553906](https://freesound.org/people/sukondi/sounds/553906/) |
+| `catapult_small.mp3` | A small catapult | batchku | [10335](https://freesound.org/people/batchku/sounds/10335/) |
+| `ballista_loading.mp3` | Loading a ballista | MadPanCake | [660765](https://freesound.org/people/MadPanCake/sounds/660765/) |
+| `door_forced_open.mp3` | A locked door forced open (a ram on a gate) | Talitha5 | [262538](https://freesound.org/people/Talitha5/sounds/262538/) |
+| `wood_splitting.mp3`, `wood_tear.mp3` | Wood splitting and tearing | viwright2112, loganzsound | [630400](https://freesound.org/people/viwright2112/sounds/630400/), [774268](https://freesound.org/people/loganzsound/sounds/774268/) |
+| `crowd_yells_charge.mp3` | A crowd yelling a charge (11 s). The audio session said it is fetching its own charge shout. | ShangusBurger | [764158](https://freesound.org/people/ShangusBurger/sounds/764158/) |
+| `battlefield_ambience_loop.mp3` | A battlefield loop (59 s) | banan_ | [385895](https://freesound.org/people/banan_/sounds/385895/) |
+| `sword_clash.mp3`, `sword_block_combo.mp3`, `shield_guard.mp3` | More sword and shield clash variety | spycrah, ethanchase7744, nekoninja | [471095](https://freesound.org/people/spycrah/sounds/471095/), [440069](https://freesound.org/people/ethanchase7744/sounds/440069/), [370203](https://freesound.org/people/nekoninja/sounds/370203/) |
+| `chainmail_footstep_gravel.mp3` | A mailed footstep on gravel | Ali_6868 | [384890](https://freesound.org/people/Ali_6868/sounds/384890/) |
+| `pain_grunt.mp3`, `male_death.mp3`, `male_death_04.mp3` | A man hurt and dying | MrFossy, Blankened, Artmasterrich | [547209](https://freesound.org/people/MrFossy/sounds/547209/), [554443](https://freesound.org/people/Blankened/sounds/554443/), [345456](https://freesound.org/people/Artmasterrich/sounds/345456/) |
+| `horse_snort.mp3` | A horse snorting (2.5 s) | o_ciz | [475483](https://freesound.org/people/o_ciz/sounds/475483/) |
+| `pig_oink.mp3` | A pig | qubodup | [442906](https://freesound.org/people/qubodup/sounds/442906/) |
+| `big_tree_fall.mp3` | A big tree falling in a forest | Kinoton | [494071](https://freesound.org/people/Kinoton/sounds/494071/) |
+| `medieval_market_street.mp3` | A crowded street at a medieval market (9.6 s) | bolkmar | [424790](https://freesound.org/people/bolkmar/sounds/424790/) |
+| `light_rain.mp3`, `thunder.mp3` | Light rain (26 s) and thunder (6 s) | soundrecorder7, netaj | [167034](https://freesound.org/people/soundrecorder7/sounds/167034/), [193170](https://freesound.org/people/netaj/sounds/193170/) |
+
+Still not found: dog barks beyond the game's three, cart wheels, crickets, an arrow volley whoosh.
