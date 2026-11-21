@@ -381,7 +381,7 @@ The creator, on growing past a lord: "somewhere to manage the realm as a count /
 
 - **Villages**: every place you hold, one row each: people / room and newcomers a minute, mood, food as meals a head, wood, stone, iron, arms, soldiers, tax a minute, and what needs you. Needs flags the trouble worst first (under attack, revolt, hunger, cold hearths, low mood, buildings stuck and why, no room); a vassal's place shows who runs it. **Go** enters the village, **Map** shows it on the map with its panel open. A totals row sums the realm.
 - **Vassals**: each lord, their opinion (hover for the reasons), holdings, men, dues and levies, what they have paid, and flags (council, refusing, feud, landless). **Deal** opens their holding's panel, where dues, gifts and the council are set as before.
-- **Houses**: each great house, your tie (war, peace, truce, alliance, marriage), their feeling, places, strength and gold. **Deal** opens their diplomacy panel.
+- **Houses**: each great house, your tie (war or coalition war, peace, alliance, marriage, or sworn to you), their feeling, places, strength and gold. **Deal** opens their diplomacy panel.
 - **Treasury**: taxes in, knights' and sellswords' pay out, the net a minute, vassal dues so far, and the purse.
 
 The screen reports and points; the deciding still happens in the panels it opens, so there is one place for each choice.
