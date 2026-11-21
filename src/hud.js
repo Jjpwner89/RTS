@@ -164,7 +164,7 @@ export class Hud {
       <span class="state"></span>
       <span class="kit">${kitBadge(r)}</span>
       <span class="grp" title="Control group: press its number to select it"></span>`);
-    el.title = `${r.T.role || ''}\n${kitWords(r)}`;
+    el.title = `${r.name}: ${r.T.role || ''}\n${kitWords(r)}`;
     el.onclick = e => this.hooks.selectCard(r, e.shiftKey || e.metaKey || e.ctrlKey);
     el.ondblclick = () => this.hooks.focus(r);
     this.cardsEl.append(el);
@@ -175,6 +175,12 @@ export class Hud {
   fitCards() {
     const el = this.cardsEl, first = this.cards[0]?.el;
     if (!first) return;
+    // A big army (30 to 50 regiments in a 1,200-man fight) turns the cards into small tiles, kept together by kind:
+    // the name and state go to the tooltip, the bars and the control-group number stay.
+    const dense = this.cards.length > 16;
+    if (el.classList.contains('dense') !== dense) el.classList.toggle('dense', dense);
+    const kinds = [...new Set(this.cards.map(c => c.r.T.key))];
+    for (const c of this.cards) { const o = dense ? kinds.indexOf(c.r.T.key) + 1 : 0; if (c.el.style.order !== String(o)) c.el.style.order = o; }
     const w = first.offsetWidth + 6, fit = Math.max(1, Math.floor((el.clientWidth + 6) / w));
     const cols = Math.ceil(this.cards.length / Math.ceil(this.cards.length / fit));
     if (el.dataset.cols !== String(cols)) { el.dataset.cols = cols; el.style.setProperty('--cols', cols); }
@@ -193,7 +199,7 @@ export class Hud {
       c.state.textContent = `${Math.max(0, r.alive)}${r.battles ? ' · ' + served(r) : ''} · ${b.moraleLabel(r)}${doing ? ' · ' + doing : ''}${extra}${E?.maxHp && !r.gone ? ` · ${Math.max(0, Math.round(100 * E.hp / E.maxHp))}%` : ''}`;
       // A refit between fights shows at once.
       const worn = `${r.vet}|${r.armour}|${hasShield(r)}|${r.battles}`;
-      if (worn !== c.worn) { c.worn = worn; c.kit.innerHTML = kitBadge(r); c.el.title = `${r.T.role || ''}\n${kitWords(r)}`; }
+      if (worn !== c.worn) { c.worn = worn; c.kit.innerHTML = kitBadge(r); c.el.title = `${r.name}: ${r.T.role || ''}\n${kitWords(r)}`; }
       const grp = r.group ? String(r.group) : '';
       if (c.grp.textContent !== grp) c.grp.textContent = grp;
       c.el.classList.toggle('selected', selection.has(r));

@@ -120,6 +120,7 @@ export const FORMATIONS = {
 };
 
 // Each side deploys this line; the scale setting stacks extra lines behind it.
+const MAX_LINE = 360;   // metres: the widest a line of regiments gets before an order makes a second line (orderMove)
 const LAYOUT = [
   ['spear', -70, 0], ['maa', -35, 0], ['spear', 0, 0], ['sword', 35, 0], ['spear', 70, 0],
   ['archer', -30, -22], ['crossbow', 30, -22],
@@ -871,13 +872,30 @@ export class Battle {
     // its middle is in the water); see keepDry.
     const R = this.river, mid = R && Math.abs(R.across(x, z)) > R.half + 1 ? { x, z } : regs.length && { x: regs.reduce((n, r) => n + r.cx, 0) / regs.length, z: regs.reduce((n, r) => n + r.cz, 0) / regs.length };
     const bank = R ? R.bank(mid.x, mid.z) : 0;
-    const widths = regs.map(r => (Math.min(r.files, r.alive) - 1) * r.T.spacing + 2);
-    const span = widths.reduce((a, b) => a + b, 0) + gap * (regs.length - 1);
-    let lx = -span / 2;
-    regs.forEach((r, i) => {
-      const off = lx + widths[i] / 2;
-      lx += widths[i] + gap;
-      r.dest = { x: x + cos * off, z: z - sin * off, angle };
+    const widths = new Map(regs.map(r => [r, (Math.min(r.files, r.alive) - 1) * r.T.spacing + 2]));
+    // A big order (30 or 50 regiments) would make one line more than a quarter of a kilometre wide: past MAX_LINE it
+    // becomes several lines, one behind another, melee in front and shooters and engines behind, each
+    // regiment keeping its own frontage and its place from left to right.
+    const lineOf = new Map(), lines = [[]];
+    {
+      let used = 0;
+      const order = [...regs].sort((a, b) => (a.T.range || a.T.engine ? 1 : 0) - (b.T.range || b.T.engine ? 1 : 0) || regs.indexOf(a) - regs.indexOf(b));
+      for (const r of order) {
+        const w = widths.get(r) + gap;
+        if (used && used + w > MAX_LINE && !(regs.length <= 4)) { lines.push([]); used = 0; }
+        lines.at(-1).push(r); used += w;
+      }
+      lines.forEach((l, k) => { l.sort((a, b) => regs.indexOf(a) - regs.indexOf(b)); for (const r of l) lineOf.set(r, k); });
+    }
+    let back = 0;
+    const lineBack = lines.map(l => { const at = back; back += Math.max(...l.map(r => (Math.ceil(r.alive / Math.max(1, Math.min(r.files, r.alive))) - 1) * (r.T.depth || r.T.spacing) + 1)) + 8; return at; });
+    const lineStart = lines.map(l => -(l.reduce((n, r) => n + widths.get(r) + gap, -gap)) / 2);
+    const lineAt = lines.map(() => 0);
+    regs.forEach((r) => {
+      const k = lineOf.get(r), w = widths.get(r);
+      const off = lineStart[k] + lineAt[k] + w / 2;
+      lineAt[k] += w + gap;
+      r.dest = { x: x + cos * off - sin * lineBack[k], z: z - sin * off - cos * lineBack[k], angle };
       if (R && !r.T.engine) this.keepDry(r, bank);
       r.targetReg = null;
       r.viaCd = 0;
