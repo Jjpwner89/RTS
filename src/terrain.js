@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fbm, rng } from './noise.js';
 import { groundMaterial, treeMaterial, tick } from './scenery.js';
-import { TREES, TREE_LOD } from './nature.js';
+import { TREES, TREE_LOD, paint, nearAndFar } from './nature.js';
 
 export const HALF = 250;          // playable area is -HALF..HALF on x and z
 const EXTENT = 380;               // mesh reaches past the edge so fog hides the border
@@ -105,15 +105,6 @@ let KINDS = null;
 function treeKinds() {
   if (KINDS) return KINDS;
   if (TREES) return KINDS = TREES;
-  const paint = (g, color, leaf = 1) => {
-    g = g.index ? g.toNonIndexed() : g;
-    const k = new THREE.Color(color), a = new Float32Array(g.attributes.position.count * 3);
-    for (let i = 0; i < a.length; i += 3) a.set([k.r, k.g, k.b], i);
-    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
-    g.setAttribute('aLeaf', new THREE.BufferAttribute(new Float32Array(a.length / 3).fill(leaf), 1));
-    g.deleteAttribute('uv');
-    return g;
-  };
   const trunk = (r, h, color) => paint(new THREE.CylinderGeometry(r * 0.7, r, h, 6).translate(0, h / 2, 0), color, 0);
   const blob = (r, x, y, z, grey) => paint(new THREE.IcosahedronGeometry(r, 0).translate(x, y, z), grey);
   const one = g => ({ near: [g], far: [g] });
@@ -134,60 +125,23 @@ function kindOf(t) {
   return r > 0.58 ? 'pine' : r < 0.38 && t.light < 0.27 ? 'birch' : 'oak';
 }
 
-// One instanced mesh per model; while the camera moves, each tree is handed again to its near or its far model's
-// mesh (TREE_LOD.near). The group's children all share treeMaterial (worldview.js fogTrees).
+// Each tree is drawn in its near or its far model by its distance from the camera (TREE_LOD.near, nature.js).
+// The group's children all share treeMaterial (worldview.js fogTrees).
 export function drawTrees(scene, heightAt, trees) {
-  const { spots } = trees;
   const kinds = treeKinds();
-  const mat = treeMaterial();
-  const group = new THREE.Group();
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  const tint = new THREE.Color();
-  // each tree's place, colour and the two models it can be drawn as, worked out once
-  const all = spots.map(t => {
+  const items = trees.spots.map(t => {
     const kind = kindOf(t), K = kinds[kind], [h, sa, l] = TONES[kind];
     const pick = (list, salt) => list[Math.floor(Math.abs(Math.sin(t.x * 12.9898 + t.z * 78.233 + salt) * 43758.5453) % 1 * list.length)];
     q.setFromAxisAngle(up, t.x * 12.9898 + t.z * 78.233);
     s.set(t.k, t.tall, t.k);
     p.set(t.x, heightAt(t.x, t.z) - 0.2, t.z);
-    return { t, y: p.y, matrix: m.compose(p, q, s).toArray(), color: tint.setHSL(h + (t.hue - 0.29) * 0.8, sa + (t.light - 0.26) * 1.2, l + (t.light - 0.26) * 0.9).clone(), near: pick(K.near, 1), far: pick(K.far, 2) };
+    return { t, x: t.x, y: p.y, z: t.z, hidden: !t.standing, matrix: m.compose(p, q, s).toArray(),
+      color: new THREE.Color().setHSL(h + (t.hue - 0.29) * 0.8, sa + (t.light - 0.26) * 1.2, l + (t.light - 0.26) * 0.9), near: pick(K.near, 1), far: pick(K.far, 2) };
   });
-  // one mesh per model, with room for every tree that could be drawn as it
-  const room = new Map();
-  for (const a of all) for (const g of new Set([a.near, a.far])) room.set(g, (room.get(g) || 0) + 1);
-  const meshes = new Map([...room].map(([geo, n]) => {
-    const x = new THREE.InstancedMesh(geo, mat, n);
-    x.castShadow = x.receiveShadow = true;
-    x.frustumCulled = false;    // trees move between meshes, so no one bounding sphere holds
-    x.count = 0;
-    x.setColorAt(0, tint);
-    group.add(x);
-    return [geo, x];
-  }));
-  for (const a of all) { a.near = meshes.get(a.near); a.far = meshes.get(a.far); }
-  let dirty = true, cx = 1e9, cy = 0, cz = 0, was = 0;
-  const place = cam => {
-    const near2 = TREE_LOD.near * TREE_LOD.near;
-    if (!dirty && was === near2 && (cam.x - cx) ** 2 + (cam.y - cy) ** 2 + (cam.z - cz) ** 2 < 16) return;
-    dirty = false; was = near2; cx = cam.x; cy = cam.y; cz = cam.z;
-    for (const x of group.children) x.count = 0;
-    for (const a of all) {
-      if (!a.t.standing) continue;
-      const x = (a.t.x - cx) ** 2 + (a.y - cy) ** 2 + (a.t.z - cz) ** 2 < near2 ? a.near : a.far, i = x.count++;
-      x.instanceMatrix.array.set(a.matrix, i * 16);
-      x.setColorAt(i, a.color);
-    }
-    for (const x of group.children) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; }
-  };
-  // before each frame through a perspective camera (scene.onBeforeRender runs before anything is drawn)
-  const before = scene.onBeforeRender;
-  scene.onBeforeRender = function (renderer, sc, camera, ...rest) {
-    before.call(this, renderer, sc, camera, ...rest);
-    if (camera.isPerspectiveCamera && group.parent) place(camera.position);
-  };
-  trees.onFell = () => { dirty = true; };
-  scene.add(group);
-  return group;
+  const set = nearAndFar(scene, items, treeMaterial(), () => TREE_LOD.near);
+  trees.onFell = () => { for (const a of items) a.hidden = !a.t.standing; set.dirty(); };
+  return set.group;
 }
 
 // March a ray across the heightfield; cheaper than raycasting the mesh on every mouse move.

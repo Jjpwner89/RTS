@@ -63,6 +63,7 @@ f.onload = async () => {
       old: () => { const u = Q === 'medium' ? set('msaa', 4) : () => {}; const was = w.__LOD.far; w.__LOD.far = 1e6; return () => { u(); w.__LOD.far = was; }; },
       oldm600: () => { const u = [EX.old(), keepOnly(600)]; return () => u.forEach(f => f()); },
       oldm300: () => { const u = [EX.old(), keepOnly(300)]; return () => u.forEach(f => f()); },
+      // every tree in its light model, or in its detailed one
       treesFar: () => { const T = w.__TREE, was = T.near; T.near = 0.01; return () => T.near = was; },
       treesNear: () => { const T = w.__TREE, was = T.near; T.near = 1e6; return () => T.near = was; },
       farShadow: () => { const l = Object.values(G.view.meshes).filter(m => m.far).flatMap(m => [m.far.gear, m.far.cloth]); l.forEach(m => m.castShadow = true); return () => l.forEach(m => m.castShadow = false); },
