@@ -509,3 +509,4 @@ function print(s) {
 
 window.checks = checks;
 checks.diffSaves = diffSaves;   // for testing the save check itself
+checks.sample = sampleStuck;     // when stepping game time from the console, call this every few game seconds so the sticking check sees it
