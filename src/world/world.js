@@ -1042,7 +1042,7 @@ export class World {
       FACTIONS[was].seat = next || null;
       if (next) next.seat = was;
       delete p.seat;
-      if (was === 0 || owner === 0) this.hooks.sound?.('horn'); // audio: seatfalls (the Audio session's sound for a seat taken, once it is in audio.js)
+      if (was === 0 || owner === 0) this.hooks.sound?.('seatfalls'); // audio
       if (was === 0) {
         if (next) { this.home = next; this.log(`You have lost ${p.name}. Your seat is now ${next.name}.`, 1); }
       } else if (next && (p.visible || this.knows(was))) this.log(`${FACTIONS[was].name} has lost its seat and fallen back to ${next.name}.`, 2);

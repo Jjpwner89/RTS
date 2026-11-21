@@ -82,9 +82,9 @@ const SOUNDS = {
   title:    { files: ['sfx/fanfare'], vol: 0.6, gap: 3, cap: 1, rate: 0.92 },
   petition: { files: ['ui/petition'], vol: 0.6, gap: 1, cap: 1 },
   outlaws:  { files: ['sfx/horn'], vol: 0.55, gap: 8, cap: 1, rate: 0.7 },
-  seatfalls: { files: ['sfx/collapse'], vol: 0.8, gap: 4, cap: 1, then: [['drums', 0.4]] },
+  seatfalls: { files: ['sfx/seatfalls'], vol: 0.8, gap: 4, cap: 1 },
   siegeends: { files: ['sfx/parley'], vol: 0.7, gap: 4, cap: 1, then: [['cheer', 1.2]] },
-  crown:    { files: ['sfx/fanfare'], vol: 0.9, gap: 10, cap: 1, then: [['horn', 0.25], ['bells', 1.5]] },
+  crown:    { files: ['sfx/crown'], vol: 0.9, gap: 10, cap: 1, then: [['bells', 4]] },
   // The militia turning out of the village.
   muster:   { files: ['sfx/muster'], vol: 0.7, gap: 8, cap: 1, then: [['musterfolk', 0.5]] },
   musterfolk: { files: ['sfx/musterfolk'], vol: 0.55, gap: 8, cap: 1 },

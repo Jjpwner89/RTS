@@ -121,7 +121,7 @@ const hooks = {
     if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload(), true);
     // Crowned: the end of Part 1. First the coronation at Kingsbridge, where you choose how the
     // realm remembers the day (events.js coronation); then the victory card breaks, and the wall with it.
-    audio.play('fanfare'); // audio: crown (the Audio session's coronation sound, once it is in audio.js)
+    audio.play('crown'); // audio
     const ev = coronation(world);
     ev.then = text => showResult('You are crowned', `${text} Long live the king.`, 'Continue', () => crownedThenNorth(), true);
     asks.unshift({ kind: 'choice', ev });
