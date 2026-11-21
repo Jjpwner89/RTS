@@ -151,7 +151,7 @@ export class TownHud {
       <button data-act="muster" class="wide muster" hidden><span>Muster the militia</span><small></small></button>
       <button data-act="standdown" class="wide muster" hidden><span>Stand the militia down</span><small>back to their work</small></button>
       ${GOOD_GROUPS.map(([label, goods]) => `
-        <h4 data-grp="${label}">${label}</h4>
+        <h4 data-grp="${label}" title="Everything in every store of the village, added up">${label}</h4>
         <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${gi(g)}<b data-g="${g}">0</b><i class="trend" data-trend="${g}"></i></span>`).join('')}</div>`).join('')}`;
     this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
     this.trendEls = new Map([...this.stockEl.querySelectorAll('[data-trend]')].map(e => [e.dataset.trend, e]));
@@ -500,7 +500,9 @@ export class TownHud {
     }
     if (f === 'store') {
       const held = Object.entries(b.store).filter(([, n]) => n >= 1);
-      return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${gi(g)}`).join(' · ')}` : 'Holds nothing';
+      const here = held.length ? held.map(([g, n]) => `${Math.floor(n)} ${gi(g)}`).join(' · ') : 'nothing';
+      // The stock panel adds up every store; this is one building's own.
+      return b.kind === 'keep' || b.B.storage ? `In this store: ${here}. The stock panel counts every store.` : `Holds: ${here}`;
     }
     if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
     if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : r.until ? ' (arrière-ban: home after ten minutes)' : ''}`;

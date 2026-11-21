@@ -129,6 +129,11 @@ const hooks = {
     asks.unshift({ kind: 'choice', ev });
   },
   herald: msg => herald(msg),
+  // Peace takes back the war news that is still up or waiting: "declares war" must not outlive the war.
+  peace: h => {
+    for (let k = heraldQueue.length - 1; k >= 0; k--) if (heraldQueue[k].house === h && /declares war/.test(heraldQueue[k].title)) { if (k) heraldQueue.splice(k, 1); else $('herald').classList.remove('show'); }
+    for (const l of [...$('log').children]) if (l.dataset.base === `${h.name} has declared war on you!`) l.remove();
+  },
   rankUp: what => audio.play(what === 'hall' ? 'title' : 'rankup'), // audio: a new rank, or a knights' hall standing
   sound: name => audio.play(name), // audio: realm news from the world files
   offer: o => asks.push({ kind: 'offer', ...o }),

@@ -203,7 +203,7 @@ export class World {
   makePeace(i, j) {
     if (!this.wars.delete(this.warKey(i, j))) return;
     const a = FACTIONS[i], b = FACTIONS[j];
-    if (i === 0 || j === 0) { this.log(`Peace is made with ${(i === 0 ? b : a).name}.`); this.chron(`Peace was made with ${(i === 0 ? b : a).name}.`); }
+    if (i === 0 || j === 0) { this.log(`Peace is made with ${(i === 0 ? b : a).name}.`); this.chron(`Peace was made with ${(i === 0 ? b : a).name}.`); this.hooks.peace?.(i === 0 ? b : a); }
     else if (this.knows(i) || this.knows(j)) this.log(`${a.name} and ${b.name} have made peace.`, 2);
     for (const army of this.armies) {
       const other = army.side === i ? j : army.side === j ? i : null;
