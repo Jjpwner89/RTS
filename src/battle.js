@@ -69,7 +69,7 @@ export const TYPES = {
 // that moves its melee, pace and wind. kit: the good each man wears out of the racks.
 export const ARMOUR = {
   none:    { name: 'No armour', def: 0, arrows: 0.9,  pace: 1,    tire: 1,    kit: {} },
-  leather: { name: 'Leather',   def: 1, arrows: 0.75, pace: 1,    tire: 1.05, kit: { leather: 1 } },
+  leather: { name: 'Leather',   def: 1, arrows: 0.75, pace: 1,    tire: 1.05, kit: { leatherarmour: 1 } },
   mail:    { name: 'Mail',      def: 2, arrows: 0.55, pace: 0.95, tire: 1.15, kit: { mail: 1 } },
   plate:   { name: 'Plate',     def: 4, arrows: 0.38, pace: 0.9,  tire: 1.3,  kit: { armour: 1 } },
 };

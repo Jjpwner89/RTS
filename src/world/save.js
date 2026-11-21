@@ -158,6 +158,8 @@ function unpackTown(w, p, s) {
     const nb = r.building;
     if (!nb) continue;
     Object.assign(nb, { state: b.state, progress: b.progress, level: b.level, style: b.style, angle: b.angle ?? nb.angle, off: new Set(b.off), paused: b.paused, store: { ...b.store }, hp: b.hp, status: b.status || '', training: b.training || null, policy: b.policy || undefined });
+    // Older saves: a barracks' raw leather was its leather armour; it is now the good it is made into (one for one).
+    if (nb.kind === 'barracks' && nb.store.leather) { nb.store.leatherarmour = (nb.store.leatherarmour || 0) + nb.store.leather; delete nb.store.leather; }
     if (b.staff !== null && b.staff !== undefined) nb.staff = b.staff;
     if (b.ripeAt) nb.ripeAt = b.ripeAt;
     if (b.dry) { nb.dry = t.time || 1; nb.dryWhy = b.dry; }   // worked out: its people don't go back

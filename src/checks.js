@@ -470,6 +470,34 @@ async function worldChecks(w) {
   // Nobody stands stuck at a wall on their way to work (playtest round 3: builders 5 m short of a knights' hall).
   await check('no villager has stood stuck for half a minute on the way to a door', () =>
     w.pois.flatMap(p => (p.town?.villagers || []).filter(v => v.stuckK && v.stuckK.t > 30 && v.state !== 'soldier').map(v => `${p.name}: at ${Math.round(v.x)}, ${Math.round(v.z)}`)));
+  // Leather armour is made at the tanner, like shields at the carpenter's, and levies wear it (creator, 2026-11-21).
+  await check('leather armour: a tanner makes it, the racks take it, a levy wears it, the armourer keeps raw leather', async () => {
+    const E = await import('./economy.js'), out = [];
+    if (!E.BUILDINGS.tanner.recipes.some(r => r.out.leatherarmour && r.in.leather === 2 && r.keep === 60)) out.push('the tanner has no 2 leather to 1 leather armour recipe with a keep of 60');
+    if (E.ARMOUR_GOOD.leather !== 'leatherarmour') out.push(`the leather level is worn from ${E.ARMOUR_GOOD.leather}`);
+    if (!E.GOOD_GROUPS.find(([n]) => n === 'Arms')[1].includes('leatherarmour')) out.push('leather armour is not an arm the barracks takes');
+    if (!E.BUILDINGS.armourer.recipes.every(r => r.in.leather)) out.push('the armourer lost raw leather as an input');
+    const fit = E.outfit('spear', 10, g => ({ leatherarmour: 10, spears: 10 })[g] || 0);
+    if (fit?.armour !== 'leather') out.push(`ten men with ten leather armour wear ${fit?.armour}`);
+    const t = w.pois.find(p => p.town)?.town || window.game.town;
+    if (t) {
+      const c = t.levyCheck('spear', { store: { spears: 10, leatherarmour: 10 }, policy: null }, 10);
+      if (!c.ok || c.fit?.armour !== 'leather') out.push(`a levy from racks with leather armour wears ${c.fit?.armour} (${c.reason || 'ok'})`);
+    }
+    return out;
+  });
+  // Priority is one place at a time, and always a standing site or workplace (creator, 2026-11-21).
+  await check('a village has at most one priority, and it is a site or a workplace', () => {
+    const out = [], towns = [...w.pois.filter(p => p.town).map(p => [p.name, p.town]), ...(window.game.town ? [['this village', window.game.town]] : [])];
+    for (const [name, t] of towns) {
+      const flagged = t.buildings.filter(b => b.priority);
+      if (flagged.length > 1) out.push(`${name}: ${flagged.length} buildings are the priority`);
+      const P = t.priority;
+      if (P && (P.removed || !t.buildings.includes(P) || !(P.state === 'site' || (P.state === 'active' && P.B.jobs)))) out.push(`${name}: the priority ${P.kind} is gone or not a site or workplace`);
+      if (P && !P.priority) out.push(`${name}: the priority ${P.kind} is not flagged`);
+    }
+    return out;
+  });
   // A site isn't left without builders while someone else has a job to spare (playtest round 3b:
   // a carpenter's site waited eleven minutes because every villager was busy).
   await check('no building site has waited long for builders while a hand could be spared', () =>

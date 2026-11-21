@@ -1,7 +1,7 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ROAD, ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, gearOf, FEAST, KEEP_RAISE } from './economy.js';
+import { ROAD, ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, gearOf, FEAST, KEEP_RAISE } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
@@ -15,7 +15,7 @@ const small = () => innerWidth < 1100 || innerHeight < 720;
 // Goods always worth a cell; the rest show once there is some, or a building here makes or uses them.
 const BASIC = new Set(['wood', 'stone', 'food']);
 // What each build tab holds, for its tooltip.
-const TAB_TIPS = { Village: 'Houses, stores, the market and the church', Gather: 'Wood, stone, ore, food and flax', Craft: 'Workshops: planks, iron, bread, arms and armour', Military: 'Barracks, stables, siege workshop and watchtowers', Walls: 'Palisades, towers, gates and stone walls', Towns: 'Town templates: a whole quarter laid out at once' };
+const TAB_TIPS = { Village: 'Houses, stores, the market and the church', Gather: 'Wood, stone, ore, food and flax', Craft: 'Workshops: planks, iron, bread, arms and armour (leather armour at the tanner, mail and plate at the armourer)', Military: 'Barracks, stables, siege workshop and watchtowers', Walls: 'Palisades, towers, gates and stone walls', Towns: 'Town templates: a whole quarter laid out at once' };
 const CLOSE = '<button class="close-t" title="Close" data-key="Esc">×</button>';
 
 const gi = g => ico(GOODS[g].icon, GOODS[g].color);
@@ -363,6 +363,11 @@ export class TownHud {
       if (el.dataset.act === 'feast') { const c = this.town.feastCheck(); el.querySelector('small').textContent = c.ok ? `${c.gold} gold: the mood +${FEAST.mood} for ${FEAST.secs / 60} minutes` : c.reason; }
       if (el.dataset.act === 'keepraise') { const c = this.town.keepRaiseCheck(); el.hidden = !!c.done; if (c.K) el.querySelector('small').textContent = c.ok ? `${c.K.gold} gold + ${listCost(c.K.cost)}: homes for ${c.K.housing}, the mood +${c.K.mood}` : c.reason; }
       if (el.dataset.act === 'pause') el.textContent = selected.paused ? 'Resume work' : 'Pause work';
+      if (el.dataset.act === 'priority') {
+        el.textContent = selected.priority ? 'Priority: on' : 'Make it the priority';
+        el.classList.toggle('on', !!selected.priority);
+        el.title = selected.priority ? 'Click to clear. Only one place at a time is the priority.' : selected.state === 'site' ? 'Up to four builders come first, borrowed from the jobs the village misses least, and its materials are hauled first. Clears the old priority.' : 'Workers fill this place first, and its goods are hauled first. Clears the old priority.';
+      }
       if (el.dataset.act.startsWith('recipe:')) {
         const off = selected.off.has(+el.dataset.act.slice(7));
         el.classList.toggle('on', !off);
@@ -421,6 +426,7 @@ export class TownHud {
     }
     if (b.kind === 'barracks' && b.state === 'active') {
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
+      rows.push(`<p class="kit" data-f="racks"></p>`);
       rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
       for (const [k, K] of Object.entries(KITS)) {
         if (ELITE[k]) continue;
@@ -434,6 +440,7 @@ export class TownHud {
       if (U) rows.push(`<button data-act="upgrade" class="wide"><span>Upgrade to level ${next} · ${U.gold ? `${U.gold} ${goldIco()} + ` : ''}${this.goodsList(U.cost)}</span><small></small></button><p class="kit">${gain}</p>`);
     }
     const buttons = [];
+    if (b.state === 'site' || (b.state === 'active' && B.jobs)) buttons.push(`<button data-act="priority"></button>`);
     if (B.jobs && b.state === 'active') buttons.push(`<button data-act="pause"></button>`);
     if (b.state === 'active' && (B.gather?.node === 'rock' || B.gather?.node === 'ore')) buttons.push(`<button data-act="find" title="Look at the nearest deposit nobody is working">Find a deposit</button>`);
     buttons.push(`<button data-act="demolish">${b.state === 'ruined' ? 'Clear ruin' : 'Demolish'}</button>`);
@@ -459,7 +466,7 @@ export class TownHud {
 
   field(f) {
     const b = this.selected, r = this.reg;
-    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.peopleText()} · ${b.status.toLowerCase()}` : b.status;
+    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.peopleText()} · ${b.status.toLowerCase()}` : b.priority && this.town.prioText ? `${this.town.prioText}${b.status && !/^(Waiting for builders|Under construction)/.test(b.status) ? ` · ${b.status.toLowerCase()}` : ''}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'keepraise') { const K = KEEP_RAISE[this.town.keepBought || 0]; return K ? `Raise a ${K.name}` : ''; }
@@ -476,6 +483,10 @@ export class TownHud {
     }
     if (f === 'settlers') return settlerWhy(this.town, this.town.settlers());
     if (f === 'mood') return `${moodWord(this.town.mood)} (${Math.round(this.town.mood)}): ${this.town.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join(', ') || 'nothing much either way'}. A happy village grows faster and pays more tax; a miserable one loses families.`;
+    if (f === 'racks') {
+      const n = this.town.levyMax?.() || 20;
+      return `Armour in the racks, for a levy of ${n}: ${['leather', 'mail', 'plate'].map(l => `${GOODS[ARMOUR_GOOD[l]].name} ${Math.min(n, Math.floor(b.store[ARMOUR_GOOD[l]] || 0))}/${n}`).join(' · ')}`;
+    }
     if (f === 'store') {
       const held = Object.entries(b.store).filter(([, n]) => n >= 1);
       return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${gi(g)}`).join(' · ')}` : 'Holds nothing';
@@ -516,6 +527,7 @@ export class TownHud {
     }
     if (act.startsWith('recipe:')) t.toggleRecipe(this.selected, +act.slice(7));
     if (act === 'pause') t.setPaused(this.selected, !this.selected.paused);
+    if (act === 'priority') { t.setPriority(this.selected); t.prioText = t.prioNote(); }
     if (act.startsWith('staff:')) t.setStaff(this.selected, t.staffed(this.selected) + +act.slice(6));
     if (act === 'find') {
       const n = t.nextDeposit(this.selected);

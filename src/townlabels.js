@@ -12,6 +12,7 @@ const STUCK = /^(No workers|No haulers|Waiting for|Yard full|Store full|Deposit 
 const AFTER = 6;
 const FEW = 3;   // more stuck buildings than this fold into one line
 const SUMMARY = {};
+const PRIO = {};
 
 export class TownLabels {
   constructor(canvas) {
@@ -43,6 +44,7 @@ export class TownLabels {
     const stuck = [];
     if (!town.hostile) for (const b of [town.keep, ...town.buildings]) {
       if (b.state === 'ruined' || b.removed) continue;
+      if (b === town.priority) { b.stuckSince = null; continue; }   // its flag says why (below)
       const why = STUCK.test(b.status || '') ? b.status : null;
       if (!why) { b.stuckSince = null; continue; }
       b.stuckSince ??= town.time;
@@ -71,6 +73,9 @@ export class TownLabels {
       const list = [...kinds].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k, n]) => `${n} ${k}`).join(', ');
       put(SUMMARY, `${stuck.length} places stuck: ${list}. Point at one to see why`, town.keep, 'stuck sum');
     }
+    // The one priority wears a flag with what it is doing about it (same badge as the stuck tags, in the accent colour).
+    const P = town.priority;
+    if (P && !P.removed && !town.hostile && town.prioText) put(PRIO, `⚑ ${town.prioText}`, P, 'stuck prio');
     for (const [b, tag] of this.tags) if (!seen.has(b)) { tag.remove(); this.tags.delete(b); }
     this.showTip(town, hoverAt, placing, screen, roadFrom);
   }

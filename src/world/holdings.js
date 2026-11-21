@@ -95,7 +95,7 @@ export function seedEconomy(p, rand, { seat = false, crown = false, kindPop = 1 
 }
 
 // How much of a good a place keeps around per building that makes it, as a start.
-const GOOD_HOARD = { food: 40, wood: 40, stone: 30, ore: 20, iron: 10, planks: 20, shields: 8, spears: 6, swords: 4, bows: 4, arrows: 50,
+const GOOD_HOARD = { food: 40, wood: 40, stone: 30, ore: 20, iron: 10, planks: 20, shields: 8, leatherarmour: 6, spears: 6, swords: 4, bows: 4, arrows: 50,
   string: 10, flax: 15, feathers: 20, hides: 10, leather: 6, flour: 10, bread: 20 };
 
 function add(e, k) { e.buildings[k] = (e.buildings[k] || 0) + 1; }
@@ -292,7 +292,7 @@ export function report(p, time) {
 }
 
 // A rough worth of what is in a place's stores, in gold, for comparing places.
-const PRICE = { food: 0.6, wood: 0.5, stone: 0.6, ore: 0.8, iron: 3, planks: 1.2, shields: 4, spears: 4, swords: 8, bows: 5, arrows: 0.4,
+const PRICE = { food: 0.6, wood: 0.5, stone: 0.6, ore: 0.8, iron: 3, planks: 1.2, shields: 4, leatherarmour: 4, spears: 4, swords: 8, bows: 5, arrows: 0.4,
   crossbows: 9, bolts: 0.5, mail: 12, armour: 20, horses: 15, lances: 6, string: 1, flax: 0.4, feathers: 0.2, hides: 1, leather: 2, flour: 0.8, bread: 1 };
 export function worth(stock, gold = 0) {
   return Math.round(gold + Object.entries(stock).reduce((n, [g, q]) => n + q * (PRICE[g] ?? 1), 0));

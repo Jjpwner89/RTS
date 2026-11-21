@@ -24,6 +24,7 @@ export const GOODS = {
   string: { name: 'String', icon: 'string', color: '#e6d6a6' },
   iron: { name: 'Iron', icon: 'iron', color: '#aeb8c4' },
   leather: { name: 'Leather', icon: 'leather', color: '#9a6a44' },
+  leatherarmour: { name: 'Leather armour', icon: 'armour-leather', color: '#b07a4a' },
   flour: { name: 'Flour', icon: 'flour', color: '#efe6cf' },
   bread: { name: 'Bread', icon: 'bread', color: '#e3b26a' },
   shields: { name: 'Shields', icon: 'shields', color: '#d2a05a' },
@@ -41,7 +42,7 @@ export const GOODS = {
 export const GOOD_GROUPS = [
   ['Raw', ['wood', 'stone', 'food', 'flax', 'feathers', 'ore', 'hides']],
   ['Made', ['planks', 'string', 'iron', 'leather', 'flour', 'bread']],
-  ['Arms', ['shields', 'bows', 'arrows', 'spears', 'swords', 'crossbows', 'bolts', 'lances', 'mail', 'armour', 'horses']],
+  ['Arms', ['shields', 'leatherarmour', 'bows', 'arrows', 'spears', 'swords', 'crossbows', 'bolts', 'lances', 'mail', 'armour', 'horses']],
 ];
 
 // gather: villagers walk out to a resource and carry it back. Since pace B (2026-11-21) they walk
@@ -50,7 +51,7 @@ export const GOOD_GROUPS = [
 // recipes: villagers work at the building, turning stock into stock. Each workshop can
 // switch any of its recipes off; it takes turns between those left on. `keep` stops a
 // recipe once that much of its output is stored. Arms have no limit (switch a recipe off to
-// stop it), save shields, which stop at sixty so the planks aren't all sawn into them.
+// stop it), save shields and leather armour, which stop at sixty so the planks and leather aren't all made into them.
 // Workshops stop asking for wood once the village is down to its last, so construction can go on.
 // Goods left for building: workshops don't ask for the last 20 wood, and none turns the last
 // 25 planks into shields or arms.
@@ -63,6 +64,10 @@ const CLEAR_TIME = 25;
 const CRAFT_SOUND = { carpenter: 'saw', bowyer: 'saw', smelter: 'smith', weaponsmith: 'smith', armourer: 'smith' };   // audio: the rest hammer
 // A site nobody comes to build for this long takes a hand from the job the village misses least.
 const BUILDER_WAIT = 30;
+// The one prioritised site or workplace (creator, 2026-11-21: "priority should be very simple"): a site takes up
+// to PRIO_BUILDERS builders, borrowing after PRIO_WAIT seconds; its materials are hauled first.
+const PRIO_BUILDERS = 4;
+const PRIO_WAIT = 5;
 export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers, and a hearth that burns a little wood. Newcomers come for food, a good mood and the village\'s name.' },
@@ -100,7 +105,8 @@ export const BUILDINGS = {
     recipes: [{ in: { iron: 2, leather: 1 }, out: { mail: 1 }, time: 12 }, { in: { mail: 1, iron: 2, leather: 1 }, out: { armour: 1 }, time: 18 }],
     desc: 'Rivets mail shirts from iron and leather, and beats plate from mail, iron and leather.' },
   tanner: { name: 'Tanner', icon: 'tanner', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { hides: 2 }, out: { leather: 1 }, time: 8, keep: 20 }], desc: "Cures the hunters' hides into leather." },
+    recipes: [{ in: { hides: 2 }, out: { leather: 1 }, time: 8, keep: 20 }, { in: { leather: 2 }, out: { leatherarmour: 1 }, time: 9, keep: 60 }],
+    desc: "Cures the hunters' hides into leather, and stitches leather into armour for levies: plain, but it needs no smith." },
   mill: { name: 'Mill', icon: 'mill', group: 'Craft', cost: { wood: 20, stone: 5 }, radius: 4.5, build: 14, jobs: 1, hp: 140,
     recipes: [{ in: { food: 4 }, out: { flour: 3 }, time: 6, keep: 30 }], desc: 'Grinds grain into flour for the bakery.' },
   bakery: { name: 'Bakery', icon: 'bakery', group: 'Craft', cost: { wood: 15, stone: 10 }, radius: 4, build: 14, jobs: 1, hp: 140,
@@ -211,11 +217,12 @@ export const templateCost = t => {
 // Regiments and unit entries carry armour ('none' | 'leather' | 'mail' | 'plate') and
 // shield (true | false); missing means the type's old kit (baseArmour, canShield).
 export const ARMOURS = ['none', 'leather', 'mail', 'plate'];
-export const ARMOUR_GOOD = { leather: 'leather', mail: 'mail', plate: 'armour' };
+// Leather armour is made at the tanner, like shields at the carpenter's (creator, 2026-11-21); raw leather stays the armourer's input.
+export const ARMOUR_GOOD = { leather: 'leatherarmour', mail: 'mail', plate: 'armour' };
 export const ARMOUR_NAME = { none: 'No armour', leather: 'Leather', mail: 'Mail', plate: 'Plate' };
 // Weight in fights nobody watches, against the armour the type's strength was set for.
 const ARMOUR_WEIGHT = { none: 1, leather: 1.1, mail: 1.22, plate: 1.38 };
-const BODY = ['shields', 'leather', 'mail', 'armour'];
+const BODY = ['shields', 'leather', 'leatherarmour', 'mail', 'armour'];
 const fullKit = key => TYPES[key]?.kit || {};
 export const weaponKit = key => Object.fromEntries(Object.entries(fullKit(key)).filter(([g]) => !BODY.includes(g)));
 // Hired and household men bring their own shields and armour (TYPES shield and armour).
@@ -556,7 +563,7 @@ export class Town {
     };
     for (const to of holders) {
       const w = wants.get(to);
-      const rank = to.state === 'site' ? 0 : to.kind === 'barracks' ? 2 : 1;
+      const rank = to === this.priority ? -1 : to.state === 'site' ? 0 : to.kind === 'barracks' ? 2 : 1;
       for (const g in w) {
         const need = w[g] - (to.store[g] || 0) - (to.incoming[g] || 0);
         const site = to.state === 'site';
@@ -834,6 +841,7 @@ export class Town {
   }
 
   demolish(b) {
+    this.clearPriority(b);
     for (const v of [...b.workers, ...b.builders]) this.release(v);
     // What it held goes to the nearest store, with half the cost if it was standing
     // (all of what reached a site). A ruin returns nothing.
@@ -1526,6 +1534,7 @@ export class Town {
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.lendBuilders(dt);
+    if ((this.prioClock = (this.prioClock || 0) - dt) <= 0) { this.prioClock = 1; this.prioText = this.prioNote(); }
     this.updatePeople(dt);
     this.updateAttacks(dt);
   }
@@ -1711,6 +1720,12 @@ export class Town {
 
   // Sites get builders first, then empty workplaces fill, nearest first.
   findWork(v) {
+    // The prioritised site or workplace first (up to PRIO_BUILDERS builders).
+    const P = this.priority;
+    if (P && !P.removed) {
+      if (P.state === 'site' && P.builders.length < PRIO_BUILDERS) { P.builders.push(v); v.state = 'build'; v.job = null; v.site = P; return; }
+      if (P.state === 'active' && !P.paused && !P.dry && P.B.jobs && P.workers.length < this.staffed(P)) { P.workers.push(v); v.job = P; v.state = 'work'; v.task = null; return; }
+    }
     let best = null, bd = Infinity;
     for (const b of this.buildings) {
       if (b.state === 'site' && b.builders.length < 2) {
@@ -1736,15 +1751,50 @@ export class Town {
     if (best) { best.workers.push(v); v.job = best; v.state = 'work'; v.task = null; }
   }
 
+  // One priority per village: a site or a workplace. Setting a new one clears the old; setting the same one clears it.
+  setPriority(b) {
+    if (!b || b.removed || !(b.state === 'site' || (b.state === 'active' && b.B.jobs))) return false;
+    const was = this.priority === b;
+    if (this.priority) this.priority.priority = false;
+    this.priority = was ? null : b;
+    b.priority = !was;
+    return !was;
+  }
+  clearPriority(b) { if (this.priority === b) { this.priority = null; b.priority = false; } }
+
+  // What the prioritised building is doing about it, in a few words (the flag over it and its card's status).
+  prioNote() {
+    const b = this.priority;
+    if (!b || b.removed) return null;
+    const idle = this.villagers.some(v => v.state === 'idle'), plural = n => `${n} builder${n === 1 ? '' : 's'}`;
+    const waits = /^Waiting for (.+)/.exec(b.status || '');
+    if (b.state === 'site') {
+      const n = b.builders.length;
+      const short = Object.entries(b.B.cost).find(([g, k]) => (b.store[g] || 0) + (b.incoming[g] || 0) < k && (this.stock[g] || 0) < k - (b.store[g] || 0));
+      if (b.cutOff) return 'Priority: way blocked';
+      if (short) return `Priority: no ${GOODS[short[0]].name.toLowerCase()}`;
+      if (waits && n) return `Priority: no ${waits[1]}`;
+      if (n >= PRIO_BUILDERS) return `Priority: ${plural(n)} at work`;
+      if (idle || this.leastNeeded(b)) return `Priority: ${n ? `${plural(n)}, more` : 'builders'} coming`;
+      return n ? `Priority: ${plural(n)}, every hand needed` : 'Priority: every hand needed';
+    }
+    if (b.paused) return 'Priority: paused';
+    if (b.dry) return `Priority: ${(b.dryWhy || 'worked out').toLowerCase()}`;
+    if (b.workers.length >= this.staffed(b)) return waits ? `Priority: no ${waits[1]}` : 'Priority: fully staffed';
+    return idle ? 'Priority: workers coming' : 'Priority: every hand needed';
+  }
+
   // A site nobody has come to build for BUILDER_WAIT seconds takes a hand from the job the village
   // misses least, and gives them back when it is done (playtest round 3b: a carpenter's site waited
   // eleven minutes because every villager had a job). The last farmer, hunter or woodcutter is never taken.
   lendBuilders(dt) {
     for (const s of this.buildings) {
       if (s.state !== 'site' || s.removed) continue;
-      if (s.builders.length) { s.lacked = 0; continue; }
+      const prio = s === this.priority;
+      if (s.builders.length >= (prio ? PRIO_BUILDERS : 1)) { s.lacked = 0; continue; }
       s.lacked = (s.lacked || 0) + dt;
-      if (s.lacked < BUILDER_WAIT || this.underAttack || this.hostile) continue;
+      if (s.lacked < (prio ? PRIO_WAIT : BUILDER_WAIT) || this.underAttack || this.hostile) continue;
+      if (prio) s.lacked = 0;   // one more hand every PRIO_WAIT seconds, up to four
       const v = this.leastNeeded(s);
       if (!v) continue;
       const from = v.job;
@@ -1814,6 +1864,7 @@ export class Town {
       b.state = 'active';
       b.status = b.B.jobs ? 'Waiting for workers' : '';
       if (b.B.gather?.ripen) b.ripeAt = this.time + b.B.gather.ripen;
+      this.clearPriority(b);   // done: the priority is spent
       const crew = b.builders;
       b.builders = [];
       for (const o of crew) { o.state = 'idle'; o.site = null; }
