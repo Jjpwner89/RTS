@@ -26,6 +26,7 @@ import { stageOf } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData } from './world/save.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
+import { turnOut } from './world/militia.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k === 'road' || k?.startsWith('tpl:') ? null : k;
@@ -575,9 +576,11 @@ function nextAsk() {
     const enc = a.enc, army = enc.army;
     const them = headcount(enc.defenders), us = headcount(army.units);
     const where = enc.poi ? enc.poi.name : 'the road';
+    // Outnumbered, a place's people take up tools too (militia.js): say so before you choose.
+    const folk = enc.kind === 'assault' ? headcount(turnOut(enc.poi, army.units, FACTIONS[enc.poi.owner])) : 0;
     box.querySelector('h2').textContent = enc.kind === 'assault' ? `Attack ${enc.poi.name}?` : `Armies meet at ${where}`;
     box.querySelector('p').textContent = enc.kind === 'assault'
-      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
+      ? `${army.name} (${us} men) stands before ${enc.poi.name}, held by ${ownerOf(enc.poi).name.toLowerCase()} with ${them} men.${folk ? ` Outnumbered, its people will take up tools too: about ${folk} more, weak but many.` : ''}${bareHanded(enc) ? ' It is walled, and you bring no ladders, ram or engines: storming it by hand will cost you dearly.' : ''}`
       : `${army.name} (${us} men) has met ${enc.enemy.name} (${them} men).`;
     buttons.push([enc.kind === 'assault' ? 'Storm it' : 'Fight it', () => {
       // A place is fought for in the place itself; armies on the road meet in the open.

@@ -953,10 +953,12 @@ export class Town {
     else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; }
   }
 
-  // The militia hold by the keep until your soldiers are fighting, then pile into that
-  // fight, where numbers on a flank count most. With no soldiers of yours standing they
-  // go at whatever comes for the village. Your own orders come first. A militia that
-  // breaks runs for the keep and hides there. Once the attack is over they stand down.
+  // The militia hold by the keep. When your soldiers go for the attackers they follow a
+  // little way behind, and once those soldiers are locked in a fight they pile into it,
+  // where numbers on a flank count most (not before: alone they break at once and shake
+  // the men beside them). With no soldiers of yours standing they go at whatever comes
+  // for the village. Your own orders come first. A militia that breaks scatters home to
+  // the keep as villagers. Once the attack is over they stand down.
   thinkMilitia() {
     const mine = this.militia;
     if (!mine.length) return;
@@ -965,23 +967,31 @@ export class Town {
     const near = (a, b, d) => Math.hypot(a.cx - b.cx, a.cz - b.cz) < d;
     const soldiers = this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.T.militia);
     for (const r of mine) {
-      if (r.routing || r.regrouping) { if (Math.hypot(r.cx - this.keep.x, r.cz - this.keep.z) < 40) this.hide(r); continue; }
-      if (r.hold || r.posts || r.dest || (r.targetReg && !r.targetReg.gone && !r.targetReg.routing)) continue;
-      const fighting = foes.filter(f => soldiers.some(o => o.targetReg === f || f.targetReg === o) && near(f, r, 120));
+      if (r.routing || r.regrouping) { this.hide(r); continue; }
+      // (a destination they were not given here is yours)
+      if (r.hold || r.posts || (r.dest && r.dest !== r.followDest) || (r.targetReg && !r.targetReg.gone && !r.targetReg.routing)) continue;
+      const fighting = foes.filter(f => f.engaged > 0 && soldiers.some(o => o.engaged > 0 && near(o, f, 20)) && near(f, r, 160));
       const t = (fighting.length ? fighting : soldiers.length ? foes.filter(f => near(f, r, 15)) : foes.filter(f => near(f, this.keep, 70) || near(f, r, 30)))
         .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
-      if (t) this.battle.orderAttack([r], t);
+      if (t) { this.battle.orderAttack([r], t); continue; }
+      // Soldiers on their way to a fight: keep close behind them.
+      const lead = soldiers.find(o => o.targetReg && !o.targetReg.gone && foes.includes(o.targetReg));
+      if (lead) {
+        const a = Math.atan2(lead.targetReg.cx - lead.cx, lead.targetReg.cz - lead.cz);
+        this.battle.orderMove([r], lead.cx - Math.sin(a) * 14, lead.cz - Math.cos(a) * 14, a);
+        r.followDest = r.dest;
+      } else if (r.dest) this.battle.orderHalt([r]);
     }
   }
 
-  // Broken militia at the keep throw down their tools and shelter inside with the rest.
+  // Broken militia throw down their tools and run for the keep to shelter with the rest.
   hide(r) {
     for (const s of r.soldiers) {
       if (!s.alive || s.gone || !s.villager) continue;
       Object.assign(s.villager, { x: s.x, z: s.z, state: 'flee', soldier: null, musterJob: null, musterSite: null });
     }
     this.battle.disband(r);
-    this.event(`${r.name} broke and ran for the keep.`);
+    this.event(`${r.name} broke: the villagers are running for the keep.`);
   }
 
   // A regiment swaps up its armour and shields at the nearest barracks without standing

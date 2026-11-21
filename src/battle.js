@@ -2519,7 +2519,8 @@ export class Battle {
       r.dest = { x: h.x + ((k % 4) - 1.5) * 14, z: h.z + toField * (14 + Math.floor(k / 4) * 10), angle };
     }
     this.reform(r);
-    this.event(r.side, `${this.label(r)} reached the keep and are regrouping.`);
+    // (a village's militia don't regroup: the village sends them home to shelter, economy.js hide)
+    if (!(r.T.militia && r.levy)) this.event(r.side, `${this.label(r)} reached the keep and are regrouping.`);
   }
 
   // How far this regiment's bows reach: further from a wall, furthest from a tower.

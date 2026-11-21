@@ -11,4 +11,8 @@ Tradeoffs where either answer plays well. The game carries on with the default n
 - **Pause while the Realm screen is open?** It keeps running now, as the map does, so supplies and armies move while you read. Pausing would make it a calm planning screen, at the cost of forgetting to unpause. Default: keeps running (Space still pauses).
 - **How often vassals petition you.** Every 10–15 minutes now. More often gives the court more life and more small choices; less keeps the focus on war. Default: 10–15 minutes.
 
+## The militia (2026-11-21)
+
+- **How costly a muster should be.** Played by hand against 38 raiders, the militia always turned the fight, but it cost anything from 3 to 27 villagers (17 of 24 once, when the militia broke). Not mustering usually costs the retinue and two or three burned buildings, with few villagers dead, since they shelter. Sturdier militia (say morale 45 instead of 35) would lose fewer people and make the button an easier call; as they are, it is a real gamble. Default: as they are. (Their numbers belong to the battles session.)
+
 Otherwise none open for the creator. Answered: the militia muster (2026-11-20), see "Militia" in DESIGN_NOTES; the rival tax rate and early balance against rivals (2026-11-19), see "Rivals' pace and gold" in DESIGN_NOTES.
