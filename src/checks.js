@@ -304,6 +304,14 @@ async function worldChecks(w) {
       const out = Math.abs(here - pop) > Math.max(3, pop * 0.1) ? [`${pop} people in its numbers, ${here} here${t.hostile ? ' (villagers and those turned out)' : ''}`] : [];
       return t.hostile && out.length ? { warn: out } : out;
     });
+    // A vassal's village is theirs to run: on screen, nothing in the village panels acts.
+    if (t.readOnly && c?.look && c.town === t) await check('a look-round offers nothing to act on', () => {
+      const live = el => el && !el.disabled && el.offsetParent !== null; // drawn, whatever its hidden flag says
+      const out = [];
+      for (const [sel, what] of [['#stock [data-tax]', 'tax − / +'], ['#stock [data-act="muster"]', 'Muster the militia'], ['#stock [data-act="standdown"]', 'Stand the militia down'], ['#build [data-build]', 'a building to place']])
+        if ([...document.querySelectorAll(sel)].some(live)) out.push(`${what} can be clicked`);
+      return out;
+    });
   }
 }
 

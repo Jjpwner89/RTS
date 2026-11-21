@@ -78,6 +78,8 @@ export class TownHud {
       this.buildMenu();
       // Clicking the alarm takes you to the attackers.
       this.stockEl.onclick = e => {
+        // A vassal's village is theirs to run: you may look, not act (creator's call, 2026-11-19).
+        if (town.readOnly) return;
         if (e.target.closest('.raid.now')) this.hooks.findAttackers?.();
         // Everyone out: the whole village turns militia while it is attacked.
         if (e.target.closest('[data-act="muster"]')) { const r = town.muster(); if (!r.ok) this.flash(r.reason); }
@@ -118,9 +120,11 @@ export class TownHud {
   }
 
   buildStock() {
+    // A look-round's taxes are the vassal's to set: no − / + there.
+    const lever = (d, title, mark) => this.town.readOnly ? '' : `<button data-tax="${d}" title="${title}">${mark}</button>`;
     this.stockEl.innerHTML = `
       <div class="people"><span data-s="pop"></span><span data-s="idle"></span></div>
-      <div class="people mood"><span data-s="mood"></span><span class="tax"><button data-tax="-1" title="Lower taxes">−</button><span data-s="tax"></span><button data-tax="1" title="Raise taxes">+</button></span></div>
+      <div class="people mood"><span data-s="mood"></span><span class="tax">${lever(-1, 'Lower taxes', '−')}<span data-s="tax"></span>${lever(1, 'Raise taxes', '+')}</span></div>
       <div class="people"><span data-s="gold"></span></div>
       <div class="people"><span data-s="settlers"></span></div>
       <div class="warn" data-s="hunger"></div>
@@ -176,7 +180,7 @@ export class TownHud {
     const m = Math.round(t.mood);
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
-    set('tax', TAXES[t.taxes].name);
+    set('tax', t.readOnly ? `${TAXES[t.taxes].name}, set by ${t.readOnly.name}` : TAXES[t.taxes].name);
     set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.population * t.taxRate * 60).toFixed(0)}/min`);
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);

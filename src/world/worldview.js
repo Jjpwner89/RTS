@@ -325,8 +325,10 @@ export class WorldView {
       const K = KINDS[p.kind];
       // a place named for a battle fought by it says so when you look closely
       const told = p.epithet && p.seen && camera.position.distanceTo(v.set(p.x, this.heightAt(p.x, p.z), p.z)) < 420 ? `<small class="epithet">${p.epithet}</small>` : '';
+      // a place a vassal holds for you names them (vassals.js)
+      const liege = shown === 0 && p.vassal ? w.vassals?.find(o => o.id === p.vassal) : null;
       const html = !p.seen ? `<b style="color:${own.color}">${ico(K.icon)} ${p.name}</b><small>unexplored</small>`
-        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
+        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46, el: o.label });
