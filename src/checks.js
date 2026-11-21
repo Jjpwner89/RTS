@@ -334,6 +334,19 @@ async function battleChecks({ battle, town, label }) {
     return shown.map(el => `the "${el.firstChild?.textContent.trim()}" button shows with no attack on`);
   });
 
+  // The stuck badges (townlabels.js): the strip's counts add up to the stuck buildings, and the badges show
+  // one per stuck building until there are many.
+  if (town && town === shownTown() && !town.hostile) await check(`${label}: the stuck strip counts the stuck buildings`, async () => {
+    const { STUCK, AFTER, FEW, MANY } = await import('./townlabels.js');
+    const stuck = [town.keep, ...town.buildings].filter(b => b.state !== 'ruined' && !b.removed && STUCK.test(b.status || '') && b.stuckSince != null && town.time - b.stuckSince >= AFTER);
+    const strip = document.querySelector('.town-labels .stuck-strip'), chips = strip && !strip.hidden ? [...strip.querySelectorAll('[data-k] b')].reduce((n, e) => n + +e.textContent, 0) : 0;
+    const badges = document.querySelectorAll('.town-labels .stuck:not(.prio)').length, out = [];
+    if (chips !== (stuck.length > FEW ? stuck.length : 0)) out.push(`${stuck.length} buildings stuck, the strip counts ${chips}`);
+    if (stuck.length <= MANY && badges !== stuck.length) out.push(`${stuck.length} buildings stuck, ${badges} badges`);
+    if (stuck.length > MANY && badges > 1) out.push(`${stuck.length} stuck: only the badge under the pointer should show, ${badges} do`);
+    return out;
+  });
+
   if (town) await check(`${label}: nothing negative in any store`, () => {
     const out = storeProblems(town.holders(), label);
     for (const [g, n] of Object.entries(town.stock)) if (bad(n) || n < -1e-6) out.push(`stock of ${g} is ${n}`);

@@ -74,4 +74,4 @@ The background square was removed so each icon is a plain silhouette.
 
 ## Drawn for this game
 
-The armour-level icons (armour-none, armour-leather, armour-mail, armour-plate), no-shield, chronicle, cathedral, caravan and wall (a crenellated wall with a mason's trowel) were drawn for this game and are free to use like the rest of its own work.
+The armour-level icons (armour-none, armour-leather, armour-mail, armour-plate), no-shield, chronicle, cathedral, caravan and wall (a crenellated wall with a mason's trowel), pick, stump, crate and flag (the village's stuck and Priority badges) were drawn for this game and are free to use like the rest of its own work.

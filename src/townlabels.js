@@ -1,18 +1,37 @@
-// Words over the village (creator, 2026-11-20): a building that is stuck says why above
-// it ("waiting for wood", "no workers", "deposit worked out"), and the stone outcrop or
+// Over the village (creator, 2026-11-20, then 2026-11-22: "it shouldn't dominate the screen,
+// show it with icons"): a building that is stuck wears a small round badge (the good it waits
+// for, a person, an empty pick, bow or stump, a full crate) and says why in words on hover;
+// past a few, a strip of icon counts by the stock panel stands in for them. The stone outcrop or
 // ore deposit under the cursor says how much is left. While placing a quarry or mine, the
 // deposits in its reach are summed beside the cursor. A DOM layer over the canvas; the
 // 3D view itself is untouched.
 import * as THREE from 'three';
-import { BUILDINGS, ROAD, TEMPLATES, countList } from './economy.js';
+import { BUILDINGS, GOODS, ROAD, TEMPLATES, countList } from './economy.js';
+import { ico } from './icons.js';
 
 // Statuses that mean a building wants something from you, and how long they must last
 // before the label shows (so a crate on its way doesn't flicker one up).
-const STUCK = /^(No workers|No haulers|Waiting for|Yard full|Store full|Deposit worked out|Game hunted out|No trees left|Nothing left)/;
-const AFTER = 6;
-const FEW = 3;   // more stuck buildings than this fold into one line
-const SUMMARY = {};
+export const STUCK = /^(No workers|No haulers|Waiting for|Yard full|Store full|Deposit worked out|Game hunted out|No trees left|Nothing left)/;
+export const AFTER = 6;
+export const FEW = 3;    // more stuck buildings than this get the icon strip
 const PRIO = {};
+export const MANY = 8;   // more than this and the badges go, but for the one under the pointer
+const BY_NAME = Object.fromEntries(Object.entries(GOODS).map(([k, g]) => [g.name.toLowerCase(), k]));
+
+// What a status means as a badge: its kind (the strip counts by it), the icon, and whether nothing
+// can be made until you act (red) or it only waits (muted).
+export function stuckKind(status) {
+  if (/^(No workers|No haulers|Waiting for workers)/.test(status)) return { key: 'workers', icon: 'people', bad: true };
+  if (/^Deposit worked out|^Nothing left/.test(status)) return { key: 'pick', icon: 'pick', bad: true };
+  if (/^Game hunted out/.test(status)) return { key: 'game', icon: 'bows', bad: true };
+  if (/^No trees left/.test(status)) return { key: 'trees', icon: 'stump', bad: true };
+  if (/^(Yard|Store) full/.test(status)) return { key: 'full', icon: 'crate' };
+  const g = BY_NAME[(status.match(/^Waiting for ([^,]*?)(?: and |$)/)?.[1] || '')];
+  return g ? { key: g, icon: GOODS[g].icon } : { key: 'materials', icon: 'warning' };
+}
+
+// One badge style for everything that flags a building (stuck, and the Priority flag).
+export const badge = (k, text) => `<span class="tbadge${k.bad ? ' bad' : ''}${k.prio ? ' prio' : ''}" title="${text}">${ico(k.icon)}</span>`;
 
 export class TownLabels {
   constructor(canvas) {
@@ -26,21 +45,31 @@ export class TownLabels {
     this.tip.hidden = true;
     this.el.appendChild(this.tip);
     this.v = new THREE.Vector3();
+    this.strip = document.createElement('div');
+    this.strip.className = 'stuck-strip';
+    this.strip.hidden = true;
+    this.el.appendChild(this.strip);
+    this.turn = {};   // per kind: which building the next click on its icon looks at
+    this.strip.addEventListener('click', e => {
+      const k = e.target.closest('[data-k]')?.dataset.k, list = this.groups?.get(k);
+      if (!list) return;
+      const b = list[(this.turn[k] = ((this.turn[k] ?? -1) + 1) % list.length)];
+      this.go?.(b);
+    });
   }
 
   hide() {
     this.el.hidden = true;
   }
 
-  update(town, camera, { hoverAt = null, placing = null, roadFrom = null } = {}) {
+  update(town, camera, { hoverAt = null, placing = null, roadFrom = null, go = null } = {}) {
     this.el.hidden = false;
     const W = this.canvas.clientWidth, H = this.canvas.clientHeight, seen = new Set();
     const screen = (x, y, z) => {
       this.v.set(x, y, z).project(camera);
       return this.v.z > 1 ? null : { x: (this.v.x + 1) / 2 * W, y: (1 - this.v.y) / 2 * H };
     };
-    // Past a few, the tags become one line over the keep and a tag only for the building the
-    // pointer rests on (QC round 2: twenty "No workers" over a freshly taken town).
+    // (QC round 2: twenty "No workers" over a freshly taken town.)
     const stuck = [];
     if (!town.hostile) for (const b of [town.keep, ...town.buildings]) {
       if (b.state === 'ruined' || b.removed) continue;
@@ -51,50 +80,58 @@ export class TownLabels {
       if (town.time - b.stuckSince < AFTER) continue;
       stuck.push([b, why]);
     }
-    const crowded = stuck.length > FEW;
-    const under = crowded && hoverAt ? stuck.map(([b]) => b).filter(b => Math.hypot(b.x - hoverAt.x, b.z - hoverAt.z) < (b.B.radius || 4) + 1.5).sort((p, q) => Math.hypot(p.x - hoverAt.x, p.z - hoverAt.z) - Math.hypot(q.x - hoverAt.x, q.z - hoverAt.z))[0] : null;
-    const put = (key, text, b, cls) => {
+    this.go = go;
+    for (const b of [town.keep, ...town.buildings]) b.badged = false;
+    const groups = new Map();
+    for (const [b, why] of stuck) {
+      b.badged = true;
+      const k = stuckKind(why);
+      if (!groups.has(k.key)) groups.set(k.key, Object.assign([], { kind: k }));
+      groups.get(k.key).push(b);
+    }
+    this.groups = groups;
+    // Past a few badges only the one under the pointer shows; the strip carries the rest.
+    const crowded = stuck.length > MANY;
+    const under = crowded ? this.held && stuck.find(([b]) => b === this.held)?.[0] || (hoverAt && stuck.map(([b]) => b).filter(b => Math.hypot(b.x - hoverAt.x, b.z - hoverAt.z) < (b.B.radius || 4) + 1.5).sort((p, q) => Math.hypot(p.x - hoverAt.x, p.z - hoverAt.z) - Math.hypot(q.x - hoverAt.x, q.z - hoverAt.z))[0]) : null;
+    const shown = stuck.filter(([b]) => !crowded || b === under).map(([b, why]) => [b, b, badge(stuckKind(why), why), 'stuck']);
+    // The one priority wears a flag in the same round badge, in the accent colour; its words are on hover.
+    const P = town.priority;
+    if (P && !P.removed && !town.hostile && town.prioText) shown.push([PRIO, P, badge({ icon: 'flag', prio: true }, `⚑ ${town.prioText}`), 'stuck prio']);
+    for (const [key, b, html, cls] of shown) {
       const p = screen(b.x, town.heightAt(b.x, b.z) + (b.B.radius || 4) * 1.4 + 3, b.z);
-      if (!p) return;
+      if (!p) continue;
       let tag = this.tags.get(key);
-      if (!tag) { tag = document.createElement('div'); this.el.appendChild(tag); this.tags.set(key, tag); }
+      if (!tag) {
+        tag = document.createElement('div');
+        tag.addEventListener('mouseenter', () => { this.held = b; });
+        tag.addEventListener('mouseleave', () => { if (this.held === b) this.held = null; });
+        tag.addEventListener('click', () => this.go?.(b));
+        this.el.appendChild(tag); this.tags.set(key, tag);
+      }
+      if (tag.dataset.html !== html) { tag.dataset.html = html; tag.innerHTML = html; }
       if (tag.className !== cls) tag.className = cls;
-      if (tag.textContent !== text) tag.textContent = text;
-      if (key === SUMMARY) return this.sit(tag, p, W, H, seen, key);
       tag.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
       seen.add(key);
-    };
-    if (!crowded) for (const [b, why] of stuck) put(b, why, b, 'stuck');
-    else {
-      if (under) put(under, under.status, under, 'stuck');
-      const kinds = new Map();
-      // The reason as the building words it ("waiting for iron ore and wood"), never cut short.
-      for (const [, why] of stuck) { const k = why.toLowerCase(); kinds.set(k, (kinds.get(k) || 0) + 1); }
-      const list = [...kinds].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k, n]) => `${n} ${k}`).join(', ');
-      put(SUMMARY, `${stuck.length} places stuck: ${list}. Point at one to see why`, town.keep, 'stuck sum');
     }
-    // The one priority wears a flag with what it is doing about it (same badge as the stuck tags, in the accent colour).
-    const P = town.priority;
-    if (P && !P.removed && !town.hostile && town.prioText) put(PRIO, `⚑ ${town.prioText}`, P, 'stuck prio');
     for (const [b, tag] of this.tags) if (!seen.has(b)) { tag.remove(); this.tags.delete(b); }
+    this.showStrip(stuck.length > FEW ? groups : null);
     this.showTip(town, hoverAt, placing, screen, roadFrom);
   }
 
-  // The one-line summary sits just under the keep, kept inside the view and clear of the top bar,
-  // the stock panel, the info card and the news lines, so the whole line reads.
-  sit(tag, p, W, H, seen, key) {
-    const o = this.el.getBoundingClientRect(), pad = 8, w = tag.offsetWidth, h = tag.offsetHeight;
-    const boxes = [...document.querySelectorAll('#top, #stock, #info, #build, #log > div, #toast.show')].filter(b => b.getClientRects().length)
-      .map(b => { const r = b.getBoundingClientRect(); return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top }; });
-    let x = Math.max(pad, Math.min(W - w - pad, p.x - w / 2)), y = Math.max(pad, p.y + 36);
-    for (let i = 0; i < 4; i++) {
-      const hit = boxes.find(b => x < b.r && x + w > b.l && y < b.b && y + h > b.t);
-      if (!hit) break;
-      y = hit.b + 6;   // step under it
-    }
-    y = Math.min(y, H - h - pad);
-    tag.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-    seen.add(key);
+  // The strip: one icon and a count per kind of trouble, red ones first, under the stock panel (or the
+  // top bar when that is folded away). A click looks at the next building of that kind.
+  showStrip(groups) {
+    const el = this.strip;
+    el.hidden = !groups;
+    if (!groups) return;
+    const list = [...groups].sort((p, q) => !!q[1].kind.bad - !!p[1].kind.bad || q[1].length - p[1].length);
+    const html = list.map(([k, g]) => `<button class="tbadge chip${g.kind.bad ? ' bad' : ''}" data-k="${k}" title="${g.length} ${g.length > 1 ? 'places' : 'place'}: ${[...new Set(g.map(b => b.status.toLowerCase()))].slice(0, 2).join('; ')}. Click to look at ${g.length > 1 ? 'each' : 'it'}">${ico(g.kind.icon)}<b>${g.length}</b></button>`).join('');
+    if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
+    const o = this.el.getBoundingClientRect(), vis = id => { const n = document.getElementById(id); return n && n.getClientRects().length ? n.getBoundingClientRect() : null; };
+    const s = vis('stock'), t = vis('top');
+    const x = s ? s.left : 8, y = (s ? s.bottom : t ? t.bottom : 0) + 6;
+    el.style.transform = `translate(${Math.round(x - o.left)}px, ${Math.round(y - o.top)}px)`;
+    el.style.maxWidth = Math.max(120, (s ? s.width : 200)) + 'px';
   }
 
   // What is left in the deposit under the cursor, or in reach of a quarry or mine being placed.

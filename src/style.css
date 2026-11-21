@@ -332,8 +332,14 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 #panel button.warn, button.warn { border-color: #c8603a; color: #ffb08a; }
 /* Words over the village (townlabels.js): why a building is stuck, and what a deposit has left. */
 .town-labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
-.town-labels .stuck { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--bad); color: var(--bad); }
-.town-labels .stuck.prio { border-color: var(--accent, #e8c45a); color: var(--accent, #e8c45a); }
+.town-labels .stuck { position: absolute; left: 0; top: 0; pointer-events: auto; }
+.town-labels .stuck-strip { position: absolute; left: 0; top: 0; display: flex; flex-wrap: wrap; gap: 4px; pointer-events: auto; }
+.tbadge { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 24px; height: 24px; padding: 0; box-sizing: border-box; border-radius: 12px; background: var(--panel); border: 1px solid var(--edge); color: var(--dim, #b8a98a); font: 600 12px/1 system-ui, sans-serif; }
+.tbadge .ico { width: 14px; height: 14px; vertical-align: 0; }
+.tbadge.bad { border-color: var(--bad); color: var(--bad); }
+.tbadge.chip { padding: 0 7px; cursor: pointer; width: auto; }
+.tbadge.chip .ico { width: 14px; height: 14px; }
+.tbadge.prio { border-color: var(--accent, #e8c45a); color: var(--accent, #e8c45a); }
 .town-tip { position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: min(420px, calc(100vw - 16px)); font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--panel); border: 1px solid var(--edge); color: var(--ink, #f2e6cc); }
 /* The staffing control: − workers wanted + */
 #info .row.staff { margin-top: 2px; align-items: center; }

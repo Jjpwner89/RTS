@@ -360,9 +360,10 @@ export class TownView {
       o.problem = problem; o.pointed = near || b === selected;
     }
     // Past a few problems they fold into the stuck line (townlabels.js): then only the pointed-at pin shows.
+    // A stuck building wears the round badge instead (townlabels.js), so its pin stays down.
     let problems = 0;
-    for (const o of this.meshes.values()) if (o.problem) problems++;
-    for (const o of this.meshes.values()) o.icon.visible = o.pointed || (o.problem && problems <= 6);
+    for (const [b, o] of this.meshes) if (o.problem && !b.badged) problems++;
+    for (const [b, o] of this.meshes) o.icon.visible = o.pointed || (o.problem && !b.badged && problems <= 6);
 
     const f = this.found, fl = f && performance.now() < f.until;
     this.findRing.visible = !!fl;

@@ -57,6 +57,7 @@ const hooks = {
     return true;
   },
   cancelPlacement: () => { if (!placing) return false; if (road.roadFrom) { road.roadFrom = null; return true; } placing = null; return true; },
+  findBuilding: g => { Object.assign(controls.cam, { x: g.x, z: g.z, dist: Math.min(controls.cam.dist, 70) }); controls.setSelection([]); selected = g; },
   findDeposit: n => { Object.assign(controls.cam, { x: n.x, z: n.z, dist: Math.min(controls.cam.dist, 70) }); townView.markDeposit(n); },
   hover: g => { hoverAt = g; },
   pickBuilding: g => { selected = g ? townView.buildingAt(g) : null; return !!selected; },
@@ -99,7 +100,7 @@ function frame(now) {
   hud.update(controls.selection, paused, speed);
   townHud.update(selected, [...controls.selection], placing);
   roadView.update({ from: placing === 'road' ? road.roadFrom : null, at: hoverAt });
-  labels.update(town, camera, { hoverAt, placing, roadFrom: road.roadFrom });
+  labels.update(town, camera, { hoverAt, placing, roadFrom: road.roadFrom, go: hooks.findBuilding });
   audio.frame(camera, controls.cam, { battle, town, paused, fx: scene.userData.fx }); // audio
   siege.update(dt);
   renderer.render(scene, camera);

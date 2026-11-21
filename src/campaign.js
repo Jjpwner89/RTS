@@ -214,6 +214,7 @@ function townBundle(p, look = null) {
     companyOf: r => { const c = (world.companies || []).find(c => c.employer === 0 && c.name === r.name); return c && { ...c, wage: wage(c) }; },
     dismissCompany: r => { const c = (world.companies || []).find(o => o.employer === 0 && o.name === r.name); if (c) release(world, c, 'dismissed'); },
     findDeposit: n => { Object.assign(b.controls.cam, { x: n.x, z: n.z, dist: Math.min(b.controls.cam.dist, 70) }); townView.markDeposit(n); },
+    findBuilding: g => { Object.assign(b.controls.cam, { x: g.x, z: g.z, dist: Math.min(b.controls.cam.dist, 70) }); b.controls.setSelection([]); st.selected = g; },
     findAttackers: () => b.controls.focus(town.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.routing)),
     place: (g, e) => {
       if (!st.placing) return false;
@@ -1331,7 +1332,7 @@ function frame(now) {
       b.townView.showGhosts(tpl ? b.town.templateGhosts(tpl, st.hoverAt) : [], tpl && b.town.templateCheck(tpl).ok);
       townHud.update(st.selected, [...b.controls.selection], st.placing);
       b.roadView.update({ from: st.placing === 'road' ? st.roadFrom : null, at: st.hoverAt });
-      labels.update(b.town, stage.camera, { hoverAt: st.hoverAt, placing: st.placing === 'road' || st.placing?.startsWith('tpl:') ? st.placing : ghost, roadFrom: st.roadFrom });
+      labels.update(b.town, stage.camera, { hoverAt: st.hoverAt, placing: st.placing === 'road' || st.placing?.startsWith('tpl:') ? st.placing : ghost, roadFrom: st.roadFrom, go: b.hooks.findBuilding });
     } else labels.hide();
   }
   if (mode === 'world') labels.hide();

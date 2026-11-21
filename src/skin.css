@@ -187,7 +187,11 @@ body.campaign.mode-town #info, body.town #info { max-height: calc(100vh - 180px)
 #wpanel.is-realm.folded > :not(h3, [data-f="rank"], [data-f="realm"]) { display: none; }
 #wpanel.is-realm.folded { padding-bottom: 8px; }
 #alerts.folded h4 small { display: none; }
-.town-labels .stuck.sum { font-weight: 600; }
+/* The round badges over stuck buildings and their strip (townlabels.js): muted when it only waits, red when nothing can be made. */
+.tbadge { background: #ecdcae; border: 1px solid #6b4a24; color: #6b5a3c; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.tbadge .ico { filter: none; }
+.tbadge.bad { border-color: var(--bad); color: var(--bad); }
+.tbadge.chip { font-family: var(--body-font); }
 
 /* The orders bar in a village in a small window (QC round 2): wrap it and keep it inside the
    window; below 800 wide there is no room beside the build bar, so it rides under the folded stock strip. */
@@ -216,7 +220,6 @@ body.town #orders, body.campaign.mode-town #orders { flex-wrap: wrap; justify-co
 /* News lines and toasts sit over the panels, never behind them, and wrap inside the window (QC round 2: a long line lost its first half behind the stock panel). */
 #log { z-index: 30; }
 #log div, #toast { max-width: min(520px, calc((100vw - 32px) / var(--hud))); width: max-content; text-align: center; }
-.town-labels .stuck.sum { white-space: normal; width: max-content; max-width: min(300px, 60vw); text-align: center; line-height: 1.3; }
 
 /* World map: place labels hidden by a panel fade out (ui/labelshy.js); the news strips ride the bottom
    centre, clear of the labels and the top bar, and above the folded Needs you chip in a small window. */
