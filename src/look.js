@@ -13,7 +13,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 export const QUALITY = {
   low: { name: 'Low', scale: 1, shadow: 1024, soft: false, post: false, ao: 0, msaa: 0, cover: 150, density: 0.45, far: 60, trees: 40 },
   medium: { name: 'Medium', scale: 1.5, shadow: 2048, soft: true, post: true, ao: 0.5, msaa: 2, cover: 230, density: 0.8, far: 100, trees: 90 },
-  high: { name: 'High', scale: 2, shadow: 4096, soft: true, post: true, ao: 0.75, msaa: 4, cover: 300, density: 1, far: 140, trees: 140 },
+  high: { name: 'High', scale: 1.75, shadow: 4096, soft: true, post: true, ao: 0.6, msaa: 4, cover: 300, density: 1, far: 140, trees: 140 },
 };
 // The one place the picture setting lives: localStorage 'rts.quality' = 'low' | 'medium' | 'high'.
 // Other modules read quality() and follow onQuality(); fx.js scales its effects by it.

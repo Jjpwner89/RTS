@@ -102,7 +102,7 @@ f.onload = async () => {
     await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
     const SUM = {};
     for (let k = 0; k < ROUNDS; k++) for (const e of EXPS) {
-      const undo = EX[e](); await sleep(1200);
+      const kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed await sleep(1200);
       for (const key in T) delete T[key]; gpuMs.length = 0;
       r.info.autoReset = true;
       const times = []; let last = performance.now();
