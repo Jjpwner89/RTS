@@ -8,8 +8,12 @@
 // Particles live in fixed pools of instanced meshes, are only made near the camera, and run on
 // game time (they hold still while paused); markers and shake run on real time. The quality
 // setting (localStorage 'rts.quality': low, medium or high; setFxQuality) scales them all.
+//
+// For audio.js, which reads state rather than hooking: fx.fires lists the village's burning buildings and fresh
+// ruins each frame ({ x, z, level } with level 0–1), and fx.warSmoke the map's places under attack or siege ({ x, z }).
 import * as THREE from 'three';
 import { LOD } from './models.js';
+import { audio } from './audio.js';
 
 // ---- quality ----
 
@@ -236,6 +240,7 @@ export class Fx {
 
   battle(b, view, selection) {
     if (b.version !== this.version) { this.version = b.version; this.lastArrows = []; }
+    this.scope = b;   // the battle sounds belong to, so villages nobody watches stay quiet
     const dt = this.tick(b.time);
     this.scanSoldiers(b, dt);
     this.arrows(b);
@@ -444,6 +449,13 @@ export class Fx {
       for (const r of regs) if (!r.gone) this.path(r, target.cx, target.cz, MARK.attack, target);
     }
     if (kind === 'wall' && target) this.ring('wall', target.x, target.z, 4, { life: 0.9, from: 1.6 });
+    // One acknowledgement per order, heard from where the men are going.
+    const live = regs.filter(r => !r.gone);
+    if (!live.length) return;
+    const at = kind === 'attack' && target ? { x: target.cx, z: target.cz } : kind === 'wall' && target ? target
+      : kind === 'move' ? { x: live.reduce((n, r) => n + (r.dest?.x ?? r.cx), 0) / live.length, z: live.reduce((n, r) => n + (r.dest?.z ?? r.cz), 0) / live.length }
+      : { x: live.reduce((n, r) => n + r.cx, 0) / live.length, z: live.reduce((n, r) => n + r.cz, 0) / live.length };
+    audio.play(kind === 'charge' ? 'charge' : 'order', at, this.scope); // audio
   }
 
   // An expanding, fading ring flat on the ground. opts: follow (a regiment), life, from (start scale), delay.
@@ -544,6 +556,7 @@ export class Fx {
     this.armyDest ??= new WeakMap();
     const H = this.heightAt;
     const besieged = new Set();
+    this.warSmoke = [];
     for (const a of w.armies) {
       if (a.gone || a.wagon) continue;
       if (a.siege) besieged.add(a.siege.p);
@@ -564,9 +577,11 @@ export class Fx {
         this.ring(colourOf(shown), p.x, p.z, 60, { life: 2, from: 0.2 });
         for (let i = 0; i < 14 * Q.rate + 4; i++) this.puffs.add(p.x + rnd(-10, 10), y + rnd(10, 20), p.z + rnd(-10, 10), rnd(-2, 2), rnd(4, 7), rnd(-2, 2), rnd(3, 4.5), 3, 10, 0.4, colour, 0, 0.5, 1, 1.4);
       }
-      if (dt <= 0 || !p.visible || far(p.x, p.z, 1100)) continue;
+      const fighting = p.visible && (p.town?.underAttack || besieged.has(p.id));
+      if (fighting) this.warSmoke.push({ x: p.x, z: p.z });   // for audio.js
+      if (dt <= 0 || far(p.x, p.z, 1100)) continue;
       // Battle smoke: a dark column over a place being stormed, raided or starved.
-      if (p.town?.underAttack || besieged.has(p.id)) {
+      if (fighting) {
         if (Math.random() < dt * 5 * Q.rate + dt) {
           this.puffs.add(p.x + rnd(-14, 14), y + rnd(8, 18), p.z + rnd(-14, 14), rnd(1, 3), rnd(5, 9), rnd(-1, 1), rnd(6, 9), 4, 16, 0.6, COL.warsmoke, -0.3, 0.1, 1, 1.3);
         }
@@ -601,6 +616,7 @@ export class Fx {
     this.townClock = town.time;
     const d = this.dummy;
     let np = 0;
+    this.fires = [];
     for (const b of town.buildings) {
       if (b.removed) continue;
       const o = meshes.get(b);
@@ -610,7 +626,7 @@ export class Fx {
       const top = g.boundingBox.max.y, R = b.B.radius || 4, y = this.heightAt(b.x, b.z);
       let m = this.sites.get(b);
       if (!m) {
-        this.sites.set(b, m = { state: b.state, ruinedAt: b.state === 'ruined' ? town.time - 999 : null });
+        this.sites.set(b, m = { state: b.state, ruinedAt: b.state === 'ruined' ? town.time - 999 : null, stage: Math.floor((b.progress || 0) * 3) });
         if (!first && b.state === 'site') this.dustRing(b.x, y, b.z, R, 0.8);
       }
       if (m.state !== b.state) {
@@ -619,6 +635,15 @@ export class Fx {
         m.state = b.state;
       }
       const near = !far(b.x, b.z, 200);
+      // A third of the work done, then two thirds: a puff of dust and a sound for each stage.
+      if (b.state === 'site') {
+        const stage = Math.floor((b.progress || 0) * 3);
+        if (stage > m.stage && stage < 3) {
+          if (near) this.dustRing(b.x, y, b.z, R * 0.8, 0.6);
+          audio.play('stage', b, town.battle); // audio
+        }
+        m.stage = stage;
+      }
       // A site: a scaffold of poles and rails rising with the work, and dust while men build.
       if (b.state === 'site' && np < 780) {
         const h = Math.max(1.2, top * Math.min(1, b.progress + 0.25)) + 0.6, c = R * 0.72;
@@ -642,6 +667,10 @@ export class Fx {
           this.puffs.add(b.x + Math.sin(a) * R * 0.8, y + 0.3, b.z + Math.cos(a) * R * 0.8, rnd(-0.4, 0.4), rnd(0.3, 0.8), rnd(-0.4, 0.4), 1.3, 0.3, 1.2, 0.4, COL.dust, 0, 0.8, 0.7);
         }
       }
+      // What is burning, for audio.js (near or far, paused or not).
+      const hurt = b.state === 'active' && b.B.hp ? 1 - b.hp / b.B.hp : 0, burnt = b.state === 'ruined' && m.ruinedAt != null ? town.time - m.ruinedAt : 99;
+      if (hurt > 0.3) this.fires.push({ x: b.x, z: b.z, level: hurt });
+      else if (burnt < 25) this.fires.push({ x: b.x, z: b.z, level: 1 - burnt / 25 });
       if (!near || dt <= 0) continue;
       const roof = y + top * 0.95;
       // Damage: smoke from a hurt building, fire once it is badly hurt.
