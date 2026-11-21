@@ -36,6 +36,7 @@ import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, prisoners, opinion, outlook, duesShare, levyShare, DUES, LEVIES, TEMPERS, WANTS, SEATS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals } from './world/goals.js';
+import { coronation } from './world/events.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
@@ -118,9 +119,12 @@ const hooks = {
     if (winner !== 0 && world.options.ironman) clearSave(world.options.test);   // ironman: a lost campaign is gone
     if (winner !== 0) return showResult('Defeat', world.part === 2 ? 'The north has taken all you built. The realm is theirs.' : 'Your last village has fallen.', 'New campaign', () => location.reload(), true);
     if (world.part === 2) return showResult('The north is broken', 'The host of Norrhold is driven back through its gate, and the realm is safe in your hands. Long live the king.', 'New campaign', () => location.reload(), true);
-    // Crowned: the end of Part 1. The victory card breaks, and the wall with it.
-    const how = world.victory === 'acclaim' ? 'Every great house names you king.' : 'Kingsbridge is yours and the realm kneels.';
-    showResult('You are crowned', `${how} Long live the king.`, 'Continue', () => crownedThenNorth(), true);
+    // Crowned: the end of Part 1. First the coronation at Kingsbridge, where you choose how the
+    // realm remembers the day (events.js coronation); then the victory card breaks, and the wall with it.
+    audio.play('fanfare'); // audio: crown (the Audio session's coronation sound, once it is in audio.js)
+    const ev = coronation(world);
+    ev.then = text => showResult('You are crowned', `${text} Long live the king.`, 'Continue', () => crownedThenNorth(), true);
+    asks.unshift({ kind: 'choice', ev });
   },
   herald: msg => herald(msg),
   rankUp: what => audio.play(what === 'hall' ? 'title' : 'rankup'), // audio: a new rank, or a knights' hall standing
@@ -576,7 +580,7 @@ function nextAsk() {
   if (a.kind === 'choice') {
     const ev = a.ev;
     // The tournament is the realm's, not a village's: it is always put to you.
-    if (ev.id !== 'tournament' && (ev.at.owner !== 0 || !ev.at.town)) {
+    if (ev.id !== 'tournament' && ev.id !== 'coronation' && (ev.at.owner !== 0 || !ev.at.town)) {
       ev.choices.at(-1).run();
       flash(`${ev.title}: it passes without you, as ${ev.at.name} ${ev.at.owner !== 0 ? 'is no longer yours' : 'is not a village you run'}.`, false);
       return nextAsk();
@@ -594,6 +598,7 @@ function nextAsk() {
       if (!r) return;
       // A result with a story to it (a tournament won or lost) stays on a card until read, not a toast that is gone in a moment (QC round 2).
       const text = r.text ?? r;
+      if (ev.then) return ev.then(text);
       if (text.length > 70) showResult(ev.title, text, 'Continue', () => {}); else flash(text, r.ok ?? true);
     }, !c.ok, c.why, c]);
   } else if (a.kind === 'war') {

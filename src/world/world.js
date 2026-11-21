@@ -61,7 +61,7 @@ const ARMOUR_POLICY = { raider: 'none', turtler: 'best', builder: 'best', mercha
 export const armourPolicy = h => (h ? ARMOUR_POLICY[h.trait] ?? 'best' : 'best');
 const SIGHT = { place: 250, army: 190 };
 // The price of a free place's fealty: gold for each of its people and each man of its
-// garrison, half again for a market, abbey or castle.
+// garrison, half again for a market, abbey or castle, and more again from a duke.
 // What outlaws carry off when they get away from a village of yours: a share of its
 // stores, and of the treasury up to a cap.
 const OUTLAW_TAKE = { share: 0.35, gold: 120 };
@@ -69,7 +69,7 @@ const OUTLAW_TAKE = { share: 0.35, gold: 120 };
 // and "nobody fell" when it cost nothing.
 const toll = (theirs, ours) => !theirs && !ours ? 'nobody fell'
   : `${theirs ? `${theirs} of them fell` : 'none of them fell'}, ${ours ? `${ours} of ours` : 'none of ours'}`;
-export const TREAT = { folk: 6, man: 10, rich: ['market', 'monastery', 'castle'], richer: 1.5 };
+export const TREAT = { folk: 6, man: 10, rich: ['market', 'monastery', 'castle'], richer: 1.5, duke: 1.6 };   // a duke's name raises the price
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -817,7 +817,7 @@ export class World {
   // whole, its people, stores and garrison with it. A great house's place is not for sale.
   treatPrice(p) {
     const T = TREAT, folk = p.eco?.pop ?? 20, men = headcount(p.garrison);
-    return Math.round((folk * T.folk + men * T.man) * (T.rich.includes(p.kind) ? T.richer : 1) / 10) * 10;
+    return Math.round((folk * T.folk + men * T.man) * (T.rich.includes(p.kind) ? T.richer : 1) * (this.rank === 'Count' ? 1 : T.duke) / 10) * 10;
   }
   canTreat(enc) {
     const p = enc?.poi;
@@ -1042,6 +1042,7 @@ export class World {
       FACTIONS[was].seat = next || null;
       if (next) next.seat = was;
       delete p.seat;
+      if (was === 0 || owner === 0) this.hooks.sound?.('horn'); // audio: seatfalls (the Audio session's sound for a seat taken, once it is in audio.js)
       if (was === 0) {
         if (next) { this.home = next; this.log(`You have lost ${p.name}. Your seat is now ${next.name}.`, 1); }
       } else if (next && (p.visible || this.knows(was))) this.log(`${FACTIONS[was].name} has lost its seat and fallen back to ${next.name}.`, 2);

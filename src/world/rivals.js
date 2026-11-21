@@ -13,7 +13,7 @@
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit, roughly, unit } from './world.js';
-import { protectedFrom, leagued, wantsBack, grudgeWeight } from './diplomacy.js';
+import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { TYPES } from '../battle.js';
 
@@ -247,7 +247,7 @@ function runPlan(w, h, B, plan) {
       if (plan.skirmish) { ai.plan = null; ai.cool = 60; return; }
       plan.phase = 'muster';
       plan.staging = nearestOwn(w, h, T).place || h.seat;
-      if (T.owner === 0) {
+      if (T.owner === 0 && !(leagued(w, h.index) && leagueHost(w))) {
         w.log(`Scouts report that ${h.lord} is gathering a host at ${plan.staging.name}. They mean to march on ${T.name}.`, 1);
         w.meet(h.index);
         w.hooks.herald?.({ house: h, title: `${h.name} gathers a host`, text: `At ${plan.staging.name}, against ${T.name}. Strike their raiders and their muster before it marches, or make ready your walls.` });
@@ -262,6 +262,8 @@ function runPlan(w, h, B, plan) {
     if (ai.raidCd <= 0 && T.owner !== null && T.owner !== w.bandits) { ai.raidCd = B.raidCd * 1.5; sendRaid(w, h, plan); }
     const S = plan.staging;
     if (!S || S.owner !== h.index) { plan.staging = nearestOwn(w, h, T).place; return; }
+    // A house in a league against you sends its men to the league's one host, not its own.
+    if (T.owner === 0 && leagued(w, h.index) && leagueHost(w)) return;
     const need = w.defence(T) * B.need + 20, spare = spareAt(w, S);
     // A house whose lord has just fallen mourns before it marches again (world/captains.js).
     const ready = (h.mourning ?? 0) < w.time && (spare >= need || (plan.waited > 420 && spare >= w.defence(T) * 1.1));

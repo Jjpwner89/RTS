@@ -6,7 +6,9 @@
 // feels about the state of things (war, borders, marriage, your strength, their bent)
 // and jumps with gifts, victories and broken promises.
 import { seatPower } from './vassals.js';
-import { FACTIONS, power, headcount, takeUnits, mergeInto } from './world.js';
+import { FACTIONS, power, headcount, takeUnits, mergeInto, roughly, unit as unitOf } from './world.js';
+
+const SIEGE = new Set(['ram', 'ladder', 'mangonel', 'trebuchet']);
 
 const BASE = { raider: -10, hothead: -5, schemer: 0, merchant: 10, builder: 10, turtler: 5 };
 const TRUCE = 600;          // seconds after peace before either side may attack again
@@ -127,17 +129,106 @@ function threat(w) {
 }
 export const leagued = (w, h) => !!w.coalition?.members.includes(h);
 
+// The league raises one host (Duke batch, 2026-11-21): every member sends two men in five from
+// each of its places to the leader's place nearest your best one, it gathers there for a while (strike
+// it before it marches), then marches on that place. One big danger with a clear end: the host
+// beaten means the league is broken, and its lords sue for peace. A host that takes the place
+// stays there as its garrison, and the league gathers another.
+const HOST_GATHER = 120;     // seconds the host waits at its muster before it marches
+const HOST_AGAIN = 300;      // and after a place taken, before the next host gathers
+const HOST_SHARE = 0.4;      // of each member place's garrison (a house's own banners leave half)
+const hostOf = w => w.armies.find(a => a.id === w.coalition?.host?.id && !a.gone) || null;
+// A host gone into a storm or a blockade of one of your villages is still fighting there.
+const atWalls = w => { const P = w.byId[w.coalition?.host?.near]; return P?.owner === 0 && !!(P.town?.underAttack || P.town?.hostile); };
+// The league's host is in the field or at your walls.
+export const leagueHost = w => !!w.coalition?.host?.id && ((hostOf(w) && !hostOf(w).retreating) || atWalls(w));
+// Your best place: your seat if you have one, else your biggest village.
+function bestOf(w) {
+  const mine = w.pois.filter(p => p.owner === 0 && p.kind !== 'camp');
+  const seat = FACTIONS[0].seat;
+  if (seat?.owner === 0) return seat;
+  return mine.sort((a, b) => (b.town?.population ?? b.eco?.pop ?? 0) - (a.town?.population ?? a.eco?.pop ?? 0))[0] || null;
+}
+function raiseHost(w) {
+  const C = w.coalition, T = bestOf(w);
+  if (!T) return;
+  const lead = C.members.map(h => FACTIONS[h]).sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
+  const near = w.pois.filter(p => p.owner === lead.index).map(p => ({ p, d: w.route(p, T).length })).filter(o => o.d < Infinity).sort((a, b) => a.d - b.d)[0];
+  if (!near) return;
+  const S = near.p, units = [], from = [];
+  for (const h of C.members) {
+    let n = 0;
+    for (const p of w.pois.filter(q => q.owner === h)) {
+      const got = takeUnits(p.garrison, power(p.garrison) * HOST_SHARE);
+      n += headcount(got);
+      mergeInto(units, got);
+    }
+    if (n) from.push(`${FACTIONS[h].short} ${n}`);
+  }
+  if (headcount(units) < 30) { for (const u of units) S.garrison.push(u); C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
+  for (const [key, count] of [['ram', 8], ['ladder', 12], ['mangonel', 6]]) units.push({ ...unitOf(key, count, `League ${key}s`) });
+  const a = w.spawnArmy(lead.index, units, S, 'The league host', 'siege');
+  a.league = true;
+  C.host = { id: a.id, at: S.id, target: T.id, marchAt: w.time + HOST_GATHER, men: headcount(units.filter(u => !SIEGE.has(u.key))), lead: lead.index,
+    theirs: w.pois.filter(p => C.members.includes(p.owner)).map(p => p.id) };
+  w.meet(lead.index);
+  S.seen = true;
+  w.log(`The league gathers one host at ${S.name}: about ${roughly(C.host.men)} men (${from.join(', ')}). It means to march on ${T.name}.`, 1);
+  w.chron(`The league against you gathered its host at ${S.name}, ${C.host.men} strong.`);
+  w.hooks.herald?.({ house: lead, title: 'The league raises its host', text: `${C.host.men} men gather at ${S.name} under ${lead.lord}, to march on ${T.name} in two minutes. Strike them there, or meet them on the road: break this host and the league is broken.` });
+}
+function tickHost(w) {
+  const C = w.coalition, H = C.host;
+  if (!H) return raiseHost(w);
+  if (!H.id) { if (w.time >= H.again) raiseHost(w); return; }
+  const a = hostOf(w), T = w.byId[H.target];
+  if (a && !a.retreating) {
+    H.near = (a.at || a.path[0])?.id ?? H.near;   // where it is, or the next place on its road
+    if (H.marchAt && w.time >= H.marchAt && a.at && !a.path.length && !a.halted) {
+      const to = T?.owner === 0 ? T : bestOf(w), from = a.at;
+      if (to && w.order(a, to)) {
+        H.marchAt = 0; H.target = to.id;
+        w.log(`The league host marches from ${from.name} on ${to.name}!`, 1);
+        w.hooks.sound?.('warcry'); // audio
+      }
+    }
+    return 'alive';
+  }
+  // Gone: into a storm of one of your villages (still fighting), into the place it took (its
+  // garrison now), or beaten.
+  if (!a && atWalls(w)) return 'alive';
+  const took = [T, w.byId[H.near]].some(p => p && C.members.includes(p.owner) && !H.theirs?.includes(p.id));
+  if (!a && took) { C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
+  return 'broken';
+}
+function endLeague(w, C, over) {
+  w.log(`The coalition against you ${over}.`, 1);
+  w.chron(`The coalition against you ${over}.`);
+  w.coalition = { members: [], since: C.since, rest: w.time + LEAGUE_REST };
+}
+
 function thinkCoalition(w) {
   const C = w.coalition;
   if (C?.members.length) {
     // A house that makes peace with you, or is broken, has left it.
     C.members = C.members.filter(h => FACTIONS[h].alive && w.atWar(0, h));
+    if (C.members.length && tickHost(w) === 'broken') {
+      const lords = C.members.map(h => FACTIONS[h]);
+      for (const H of lords) { w.makePeace(0, H.index); Object.assign(w.dip[H.index], { truceUntil: w.time + TRUCE, score: 0 }); }
+      const a = w.armies.find(x => x.id === C.host.id);
+      if (a && !a.gone && a.retreating) a.league = false;
+      endLeague(w, C, 'is broken: its host is beaten');
+      w.hooks.sound?.('fanfare'); // audio
+      w.hooks.herald?.({ house: FACTIONS[0], title: 'The league is broken', text: `With its host beaten, ${lords.map(H => H.lord).join(', ')} sue for peace. None of them may attack you for ten minutes.` });
+      return;
+    }
     const { mine, ratio } = threat(w);
     const over = C.members.length < 2 ? 'has fallen apart' : mine < LEAGUE_EASE && ratio < 1.2 ? 'breaks up: you no longer frighten them' : w.time - C.since > LEAGUE_LONG ? 'has worn itself out' : null;
     if (over) {
-      w.log(`The coalition against you ${over}.`, 1);
-      w.chron(`The coalition against you ${over}.`);
-      w.coalition = { members: [], since: C.since, rest: w.time + LEAGUE_REST };
+      // Its host goes home with it.
+      const a = hostOf(w);
+      if (a && !a.retreating) w.retreat(a);
+      endLeague(w, C, over);
     }
     return;
   }
@@ -155,7 +246,8 @@ function thinkCoalition(w) {
   w.log(`${names} have leagued together against you!`, 1);
   w.hooks.sound?.('boom'); // audio
   w.chron(`${names} leagued together against you.`);
-  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `You hold ${Math.round(mine * 100)}% of the realm, and the lords are afraid. ${names} have made peace among themselves and declared war on you together. It will fall apart if you give back enough, make peace one by one, or simply outlast it.` });
+  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `You hold ${Math.round(mine * 100)}% of the realm, and the lords are afraid. ${names} have made peace among themselves and declared war on you together, and will raise one host between them. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
+  raiseHost(w);
 }
 
 // The AI's own proposals, which you accept or turn down.
@@ -244,8 +336,11 @@ export const dowryFor = (w, h) => Math.round((DOWRY + w.strength(h) * 0.5) / 50)
 export const leaguePrice = w => Math.round((w.coalition?.members || []).reduce((n, h) => n + peacePrice(w, h), 0) * 0.75 / 50) * 50;
 
 // What a house at war asks to go home: more the stronger it is.
+// A lord asks what you can pay: a twentieth of a purse beyond 2,000 on top of what his men are
+// worth (Duke batch: a duke's treasury reached 40,000 with peace at 200 gold a house).
 export function peacePrice(w, h) {
-  return Math.min(1000, Math.max(150, Math.round((150 + w.strength(h) * 0.25) / 50) * 50));
+  const rich = Math.max(0, (FACTIONS[0].gold || 0) - 2000) * 0.05;
+  return Math.min(4000, Math.max(150, Math.round((150 + w.strength(h) * 0.25 + rich) / 50) * 50));
 }
 
 function canBack(w, h) {
@@ -325,6 +420,8 @@ export function act(w, h, id, theirs = false) {
       w.makePeace(0, m);
       Object.assign(w.dip[m], { truceUntil: w.time + TRUCE, score: 0 });
     }
+    const host = hostOf(w);
+    if (host && !host.retreating) w.retreat(host);
     w.coalition = { members: [], since: w.coalition.since, rest: w.time + LEAGUE_REST };
     w.log('The coalition against you is bought off.', 1);
     w.chron('You bought off the coalition against you.');

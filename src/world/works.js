@@ -20,7 +20,7 @@ export const WORKS = {
   market: { name: 'Reopen the great market', gold: 500, secs: 240, rank: 'Lord', after: 'walls', icon: 'market',
     about: 'Merchants come back to the river: gold every minute to whoever holds the city, and its caravans carry twice as much.',
     done: 'The great market of Kingsbridge is open again.' },
-  palace: { name: 'Raise the palace', gold: 900, secs: 360, rank: 'Duke', after: 'market', icon: 'crown',
+  palace: { name: 'Raise the palace', gold: 4000, secs: 360, rank: 'Duke', after: 'market', icon: 'crown',
     about: 'A royal court again. Your vassals are proud to serve, and one great house fewer need back your claim to be crowned by acclaim.',
     done: 'A palace stands in Kingsbridge, and a court gathers in it.' },
 };

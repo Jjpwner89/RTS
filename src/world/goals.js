@@ -1,4 +1,4 @@
-// The first steps of a campaign, one at a time: from a reeve with one village to a count.
+// The steps of a campaign, one at a time: from a reeve with one village to the crown.
 // Each goal is ticked when the realm shows it done, and stays ticked. `w.goals` counts how
 // many are done, and is saved with the campaign.
 
@@ -23,6 +23,9 @@ export const GOALS = [
   { text: 'Arm them: build a barracks and raise men.', tip: 'Weapons must be hauled to the barracks first. Gold hires sellswords at the keep.', done: w => has(w, 'barracks') && (w.armies.some(a => a.side === 0 && !a.wagon) || towns(w).some(t => t.battle.regs.some(r => r.side === 0 && r.levy && !r.gone))) },
   { text: 'March out and take a free village.', tip: 'Muster from the map, then right-click a village to march there.', done: w => mine(w).length >= 2 },
   { text: 'Become a count: hold five places.', tip: 'Rival houses will notice you now. Keep men at home, make friends, or build walls.', done: w => mine(w).length >= 5 },
+  // Count and Duke (Duke batch, 2026-11-21): the climb's last steps name the rank's tools.
+  { text: 'Become a duke: hold eleven places.', tip: "Gold wins free places now: march an army up to one and choose Treat with them. Call your banners to gather your vassals' men, and bring rams and ladders to walled places.", done: w => mine(w).length >= 11 || !!w.crowned },
+  { text: 'Take Kingsbridge, the old royal city.', tip: 'Hold this much and the great houses league against you and raise one host between them: break it and the league is broken. Kingsbridge has the strongest walls in the realm.', done: w => w.crown?.owner === 0 || !!w.crowned },
   { text: 'Take the crown: hold Kingsbridge and half the realm, or win every house to your claim.', tip: '', done: w => !!w.crowned },
 ];
 

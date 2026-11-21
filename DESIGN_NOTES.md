@@ -507,7 +507,7 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
 | **Reeve** (1 place) | **Outlaws come for your stores** from about minute 5. The retinue is the only real defence, so sending it to work becomes a gamble. | The retinue, the militia, the first barracks. | Two outlaw bands in the first quarter hour, sized to your men and stores. | The first band seen off: the retinue comes back blooded. |
 | **Lord** (2–4) | Two villages to feed and guard, the camps' raiders, the first house you meet. | **Your own lands feed your armies**: no deserting between your own villages. Supply runs and town templates. | Your first vassal's wants; tribute demands. | The herald and the Lord's fanfare. |
 | **Count** (5–10) | The houses take notice; walled places to take. | **Treat with a free place**: gold buys its fealty without a storm (the treasury's first big use, and the village keeps its people). **The banners march only through friendly land.** **Besiegers forage**, so a blockade is a real choice. Captains, the knights' hall. | Factions and rebellions; relief hosts at your sieges. | The knights' hall milestone. |
-| **Duke** (11+) | A coalition of every house; half the realm to hold for the crown. | Gather your armies, 40-man regiments. Treating with free places is now worth its price. | The coalition (to do: one coalition host that marches on you, not five houses suing for peace in turn). | **To do: a coronation at Kingsbridge** that is an event, not a log line. |
+| **Duke** (11+) | A coalition of every house; half the realm to hold for the crown. | Gather your armies, 40-man regiments. Treating with free places is now worth its price. | The coalition raises one host that marches on your best place; break it and the league is broken. | **The coronation at Kingsbridge**: an event card with a choice (largesse, a tournament, pardons). |
 | **King** | The north: Part 2, the wall falls. | Royal decrees. | Great vassals with claims; the host of Norrhold. | The wall falling (built). |
 
 ### Batch 1: the Reeve opening and the logistics traps (built 2026-11-21)
@@ -605,3 +605,22 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
 - **A worn-down household guard is put to you.** Below a quarter of its 30 men in one of your villages, you choose: fill the ranks (5 gold a man), send them to work as villagers, or keep them. (`companies.js tickHousehold`; asked once, saved on the regiment.)
 - **No wagon, in your own lands, is no alarm.** The army card says the farms round the nearest place will feed the men, instead of "No village has food to send".
 - **The Count and Duke saves' hall kit sits in the hall**, where the banners cannot arm levies with it. After calling the banners on Count, the hall can still train both men-at-arms and knights.
+
+### The Duke batch (built 2026-11-21)
+
+- **One league host** (diplomacy.js `raiseHost`, `tickHost`). When a coalition forms, every member sends two men in five from each of its places to one host. It gathers at the leader's place nearest your best place (your seat, else your biggest village), with rams, ladders and mangonels.
+  - It waits there two minutes, which is your chance to strike it, then marches on that place. A herald names its size, muster and target.
+  - While the host lives, no member musters a host of its own against you; their raids go on.
+  - **The host beaten means the league is broken.** Every member makes peace with ten minutes' truce, and a herald says so. That covers a host routed in the field and a host beaten off at your walls. A host that takes the place it went for (or one on its road) stands there as its garrison, and the league gathers another five minutes later.
+  - Buying the league off, or the league ending in the old ways (members leave, you stop frightening them, forty minutes pass), sends its host home.
+  - On the Duke test save, forcing a league: 156 men from five houses gather at Market Brambury against Ashford.
+- **The coronation at Kingsbridge** (events.js `coronation`). Crowned by sword or by acclaim, you get an event card before the victory card. It offers three ways to mark the day, and each carries into the war in the north:
+  - **Largesse:** a quarter of the treasury (at least 500). Every village gets +15 mood for twenty minutes and less grief; every great house +10.
+  - **A crowning tournament:** an eighth of the treasury (at least 300). Each of your captains gains a level; every great house +5.
+  - **Pardons:** free. Grief is wiped in every village (+8 mood), the outlaws keep off your roads for forty minutes, and the great lords grumble (−4).
+  - The choice is written in the chronicle and on the victory card. The card plays 'fanfare' for now; the Audio session's 'crown' can replace it (`// audio: crown`). A seat changing hands plays 'horn' in place of its 'seatfalls'. The 'unlock' sound is already raised by ui/sounds.js.
+- **Gold sinks for a duke.** The Duke test save holds 22,000 gold, and a house's peace cost 200.
+  - A lord's price for peace now adds a twentieth of your purse beyond 2,000 (capped at 4,000). On the Duke save that is 1,200–1,250 a house, and 4,550 to buy off a five-house league.
+  - A free place's fealty costs 1.6 times as much from a duke as from a count (TREAT.duke): Elmmere 1,280, Keldale Abbey 1,730.
+  - The palace at Kingsbridge costs 4,000 instead of 900.
+- **Goals for Count and Duke** (goals.js): "Become a duke: hold eleven places" (its tip names treating, the banners and siege engines), then "Take Kingsbridge" (its tip warns of the league's host), then the crown.

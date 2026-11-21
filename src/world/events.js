@@ -435,3 +435,39 @@ export function fire(w, id, p) {
   else ev.choices.at(-1).run();   // nobody to ask: the plain choice
   return ev;
 }
+
+// The coronation at Kingsbridge (Duke batch, 2026-11-21): the crown is a moment, not a log
+// line. When you are crowned, before the wall falls, you choose how the realm remembers the
+// day. Each choice carries into the war in the north, and the two that cost gold cost a share
+// of the treasury, since a duke's purse has nothing else that size to buy.
+export function coronation(w) {
+  const K = w.crown, me = FACTIONS[0], towns = w.pois.filter(p => p.owner === 0 && p.town).map(p => p.town);
+  const share = (f, least) => Math.max(least, Math.round(gold() * f / 50) * 50);
+  const largesse = share(0.25, 500), lists = share(0.12, 300);
+  const lords = () => FACTIONS.filter(H => H.index && H.alive && !H.bandit && !H.invader && w.dip?.[H.index]);
+  const how = w.victory === 'acclaim' ? 'Every great house has named you king.' : 'Kingsbridge is yours, and half the realm with it.';
+  const told = text => { w.chron(text); return text; };
+  const choices = [
+    { label: `Largesse: scatter coin in the streets (${largesse} gold)`, ok: () => gold() >= largesse, run: () => {
+      pay(largesse);
+      for (const t of towns) { spell(t, 15, 'the coronation largesse', 1200); t.grief = Math.max(0, t.grief - 10); }
+      for (const H of lords()) w.dip[H.index].opinion += 10;
+      return told(`You were crowned at ${K.name}, and ${largesse} gold was thrown to the crowds. Every village of yours drank your health, and the great lords remembered the open hand.`);
+    } },
+    { label: `A crowning tournament (${lists} gold)`, ok: () => gold() >= lists, run: () => {
+      pay(lists);
+      const caps = (w.captains || []).filter(c => c.alive && c.side === 0 && c.captive === undefined);
+      for (const c of caps) c.level += 1;
+      for (const H of lords()) w.dip[H.index].opinion += 5;
+      return told(`You were crowned at ${K.name}, and the lists ran for three days.${caps.length === 1 ? ' Your captain rode in them and came away a level the better.' : caps.length ? ` Your ${caps.length} captains rode in them, and each came away a level the better.` : ''} The great lords' sons rode too.`);
+    } },
+    { label: 'Pardons: open the gaols and forgive the outlaws', run: () => {
+      for (const t of towns) { t.grief = 0; spell(t, 8, 'the coronation pardons', 900); }
+      w.banditPeace = Math.max(w.banditPeace ?? 0, w.time + 2400);
+      for (const H of lords()) w.dip[H.index].opinion -= 4;
+      return told(`You were crowned at ${K.name}, and pardoned every outlaw and debtor in the realm. The villages blessed you; the bands stayed off your roads for forty minutes; the great lords grumbled at thieves walking free.`);
+    } },
+  ];
+  return { id: 'coronation', image: picture('coronation'), title: `The coronation at ${K.name}`,
+    text: `${how} The bells of ${K.name} ring, the archbishop waits with the oil, and the lords of the realm kneel in the nave. How will the realm remember the day?`, at: K, choices: choices.map(c => live(w, c)) };
+}
