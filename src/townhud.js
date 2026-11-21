@@ -466,7 +466,7 @@ export class TownHud {
 
   field(f) {
     const b = this.selected, r = this.reg;
-    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.peopleText()} · ${b.status.toLowerCase()}` : b.priority && this.town.prioText ? `${this.town.prioText}${b.status && !/^(Waiting for builders|Under construction)/.test(b.status) ? ` · ${b.status.toLowerCase()}` : ''}` : b.status;
+    if (f === 'status') return this.town.hostile ? (b.state === 'ruined' ? b.status : `Held by ${this.town.hostile.name}`) : b.state === 'ruined' ? b.status : b.kind === 'keep' ? `${this.town.peopleText()} · ${b.status.toLowerCase()}` : b.priority && this.town.prioText ? `${this.town.prioText}${b.status && !/^(Waiting for builders|Under construction)/.test(b.status) && !(/^No workers/.test(b.status) && b.workers?.length) ? ` · ${b.status.toLowerCase()}` : ''}` : b.status;
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'keepraise') { const K = KEEP_RAISE[this.town.keepBought || 0]; return K ? `Raise a ${K.name}` : ''; }

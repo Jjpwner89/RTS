@@ -1724,7 +1724,7 @@ export class Town {
     const P = this.priority;
     if (P && !P.removed) {
       if (P.state === 'site' && P.builders.length < PRIO_BUILDERS) { P.builders.push(v); v.state = 'build'; v.job = null; v.site = P; return; }
-      if (P.state === 'active' && !P.paused && !P.dry && P.B.jobs && P.workers.length < this.staffed(P)) { P.workers.push(v); v.job = P; v.state = 'work'; v.task = null; return; }
+      if (P.state === 'active' && !P.paused && !P.dry && P.B.jobs && P.workers.length < this.staffed(P)) { P.workers.push(v); v.job = P; v.state = 'work'; v.task = null; v.jobEta = this.time + dist(v, P) / WALK + 2; return; }
     }
     let best = null, bd = Infinity;
     for (const b of this.buildings) {
@@ -1748,7 +1748,7 @@ export class Town {
       const d = dist(v, b);
       if (d < bd) { bd = d; best = b; }
     }
-    if (best) { best.workers.push(v); v.job = best; v.state = 'work'; v.task = null; }
+    if (best) { best.workers.push(v); v.job = best; v.state = 'work'; v.task = null; v.jobEta = this.time + dist(v, best) / WALK + 2; }
   }
 
   // One priority per village: a site or a workplace. Setting a new one clears the old; setting the same one clears it.
@@ -1774,12 +1774,21 @@ export class Town {
       if (b.cutOff) return 'Priority: way blocked';
       if (short) return `Priority: no ${GOODS[short[0]].name.toLowerCase()}`;
       if (waits && n) return `Priority: no ${waits[1]}`;
+      // Builders there but the materials haven't come: they wait, they aren't building.
+      if (n && b.progress >= this.delivered(b) - 1e-6) {
+        const missing = Object.entries(b.B.cost).filter(([g, k]) => (b.store[g] || 0) < k).map(([g]) => GOODS[g].name.toLowerCase());
+        const coming = Object.entries(b.B.cost).some(([g, k]) => (b.store[g] || 0) < k && (b.incoming[g] || 0) > 0);
+        const from = this.stores().reduce((m, o) => Math.min(m, dist(o, b)), Infinity), eta = coming && from < Infinity ? Math.max(5, Math.round(from / WALK / 5) * 5) : 0;
+        if (missing.length) return `Priority: ${plural(n)} waiting for ${missing.join(' and ')}${eta ? ` (about ${eta} s)` : ''}`;
+      }
       if (n >= PRIO_BUILDERS) return `Priority: ${plural(n)} at work`;
       if (idle || this.leastNeeded(b)) return `Priority: ${n ? `${plural(n)}, more` : 'builders'} coming`;
       return n ? `Priority: ${plural(n)}, every hand needed` : 'Priority: every hand needed';
     }
     if (b.paused) return 'Priority: paused';
     if (b.dry) return `Priority: ${(b.dryWhy || 'worked out').toLowerCase()}`;
+    const away = b.workers.filter(v => (v.jobEta || 0) > this.time).length;
+    if (away) return `Priority: ${away} worker${away === 1 ? '' : 's'} on their way`;
     if (b.workers.length >= this.staffed(b)) return waits ? `Priority: no ${waits[1]}` : 'Priority: fully staffed';
     return idle ? 'Priority: workers coming' : 'Priority: every hand needed';
   }
