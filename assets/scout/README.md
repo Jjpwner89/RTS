@@ -10,7 +10,7 @@ Every file is **CC0 1.0** (public domain), from a Quaternius pack released befor
 
 | Folder | Files | Fills | Source pack (licence page) | Owner |
 |---|---|---|---|---|
-| `animals/` | `Wolf.glb`, `Husky.glb` | War dogs (`unit.wardog` is a posed dog of spheres and boxes, bake.js `warDog`) | [Ultimate Animated Animals](https://quaternius.com/packs/ultimateanimatedanimals.html), 2021 | Art (model), animations (clips) |
+| `animals/` | `Wolf.glb`, `Husky.glb` | War dogs: `unit.wardog` is the Wolf, on its own skeleton (lineup/skin.js `WOLF`, bake.js `wolf`) | [Ultimate Animated Animals](https://quaternius.com/packs/ultimateanimatedanimals.html), 2021 | Art (model), animations (clips) |
 | `animals/` | `Sheep.fbx`, `Pig.fbx` | Livestock in villages and pens (none today) | [Farm Animals](https://quaternius.com/packs/farmanimal.html), 2018: the same pack as the game's horse | Art, animations |
 | `animals/` | `Cow.glb`, `Bull.glb`, `Donkey.glb`, `Deer.glb`, `Stag.glb`, `Fox.glb` | Cattle and carts' donkeys in villages; deer, stags and foxes in the woods (none today) | Ultimate Animated Animals, 2021 | Art, animations |
 | `animals/` | `Chicken.glb` | Hens in yards | Quaternius on [Poly Pizza](https://poly.pizza/m/ineV9pU5VL), CC0 | Art, animations |

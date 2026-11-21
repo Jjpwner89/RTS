@@ -676,7 +676,7 @@ async function findAssets() {
   else for (const key of [...Object.keys(TYPES), 'villager', 'captain', 'lord', 'lady']) {
     const a = unitModel(key)?.anim;
     if (!a) continue;
-    for (const n of key === 'villager' ? WORK : a.horse ? RIDE : a.rig === 'dog' ? DOG : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
+    for (const n of key === 'villager' ? WORK : a.horse ? RIDE : a.rig === 'wolf' ? DOG : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
     if (a.horse) for (const n of HORSE) if (!clipOf('horse', n)) noClip.add(`no horse '${n}' clip`);
     for (const n of a.horse ? HORSE_GAITS : GAITS) {
       const rig = a.horse ? 'horse' : a.rig;

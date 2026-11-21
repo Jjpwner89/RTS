@@ -168,8 +168,9 @@ const v = new THREE.Vector3();
 // breastplate and a surcoat over it. A layer's colour may be 'team'.
 // `hold` names holding stances for the arms; `trimHair` tucks the hair in to the skull so helmets cover it.
 // `skin` names the skeleton the game animates it on (skin.js); the meshes then also carry their bind positions
-// and bone weights, so the bake can be played back in any clip.
-async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85, drop = () => false, seated = false, team, tint = {}, flat = {}, armour, hold = [], trimHair = false, skin }) {
+// and bone weights, so the bake can be played back in any clip. `scale` sizes it by that instead of by `height` (a
+// skeleton whose size is fixed by its rig: the wolf, skin.js WOLF).
+async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85, scale, drop = () => false, seated = false, team, tint = {}, flat = {}, armour, hold = [], trimHair = false, skin }) {
   const { root, clips } = await source(kind, file);
   const o = SkeletonUtils.clone(root);
   const anim = clips.find(a => a.name === clip) || clips.find(a => a.name.endsWith('|' + clip)) || clips.find(a => a.name.includes(clip)) || clips[0];
@@ -257,7 +258,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
     g.computeBoundingBox(); box.union(g.boundingBox);
     return { mat, mesh, g };
   });
-  const k = height / (box.max.y - box.min.y), base = box.min.y;
+  const k = scale ?? height / (box.max.y - box.min.y), base = scale ? 0 : box.min.y;
   const toM = p => p.clone().setY(p.y - base).multiplyScalar(k);
   const group = new THREE.Group();
   let tris = 0;

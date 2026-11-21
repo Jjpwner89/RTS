@@ -47,4 +47,7 @@ art = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'asse
 os.makedirs(os.path.join(assets, 'clips'), exist_ok=True)
 for f in ['clips-foot.glb', 'clips-riders.glb', 'clips-horse.glb', 'wip/clip-manifest.json']:
     shutil.copy(os.path.join(art, f), os.path.join(assets, 'clips', os.path.basename(f)))
+# The war dog's wolf: CC0 Quaternius Ultimate Animated Animals, kept in this repo by the asset scout (lineup/skin.js WOLF)
+os.makedirs(os.path.join(assets, 'animals'), exist_ok=True)
+shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'scout', 'animals', 'Wolf.glb'), os.path.join(assets, 'animals', 'Wolf.glb'))
 print('done')

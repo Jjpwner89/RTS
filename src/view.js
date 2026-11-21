@@ -31,7 +31,7 @@ const WHITE = new THREE.Color('#ffffff');
 const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // carried upright on the march
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // The gaits a man (or a war dog) on foot moves in, slowest first, for gaitFor to pick from. Read by checks.js too.
-export const footGaits = info => info.rig === 'dog' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];
+export const footGaits = info => info.rig === 'wolf' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];
 export function soldierClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
   const dt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
@@ -69,7 +69,7 @@ export function soldierClip(s, b, info, out) {
 
   if (!s.alive) return show('Death', now - (s.diedAt ?? now));
   // a blow, or the wind-up to one
-  const strike = rig === 'dog' ? ['Bite', 'bite'] : info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
+  const strike = rig === 'wolf' ? ['Bite', 'bite'] : info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
   let k = timed(...strike, now - (s.struckAt ?? -99), close ? s.cd : null);
   if (k) return k;
   // a shot: bows, crossbows and javelins each their own way, only while he stands: a man walking off mid-reload

@@ -2,11 +2,11 @@
 // so the walk clips plant their feet; running (charging, fleeing, routing, a Run order) is a unit's own
 // battle.js T.speed. Kept free of three.js so the game logic can read it; anim.js re-exports it.
 // The clips' measured strides (anim.js gaitSpeed): a man walks 1.35 and runs 3.03, a horse trots 2.28 and
-// gallops 5.36, a dog walks 0.96, trots 1.89 and runs 4.53. Each gait plays from 0.6× to 1.6× its stride.
+// gallops 5.36, a war dog walks 0.78, trots 1.67 and runs 4.77. Each gait plays from 0.6× to 1.6× its stride.
 export const PACE = {
   foot: 1.6,      // soldiers in formation, and villagers about their work (economy.js WALK)
   horse: 1.8,     // a slow trot: a horse has no walk clip yet, and its trot (2.28) can't slow below ~1.4
-  dog: 1.8,       // a dog trots alongside the men (its trot strides 1.89)
+  dog: 1.8,       // a dog trots alongside the men (its trot strides 1.67)
   wander: 1.0,    // a villager strolling with nothing to do: slow enough to read as idle, still a walk round a corner
 };
 // The walking speed of a battle unit type: its kind's pace, never faster than it can run. Engines crawl at
