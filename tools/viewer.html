@@ -20,6 +20,14 @@ input[type=range]{width:140px}
 .lab.head{font-size:14px;background:#2b2a22;color:#f4f0e4}
 #note{position:absolute;left:12px;bottom:8px;font-size:12px;color:var(--soft);background:#efebdfcc;padding:3px 8px;border-radius:3px;max-width:calc(100% - 40px)}
 .right{margin-left:auto}
+#panel{position:absolute;z-index:2;right:8px;top:8px;width:330px;max-height:calc(100% - 52px);overflow:auto;background:#efebdff2;border:1px solid var(--line);border-radius:4px;padding:8px 10px;font-size:12px}
+#panel[hidden]{display:none}
+#panel h2{font-size:14px;margin:0 0 4px}#panel h3{font-size:12px;margin:10px 0 3px;color:var(--soft);text-transform:uppercase;letter-spacing:.04em}
+#panel table{border-collapse:collapse;width:100%}#panel td,#panel th{padding:1px 4px;text-align:right;font-variant-numeric:tabular-nums}
+#panel td:first-child,#panel th:first-child{text-align:left}#panel th{color:var(--soft);font-weight:600}
+#panel .bad td,#panel li.bad{color:#9a2412;font-weight:600}#panel ul{margin:2px 0;padding-left:16px}
+#panel .all td{cursor:pointer}#panel .all tr:hover td{background:#e3dcc8}#panel .all tr.on td{background:#d8cfb5}
+#panel .muted{color:var(--soft)}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head><body>
@@ -27,7 +35,7 @@ input[type=range]{width:140px}
 <span class="tabs" role="tablist">
 <button role="tab" data-tab="clips">Clips on units</button>
 <button role="tab" data-tab="buildings">Buildings</button>
-<button role="tab" data-tab="places" disabled title="Waits for the places generator (src/world/places.js)">Places</button>
+<button role="tab" data-tab="places">Places</button>
 </span>
 <label class="right"><input type="checkbox" id="dark"> dark ground</label>
 </header>
@@ -46,6 +54,15 @@ input[type=range]{width:140px}
 <select id="goto" aria-label="Go to"></select>
 <label><input type="checkbox" id="labels" checked> labels</label>
 </div>
-<div id="stage"><div id="note"></div></div>
+<div class="bar" id="bar-places" hidden>
+<button id="pprev" title="The place before">‹</button>
+<select id="pgoto" aria-label="Go to place"></select>
+<button id="pnextp" title="The next place">›</button>
+<label>seed <input type="number" id="pseed" min="1" step="1" value="1" style="width:6em"></label>
+<button id="pnext">Next seed</button>
+<label><input type="checkbox" id="pnames"> building names</label>
+<label><input type="checkbox" id="ppanel" checked> tally</label>
+</div>
+<div id="stage"><div id="note"></div><div id="panel" hidden></div></div>
 <script type="module" src="./viewer.js"></script>
 </body></html>

@@ -1,8 +1,8 @@
 // RTS viewer: what the game draws, outside the game. It imports the game's own code (models.js unitLook, the clips
-// in anim.js and the battle view's soldierClip, TownView's and SiegeView's building drawing), so it shows exactly what
-// a battle or a village shows. Read-only: it changes no game code and never writes saves or settings (audio.js,
+// in anim.js and the battle view's soldierClip, TownView's and SiegeView's building drawing, places.js's layouts), so it
+// shows exactly what a battle or a village shows. Read-only: it changes no game code and never writes saves or settings (audio.js,
 // pulled in through the economy, reads its sound settings once and plays nothing here).
-//   ?tab=clips|buildings &unit=spear &armour=plate &shield=0 &clip=Walk &move=1.6 &dark=1
+//   ?tab=clips|buildings|places &unit=spear &armour=plate &shield=0 &clip=Walk &move=1.6 &dark=1 &seed=1 &place=0
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -212,7 +212,12 @@ clips.tick = dt => {
     m.geometry.attributes.aAnim.needsUpdate = true;
     if (m.geometry.attributes.aAnimH) m.geometry.attributes.aAnimH.needsUpdate = true;
   }
-  note(`${$('unit').value} · ${clips.info.rig}${clips.info.horse ? ' on horse' : ''} · ${$('clip').value || 'game gait'} · drag to orbit, scroll to zoom`);
+  // how fast its planted feet cover ground at its own pace (anim.js gaitSpeed): the move speed it plays true at
+  // (only for walking gaits; a rider's is his horse's)
+  const nameOf = (rig, x) => x && Object.entries(table.clips[rig] || {}).find(([, y]) => y.start === x.start)?.[0];
+  const [gr, gn] = clips.info.horse ? ['horse', nameOf('horse', hc)] : [clips.info.rig, c?.loop && nameOf(clips.info.rig, c)];
+  const stride = A.gaitSpeed && /Walk|Run|March|Carry|Rout|Trot|Gallop/.test(gn || '') ? A.gaitSpeed(gr, gn) : NaN;
+  note(`${$('unit').value} · ${clips.info.rig}${clips.info.horse ? ' on horse' : ''} · ${$('clip').value || 'game gait'}${stride > 0 ? ` · stride covers ${stride.toFixed(2)} m/s at 1×` : ''} · drag to orbit, scroll to zoom`);
 };
 
 // ============================================================ buildings
@@ -322,6 +327,239 @@ bld.enter = () => {
   note(`${bld.spots.length} pieces${bld.missing.length ? ` · nothing to draw for: ${bld.missing.join(', ')}` : ''} · red labels have no baked model · drag to orbit, right-drag to pan`);
 };
 
+// ============================================================ places
+
+// Every kind of place at every wealth, wall and size the game makes, laid out by places.js exactly as you find it when
+// you storm it: the world's own seeding (World.seedHolding), grown on the holdings' own rules (runEconomy), a town made
+// on the place's own ground (World.makeTown), layPlace into it, and drawn with the game's ground, trees, TownView and
+// SiegeView. Nothing here plans a building; the tally panel sets what the place's numbers ask for beside what was laid
+// out and what stands in the town, and checkPlaces' problems in red.
+const pl = { root: new THREE.Group(), specs: [], at: -1, names: [], checked: new Map() };
+TABS.places = pl;
+scene.add(pl.root);
+let P = null;   // the game's world code, loaded with the tab
+const SIZES = [['new', 0], ['15 min on', 15], ['an hour on', 60]];
+const WEALTHS = ['poor', 'modest', 'wealthy'], WALLS = { none: 'no walls', wood: 'timber walls', stone: 'stone walls' };
+// What the game makes: the realm's kinds, lords' seats on a village or a castle, Kingsbridge, the outlaws' camps, and
+// the north (the host's places keep a rough economy, so their size is their people).
+const KIND_LIST = [
+  { kind: 'village', title: 'Village' }, { kind: 'mine', title: 'Mining village' }, { kind: 'ford', title: 'Ford' },
+  { kind: 'monastery', title: 'Abbey' }, { kind: 'market', title: 'Market town' },
+  { kind: 'village', seat: true, title: "Lord's seat (village)" }, { kind: 'castle', seat: true, title: "Lord's seat (castle)" },
+  { kind: 'castle', title: 'Castle' }, { kind: 'crown', title: 'Kingsbridge' }, { kind: 'camp', title: 'Bandit camp' },
+  { kind: 'pass', north: true, title: 'Mountain gate (north)' }, { kind: 'warcamp', north: true, title: 'War camp (north)' },
+  { kind: 'village', north: true, title: 'Northern village' }, { kind: 'mine', north: true, title: 'Northern mining village' },
+  { kind: 'castle', north: true, title: 'Northern hold' }, { kind: 'market', north: true, title: 'Northern market' },
+];
+
+// A bare place as the realm makes one, on seed `seed`, with `roads` roads out to its neighbours.
+function bare(K, i, base) {
+  const r = P.rng(base * 7 + i * 131), n = K.kind === 'crown' ? 5 : 2 + Math.floor(r() * 3), turn = r() * Math.PI * 2;
+  const links = Array.from({ length: n }, (_, j) => { const a = turn + (j + (r() - 0.5) * 0.5) / n * Math.PI * 2; return { x: Math.sin(a) * 300, z: Math.cos(a) * 300 }; });
+  const p = { id: 'v' + i, name: K.title, kind: K.kind, owner: K.north ? P.invader : null, x: 0, z: 0, links, seed: base + 1000 * (i + 1), garrison: [], town: null, seen: true, visible: false };
+  if (K.seat) p.seat = 1;
+  return p;
+}
+// The world's seeding for place p with its own rand on `k`: the same call a new campaign makes.
+const seedWith = (p, k) => { P.World.prototype.seedHolding.call({ rand: P.rng(p.seed * 3 + k * 7919) }, p); return p.eco; };
+
+// The list: for each kind, the first seeds that give each wealth and walls the game makes it with (a kind it never makes
+// poor, or never walls, simply has no such entry), at each size.
+pl.list = base => {
+  const specs = [];
+  KIND_LIST.forEach((K, ki) => {
+    const probe = bare(K, ki, base), found = new Map();
+    for (let k = 0; k < 300; k++) {
+      const e = seedWith(probe, k), key = e.buildings ? `${e.wealth}:${e.walls}` : 'rough';
+      if (!found.has(key)) found.set(key, k);
+    }
+    const sizes = found.has('rough') ? [['new', 0], ['grown full', -1]] : SIZES;
+    for (const [key, k] of [...found].sort(([a], [b]) => a.localeCompare(b))) {
+      const [w, walls] = key.split(':');
+      for (const [size, minutes] of sizes) {
+        const what = key === 'rough' ? size : `${WEALTHS[w]}, ${WALLS[walls]}, ${size}`;
+        specs.push({ K, ki, k, minutes, group: K.title, name: `${K.title} · ${what}` });
+      }
+    }
+  });
+  return specs;
+};
+// Place `spec` at seed `base`, seeded and grown.
+pl.make = (spec, base) => {
+  const p = bare(spec.K, spec.ki, base);
+  seedWith(p, spec.k);
+  if (p.eco.buildings) for (let t = 0; t < spec.minutes * 60; t += 5) P.runEconomy(p, 5);   // the holdings' clock: every 5 s
+  else if (spec.minutes < 0) p.eco.pop = P.World.prototype.popCap.call({}, p);              // as many people as it holds
+  return p;
+};
+
+pl.build = async () => {
+  const [world, holdings, places, realm, noise, terrain, scenery] = await Promise.all(['../src/world/world.js', '../src/world/holdings.js',
+    '../src/world/places.js', '../src/world/realm.js', '../src/noise.js', '../src/terrain.js', '../src/scenery.js'].map(u => import(u)));
+  P = { ...world, ...holdings, ...places, ...realm, ...noise, ...terrain, ...scenery };
+  // the north's places belong to its host, as when it comes over the wall (this page's own copy of the houses)
+  if (!P.FACTIONS.some(h => h.invader)) P.FACTIONS.push({ ...P.INVADER, index: P.FACTIONS.length, gold: 0, arms: 0, alive: true });
+  P.invader = P.FACTIONS.findIndex(h => h.invader);
+  $('pseed').value = q.get('seed') || 1;
+  $('pgoto').onchange = () => pl.show(+$('pgoto').value);
+  $('pprev').onclick = () => pl.show((pl.at - 1 + pl.specs.length) % pl.specs.length);
+  $('pnextp').onclick = () => pl.show((pl.at + 1) % pl.specs.length);
+  $('pseed').onchange = () => pl.reseed(Math.max(1, Math.round(+$('pseed').value) || 1));
+  $('pnext').onclick = () => pl.reseed(Math.max(1, Math.round(+$('pseed').value) || 1) + 1);
+  $('ppanel').onchange = () => { $('panel').hidden = !$('ppanel').checked; };
+  $('pnames').onchange = () => pl.tick();
+  pl.reseed(+$('pseed').value, +(q.get('place') || 0));
+};
+pl.reseed = (base, at = pl.at < 0 ? 0 : pl.at) => {
+  pl.base = base;
+  $('pseed').value = base;
+  const specs = pl.list(base);
+  Object.assign(pl, { specs, checked: new Map() });
+  const sel = $('pgoto');
+  sel.innerHTML = '';
+  let g = null;
+  specs.forEach((s, i) => {
+    if (!g || g.label !== s.group) { g = document.createElement('optgroup'); g.label = s.group; sel.append(g); }
+    g.append(new Option(s.name.slice(s.group.length + 3), i));
+  });
+  pl.show(Math.min(at, specs.length - 1));
+  pl.checkAll();
+};
+// What is wrong with place p's layout: checkPlaces, and for a place it leaves out (one without numbers of its own: the
+// camps and the north, laid out from tallyOf's rough village) the same count of its tally against its layout.
+pl.check = p => {
+  const L = P.layoutOf(p), problems = P.checkPlaces({ pois: [p] });
+  if (!p.eco?.buildings) {
+    const have = {};
+    for (const b of L.buildings) have[b.kind] = (have[b.kind] || 0) + 1;
+    for (const [k, n] of Object.entries(P.tallyOf(p))) if ((have[k] || 0) < n) problems.push(`${p.name}: ${k} ${have[k] || 0} of ${n} laid out`);
+    if (L.unplaced.length) problems.push(`${p.name}: no room for ${L.unplaced.join(', ')}`);
+  }
+  return { problems, unplaced: L.unplaced };
+};
+// The check on every place of the list, a few at a time, for the panel's list.
+pl.checkAll = () => {
+  const base = pl.base;
+  let i = 0;
+  const step = () => {
+    if (pl.base !== base) return;
+    const t0 = performance.now();
+    while (i < pl.specs.length && performance.now() - t0 < 30) {
+      if (!pl.checked.has(i)) pl.checked.set(i, pl.check(pl.make(pl.specs[i], base)));
+      i++;
+    }
+    pl.panel();
+    if (i < pl.specs.length) setTimeout(step, 0);
+    else { const bad = [...pl.checked.values()].filter(c => c.problems.length).length; if (current === 'places') pl.status(bad); }
+  };
+  step();
+};
+
+// Clear what the last place drew (its ground, trees, buildings and walls are its own; the baked models are shared and
+// come back on their next use).
+pl.clear = () => {
+  pl.root.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    for (const m of [o.material].flat()) if (m) {
+      m.map?.dispose();
+      for (const u of Object.values(m.uniforms || {})) if (u?.value?.isTexture) u.value.dispose();   // the ground's painted land
+      m.dispose?.();
+    }
+  });
+  pl.root.clear();
+  pl.names = [];
+};
+pl.show = i => {
+  pl.at = i;
+  $('pgoto').value = i;
+  const spec = pl.specs[i], p = pl.make(spec, pl.base);
+  pl.clear();
+  // as World.storm lays a place out: a town on its own ground, layPlace for the side storming it, its keep as shown
+  const t0 = performance.now();
+  const town = P.World.prototype.makeTown.call({ bandits: null, rank: null, hooks: {}, time: 0 }, p, { kind: p.kind, villagers: 0, retinue: false, stock: {} });
+  const walledR = P.layPlace(town, p, 1);
+  town.keepLevel = town.keepLevel || P.keepLevelFor(p);
+  town.hostile = { owner: p.owner, pop: p.eco.pop, eco: p.eco, color: P.ownerOf(p).color, name: P.ownerOf(p).name, where: p.name };
+  town.flagColor = P.ownerOf(p).color;
+  const ms = performance.now() - t0, L = P.layoutOf(p), { problems } = pl.check(p);
+  pl.checked.set(i, { problems, unplaced: L.unplaced });
+  // drawn as the game draws a village: its roads and lanes worn into the ground, trees, the town and its walls
+  const g = pl.root, heightAt = p.heightAt;
+  const roads = (p.roadAngles || []).map(a => ({ pts: [[0, 0], [Math.sin(a) * 400, Math.cos(a) * 400]], width: 6 })).concat(town.lanes || []);
+  P.drawGround(g, heightAt, p.seed, { land: P.landMask(p.seed, { homes: [{ x: 0, z: 0 }], roads, wear: [{ x: 0, z: 0, r: 24 }] }) });
+  P.drawTrees(g, heightAt, p.trees);
+  const tv = new TownView(g, town, heightAt, P.rng(p.seed + 11));
+  tv.update(null);
+  for (const o of tv.meshes.values()) o.icon.visible = false;   // (the village's status icons are for running it)
+  const sv = new SiegeView(g, town.battle, heightAt);
+  sv.syncWalls();
+  // names over the buildings, for reading the layout
+  for (const b of town.buildings) {
+    const l = label(`${b.B.name}${(b.level || 1) > 1 ? ' ' + b.level : ''}`);
+    l.position.set(b.x, heightAt(b.x, b.z) + 7, b.z);
+    g.add(l); pl.names.push(l);
+  }
+  const reach = Math.max(walledR, ...town.buildings.map(b => Math.hypot(b.x, b.z) + b.B.radius), 40);
+  pl.view = { p, town, L, ms, problems, reach, h0: heightAt(0, 0), walls: town.battle.walls };
+  pl.look();
+  pl.panel();
+  pl.tick();
+  pl.status();
+};
+pl.look = () => {
+  const { reach, h0 } = pl.view;
+  // (the target a little to the right, so the place sits clear of the tally panel)
+  const right = $('ppanel').checked ? reach * 0.35 : 0;
+  controls.target.set(right * 0.85, h0, right * 0.5);
+  camera.position.copy(controls.target).add(new THREE.Vector3(-0.45, 0.8, 0.75).multiplyScalar(reach * 1.85));
+  aimSun(new THREE.Vector3(0, h0, 0), reach + 20);
+};
+pl.status = (bad = [...pl.checked.values()].filter(c => c.problems.length).length) => {
+  const v = pl.view;
+  note(`${pl.at + 1} of ${pl.specs.length} · ${v.town.buildings.length} buildings, ${v.walls.pieces.length} wall pieces · laid out and built in ${v.ms.toFixed(0)} ms`
+    + ` · checked ${pl.checked.size} of ${pl.specs.length}${bad ? `, ${bad} with problems (red in the list)` : ', no problems'} · drag to orbit, right-drag to pan`);
+};
+pl.tick = () => {
+  const on = $('pnames').checked, w = new THREE.Vector3();
+  for (const l of pl.names) l.visible = on && l.getWorldPosition(w).distanceTo(camera.position) < 160;
+};
+
+// The panel: this place's numbers, its tally beside its layout and the town, what checkPlaces says, then every place.
+pl.panel = () => {
+  const v = pl.view;
+  if (!v) return;
+  const { p, town, L } = v, e = p.eco, want = P.tallyOf(p), laid = {}, built = {};
+  for (const b of L.buildings) laid[b.kind] = (laid[b.kind] || 0) + 1;
+  for (const b of town.buildings) if (b.state === 'active') built[b.kind] = (built[b.kind] || 0) + 1;
+  const kinds = [...new Set([...Object.keys(want), ...Object.keys(laid), ...Object.keys(built)])].sort((a, b) => (want[b] || 0) - (want[a] || 0) || a.localeCompare(b));
+  const W = v.walls, towers = W.nodes.filter(n => n.tower).length, gates = W.pieces.filter(q => q.gate).length;
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const rows = kinds.map(k => {
+    const bad = (laid[k] || 0) < (want[k] || 0) || (built[k] || 0) !== (laid[k] || 0);
+    return `<tr class="${bad ? 'bad' : ''}"><td>${esc(BUILDINGS[k]?.name || k)}</td><td>${want[k] || 0}</td><td>${laid[k] || 0}</td><td>${built[k] || 0}</td></tr>`;
+  }).join('');
+  const total = o => Object.values(o).reduce((a, n) => a + n, 0);
+  const all = pl.specs.map((s, i) => {
+    const c = pl.checked.get(i), bad = c?.problems.length;
+    return `<tr data-i="${i}" class="${bad ? 'bad' : ''}${i === pl.at ? ' on' : ''}"><td>${esc(s.name)}</td><td>${c ? (bad ? `${bad} problem${bad > 1 ? 's' : ''}` : 'ok') : '…'}</td></tr>`;
+  }).join('');
+  $('panel').innerHTML = `<h2>${esc(pl.specs[pl.at].name)}</h2>
+    <div class="muted">seed ${p.seed} · ${p.links.length} roads in · ${e.buildings ? `${Math.round(e.pop)} people, level ${e.level}, ${WEALTHS[e.wealth]}, ${P.FOCUS_NAMES[e.focus]}, walls by its numbers: ${e.walls}` : `${Math.round(e.pop)} people (a rough economy: the tally is worked from its people)`}
+    · keep level ${town.keepLevel} · ${W.pieces.length} wall pieces, ${towers} towers, ${gates} gates${W.pieces.length ? ` (${[...new Set(W.pieces.map(q => q.material))].join(', ')})` : ''}</div>
+    <h3>Tally</h3><table><tr><th>building</th><th>its numbers</th><th>laid out</th><th>in the town</th></tr>${rows}
+    <tr><th>all</th><th>${total(want)}</th><th>${total(laid)}</th><th>${total(built)}</th></tr></table>
+    <h3>Problems${p.eco.buildings ? ' (checkPlaces)' : ' (its tally against its layout)'}</h3>${v.problems.length ? `<ul>${v.problems.map(x => `<li class="bad">${esc(x)}</li>`).join('')}</ul>` : '<div>No problems.</div>'}
+    ${L.unplaced.length ? `<div class="bad">No room for: ${esc(L.unplaced.join(', '))}</div>` : ''}
+    <h3>Every place at seed ${pl.base} (${pl.checked.size} of ${pl.specs.length} checked)</h3><table class="all">${all}</table>`;
+  for (const tr of $('panel').querySelectorAll('tr[data-i]')) tr.onclick = () => pl.show(+tr.dataset.i);
+};
+pl.enter = () => {
+  ground.visible = shade.visible = false;
+  $('panel').hidden = !$('ppanel').checked;
+  if (pl.view) { pl.look(); pl.status(); }
+};
+pl.leave = () => { ground.visible = shade.visible = true; $('panel').hidden = true; };
+
 // ============================================================ run
 
 function resize() {
@@ -335,10 +573,11 @@ renderer.setAnimationLoop(now => {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (current === 'clips') clips.tick(dt);
   if (current === 'buildings') bld.tick();
+  if (current === 'places') pl.tick();
   controls.update();
   renderer.render(scene, camera);
   labels.render(scene, camera);
 });
-await show(q.get('tab') === 'buildings' ? 'buildings' : 'clips');
+await show(q.get('tab') in TABS ? q.get('tab') : 'clips');
 resize();
-window.viewer = { show, clips, bld, camera, controls, scene };
+window.viewer = { show, clips, bld, pl, camera, controls, scene };
