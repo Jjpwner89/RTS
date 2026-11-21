@@ -176,6 +176,7 @@ function townBundle(p, look = null) {
     selectionChanged: sel => { if (sel && sel.size) st.selected = null; },
     selectCard: (r, add) => b.controls.setSelection([r], add),
     focus: r => b.controls.focus([r]),
+    watchOnly: () => !!look,   // a look-round: nothing to select or order (controls.js)
     startPlacing: kind => { if (look) return; st.placing = kind; st.roadFrom = null; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
     templates: () => world.rank !== 'Reeve',
@@ -557,7 +558,8 @@ function nextAsk() {
     if (!ev.image) { pic.hidden = true; pic.removeAttribute('src'); }
     else if (pic.src.endsWith(ev.image) && pic.complete) pic.hidden = !pic.naturalWidth;
     else pic.src = ev.image;
-    for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r, true); }, !c.ok]);
+    // a choice answers with its text, or { ok, text } when it can be refused; a greyed one says why
+    for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r.text ?? r, r.ok ?? true); }, !c.ok, c.why]);
   } else if (a.kind === 'news') {
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;
@@ -607,10 +609,11 @@ function nextAsk() {
   }
   const row = box.querySelector('.row');
   row.innerHTML = '';
-  for (const [text, fn, off] of buttons) {
+  for (const [text, fn, off, why] of buttons) {
     const btn = document.createElement('button');
     btn.textContent = text;
     btn.disabled = !!off;
+    if (off && why) btn.title = why;
     btn.onclick = () => { box.classList.remove('open'); fn(); };
     row.append(btn);
   }

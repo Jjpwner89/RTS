@@ -33,6 +33,13 @@ function lose(t, n) {
 }
 const gold = () => FACTIONS[0].gold;
 const pay = n => { FACTIONS[0].gold -= n; };
+// Why a choice is greyed: its own reason, or the gold its label asks for.
+const whyNot = c => {
+  if (c.ok ?? true) return '';
+  if (c.why) return c.why;
+  const cost = +(c.label.match(/\((\d+) gold/)?.[1] || 0);
+  return cost > gold() ? `You have ${Math.floor(gold())} of the ${cost} gold` : 'Not possible now';
+};
 const food = t => t.free('food') + t.free('bread');
 
 const EVENTS = {
@@ -43,7 +50,7 @@ const EVENTS = {
     choices: (w, p) => {
       const t = p.town, share = Math.ceil(food(t) * 0.4);
       return [
-        { label: `Open the granaries (${share} food)`, ok: share > 0, run: () => { t.spend({ food: Math.min(share, t.free('food')) }); spell(t, 4, 'fed through the blight', 300); return `${p.name} eats from your granaries.`; } },
+        { label: `Open the granaries (${share} food)`, ok: share > 0, why: 'Your granaries are empty', run: () => { t.spend({ food: Math.min(share, t.free('food')) }); spell(t, 4, 'fed through the blight', 300); return `${p.name} eats from your granaries.`; } },
         { label: 'Buy grain from the south (80 gold)', ok: gold() >= 80, run: () => { pay(80); return `Grain carts come up the road to ${p.name}.`; } },
         { label: 'Let them tighten their belts', run: () => { spell(t, -10, 'the blight', 360); return `${p.name} goes hungry for a season.`; } },
       ];
@@ -116,7 +123,7 @@ const EVENTS = {
       const c = camp(w, p), men = headcount(c.garrison), hireAt = Math.max(160, men * 3);   // always dearer than peace
       return [
         { label: 'Pay them off (100 gold)', ok: gold() >= 100, run: () => { pay(100); w.banditPeace = w.time + 1200; return `${e.name}'s men will leave your lands alone for twenty minutes.`; } },
-        { label: `Hire the band (${hireAt} gold)`, ok: gold() >= hireAt && men >= 6, run: () => {
+        { label: `Hire the band (${hireAt} gold)`, ok: gold() >= hireAt && men >= 6, why: men < 6 ? `Only ${men} of them are left: too few to hire` : null, run: () => {
           pay(hireAt);
           w.spawnArmy(0, c.garrison.map(u => ({ ...u, name: `${e.name}'s ${u.name.split(' ').slice(-1)[0]}` })), p, `${e.name}'s band`);
           c.garrison = [];
@@ -148,9 +155,10 @@ EVENTS.tournament = {
       return `${who} is unhorsed in the third course. The purse goes elsewhere.`;
     };
     return [
-      { label: e.champ ? `Send Captain ${e.champ.name} (50 gold)` : 'No captain to send', ok: !!e.champ && gold() >= 50,
+      { label: e.champ ? `Send Captain ${e.champ.name} (50 gold)` : 'No captain to send', ok: !!e.champ && gold() >= 50, why: e.champ ? null : 'None of your captains is free to ride',
         run: () => joust(`Captain ${e.champ.name}`, 0.25 + e.champ.level * 0.1, () => {}) },
       { label: 'Ride yourself (50 gold)', ok: gold() >= 50 && !(w.lordHurt > w.time) && (w.lordCaptive ?? null) === null,
+        why: (w.lordCaptive ?? null) !== null ? 'You are a captive' : w.lordHurt > w.time ? 'You are still hurt from the lists' : null,
         run: () => joust('You', 0.45, () => { w.lordHurt = w.time + 300; }) },
       { label: 'Stay away', run: () => 'The tournament goes on without you.' },
     ];
@@ -216,7 +224,7 @@ EVENTS.toll = {
   choices: (w, p, e) => {
     const them = e.n * 2, mine = menAt(p);
     return [
-      { label: `Drive them off (${mine} men at the ford)`, ok: mine > 0, run: () => {
+      { label: `Drive them off (${mine} men at the ford)`, ok: mine > 0, why: `None of your men are at ${p.name}`, run: () => {
         if (mine * (0.6 + w.rand() * 0.8) > them) {
           FACTIONS[0].gold += 90;
           if (w.dip?.[e.house.index]) w.dip[e.house.index].opinion -= 8;
@@ -311,13 +319,13 @@ function settlerEvent(w, p, id) {
     return `${k} newcomers settle at ${p.name}${brings ? `, with ${brings}` : ''}.`;
   };
   const choices = [
-    { label: `Take them in (${n} people${brings ? `, ${brings}` : ''})`, ok: room >= n, run: take(n) },
-    ...(id === 'refugees' ? [{ label: `Take the strongest (${Math.ceil(n / 2)} people)`, ok: room >= Math.ceil(n / 2), run: () => { spell(t, -3, 'families split at the gate', 300); return take(Math.ceil(n / 2))(); } }] : []),
+    { label: `Take them in (${n} people${brings ? `, ${brings}` : ''})`, ok: room >= n, why: `Room for only ${Math.max(0, room)} more: build houses first`, run: take(n) },
+    ...(id === 'refugees' ? [{ label: `Take the strongest (${Math.ceil(n / 2)} people)`, ok: room >= Math.ceil(n / 2), why: `Room for only ${Math.max(0, room)} more: build houses first`, run: () => { spell(t, -3, 'families split at the gate', 300); return take(Math.ceil(n / 2))(); } }] : []),
     { label: 'Send them on their way', run: () => `The ${id} go on down the road.` },
   ];
   const ev = { id: `settlers-${id}`, image: picture(id), title: G.title(p),
     text: `${G.text(p, n)} ${p.name} has ${meals} meals in store for ${t.population} people${room < n ? `, and room for only ${Math.max(0, room)} more: build houses first` : ''}.`, at: p,
-    choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
+    choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, why: whyNot(c), run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
   if (w.hooks.choice) w.hooks.choice(ev);
   else ev.choices.at(-1).run();
   return ev;
@@ -363,7 +371,7 @@ export function fire(w, id, p) {
   w.lastEvent = id;
   const choices = E.choices(w, p, extra);
   const ev = { id, image: picture(id), title: E.title(p), text: E.text(w, p, extra), at: p,
-    choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
+    choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, why: whyNot(c), run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
   if (w.hooks.choice) w.hooks.choice(ev);
   else ev.choices.at(-1).run();   // nobody to ask: the plain choice
   return ev;
