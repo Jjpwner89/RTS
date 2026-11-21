@@ -102,27 +102,33 @@ function turnYear(t) {
 // and haze, how high the sun (or by night the moon) stands (degrees), and how dark it is (night: lamps, torches and
 // stars). Dawn and dusk are warm and low; the night is a dark moonlit blue, and regiments read by their banners,
 // torches and rings (view.js), not by a bright world. d: 0 midnight, 0.5 noon. Keys without colours keep the weather's.
+// The creator's ruling (2026-11-21, "night should not last as long as day"): of each day about 60% is day, 8% dusk,
+// 24% full dark and 8% dawn (PARTS), with dusk and dawn still clearly seen. The sounds of the hour follow (audio.js).
+export const PARTS = { dawn: [0.12, 0.2], dusk: [0.8, 0.88] };
 const MOON = { i: 0.27, sun: '#8fa8dc', hemi: 0.5, sky: '#5a7ccc', zenith: '#070f24', horizon: '#1a2846', haze: '#18243f', elev: 42, night: 1 };
 const DAYKEYS = [
   { d: 0, ...MOON },
-  { d: 0.17, ...MOON },
-  { d: 0.205, i: 0.36, sun: '#c48f8a', hemi: 0.66, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 14, night: 0.7 },
-  { d: 0.24, i: 0.72, sun: '#ff9a5c', hemi: 0.74, zenith: '#5d72a4', horizon: '#f4ae7e', haze: '#d9a588', elev: 7, night: 0.15 },
-  { d: 0.3, i: 0.95, sun: '#ffd2a6', hemi: 0.94, elev: 17, night: 0 },
-  { d: 0.38, i: 1, hemi: 1, elev: 28, night: 0 },
+  { d: 0.12, ...MOON },
+  { d: 0.145, i: 0.36, sun: '#c48f8a', hemi: 0.66, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 14, night: 0.7 },
+  { d: 0.175, i: 0.72, sun: '#ff9a5c', hemi: 0.74, zenith: '#5d72a4', horizon: '#f4ae7e', haze: '#d9a588', elev: 7, night: 0.15 },
+  { d: 0.21, i: 0.95, sun: '#ffd2a6', hemi: 0.94, elev: 17, night: 0 },
+  { d: 0.32, i: 1, hemi: 1, elev: 28, night: 0 },
   { d: 0.5, i: 1, hemi: 1, elev: 40, night: 0 },
-  { d: 0.66, i: 1, hemi: 1, elev: 30, night: 0 },
-  { d: 0.745, i: 0.74, sun: '#ff8a4c', hemi: 0.74, zenith: '#53659c', horizon: '#f39a62', haze: '#d6936f', elev: 6, night: 0.15 },
-  { d: 0.785, i: 0.38, sun: '#d0787a', hemi: 0.66, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 14, night: 0.7 },
-  { d: 0.83, ...MOON },
+  { d: 0.7, i: 1, hemi: 1, elev: 26, night: 0 },
+  { d: 0.785, i: 0.95, hemi: 0.95, elev: 16, night: 0 },
+  { d: 0.815, i: 0.74, sun: '#ff8a4c', hemi: 0.74, zenith: '#53659c', horizon: '#f39a62', haze: '#d6936f', elev: 6, night: 0.15 },
+  { d: 0.85, i: 0.38, sun: '#d0787a', hemi: 0.66, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 14, night: 0.7 },
+  { d: 0.88, ...MOON },
   { d: 1, ...MOON },
 ];
 // The time of day for the top bar: a little dial with the sun (by day) or the moon (by night) climbing over the
 // horizon, and its name. Returns { html, name, key }; key changes when the drawing does.
-const TIMES = [[0.17, 'Night'], [0.25, 'Dawn'], [0.42, 'Morning'], [0.58, 'Midday'], [0.74, 'Afternoon'], [0.83, 'Dusk'], [1.01, 'Night']];
+const TIMES = [[PARTS.dawn[0], 'Night'], [PARTS.dawn[1], 'Dawn'], [0.4, 'Morning'], [0.6, 'Midday'], [PARTS.dusk[0], 'Afternoon'], [PARTS.dusk[1], 'Dusk'], [1.01, 'Night']];
 export function dayDial(t) {
-  const d = dayOf(t), name = TIMES.find(([e]) => d < e)[1], up = d >= 0.22 && d < 0.78;
-  const f = up ? (d - 0.22) / 0.56 : ((d + 0.22) % 1) / 0.44, a = Math.PI * Math.min(1, Math.max(0, f));
+  // the sun is up from mid-dawn to mid-dusk, the moon the rest
+  const rise = (PARTS.dawn[0] + PARTS.dawn[1]) / 2, set = (PARTS.dusk[0] + PARTS.dusk[1]) / 2;
+  const d = dayOf(t), name = TIMES.find(([e]) => d < e)[1], up = d >= rise && d < set;
+  const f = up ? (d - rise) / (set - rise) : ((d - set + 1) % 1) / (1 - set + rise), a = Math.PI * Math.min(1, Math.max(0, f));
   const x = (16 - 12 * Math.cos(a)).toFixed(1), y = (17 - 11 * Math.sin(a)).toFixed(1);
   const sky = name === 'Night' ? '#1b2547' : name === 'Dawn' || name === 'Dusk' ? '#d98a62' : '#7fb0dc';
   const disc = up ? `<circle cx="${x}" cy="${y}" r="3.4" fill="#ffd45a"/>` : `<circle cx="${x}" cy="${y}" r="3.2" fill="#e8eefc"/><circle cx="${(+x + 1.6).toFixed(1)}" cy="${(+y - 1).toFixed(1)}" r="2.6" fill="${sky}"/>`;

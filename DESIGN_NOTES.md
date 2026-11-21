@@ -539,6 +539,10 @@ One effects module, `src/fx.js`, one Fx per scene (`fxFor`), fed by the views wi
 - **World map**: a smoke column over places being stormed, raided or starved; dust where armies meet; a pale plume in the new owner's colour when a place changes hands; dust at a new battle cairn; a ring where you send an army. Nothing on the map glows or flickers, since it is read alongside panels (Manager, 2026-11-21).
 - **Quality**: fx reads `quality()` and follows `onQuality()` from src/look.js (low, medium, high; the Picture row in the sound panel). Medium is the default, so its counts are tuned to still read well.
 
+## Day and night (creator's ruling, 2026-11-21)
+
+On the campaign clock a day is 150 seconds (look.js `DAY`), and the same day lights the world map, villages and battles. The creator liked the first night (c79c14e) but ruled that **"night should not last as long as day"**: of each day about **60% is day, 8% dusk, 24% full dark and 8% dawn** (look.js `PARTS`), with dusk and dawn still clearly seen. At 1x that is about 90 s of day, 12 s each of dusk and dawn, and 36 s of night; at 4x a night lasts about 9 s. Night is a dark moonlit blue with stars. Regiments read by a torch beside each banner, by their banners and by their rings, not by a bright world. Windows light in villages and on the map, and wall torches light, through dusk; they go out through dawn. The sun and moon dial by the clock, and the sounds of the hour (audio.js `hour`), follow the same parts.
+
 ## The journey, rank by rank (climb session, 2026-11-21)
 
 Played by hand on 2026-11-21: a new campaign to Lord (33 min), then the Lord, Count and Duke test saves. Full notes are in the group notes, `climb-playtest-2026-11-21.md`, and `player-round1-summary.md` agrees with them. What the climb felt like:
