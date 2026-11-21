@@ -1275,7 +1275,7 @@ function topBar() {
   }
   if (mode === 'town') $('clock').textContent = clock(world.time);
   // the time of day by the clock, in every view (look.js)
-  { const dd = dayDial(world.time), el = $('daydial') || $('clock').insertAdjacentElement('beforebegin', Object.assign(document.createElement('span'), { id: 'daydial' }));
+  { const dd = dayDial(look.clock?.() ?? world.time), el = $('daydial') || $('clock').insertAdjacentElement('beforebegin', Object.assign(document.createElement('span'), { id: 'daydial' }));
     if (el.dataset.key !== dd.key) { el.dataset.key = dd.key; el.innerHTML = dd.html; el.title = `${dd.name}: a day passes in two and a half minutes. Night falls dark; torches and banners show where your men stand.`; } }
   const n = mode === 'town' ? current.controls.selection.size : 0;
   $('march').hidden = !n;
