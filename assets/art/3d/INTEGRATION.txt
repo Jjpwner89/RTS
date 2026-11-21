@@ -29,6 +29,11 @@ clips-riders.glb: 5 clips
   Ride_Idle, Ride_Trot, Ride_Gallop, Ride_Couch, Ride_Slash.
 clips-horse.glb: 3 clips
   Gallop, Rear, Trot.
+clips-stances.glb: 6 one-pose holding stances (Claude, 2026-11-21)
+  Hold_Spear_R, Hold_Sword_R, Hold_Shield_L, Hold_Bow_L, Hold_Axe_2H,
+  Hold_Crossbow_2H. Not game clips: the soldier bake (tools/models) copies
+  their arm and finger joints onto the Idle body so the baked soldiers' hands
+  hold their kit. Each names its grip in animation.extras.hold.
 
 All animation is sampled at 30 Hz, in place, Y up, metres, facing +Z.
 Loop metadata, durations, action events and source hashes are in

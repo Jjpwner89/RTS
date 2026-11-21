@@ -5,6 +5,7 @@ import path from 'node:path';
 import {readGLB,Human,makeClip,writeClips,curve} from './rig-tools.mjs';
 import {footMotions,spearPose,SPEAR_DIAG,weapon} from './foot-motions.mjs';
 import {riderMotions} from './rider-motions.mjs';
+import {stanceMotions} from './stance-motions.mjs';
 import {saveHorse,horseClips} from './horse-motions.mjs';
 const dir=path.dirname(fileURLToPath(import.meta.url)),src=readGLB(path.join(dir,'Male_Adventurer.source.glb'));
 const human=new Human(src),r=human.r;
@@ -16,7 +17,10 @@ const clips=[makeClip(r,'Spear_Thrust',24,false,debug('Spear_Thrust',spear),{eve
 const metrics=[{name:'Spear_Thrust',maxGripError:human.maxGripError}];
 for(const [name,frames,loop,pose,extra]of footMotions(human)){human.maxGripError=0;clips.push(makeClip(r,name,frames,loop,debug(name,pose),extra));metrics.push({name,maxGripError:human.maxGripError});}
 const riders=[];for(const [name,frames,loop,pose,extra]of riderMotions(human)){human.maxGripError=0;riders.push(makeClip(r,name,frames,loop,debug(name,pose),extra));metrics.push({name,maxGripError:human.maxGripError});}
-writeClips(src,riders,path.join(dir,'../clips-riders.glb'));saveHorse();
+writeClips(src,riders,path.join(dir,'../clips-riders.glb'));
+// One-pose holding stances for the baked soldiers (tools/models/lineup).
+const stances=[];for(const [name,frames,loop,pose,extra]of stanceMotions(human)){stances.push(makeClip(r,name,frames,loop,(t,u)=>{pose(t,u);if(process.env.CLIP_DEBUG==='stances')console.log(name,JSON.stringify(human.armReport));},extra));}
+writeClips(src,stances,path.join(dir,'../clips-stances.glb'));saveHorse();
 console.log(JSON.stringify(metrics,null,2));
 writeClips(src,clips,path.join(dir,'../clips-foot.glb'));
 fs.writeFileSync(path.join(dir,'clip-manifest.json'),JSON.stringify({status:'Reworked by Claude 2026-11-20. See ../INTEGRATION.txt for which clips the creator has approved. Not yet wired into the game.',source:'Male_Adventurer.source.glb',sources:['Male_Adventurer.source.glb','Horse.source.fbx'].map(file=>({file,sha256:createHash('sha256').update(fs.readFileSync(path.join(dir,file))).digest('hex')})),packs:{foot:'../clips-foot.glb',riders:'../clips-riders.glb',horse:'../clips-horse.glb'},fps:30,coordinateSystem:'Y up, metres, +Z forward',equipmentGrip:{position:[0,.135,-.035],shaftAxes:{right:[-1,0,0],left:[1,0,0]},shieldNormal:[0,1,0]},clips:[...clips,...riders,...horseClips].map(c=>({name:c.name,duration:c.frames/30,loop:c.loop,...c.extra}))},null,2)+'\n');

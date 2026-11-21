@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Soldier inspector</title>
+<style>
+body{margin:0;background:#e3dfd1;font:14px system-ui;color:#292820;overflow:hidden}
+header{min-height:52px;padding:6px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-sizing:border-box}
+h1{font-size:16px;margin:0}select,button,label{font:inherit}select{padding:4px 6px}
+#stage{position:relative}canvas{display:block}
+.label{position:absolute;font-size:12px;font-weight:600;color:#4a473c;background:#e3dfd1cc;padding:2px 6px;pointer-events:none}
+#info{position:absolute;left:16px;bottom:8px;font-size:12px;color:#5b5848}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body>
+<header><h1>Soldiers</h1>
+<select id="unit"></select><select id="armour"></select>
+<label><input type="checkbox" id="shield" checked> shield</label>
+<label><input type="checkbox" id="light"> light version</label>
+<select id="focus"><option value="body">Whole body</option><option value="hands">Hands and weapons</option><option value="head">Head</option></select>
+<select id="team"><option value="#b8342f">Red</option><option value="#2f5fb8">Blue</option><option value="#c9a227">Gold</option></select>
+<select id="file"><option value="../../assets/models.glb">assets/models.glb</option></select>
+</header>
+<div id="stage"></div><div id="info"></div>
+<script type="module" src="./inspect.js"></script></body></html>

@@ -67,10 +67,10 @@ const UNITS = {
   archer: () => R.figure(qmod, 'archer', 0),
   cav: () => R.figure(qmod, 'cav', 0),
   // villagers with spears and no armour
-  militia: async () => { const f = await people('Male_Farmer', { tint: FARMER }); await R.hang(f, R.KIT.spear[0]); return f; },
+  militia: async () => { const f = await people('Male_Farmer', { tint: FARMER, hold: ['Hold_Spear_R'] }); await R.hang(f, R.KIT.spear[0]); return f; },
   // leather and a hood, with an axe
   bandit: async () => {
-    const f = await people('Male_Adventurer', { armour: R.ARMOUR.archer });
+    const f = await people('Male_Adventurer', { armour: R.ARMOUR.archer, hold: ['Hold_Sword_R'], trimHair: true });
     await R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
     await R.hang(f, R.KIT.villager[0]);
     return f;
@@ -241,7 +241,7 @@ async function engine(name, armNode, { length, height, turn = 0 }) {
 // ---- units ----
 const PLATE_ALL = ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR', 'LowerArmL', 'LowerArmR', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR'];
 const SURCOAT = R.ARMOUR.sword[1];
-const plate = (colour, bones = PLATE_ALL) => [{ bones, push: 0.03, color: colour, metal: true }, SURCOAT];
+const plate = (colour, bones = PLATE_ALL) => [{ ...SURCOAT, bones: ['Abdomen', 'Hips'], push: 0.025 }, { bones, push: 0.028, color: colour, metal: true }];
 const teamMat = (shade = 1) => { const m = new THREE.MeshLambertMaterial({ color: '#ffffff' }); m.userData.team = shade; return m; };
 // Seat a rider on the Quaternius horse; the saddle cloth (and a knight's caparison) take the team colour.
 async function mount(fig, { caparison } = {}) {
@@ -275,10 +275,17 @@ async function mount(fig, { caparison } = {}) {
   return g;
 }
 // A crossbow in the right hand: a stock with the bow turned crosswise at its front.
+// Held ready in Hold_Crossbow_2H: the right fist at the back of the stock, the barrel forward and a little down (the
+// stance's crossbow line, in model space), the bow lying side to side at the front with its string (the bow
+// model's +x) toward the shooter.
 async function crossbow(fig) {
-  await R.hang(fig, { item: 'W_Bow_Wooden', at: 'R', len: 0.62, off: [0, 0.02, 0.36], rot: [0, 0, 90] });
+  const grip = fig.hands?.R ? fig.hands.R.p : fig.bones.R, barrel = new THREE.Vector3(0, -0.2, 1).normalize(), across = new THREE.Vector3(1, 0, 0), back = barrel.clone().negate();
+  const bow = await R.hang(fig, { item: 'W_Bow_Wooden', at: 'R', len: 0.62 });
+  bow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(back, across, new THREE.Vector3().crossVectors(back, across)));
+  bow.position.copy(grip).addScaledVector(barrel, 0.46);
   const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.72), new THREE.MeshLambertMaterial({ color: '#6b4a2e' }));
-  stock.position.copy(fig.bones.R).add(new THREE.Vector3(0, 0, 0.2));
+  stock.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), barrel);
+  stock.position.copy(grip).addScaledVector(barrel, 0.16);
   fig.group.add(stock);
 }
 const plume = fig => {
@@ -346,7 +353,7 @@ function banner(fig, { h = 3.6, at = fig.bones.R } = {}) {
 }
 
 async function lordParty(body, tint) {
-  const f = await people(body, { seated: true, armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
+  const f = await people(body, { seated: true, hold: ['Hold_Sword_R'], armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
   coronet(f);
   longCloak(f, true);
   await R.hang(f, R.KIT.sword[0]);
@@ -395,16 +402,17 @@ const MAIL = { bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'U
 const NORRHOLD = {
   // A long two-handed bearded axe held across the body; mail under a fur mantle; no shield.
   axeman: async () => {
-    const f = await people('Male_Adventurer', { armour: [MAIL, { ...SURCOAT, bones: ['Abdomen', 'Hips'] }, FUR], tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', Brown: '#4a3b2e' } });
+    const f = await people('Male_Adventurer', { hold: ['Hold_Axe_2H'], trimHair: true, armour: [{ ...SURCOAT, bones: ['Hips'], push: 0.03 }, MAIL, FUR], tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', Brown: '#4a3b2e' } });
     await R.hang(f, { item: 'Helmet2', at: 'head' });
-    await R.hang(f, { item: 'W_Axe', at: 'R', len: 1.75, off: [-0.1, 0.25, 0.12], rot: [-25, 90, 25] });
+    // the right fist at the end of the haft, the left 0.42 m up it (Hold_Axe_2H)
+    await R.hang(f, { item: 'W_Axe', hand: 'R', len: 1.75, grip: 0.04, edge: [0, 0, 1] });
     return f;
   },
   // Light: a felt hood and leather, a short spear in hand and heavy javelins slung on the back.
   javelin: async () => {
-    const f = await people('Male_Adventurer', { armour: [{ bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: '#7a5a3c' }, FUR] });
+    const f = await people('Male_Adventurer', { hold: ['Hold_Spear_R'], trimHair: true, armour: [{ bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: '#7a5a3c' }, FUR] });
     await R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
-    await R.hang(f, { item: 'W_Spear', at: 'R', len: 1.9, off: [0, -0.02, 0.04], rot: [8, 0, 0] });
+    await R.hang(f, { item: 'W_Spear', hand: 'R', len: 1.9 });
     for (const [x, t] of [[-0.04, 8], [0, 10], [0.04, 12]]) await R.hang(f, { item: 'W_Spear', at: 'chest', len: 1.45, off: [x, -0.15, -0.24], rot: [-12, 0, -t] });
     return f;
   },
@@ -426,13 +434,15 @@ export { TRIAL };
 // plate's shoulder pads) and a shield (unit.<key>.shield); the game puts them together (models.js unitLook).
 export const ARMOUR_LEVELS = ['none', 'leather', 'mail', 'plate'];
 const TORSO = ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR'], ARMS = ['UpperArmL', 'UpperArmR'];
-const coat = push => ({ bones: ['Abdomen', 'Torso', 'Hips'], push, color: 'team' });
+// The team coat goes on first and the armour over it, so each level shows its armour over the chest, belly and arms
+// and the coat's skirt shows the side below it.
+const coat = (push, bones = ['Abdomen', 'Torso', 'Hips']) => ({ bones, push, color: 'team' });
 const SHELLS = {
   none: () => [coat(0.03)],
-  leather: () => [{ bones: [...TORSO, ...ARMS], push: 0.022, color: '#6b4a2e' }, coat(0.045)],
-  mail: () => [{ bones: [...TORSO, ...ARMS, 'Hips'], push: 0.026, color: '#6e747b', metal: true }, coat(0.05)],
+  leather: () => [coat(0.025, ['Abdomen', 'Hips']), { bones: [...TORSO, ...ARMS], push: 0.022, color: '#6b4a2e' }],
+  mail: () => [coat(0.025, ['Abdomen', 'Hips']), { bones: [...TORSO, ...ARMS], push: 0.024, color: '#6e747b', metal: true }],
   // bright steel down to the wrists, so plate reads apart from mail at a distance
-  plate: L => [{ bones: [...TORSO, ...ARMS, 'LowerArmL', 'LowerArmR'], push: 0.028, color: L.steel, metal: true }, coat(0.05)],
+  plate: L => [coat(0.025, ['Abdomen', 'Hips']), { bones: [...TORSO, ...ARMS, 'LowerArmL', 'LowerArmR'], push: 0.026, color: L.steel, metal: true }],
 };
 // Heads by level: bare, a boiled-leather cap, an iron kettle hat (or the type's own mail helm), the type's plate helm.
 const HEADS = {
@@ -442,14 +452,16 @@ const HEADS = {
   plate: async (f, L) => { await R.hang(f, { item: L.helm, at: 'head' }); if (L.pads) await R.fitPads(f); },
 };
 const hood = f => R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
+// `hold` names the holding stances (roster.js) that put the hands on the kit; the shield arm keeps its stance
+// whether or not the shield is carried.
 const LEVELLED = {
-  spear: { file: 'Male_Adventurer', steel: '#c0c6cd', helm: 'Helmet2', pads: true, kit: [R.KIT.spear[0]], shield: R.KIT.spear[1], default: 'plate' },
-  sword: { file: 'Female_Medieval', clip: 'Idle_Sword', tint: { Black: 'team' }, steel: '#b3bac2', helm: 'Helmet1', pads: true, kit: [R.KIT.sword[0]], shield: R.KIT.sword[1], default: 'plate' },
+  spear: { file: 'Male_Adventurer', hold: ['Hold_Spear_R', 'Hold_Shield_L'], steel: '#c0c6cd', helm: 'Helmet2', pads: true, kit: [R.KIT.spear[0]], shield: R.KIT.spear[1], default: 'plate' },
+  sword: { file: 'Male_Adventurer', hold: ['Hold_Sword_R', 'Hold_Shield_L'], tint: { Brown: '#4a3b2e' }, steel: '#b3bac2', helm: 'Helmet1', pads: true, kit: [R.KIT.sword[0]], shield: R.KIT.sword[1], default: 'plate' },
   // bowmen keep their felt hood in a dark team shade at every level, so the side still shows
-  archer: { file: 'Male_Adventurer', steel: '#c0c6cd', hood: true, kit: R.KIT.archer, default: 'leather' },
-  crossbow: { file: 'Male_Adventurer', steel: '#c0c6cd', helm: 'Helmet2', mailHelm: 'Helmet2', kit: [], arm: crossbow, default: 'mail' },
-  cav: { file: 'Male_Adventurer', mounted: true, steel: '#c3c8ce', helm: 'Helmet1', mailHelm: 'Helmet3', pads: true, kit: R.KIT.cav, default: 'mail' },
-  lightcav: { file: 'Male_Adventurer', mounted: true, steel: '#c0c6cd', hood: true, kit: [R.KIT.cav[0]], default: 'leather' },
+  archer: { file: 'Male_Adventurer', hold: ['Hold_Bow_L'], steel: '#c0c6cd', hood: true, kit: R.KIT.archer, default: 'leather' },
+  crossbow: { file: 'Male_Adventurer', hold: ['Hold_Crossbow_2H'], steel: '#c0c6cd', helm: 'Helmet2', mailHelm: 'Helmet2', kit: [], arm: crossbow, default: 'mail' },
+  cav: { file: 'Male_Adventurer', hold: ['Hold_Spear_R', 'Hold_Shield_L'], mounted: true, steel: '#c3c8ce', helm: 'Helmet1', mailHelm: 'Helmet3', pads: true, kit: R.KIT.cav, default: 'mail' },
+  lightcav: { file: 'Male_Adventurer', hold: ['Hold_Spear_R'], mounted: true, steel: '#c0c6cd', hood: true, kit: [R.KIT.cav[0]], default: 'leather' },
 };
 export { LEVELLED };
 // Hang whatever `fn` adds on the figure as one piece.
@@ -460,7 +472,7 @@ async function tagged(fig, part, fn) {
 }
 async function soldier(key, level) {
   const L = LEVELLED[key];
-  const f = await people(L.file, { seated: !!L.mounted, clip: L.clip || 'Idle', armour: SHELLS[level](L), ...(L.tint ? { tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...L.tint } } : {}) });
+  const f = await people(L.file, { seated: !!L.mounted, hold: L.hold, trimHair: true, armour: SHELLS[level](L), ...(L.tint ? { tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...L.tint } } : {}) });
   if (L.hood) await hood(f);
   else await tagged(f, 'armour', () => HEADS[level](f, L));
   for (const g of L.kit) await R.hang(f, g);
@@ -486,23 +498,23 @@ const MORE_UNITS = {
     return mount(f);
   },
   maa: async () => {
-    const f = await people('Male_Adventurer', { armour: plate('#a9b0b8') });
+    const f = await people('Male_Adventurer', { hold: ['Hold_Sword_R', 'Hold_Shield_L'], trimHair: true, armour: plate('#a9b0b8') });
     await R.hang(f, { item: 'Helmet1', at: 'head' });
     await R.fitPads(f);
-    await R.hang(f, { item: 'W_Axe', at: 'R', len: 1.5, off: [0, 0.1, 0.05], rot: [10, 90, 0] });
+    await R.hang(f, { item: 'W_Axe', hand: 'R', len: 1.2, grip: 0.12, edge: [0, 0, 1] });
     await R.hang(f, R.KIT.sword[1]);
     return f;
   },
   knight: async () => {
-    const f = await people('Male_King', { seated: true, armour: plate('#c3c8ce') });
+    const f = await people('Male_King', { seated: true, hold: ['Hold_Spear_R', 'Hold_Shield_L'], trimHair: true, armour: plate('#c3c8ce') });
     await R.hang(f, { item: 'Helmet1', at: 'head' });
     await R.fitPads(f);
-    await R.hang(f, { item: 'W_Spear', at: 'R', len: 3.9, off: [0, 0, 0.05], rot: [62, 0, 0] });
+    await R.hang(f, { item: 'W_Spear', hand: 'R', len: 3.9 });
     await R.hang(f, R.KIT.cav[1]);
     return mount(f, { caparison: true });
   },
   captain: async () => {
-    const f = await people('Male_King', { seated: true, armour: plate('#d2d5d9') });
+    const f = await people('Male_King', { seated: true, hold: ['Hold_Sword_R'], trimHair: true, armour: plate('#d2d5d9') });
     await R.hang(f, { item: 'Helmet3', at: 'head' });
     plume(f);
     await R.fitPads(f);

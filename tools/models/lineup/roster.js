@@ -60,7 +60,7 @@ function aimSun(t, span) {
 // Bone names per character family: right hand, left hand, head, top of head, hips, legs.
 const RIGS = {
   q18: { R: 'PalmR', L: 'PalmL', head: 'Head', top: 'Head_end', hips: 'Hips', thighR: 'UpperLegR', thighL: 'UpperLegL', shinR: 'LowerLegR', shinL: 'LowerLegL', armR: 'UpperArmR', armL: 'UpperArmL', shR: 'ShoulderR', shL: 'ShoulderL' },
-  qmod: { R: 'Wrist.R', L: 'Wrist.L', head: 'Head', hips: 'Hips', thighR: 'UpperLeg.R', thighL: 'UpperLeg.L', shinR: 'LowerLeg.R', shinL: 'LowerLeg.L', armR: 'UpperArm.R', armL: 'UpperArm.L', shR: 'Shoulder.R', shL: 'Shoulder.L' },
+  qmod: { R: 'Wrist.R', L: 'Wrist.L', foreR: 'LowerArm.R', foreL: 'LowerArm.L', head: 'Head', hips: 'Hips', thighR: 'UpperLeg.R', thighL: 'UpperLeg.L', shinR: 'LowerLeg.R', shinL: 'LowerLeg.L', armR: 'UpperArm.R', armL: 'UpperArm.L', shR: 'Shoulder.R', shL: 'Shoulder.L' },
   kay: { R: 'handslot.r', L: 'handslot.l', head: 'head', hips: 'hips', thighR: 'upperleg.r', thighL: 'upperleg.l', shinR: 'lowerleg.r', shinL: 'lowerleg.l', armR: 'upperarm.r', armL: 'upperarm.l', shR: 'upperarm.r', shL: 'upperarm.l' },
 };
 
@@ -87,6 +87,64 @@ function seat(root, rig) {
   }
 }
 
+// Holding stances: one-pose clips made with the clip tools (assets/art/3d/wip/stance-motions.mjs, copied in by
+// fetch.py). The figure keeps its Idle body and takes only the arm and finger joints of the stance's side (both
+// sides for _2H), so its hands close on what they carry. Returns the grips the stances name, by hand.
+const STANCES = 'assets/stances/clips-stances.glb';
+const ARM_JOINT = /^(Shoulder|UpperArm|LowerArm|Wrist|Index\d|Middle\d|Ring\d|Pinky\d|Thumb\d)(R|L)$/;
+async function stance(o, names) {
+  const g = await C.gltf(STANCES), grips = {};
+  for (const name of names) {
+    const i = g.animations.findIndex(a => a.name === name);
+    if (i < 0) throw new Error('no stance ' + name);
+    const sides = name.endsWith('_2H') ? 'RL' : name.slice(-1);
+    for (const t of g.animations[i].tracks) {
+      const [node, prop] = t.name.split('.'), m = node.match(ARM_JOINT);
+      if (prop === 'quaternion' && m && sides.includes(m[2])) byName(o, node)?.quaternion.fromArray(t.values, 0);
+    }
+    Object.assign(grips, g.parser.json.animations[i].extras?.hold);
+  }
+  o.updateMatrixWorld(true);
+  return grips;
+}
+
+// Push each vertex of a shell out along its normal until it clears, by `gap`, every surface below it that faces
+// the same way (`under`: points with their normals, flat arrays), so a coat sits outside the shirt it was grown
+// from and outside the coats already on.
+function clearOf(g, under, push, gap = 0.012) {
+  const cell = 0.03, grid = new Map(), key = (x, y, z) => (Math.floor(x / cell) * 73856093) ^ (Math.floor(y / cell) * 19349663) ^ (Math.floor(z / cell) * 83492791);
+  for (let i = 0; i < under.p.length; i += 3) { const k = key(under.p[i], under.p[i + 1], under.p[i + 2]); (grid.get(k) || grid.set(k, []).get(k)).push(i); }
+  const p = g.attributes.position, nr = g.attributes.normal;
+  for (let i = 0; i < p.count; i++) {
+    const px = p.getX(i), py = p.getY(i), pz = p.getZ(i), nx = nr.getX(i), ny = nr.getY(i), nz = nr.getZ(i);
+    let need = push;
+    const seen = new Set();
+    for (let t = 0; t <= 0.1; t += cell / 2) for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+      const k = key(px + nx * t + a * cell, py + ny * t + b * cell, pz + nz * t + c * cell);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      for (const j of grid.get(k) || []) {
+        if (under.n[j] * nx + under.n[j + 1] * ny + under.n[j + 2] * nz < 0.5) continue;
+        const dx = under.p[j] - px, dy = under.p[j + 1] - py, dz = under.p[j + 2] - pz, d = dx * nx + dy * ny + dz * nz;
+        if (d <= 0 || d > 0.1) continue;
+        const rx = dx - d * nx, ry = dy - d * ny, rz = dz - d * nz;
+        if (rx * rx + ry * ry + rz * rz < 0.02 * 0.02) need = Math.max(need, d + gap);
+      }
+    }
+    p.setXYZ(i, px + nx * need, py + ny * need, pz + nz * need);
+  }
+}
+// Every vertex of a non-indexed triangle list, each with its triangle's normal.
+function facing(tri) {
+  const n = new Float32Array(tri.length), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i < tri.length; i += 9) {
+    a.fromArray(tri, i); b.fromArray(tri, i + 3); c.fromArray(tri, i + 6);
+    c.sub(b); b.sub(a); b.cross(c).normalize();
+    for (let j = 0; j < 9; j += 3) b.toArray(n, i + j);
+  }
+  return { p: Float32Array.from(tri), n };
+}
+
 // GLTFLoader strips dots from node names ('Wrist.R' becomes 'WristR'), FBXLoader keeps them.
 const byName = (root, name) => root.getObjectByName(name) || root.getObjectByName(name.replace(/[[\].:/]/g, ''));
 
@@ -108,15 +166,17 @@ const v = new THREE.Vector3();
 // with the feet on the ground, facing +z. Returns the meshes and the posed bone positions.
 // `armour` is a list of layers, each a shell grown over the triangles skinned to its bones, so any body can wear a
 // breastplate and a surcoat over it. A layer's colour may be 'team'.
-async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85, drop = () => false, seated = false, team, tint = {}, flat = {}, armour }) {
+// `hold` names holding stances for the arms; `trimHair` tucks the hair in to the skull so helmets cover it.
+async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85, drop = () => false, seated = false, team, tint = {}, flat = {}, armour, hold = [], trimHair = false }) {
   const { root, clips } = await source(kind, file);
   const o = SkeletonUtils.clone(root);
   const anim = clips.find(a => a.name === clip) || clips.find(a => a.name.endsWith('|' + clip)) || clips.find(a => a.name.includes(clip)) || clips[0];
   if (anim) { const mixer = new THREE.AnimationMixer(o); mixer.clipAction(anim).play(); mixer.update(time); }
   o.updateMatrixWorld(true);
   if (seated) seat(o, RIGS[rig]);
+  const grips = hold.length ? await stance(o, hold) : {};
   // the head and everything it carries (hair, ears), measured so helmets can be fitted to it
-  const headBones = new Set(), headBox = new THREE.Box3();
+  const headBones = new Set(), headBox = new THREE.Box3(), skull = new THREE.Box3();
   byName(o, RIGS[rig]?.head || '')?.traverse(b => headBones.add(b));
   const byMat = new Map(), layers = (armour || []).map(a => ({ ...a, tri: [], bones: new Set(a.bones.map(b => b.replace(/[[\].:/]/g, ''))) }));
   o.traverse(n => {
@@ -124,6 +184,12 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
     for (let p = n; p; p = p.parent) if (p !== o && drop(p.name)) return;
     const geo = n.geometry, pos = geo.attributes.position, out = new Float32Array(pos.count * 3);
     const si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight, dom = new Array(pos.count);
+    // hair, by material, so the skull can be measured without it
+    const hair = new Uint8Array(pos.count), mats0 = [].concat(n.material);
+    for (const gr of geo.groups.length ? geo.groups : [{ start: 0, count: geo.index ? geo.index.count : pos.count, materialIndex: 0 }]) {
+      if (!/^Hair/.test((mats0[gr.materialIndex] || mats0[0]).name)) continue;
+      for (let t = gr.start; t < gr.start + gr.count; t++) hair[geo.index ? geo.index.array[t] : t] = 1;
+    }
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i);
       if (n.isSkinnedMesh) n.applyBoneTransform(i, v);
@@ -133,7 +199,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
         let best = 0;
         for (let j = 1; j < 4; j++) if (sw.getComponent(i, j) > sw.getComponent(i, best)) best = j;
         const bone = n.skeleton.bones[si.getComponent(i, best)];
-        if (headBones.has(bone)) headBox.expandByPoint(v);
+        if (headBones.has(bone)) { headBox.expandByPoint(v); if (!hair[i]) skull.expandByPoint(v); }
         dom[i] = bone.name.replace(/[[\].:/]/g, '');
       }
     }
@@ -164,6 +230,14 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
     const b = byName(o, name);
     if (b) bones[k] = b.getWorldPosition(new THREE.Vector3());
   }
+  // Each hand: its grip point and turn, and the line a held weapon runs along (from the stance, else straight out of
+  // the top of the fist). Hand-local +y runs to the knuckles, -z is the palm, the right thumb is -x and the left +x.
+  const hands = {};
+  if (rig === 'qmod' && hold.length) for (const s of ['R', 'L']) {
+    const w = byName(o, RIGS.qmod[s]), q = w.getWorldQuaternion(new THREE.Quaternion());
+    const h = grips[s] || { grip: [0, 0.135, -0.035], axis: [s === 'R' ? -1 : 1, 0, 0] };
+    hands[s] = { wrist: w.getWorldPosition(new THREE.Vector3()), p: w.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(...h.grip).applyQuaternion(q)), q, axis: new THREE.Vector3(...h.axis).applyQuaternion(q).normalize() };
+  }
   const box = new THREE.Box3();
   const parts = [...byMat.values()].map(({ mat, mesh, geos }) => {
     // keep uvs and vertex colours only where every piece has them, so the pieces merge
@@ -176,24 +250,39 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
   const toM = p => p.clone().setY(p.y - base).multiplyScalar(k);
   const group = new THREE.Group();
   let tris = 0;
+  const sk = skull.isEmpty() ? null : { c: toM(skull.getCenter(new THREE.Vector3())), r: skull.getSize(new THREE.Vector3()).multiplyScalar(k * 0.5 * 1.06) };
   for (const { mat, mesh, g } of parts) {
-    g.translate(0, -base, 0); g.scale(k, k, k); g.computeVertexNormals();
+    g.translate(0, -base, 0); g.scale(k, k, k);
+    // hair outside the skull drops onto it, so a helmet sized to the head covers it
+    if (trimHair && sk && /^Hair/.test(mat.name)) {
+      const p = g.attributes.position, d = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        d.fromBufferAttribute(p, i).sub(sk.c);
+        const e = Math.hypot(d.x / sk.r.x, d.y / sk.r.y, d.z / sk.r.z);
+        if (e > 1) p.setXYZ(i, sk.c.x + d.x / e, sk.c.y + d.y / e, sk.c.z + d.z / e);
+      }
+    }
+    g.computeVertexNormals();
     const m = new THREE.Mesh(g, recolour(mat, mesh, { team, tint, flat, fbx: kind === 'fbx' }));
     m.material.vertexColors = !!g.attributes.color;
     m.castShadow = m.receiveShadow = true;
     group.add(m);
     tris += g.attributes.position.count / 3;
   }
+  const worn = [];   // the coats already on, outermost last
   for (const armour of layers) {
     if (!armour.tri.length) continue;
-    // weld the shell so its normals are smooth, then push it out from the body
+    // weld the shell so its normals are smooth, then push it out past the cloth it grew from and the coats below
+    for (let i = 0; i < armour.tri.length; i += 3) { armour.tri[i + 1] -= base; for (let j = 0; j < 3; j++) armour.tri[i + j] *= k; }
     let g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(armour.tri, 3));
-    g.translate(0, -base, 0); g.scale(k, k, k);
     g = mergeVertices(g, 1e-4); g.computeVertexNormals();
-    const p = g.attributes.position, nr = g.attributes.normal;
-    for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + nr.getX(i) * armour.push, p.getY(i) + nr.getY(i) * armour.push, p.getZ(i) + nr.getZ(i) * armour.push);
+    const under = facing(armour.tri);
+    for (const w of worn) { under.p = Float32Array.from([...under.p, ...w.p]); under.n = Float32Array.from([...under.n, ...w.n]); }
+    clearOf(g, under, armour.push);
     g.computeVertexNormals();
+    { const t = g.toNonIndexed(); worn.push(facing(Array.from(t.attributes.position.array))); }
+    const p = g.attributes.position;
     const m = new THREE.Mesh(g, markTeam(new THREE.MeshStandardMaterial({ color: teamColour(armour.color, team), metalness: armour.metal ? 0.35 : 0, roughness: armour.metal ? 0.42 : 0.85, flatShading: true }), armour.color));
     m.castShadow = m.receiveShadow = true;
     m.userData.part = 'armour';   // so a bake can keep coats apart from the body (bake.js armour levels)
@@ -201,8 +290,9 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
     tris += g.index ? g.index.count / 3 : p.count / 3;
   }
   for (const b in bones) bones[b] = toM(bones[b]);
+  for (const h of Object.values(hands)) { h.p = toM(h.p); h.wrist = toM(h.wrist); }
   const head = headBox.isEmpty() ? null : new THREE.Box3(toM(headBox.min), toM(headBox.max));
-  return { group, bones, head, k, team, tris: Math.round(tris) };
+  return { group, bones, hands, head, k, team, tris: Math.round(tris) };
 }
 
 // 'team' is the team colour, 'team2' a lighter cloth shade of it, 'team3' a darker felt one; anything else is a colour.
@@ -248,7 +338,13 @@ async function gearModel(name) {
 // Place gear in the figure's frame: `at` names a bone (or 'chest'), `off` and `rot` adjust it,
 // `len` is the size in metres along its longest side, or `native` keeps the figure's own scale.
 // `at: 'head'` fits a helmet over the measured head instead, with `room` to spare all round.
-async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, native, tint, room = 1.18 }) {
+// On a figure with posed hands, `hand` puts the item in that fist instead: the item's origin is its grip, its +y
+// runs along the hand's weapon line toward the head or point, its +x (the edge, or where an axe head juts) toward
+// the knuckles, or toward `edge` (a model-space direction) when given. `grip` moves the hand to that fraction of the
+// item's length from its butt, `twist` turns the item about its length, and `slide` moves it along its length in metres. `shield` straps a shield to that forearm
+// instead, upright with its face toward `face` (model space; forward and a little out to that side by default),
+// `flip` if the model faces the other way.
+async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, native, tint, room = 1.18, hand, grip, edge, twist = 0, slide = 0, shield, face, flip }) {
   const o = await gearModel(item);
   o.updateMatrixWorld(true);
   const b = new THREE.Box3().setFromObject(o), s = b.getSize(new THREE.Vector3());
@@ -269,11 +365,39 @@ async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, nati
   if (tint) o.traverse(m => { if (m.isMesh) [].concat(m.material).forEach(x => { if (tint[x.name]) { x.color = teamColour(tint[x.name], fig.team); markTeam(x, tint[x.name]); } }); });
   const wrap = new THREE.Group();
   wrap.add(o);
+  const H = fig.hands?.[hand || shield];
+  if (H && hand) {
+    const A = H.axis, E = edge ? new THREE.Vector3(...edge) : new THREE.Vector3(0, 1, 0).applyQuaternion(H.q);
+    E.addScaledVector(A, -E.dot(A)).normalize();
+    wrap.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(E, A, new THREE.Vector3().crossVectors(E, A)));
+    wrap.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(AX.y, twist * DEG));
+    if (grip != null) o.position.y = -(b.min.y + grip * s.y) * k;
+    wrap.position.copy(H.p).addScaledVector(A, slide);
+    fig.group.add(wrap);
+    fig.tris += C.tris(o);
+    return wrap;
+  }
+  if (H && shield) {
+    const out = new THREE.Vector3(...(face || [shield === 'L' ? 0.5 : -0.5, 0, 0.87])).normalize();
+    const up = new THREE.Vector3(0, 1, 0).addScaledVector(out, -out.y).normalize();
+    face = out;
+    if (flip) o.rotation.y = Math.PI;
+    o.updateMatrixWorld(true);
+    // centred on the forearm a little toward the wrist, its back just off the arm
+    const ob = new THREE.Box3().setFromObject(o), c = ob.getCenter(new THREE.Vector3());
+    o.position.sub(new THREE.Vector3(c.x, c.y, ob.min.z));
+    wrap.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(up, face), up, face));
+    wrap.position.copy(fig.bones['fore' + shield]).lerp(H.wrist, 0.6).addScaledVector(face, 0.05);
+    fig.group.add(wrap);
+    fig.tris += C.tris(o);
+    return wrap;
+  }
   const p = at === 'chest' ? fig.bones.shL.clone().add(fig.bones.shR).multiplyScalar(0.5) : at === 'helm' ? fig.bones.head.clone() : fig.bones[at].clone();
   wrap.position.copy(p).add(new THREE.Vector3(...off));
   wrap.rotation.set(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'YXZ');
   fig.group.add(wrap);
   fig.tris += C.tris(o);
+  return wrap;
 }
 
 // Shoulder pads spread across the upper arms of a figure that isn't the knight they were made for.
@@ -292,12 +416,13 @@ async function fitPads(fig) {
 // ============================================================ families
 
 // Gear kits, shared by the rigged families so each shows the same equipment.
+ // `hand` and `shield` place an item on figures posed in holding stances; the others use `at`, `off` and `rot`.
 const KIT = {
-  spear: [{ item: 'W_Spear', at: 'R', len: 2.7, off: [0, -0.02, 0.04], rot: [8, 0, 0] }, { item: 'W_Shield_Round', at: 'L', len: 0.62, off: [0.06, 0.22, 0.12], rot: [0, -15, 0], tint: { LightWood: 'team' } }],
-  sword: [{ item: 'W_Sword', at: 'R', len: 0.95, off: [0, 0, 0.02], rot: [35, 0, 0] }, { item: 'W_Shield_Heater', at: 'L', len: 0.72, off: [0.06, 0.25, 0.12], rot: [0, -15, 0], tint: { LightWood: 'team' } }],
-  archer: [{ item: 'W_Bow_Wooden', at: 'L', len: 1.45, off: [0.02, 0.1, 0.06], rot: [0, -90, 0] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.12, 0.05, -0.2], rot: [-150, 0, 15] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.16, 0.05, -0.2], rot: [-150, 0, 22] }],
-  villager: [{ item: 'W_Axe', at: 'R', len: 0.8, off: [0, 0, 0.03], rot: [20, 90, 0] }],
-  cav: [{ item: 'W_Spear', at: 'R', len: 3.3, off: [0, 0, 0.05], rot: [55, 0, 0] }, { item: 'W_Shield_Heater_2', at: 'L', len: 0.66, off: [0.08, 0.2, 0.05], rot: [0, -20, 0], tint: { LightWood: 'team' } }],
+  spear: [{ item: 'W_Spear', hand: 'R', at: 'R', len: 2.7, off: [0, -0.02, 0.04], rot: [8, 0, 0] }, { item: 'W_Shield_Round', shield: 'L', at: 'L', len: 0.62, off: [0.06, 0.22, 0.12], rot: [0, -15, 0], tint: { LightWood: 'team' } }],
+  sword: [{ item: 'W_Sword', hand: 'R', at: 'R', len: 0.95, off: [0, 0, 0.02], rot: [35, 0, 0] }, { item: 'W_Shield_Heater', shield: 'L', at: 'L', len: 0.72, off: [0.06, 0.25, 0.12], rot: [0, -15, 0], tint: { LightWood: 'team' } }],
+  archer: [{ item: 'W_Bow_Wooden', hand: 'L', twist: 180, at: 'L', len: 1.45, off: [0.02, 0.1, 0.06], rot: [0, -90, 0] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.12, 0.05, -0.2], rot: [-150, 0, 15] }, { item: 'W_Arrow', at: 'chest', len: 0.75, off: [0.16, 0.05, -0.2], rot: [-150, 0, 22] }],
+  villager: [{ item: 'W_Axe', hand: 'R', grip: 0.1, edge: [0, 0, 1], at: 'R', len: 0.8, off: [0, 0, 0.03], rot: [20, 90, 0] }],
+  cav: [{ item: 'W_Spear', hand: 'R', at: 'R', len: 3.3, off: [0, 0, 0.05], rot: [55, 0, 0] }, { item: 'W_Shield_Heater_2', shield: 'L', at: 'L', len: 0.66, off: [0.08, 0.2, 0.05], rot: [0, -20, 0], tint: { LightWood: 'team' } }],
 };
 // Helmets per role; archers get the open helmet dyed as a felt hood in a dark team shade, which also shows their side.
 const HELM = { spear: ['Helmet2'], sword: ['Helmet1'], cav: ['Helmet3'], archer: ['Helmet2', { Grey: 'team3' }] };
@@ -360,11 +485,12 @@ const FAMILIES = [
     id: 'qmod', name: 'Quaternius people', lic: 'CC0',
     note: 'Quaternius’s modular men and women: realistic proportions, flat colours, 5,500 to 8,500 triangles before weapons, so the heaviest set here. Outfits mix on one skeleton and every colour is a named material, so team colours are exact. Armour comes from the knight’s helmets and the weapons pack, refitted to each figure: helmets are sized to the measured head and hair, shoulder pads to the shoulders.',
     build: async (role, team) => {
-      const file = { spear: 'Male_Adventurer', sword: 'Female_Medieval', archer: 'Male_Adventurer', villager: 'Male_Farmer', cav: 'Male_King' }[role];
+      const file = { spear: 'Male_Adventurer', sword: 'Male_Adventurer', archer: 'Male_Adventurer', villager: 'Male_Farmer', cav: 'Male_King' }[role];
+      const hold = { spear: ['Hold_Spear_R', 'Hold_Shield_L'], sword: ['Hold_Sword_R', 'Hold_Shield_L'], archer: ['Hold_Bow_L'], villager: ['Hold_Sword_R'], cav: ['Hold_Spear_R', 'Hold_Shield_L'] }[role];
       const fig = await bake('glb', 'assets/qmod/' + file + '.glb', {
-        rig: 'qmod', team, seated: role === 'cav', clip: role === 'sword' ? 'Idle_Sword' : 'Idle', height: 1.8,
+        rig: 'qmod', team, seated: role === 'cav', hold, trimHair: !!HELM[role], height: 1.8,
         drop: n => n === 'Backpack' || n === 'Sword',
-        tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', Black: role === 'sword' ? 'team' : undefined }, armour: ARMOUR[role],
+        tint: { Green: 'team', LightGreen: 'team2', Blue: 'team' }, armour: ARMOUR[role],
       });
       if (HELM[role]) await hang(fig, { item: HELM[role][0], tint: HELM[role][1], at: 'head' });
       if (role === 'spear' || role === 'sword' || role === 'cav') await fitPads(fig);

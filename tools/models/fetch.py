@@ -39,4 +39,7 @@ for n in ['House_1', 'House_2', 'House_4', 'Sawmill', 'Blacksmith', 'Mill', 'Sta
 import shutil
 here = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kenney')
 shutil.copytree(here, os.path.join(assets, 'kenney'), dirs_exist_ok=True)
+# Holding stances for the soldiers, made in this repo (assets/art/3d/wip/stance-motions.mjs)
+os.makedirs(os.path.join(assets, 'stances'), exist_ok=True)
+shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'art', '3d', 'clips-stances.glb'), os.path.join(assets, 'stances', 'clips-stances.glb'))
 print('done')
