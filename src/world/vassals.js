@@ -16,6 +16,7 @@ import { worksPride } from './works.js';
 import { decreeOpinion, decreed } from './decrees.js';
 import { PAINTED } from './events.js';
 import { BUILDINGS } from '../economy.js';
+import { dowryFor } from './diplomacy.js';
 
 export const DUES = [
   { name: 'Light', share: 0.15, mood: 10 },
@@ -72,6 +73,21 @@ export const harmWeight = v => (v.title ? TITLED.harm : 1);
 export const duesShare = v => DUES[v.dues].share * (v.title ? TITLED.dues : 1);
 export const levyShare = v => LEVIES[v.levy].share * (v.title ? TITLED.levy : 1);
 
+// Marriages (2026-11-21, roadmap "marriages as ambitions"): a vassal may want a match with one of the
+// great houses. You arrange it and pay half the dowry; the house warms to you for as long as their kin
+// is a content vassal of yours (KIN_WARMTH, at most two), and the vassal minds it badly when you go to
+// war on their spouse's house (WAR_ON_KIN) and grieves if that house is broken.
+export const KIN_WARMTH = 6;
+export const WAR_ON_KIN = -15;
+export const MATCH_WARM = 10;        // a house must like you at least this much to take a match
+const greatHouses = w => w.houses.slice(1, w.bandits);
+// The houses that would take a match for your vassal now, and the gold your share costs.
+export const suitors = w => greatHouses(w).filter(H => H.alive && w.knows(H.index) && !w.atWar(0, H.index) && w.dip[H.index].opinion >= MATCH_WARM);
+export const matchCost = (w, h) => Math.round(dowryFor(w, h) / 2 / 25) * 25;
+export const isWed = v => !!v.wed && !v.wed.broken;
+// Content, landed vassals wed into a house: its warmth toward you (diplomacy.js).
+export const kinWarmth = (w, h) => KIN_WARMTH * Math.min(2, living(w).filter(v => isWed(v) && v.wed.house === h && !v.landless && !v.refusing).length);
+
 // What they want. Each is met or not; unmet, it weighs on them more as time passes. Once
 // met for a while (WANT_KEPT) they are grateful for good and want something new. `how`
 // says what you can do about it; `can` (if given) says whether you could give it at all,
@@ -83,6 +99,8 @@ export const WANTS = {
   peace: { text: 'peace with the great houses', how: 'Make peace with every house', met: w => ![...w.wars].some(k => k.startsWith('0:')) },
   glory: { text: 'a war to win glory in', how: 'Call them to arms, then take a place from a rival', met: (w, v, at = w.time) => at - (v.glory ?? -1e9) < 1200 },
   gold: { text: 'a gift of gold', how: 'Send them a gift', met: (w, v, at = w.time) => at - (v.gifted ?? -1e9) < 900 },
+  marriage: { text: 'a marriage into a great house', how: 'Arrange a match with a house that is warm toward you', met: (w, v) => isWed(v),
+    can: (w, v) => !v.wed && !v.landless && suitors(w).length > 0 },
   title: { text: 'a higher title', how: 'Raise them to a title', met: (w, v) => (v.title || 0) >= (v.titleAsked || 1),
     can: (w, v) => (v.title || 0) < titleCap(w) },
 };
@@ -175,6 +193,8 @@ export function opinion(w, v, at = w.time) {
     if (want.met(w, v, at)) add(10, `Has ${want.text}`);
     else add(-Math.min(12, (at - v.wantSince) / 60) * (T.want || 1), `Wants ${want.text}`);
   }
+  // A war on their spouse's house, while it lasts.
+  if (isWed(v) && w.atWar(0, v.wed.house)) add(WAR_ON_KIN, `At war with ${w.houses[v.wed.house].name}, their spouse's house`);
   // A feud you leave unjudged weighs on them more as it goes on.
   const foe = v.feud && w.vassals.find(o => o.id === v.feud);
   if (foe) add(-Math.min(15, (at - v.feudSince) / 60), `Feuding with ${foe.name}, and you do nothing`);
@@ -259,6 +279,11 @@ export function tickVassals(w, dt = 5) {
         newWant(w, v);
       }
     } else v.wantMet = null;
+    if (v.wed && !v.wed.broken && !w.houses[v.wed.house]?.alive) {
+      v.wed.broken = true;
+      mark(w, v, -6, `${w.houses[v.wed.house]?.name || 'Their spouse\'s house'} is broken`, 1800);
+      remember(w, v, `Their spouse's house, ${w.houses[v.wed.house]?.name}, was broken`);
+    }
     if (v.landless) continue;
     const o = opinion(w, v).total;
     if (!v.refusing && o < REFUSE) {
@@ -399,6 +424,24 @@ export function interact(w, v, act, arg) {
     // The proud among the rest mind being passed over.
     for (const o of living(w)) if (o !== v && TEMPERS[o.temper].honour) mark(w, o, -3, `You honoured ${v.name} over them`, 600);
     return { ok: true, text: `You raise ${v.name} before your court.` };
+  }
+  if (act === 'marry') {
+    const h = +arg, H = w.houses[h], cost = H && matchCost(w, h);
+    if (v.landless) return { ok: false, text: `${v.name} holds no land to bring to a match` };
+    if (isWed(v)) return { ok: false, text: `${v.name} is wed already` };
+    if (!H || !suitors(w).includes(H)) return { ok: false, text: `${H?.name || 'That house'} will not take a match now` };
+    if (me.gold < cost) return { ok: false, text: `Needs ${cost} gold for your share of the dowry` };
+    me.gold -= cost;
+    H.gold += cost;
+    v.wed = { house: h, at: w.time };
+    w.dip[h].opinion += 8;
+    mark(w, v, 6, `Wed into ${H.name}`, Infinity);
+    owe(w, v, 'a good match');
+    for (const o of living(w)) if (o !== v && (TEMPERS[o.temper].honour || TEMPERS[o.temper].want)) mark(w, o, -3, `You made a match for ${v.name}`, 900);
+    remember(w, v, `Wed into ${H.name}, a match you arranged`);
+    w.log(`${v.name} is wed into ${H.name}.`, 1);
+    w.chron?.(`${v.name} was wed into ${H.name}, a match arranged by your court.`);
+    return { ok: true, text: `${v.name} weds into ${H.name}. ${H.lord} thinks the better of you.` };
   }
   if (act === 'title') {
     const k = (v.title || 0) + 1, cap = titleCap(w);

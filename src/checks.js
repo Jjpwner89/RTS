@@ -457,6 +457,17 @@ async function worldChecks(w) {
   await check('no building site has waited long for builders while a hand could be spared', () =>
     w.pois.flatMap(p => (p.town?.buildings || []).filter(b => b.state === 'site' && !b.builders.length && b.lacked > 90 && !p.town.underAttack && p.town.leastNeeded(b))
       .map(b => `${p.name}: the ${b.kind} site has waited ${Math.round(b.lacked)} s`)));
+  // A match is real (marriages as ambitions, 2026-11-21): a wed vassal's house is a great house, only
+  // someone who can still be wed wants one, and the price is half the dowry, to the nearest 25.
+  await check('a vassal is wed only into a real great house, and the match is priced', async () => {
+    const V2 = await import('./world/vassals.js'), out = [];
+    for (const v of w.vassals) {
+      if (v.wed && !(v.wed.house >= 1 && v.wed.house < w.bandits)) out.push(`${v.name} is wed into house ${v.wed.house}, which is not a great house`);
+      if (v.want === 'marriage' && !v.wed && v.landless) out.push(`${v.name} wants a match but holds no land`);
+    }
+    for (const H of V2.suitors(w)) { const c = V2.matchCost(w, H.index); if (!(c >= 25) || c % 25) out.push(`a match with ${H.name} costs ${c}`); }
+    return out;
+  });
   // A petition you can't afford lights up when the purse fills while it waits (QC, 2026-11-21).
   // Nothing is chosen; the purse is put back.
   await check("a petition's cost is read live", () => {

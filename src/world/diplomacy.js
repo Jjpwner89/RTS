@@ -5,7 +5,7 @@
 // Opinion runs from -100 (hatred) to 100 (devotion). It drifts toward what the lord
 // feels about the state of things (war, borders, marriage, your strength, their bent)
 // and jumps with gifts, victories and broken promises.
-import { seatPower } from './vassals.js';
+import { seatPower, kinWarmth } from './vassals.js';
 import { FACTIONS, power, headcount, takeUnits, mergeInto, roughly, unit as unitOf } from './world.js';
 
 const SIEGE = new Set(['ram', 'ladder', 'mangonel', 'trebuchet']);
@@ -88,6 +88,7 @@ function target(w, h) {
   t -= d.broken * 15;
   t -= grudgeWeight(w, H);
   t += d.gift;
+  t += kinWarmth(w, h);   // your vassals wed into this house
   t += seatPower(w, 'envoy');   // your envoy's smooth words (vassals.js SEATS)
   const ratio = w.strength(0) / Math.max(1, w.strength(h));
   if (ratio > 2) t += H.trait === 'schemer' || H.trait === 'merchant' ? 15 : H.trait === 'hothead' ? -5 : 5;

@@ -13,7 +13,8 @@
 import { FACTIONS, headcount, seenAs } from './world/world.js';
 import { GOOD_GROUPS, TAXES } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
-  moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN } from './world/vassals.js';
+  moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN,
+  suitors, matchCost, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
 import { elitePay } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
@@ -512,6 +513,7 @@ export class RealmScreen {
       <h4>Favour</h4><div class="acts-row">${btn('gift', `${ico('gold', '#e8c45a')} Gift (${GIFT} gold)`, me.gold >= GIFT || `Needs ${GIFT} gold; you have ${num(Math.floor(me.gold))}`, `+15${T.dues ? ' (more for the greedy)' : ''}, fading over 15 minutes`)}
         ${btn('honour', `${ico('crown')} Honour before your court${honourWait ? ` (${Math.ceil(honourWait / 60)} min)` : ''}`, !honourWait || `Honoured lately: again in ${Math.ceil(honourWait / 60)} min`, `Free. +8${T.honour ? ' (twice that for the proud)' : ''}; the proud among the others mind being passed over (−3)`)}
         ${this.titleButton(v, btn)}</div>
+      ${this.matchRow(v, btn)}
       <h4>Council</h4>${council}
       <h4>Land</h4>${land || '<p class="note">They hold nothing.</p>'}
       <h4>Demands</h4><div class="acts-row">${btn('demand', `${ico('gold', '#e8c45a')} Demand ${demand} gold`, demand >= DEMAND_MIN || `Their purse holds too little to ask for (${num(Math.floor(v.gold || 0))} gold; at least ${DEMAND_MIN * 2} needed)`, v.favours ? 'They owe you: they pay without bad blood' : `Half their purse. −15${T.dues ? ' (more for the greedy)' : ''}; refused if they are resentful`)}
@@ -521,6 +523,21 @@ export class RealmScreen {
       <h4>Justice</h4><div class="acts-row">${sure('arrest') ? `<span class="warn">${odds ? `About ${Math.round(odds * 100)}% they flee to their men and rise.` : 'They will come quietly.'} Every other vassal will mind it (−10).</span> ${btn('arrest', 'Yes, arrest them', true, '', 'warn')}<button data-act="cancel">No</button>`
         : btn('arrest', 'Arrest them', true, `Every village they hold comes back to you and they go to your dungeon. ${odds ? `Defiant: about ${Math.round(odds * 100)}% they flee and rise instead.` : 'They are not defiant: they will come quietly.'}`, 'warn')}</div>
       ${v.memory?.length ? `<h4>They remember</h4><div class="memory">${v.memory.slice(-6).reverse().map(m => `<div><small>${clock(m.at)}</small> ${esc(m.text)}</div>`).join('')}</div>` : ''}`;
+  }
+
+  // Arrange a match into a great house: you pay half the dowry; the house warms to you while their kin
+  // is a content vassal, and the vassal minds a war on it.
+  matchRow(v, btn) {
+    const w = this.w, me = FACTIONS[0];
+    if (v.wed) {
+      const H = FACTIONS[v.wed.house];
+      return `<p class="${v.wed.broken ? 'bad' : 'good'}">${v.wed.broken ? `Was wed into ${esc(H.name)}, which is broken.` : `Wed into ${esc(H.name)}: ${esc(H.lord)} thinks better of you while they are content with you; they mind it (${WAR_ON_KIN}) if you go to war on it.`}</p>`;
+    }
+    if (v.landless) return '';
+    const list = suitors(w), warm = FACTIONS.slice(1, w.bandits).filter(H => H.alive && w.knows(H.index) && !w.atWar(0, H.index)).length;
+    const tip = `Wed into the house: +6 for good with them, a favour owed, and ${KIN_WARMTH} warmer from the house while they are content; they mind it (${WAR_ON_KIN}) if you go to war on it. The proud and ambitious among the rest mind it (−3). You pay half the dowry.`;
+    return `<h4>A match</h4><div class="acts-row">${list.length ? list.map(H => btn(`marry:${H.index}`, `${ico('crown')} Wed into ${esc(H.name)} (${matchCost(w, H.index)} gold)`, me.gold >= matchCost(w, H.index) || `Needs ${matchCost(w, H.index)} gold; you have ${num(Math.floor(me.gold))}`, tip)).join('')
+      : btn('marry', `${ico('crown')} Arrange a match`, warm ? `No house likes you well enough yet (it takes ${MATCH_WARM}): send gifts` : 'You have met no house at peace with you', tip)}</div>`;
   }
 
   // Raise them a title: one below your own rank, kept for good.
