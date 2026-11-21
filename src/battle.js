@@ -1982,7 +1982,7 @@ export class Battle {
       if (!s || this.structGone(s) || E.cd > 0) return;
       E.cd = E.reload;
       E.swing = this.time;
-      audio.play('gate', s, this); // audio: the ram strikes
+      audio.play('gate', s, this); audio.play('ramwood', s, this); // audio: the ram strikes
       if (this.hitStructure(s, E.dmg, 'ram')) { r.targetWall = null; this.event(r.side, `${this.label(r)} broke through!`); }
       return;
     }
@@ -2005,6 +2005,7 @@ export class Battle {
     const spread = 1 + d * E.spread;
     const x1 = aim.x + (this.rand() - 0.5) * 2 * spread, z1 = aim.z + (this.rand() - 0.5) * 2 * spread;
     const y0 = this.heightAt(r.x, r.z) + (E.kind === 'trebuchet' ? 9 : 4);
+    audio.play('catapult', { x: r.x, z: r.z }, this); // audio
     this.stones.push({ x0: r.x, y0, z0: r.z, x1, z1, y1: this.heightAt(x1, z1), t: 0, T: 1.6 + d / 55, h: 8 + d * 0.22, side: r.side, E, struct, kind: E.kind });
   }
 
@@ -2642,6 +2643,7 @@ export class Battle {
   kill(t, by = null) {
     const r = t.reg;
     t.alive = false;
+    audio.play('death', t, this); // audio
     t.diedAt = this.time;
     t.fall = 0.001;
     t.target = null;

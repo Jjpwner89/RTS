@@ -29,7 +29,7 @@ Every sound in the game is free: CC0 (public domain) or CC-BY (free with credit)
 
 ## Sound effects and ambience
 
-Credit for the CC-BY sounds: "Regular Arrow Shot" by brendan89 (CC BY 3.0), "MedievalCombatLoop" by Yap_Audio_Production (CC BY 4.0) and "Shield Bash Impact" by Hybrid_V (CC BY 4.0), all on Freesound. The rest are CC0.
+Credit for the CC-BY sounds: "Regular Arrow Shot" by brendan89 (CC BY 3.0), "MedievalCombatLoop" by Yap_Audio_Production (CC BY 4.0) and "Shield Bash Impact" by Hybrid_V (CC BY 4.0), all on Freesound. The rest are CC0. Sounds from Freesound are its public 128 kb/s previews, each page checked to show CC0.
 
 | File | Original | Author | Licence | Source | Changes |
 |---|---|---|---|---|---|
@@ -153,3 +153,28 @@ Credit for the CC-BY sounds: "Regular Arrow Shot" by brendan89 (CC BY 3.0), "Med
 | `amb/mill.mp3` | Mill wheel, bladed | Pierre SIBANARCO | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://bigsoundbank.com/mill-wheel-bladed-s2768.html) | a 16 s loop |
 | `sfx/crown.mp3` | Fantasy Choir 1 (from Fantasy Choir-3 orchestral pieces) | cesisco | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://opengameart.org/content/fantasy-choir-3-orchestral-pieces) | the closing 12 s, with a fade in and out |
 | `sfx/seatfalls.mp3` | Bell 1 o'clock, slowed to a deep toll twice, under `sfx/boom.mp3` slowed (Alfaia Hit, Sassaby, credited above) | Joseph SARDIN & Axeline T. | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://bigsoundbank.com/bell-1-o-clock-s3446.html) | the bell at 0.72 speed, a second softer toll after 2.6 s, a low drum under both |
+| `sfx/catapult1.mp3` | Catapult launch and hit | craigsmith | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/craigsmith/sounds/479921/) | the first 3 s |
+| `sfx/catapult2.mp3` | Catapult loaded and shot | sukondi | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/sukondi/sounds/553906/) | the shot, 1.5 s |
+| `sfx/catapult3.mp3` | Small catapult | batchku | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/batchku/sounds/10335/) | the first 2 s |
+| `sfx/clash7.mp3` | Sword clash | spycrah | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/spycrah/sounds/471095/) | one clash cut out |
+| `sfx/clash8.mp3` | Sword block combo | ethanchase7744 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/ethanchase7744/sounds/440069/) | the first 0.9 s |
+| `sfx/clash9.mp3` | Shield guard | nekoninja | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/nekoninja/sounds/370203/) |  |
+| `sfx/ramwood1.mp3` | Wood splitting | viwright2112 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/viwright2112/sounds/630400/) | the first 1.6 s |
+| `sfx/ramwood2.mp3` | Wood tear | loganzsound | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/loganzsound/sounds/774268/) | a 1.1 s section |
+| `sfx/ramwood3.mp3` | Door forced open | Talitha5 | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Talitha5/sounds/262538/) | the first 1.5 s |
+| `sfx/ramwood4.mp3` | 75 CC0 breaking, falling, hit SFX: wood_breaking_03 | rubberduck | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) |  |
+| `sfx/thunder2.mp3` | Thunder | netaj | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/netaj/sounds/193170/) | the first 4.5 s |
+| `sfx/charge2.mp3` | Crowd yells charge | ShangusBurger | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/ShangusBurger/sounds/764158/) | a 6 s section |
+| `sfx/death1.mp3` | 5 hit sounds, dying: die1 | TinyWorlds | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://opengameart.org/content/5-hit-sounds-dying) |  |
+| `sfx/death2.mp3` | Male death | Blankened | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Blankened/sounds/554443/) |  |
+| `sfx/death3.mp3` | Male death 04 | Artmasterrich | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/Artmasterrich/sounds/345456/) |  |
+| `sfx/death4.mp3` | Pain grunt | MrFossy | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/MrFossy/sounds/547209/) |  |
+| `sfx/pig.mp3` | Pig oink | qubodup | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/qubodup/sounds/442906/) |  |
+| `sfx/neigh3.mp3` | Horse neighing 3 | Joseph SARDIN | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://bigsoundbank.com/horse-neighing-3-s0863.html) |  |
+| `sfx/snort1.mp3` | Horse snort | o_ciz | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/o_ciz/sounds/475483/) |  |
+| `sfx/snort2.mp3` | Breath horse 4 | Joseph SARDIN | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://bigsoundbank.com/breath-horse-4-s1543.html) |  |
+| `sfx/owl.mp3` | Tawny owl 1 | Joseph SARDIN | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://bigsoundbank.com/tawny-owl-1-s1763.html) | the first 6 s |
+| `sfx/children.mp3` | Children voices | Yaroslav_Novikov | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://opengameart.org/content/children-voices) | the first 6 s |
+| `amb/battlefield.mp3` | Battlefield ambience loop | banan_ | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/banan_/sounds/385895/) | levelled; the sound's own loop |
+| `amb/market.mp3` | Medieval market street | bolkmar | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://freesound.org/people/bolkmar/sounds/424790/) | a 7.5 s loop |
+| `amb/snow.mp3` | Steps in the snow 3 | Joseph SARDIN | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | [source](https://bigsoundbank.com/steps-in-the-snow-3-s3363.html) | a 20 s loop |

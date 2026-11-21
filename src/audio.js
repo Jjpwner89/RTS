@@ -8,6 +8,8 @@
 // scope) for an event, audio.tick(name, pos, dt, rate, scope) for steady work sounds.
 // `scope` is the Battle the sound belongs to, so villages nobody is watching stay quiet.
 
+import { look, dayOf } from './look.js';
+
 const ROOT = new URL('../assets/audio/', import.meta.url).href;
 
 // Tracks per mood. Several tracks take turns; one track loops; victory and defeat play once.
@@ -36,7 +38,7 @@ const SOUNDS = {
   built:    { files: ['sfx/built'], vol: 0.7, gap: 0.5, cap: 2 },
   horn:     { files: ['sfx/horn'], vol: 0.8, gap: 4, cap: 1 },
   drums:    { files: ['sfx/drums'], vol: 0.7, gap: 4, cap: 1 },
-  clash:    { files: ['sfx/clash1', 'sfx/clash2', 'sfx/clash3', 'sfx/clash4', 'sfx/clash5', 'sfx/clash6', 'sfx/hit1', 'sfx/hit2', 'sfx/hit3'], vol: 0.4, gap: 0.06, cap: 6, pitch: 0.15 },
+  clash:    { files: ['sfx/clash1', 'sfx/clash2', 'sfx/clash3', 'sfx/clash4', 'sfx/clash5', 'sfx/clash6', 'sfx/hit1', 'sfx/hit2', 'sfx/hit3', 'sfx/clash7', 'sfx/clash8', 'sfx/clash9'], vol: 0.4, gap: 0.06, cap: 6, pitch: 0.15 },
   bow:      { files: ['sfx/bow1', 'sfx/bow2'], vol: 0.35, gap: 0.15, cap: 4, pitch: 0.12 },
   arrowhit: { files: ['sfx/arrowhit1', 'sfx/arrowhit2', 'sfx/arrowhit3'], vol: 0.35, gap: 0.08, cap: 4, pitch: 0.15 },
   warcry:   { files: ['sfx/warcry1', 'sfx/warcry2', 'sfx/warcry3'], vol: 0.7, gap: 2.5, cap: 2, pitch: 0.06 },
@@ -52,7 +54,7 @@ const SOUNDS = {
   dog:      { files: ['sfx/dog1', 'sfx/dog2', 'sfx/dog3'], vol: 0.55, gap: 0.35, cap: 3, pitch: 0.08 },
   javelin:  { files: ['sfx/javelin1', 'sfx/javelin2'], vol: 0.45, gap: 0.15, cap: 3, pitch: 0.1 },
   axeshield: { files: ['sfx/axeshield1', 'sfx/axeshield2'], vol: 0.5, gap: 0.08, cap: 4, pitch: 0.12 },
-  neigh:    { files: ['sfx/neigh1', 'sfx/neigh2'], vol: 0.6, gap: 3, cap: 1, pitch: 0.05 },
+  neigh:    { files: ['sfx/neigh1', 'sfx/neigh2', 'sfx/neigh3', 'sfx/snort1', 'sfx/snort2'], vol: 0.6, gap: 3, cap: 1, pitch: 0.05 },
   cheer:    { files: ['sfx/cheer1', 'sfx/cheer2'], vol: 0.8, gap: 3, cap: 1 },
   gasp:     { files: ['sfx/gasp'], vol: 0.7, gap: 3, cap: 1 },
   parley:   { files: ['sfx/parley'], vol: 0.8, gap: 4, cap: 1 },
@@ -69,7 +71,7 @@ const SOUNDS = {
   cart:     { files: ['sfx/cart'], vol: 0.5, gap: 4, cap: 1 },
   // Game feel (fx.js): an order heard, a charge, a building site passing a third of its work.
   order:    { files: ['sfx/order1', 'sfx/order2', 'sfx/order3', 'sfx/order4'], vol: 0.45, gap: 0.4, cap: 1, pitch: 0.05 },
-  charge:   { files: ['sfx/charge'], vol: 0.7, gap: 2, cap: 1 },
+  charge:   { files: ['sfx/charge', 'sfx/charge2'], vol: 0.7, gap: 2, cap: 1 },
   stage:    { files: ['sfx/stage'], vol: 0.55, gap: 0.5, cap: 2, pitch: 0.08 },
   // The interface: a page turning, panels opening, a new thing unlocked, a greyed button.
   tab:      { files: ['ui/tab'], vol: 0.35, gap: 0.08, cap: 1, pitch: 0.06 },
@@ -88,20 +90,26 @@ const SOUNDS = {
   // The militia turning out of the village.
   muster:   { files: ['sfx/muster'], vol: 0.7, gap: 8, cap: 1, then: [['musterfolk', 0.5]] },
   musterfolk: { files: ['sfx/musterfolk'], vol: 0.55, gap: 8, cap: 1 },
+  // Engines, rams and the fallen.
+  catapult: { files: ['sfx/catapult1', 'sfx/catapult2', 'sfx/catapult3'], vol: 0.8, gap: 0.4, cap: 2, pitch: 0.05 },
+  ramwood:  { files: ['sfx/ramwood1', 'sfx/ramwood2', 'sfx/ramwood3', 'sfx/ramwood4'], vol: 0.6, gap: 0.5, cap: 2, pitch: 0.06 },
+  death:    { files: ['sfx/death1', 'sfx/death2', 'sfx/death3', 'sfx/death4'], vol: 0.3, gap: 0.15, cap: 3, pitch: 0.1 },
   // A village going about its day: crafts, animals, the chapel bell, thunder in the rain.
   saw:      { files: ['sfx/saw'], vol: 0.4, gap: 2.5, cap: 1, pitch: 0.05 },
   smith:    { files: ['sfx/smith1', 'sfx/smith2', 'sfx/smith3', 'sfx/smith4'], vol: 0.5, gap: 0.3, cap: 2, pitch: 0.08 },
-  farm:     { files: ['sfx/sheep', 'sfx/hen', 'sfx/cow', 'sfx/goat'], vol: 0.45, gap: 4, cap: 2, pitch: 0.1 },
+  farm:     { files: ['sfx/sheep', 'sfx/hen', 'sfx/cow', 'sfx/goat', 'sfx/pig'], vol: 0.45, gap: 4, cap: 2, pitch: 0.1 },
   rooster:  { files: ['sfx/rooster'], vol: 0.4, gap: 30, cap: 1, pitch: 0.04 },
   chapel:   { files: ['sfx/muster'], vol: 0.4, gap: 40, cap: 1 },
-  thunder:  { files: ['sfx/thunder'], vol: 0.6, gap: 20, cap: 1, pitch: 0.05 },
+  owl:      { files: ['sfx/owl'], vol: 0.3, gap: 20, cap: 1, pitch: 0.04 },
+  children: { files: ['sfx/children'], vol: 0.35, gap: 30, cap: 1 },
+  thunder:  { files: ['sfx/thunder', 'sfx/thunder2'], vol: 0.6, gap: 20, cap: 1, pitch: 0.05 },
 };
 // The same blow sounds different from a dog or a Norrhold axe, and a javelin is no arrow.
 const VARIANT = { clash: { wardog: 'dog', axeman: 'axeshield' }, bow: { javelin: 'javelin' } };
 // Gathering sounds by the resource worked, so economy.js can pass the node kind.
 const ALIAS = { tree: 'chop', rock: 'pick', ore: 'pick' };
 // Looping beds, mixed by what is on screen.
-const BEDS = { mill: 'amb/mill', mapair: 'amb/mapair', run: 'amb/run', swim: 'amb/swim', birds: 'amb/birds', village: 'amb/village', forest: 'amb/forest', wind: 'amb/wind', din: 'amb/din', march: 'amb/march', fire: 'amb/fire',
+const BEDS = { battlefield: 'amb/battlefield', market: 'amb/market', snow: 'amb/snow', mill: 'amb/mill', mapair: 'amb/mapair', run: 'amb/run', swim: 'amb/swim', birds: 'amb/birds', village: 'amb/village', forest: 'amb/forest', wind: 'amb/wind', din: 'amb/din', march: 'amb/march', fire: 'amb/fire',
   gallop: 'amb/gallop', mail: 'amb/mail', wade: 'amb/wade', rain: 'amb/rain', fog: 'amb/fog', night: 'amb/night', blizzard: 'amb/blizzard' };
 // How much a regiment's armour clinks on the march.
 const CLINK = { none: 0, leather: 0.2, mail: 0.7, plate: 1 };
@@ -281,6 +289,20 @@ export function tick(name, pos, dt, rate, scope) {
   if (ctx && Math.random() < rate * dt) play(name, pos, scope);
 }
 
+// ---- the hour ----
+
+// The campaign's day (look.js dayOf: 0 midnight, 0.5 noon) as sound: dark is 1 at night and fades
+// through dusk (0.8 to 0.92) and dawn (0.2 to 0.32); dawn peaks as the birds start up. With no
+// campaign clock (the test pages) it is always noon.
+function hour() {
+  const t = look.clock?.();
+  if (t == null) return { dark: 0, dawn: 0, day: 0 };
+  const d = dayOf(t), ramp = (a, b, x) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+  const dark = d < 0.5 ? 1 - ramp(0.2, 0.32, d) : ramp(0.8, 0.92, d);
+  const dawn = Math.sin(Math.PI * ramp(0.2, 0.4, d)) ** 2 * (d < 0.5 ? 1 : 0);
+  return { dark, dawn, d, day: Math.floor(t / 150 + 0.3) };
+}
+
 // ---- ambient beds ----
 
 function setBed(name, level) {
@@ -331,7 +353,8 @@ export function frame(camera, cam, scene = {}) {
   if (map) {
     setMood('map');
     // Open country: a soft breeze with birds, or the winter wind; smoke over a place at war is heard as a low din.
-    for (const n in BEDS) setBed(n, n === 'wind' ? (winter ? 0.1 : 0.2) : n === 'mapair' ? (winter ? 0.1 : 0.4) : n === 'blizzard' ? (winter ? 0.3 : 0) : n === 'din' ? Math.min(0.25, warSmoke(scene.fx) * 0.12) : 0);
+    const { dark } = hour();
+    for (const n in BEDS) setBed(n, n === 'wind' ? (winter ? 0.1 : 0.2) : n === 'mapair' ? (winter ? 0.1 : 0.4 * (1 - 0.5 * dark)) : n === 'night' ? (winter ? 0.05 : 0.2) * dark : n === 'blizzard' ? (winter ? 0.3 : 0) : n === 'din' ? Math.min(0.25, warSmoke(scene.fx) * 0.12) : 0);
     return;
   }
   if (battle) battleNews(battle, dt);
@@ -376,6 +399,8 @@ export function frame(camera, cam, scene = {}) {
   const q = paused ? 0 : 1;
   setBed('din', q * Math.min(0.9, din / 50));
   setBed('march', q * Math.min(0.6, march / 150));
+  setBed('snow', winter ? q * Math.min(0.4, (march + run) / 150) : 0);
+  setBed('battlefield', q * Math.min(0.3, Math.max(0, din - 30) / 250));
   setBed('gallop', q * Math.min(0.7, gallop / 60));
   setBed('mail', q * Math.min(0.5, mail / 120));
   setBed('run', q * Math.min(0.55, run / 100));
@@ -386,11 +411,12 @@ export function frame(camera, cam, scene = {}) {
   const hush = sky === 'clear' ? 1 : 0.35;
   setBed('rain', sky === 'rain' ? 0.5 : 0);
   setBed('fog', sky === 'fog' ? 0.35 : 0);
-  setBed('night', sky === 'night' ? 0.45 : 0);
+  const hr = hour();
+  setBed('night', Math.max(sky === 'night' ? 0.45 : 0, (winter ? 0.08 : 0.28) * hr.dark));
   setBed('blizzard', winter ? (town ? 0.15 : 0.3) : 0);
   // Day birds over a village in the warm seasons, hushed by weather, war and winter.
-  setBed('birds', town && !winter && sky === 'clear' && !attackers ? 0.3 * near : 0);
-  setBed('village', town ? (attackers ? 0.15 : 0.4) * near * (sky === 'night' ? 0.3 : 1) : 0);
+  setBed('birds', town && !winter && sky === 'clear' && !attackers ? 0.3 * near * (1 - hr.dark) * (1 + 0.6 * hr.dawn) : 0);
+  setBed('village', town ? (attackers ? 0.15 : 0.4) * near * (sky === 'night' ? 0.3 : 1 - 0.55 * hr.dark) : 0);
   setBed('forest', (town ? 0.3 : 0.12) * hush * (winter ? 0.3 : 1));
   setBed('wind', (town ? 0.08 + 0.15 * (1 - near) : 0.3) * (winter ? 0.5 : 1));
   let fires = 0;
@@ -398,21 +424,29 @@ export function frame(camera, cam, scene = {}) {
   for (const f of scene.fx?.fires || []) fires += hear(f).level * f.level;
   for (const b of battle?.river?.bridges || []) if (b.burning > 0) fires += hear(b).level;
   setBed('fire', Math.min(0.6, fires * 0.5));
-  village(town, sky, winter, !!attackers, dt, battle);
+  village(town, sky, winter, !!attackers, dt, battle, hr);
 }
 
 // The village's own small sounds: a mill's wheel, animals about the farms, the chapel bell
 // by day, thunder when it rains. Each is placed at the building it comes from.
-let farmT = 8, bellT = 25, thunderT = 20;
-function village(town, sky, winter, attackers, dt, battle) {
+let farmT = 8, bellT = 25, thunderT = 20, kidsT = 30, owlT = 15, crowedDay = -1;
+function village(town, sky, winter, attackers, dt, battle, hr) {
   const sites = kind => (town?.buildings || []).filter(b => b.kind === kind && b.state === 'active');
   let mill = 0;
   for (const b of sites('mill')) if (b.workers?.length) mill = Math.max(mill, hear(b).level);
-  setBed('mill', attackers ? 0 : Math.min(0.35, mill * 0.5));
+  setBed('mill', attackers ? 0 : Math.min(0.35, mill * 0.5 * (1 - 0.5 * hr.dark)));
+  let market = 0;
+  for (const b of sites('market')) market = Math.max(market, hear(b).level);
+  setBed('market', attackers || winter && hr.dark > 0 ? 0 : Math.min(0.25, market * 0.4) * (1 - hr.dark) ** 2);
   if (sky === 'rain' && (town || battle)) { thunderT -= dt; if (thunderT < 0) { thunderT = 25 + Math.random() * 45; play('thunder'); } }
   if (!town || attackers) return;
-  const day = sky === 'clear' || sky === 'rain';
-  farmT -= dt; bellT -= dt;
+  const day = (sky === 'clear' || sky === 'rain') && hr.dark < 0.5;
+  farmT -= dt; bellT -= dt; kidsT -= dt; owlT -= dt;
+  const spot = () => { const a = Math.random() * Math.PI * 2, r = 40 + Math.random() * 40; return { x: ear.x + Math.cos(a) * r, z: ear.z + Math.sin(a) * r }; };
+  // Dawn: one rooster as the light comes; night: an owl now and then, out in the dark.
+  if (hr.dawn > 0.2 && crowedDay !== hr.day && !winter) { crowedDay = hr.day; const farms = sites('farm'); play('rooster', farms.length ? farms[Math.floor(Math.random() * farms.length)] : spot(), battle); }
+  if (owlT < 0) { owlT = 25 + Math.random() * 30; if (hr.dark > 0.7 && !winter) play('owl', spot(), battle); }
+  if (kidsT < 0) { kidsT = 35 + Math.random() * 40; const homes = sites('house'); if (day && homes.length) play('children', homes[Math.floor(Math.random() * homes.length)], battle); }
   if (farmT < 0) {
     farmT = 9 + Math.random() * 16;
     const farms = sites('farm');
