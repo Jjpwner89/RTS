@@ -481,7 +481,7 @@ export class TownHud {
       return held.length ? `Holds: ${held.map(([g, n]) => `${Math.floor(n)} ${gi(g)}`).join(' · ')}` : 'Holds nothing';
     }
     if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
-    if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : ''}`;
+    if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : r.until ? ' (arrière-ban: home after ten minutes)' : ''}`;
     if (f === 'gear') return r.T.engine ? '' : `${gearText(gearOf(r))}${r.battles ? ` · ${r.battles} battle${r.battles > 1 ? 's' : ''}` : ''}`;
     if (f === 'morale') return this.hooks.moraleLabel(r);
     return '';

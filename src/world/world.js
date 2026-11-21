@@ -21,6 +21,7 @@ import { tickEvents } from './events.js';
 import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
+import { tickArriere } from './arriere.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -618,7 +619,7 @@ export class World {
   callBanners(dest) {
     const plan = this.bannerPlan(dest), safe = this.friendlyRoad();
     let men = 0, from = 0;
-    const cut = [], staged = [];   // [army, its village] with no friendly road to dest; names staying home
+    const staged = [];   // [army, its village] with no friendly road to dest
     for (const v of plan.villages) {
       const t = v.p.town;
       for (const l of v.raise) l.reg = t.raise(l.key, l.b).reg;
@@ -631,21 +632,8 @@ export class World {
       men += headcount(a.units);
       from++;
     }
-    // Columns with no friendly road to dest gather instead at the place of yours that most
-    // of them can reach through friendly land, nearest dest: one host, not a string of
-    // small ones each stopped and beaten at the first enemy place on the way.
-    let stage = null, there = 0;
-    if (staged.length) {
-      const reach = q => staged.filter(([a]) => a.at === q || Number.isFinite(this.route(a.at, q, safe).length)).length;
-      stage = this.pois.filter(q => q.owner === 0 && q !== dest && q.town && !q.town.hostile)
-        .map(q => [q, reach(q), this.route(q, dest).length]).sort((x, y) => y[1] - x[1] || x[2] - y[2])[0]?.[0] || null;
-      for (const [a, p] of staged) {
-        if (stage && p === stage) { this.enterTown(a, p, p); there += headcount(a.units); continue; }
-        if (stage && this.order(a, stage, safe)) { there += headcount(a.units); continue; }
-        this.enterTown(a, p, p);
-        cut.push(p.name);
-      }
-    }
+    const { stage, cut, there: gathered } = this.stageColumns(staged, dest);
+    let there = gathered;
     for (const { v, p, refusing, kin } of plan.vassals) {
       if (refusing) { this.log(kin ? `${v.name} won't march against their spouse's kin, ${kin.name}: nobody from ${p.name}.` : `${v.name} sends nobody from ${p.name}.`, 1); continue; }
       let n = this.vassalMen(v, p, dest);
@@ -656,6 +644,34 @@ export class World {
     if (there) this.log(`No road through friendly land reaches ${dest.name} from every place: ${there} men gather at ${stage.name} instead. Muster them there and march as one host.`, 1);
     if (cut.length) this.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their men stay' : 'its men stay'} at home.`, 1);
     return { men, from, there, stage };
+  }
+
+  // Columns with no friendly road to dest gather instead at the place of yours that most
+  // of them can reach through friendly land, nearest dest: one host, not a string of
+  // small ones each stopped and beaten at the first enemy place on the way. staged holds
+  // [army, its place]; those that reach no stage wait at home (cut, by place name).
+  // The banners and the arrière-ban (arriere.js) both gather this way.
+  stageColumns(staged, dest) {
+    const safe = this.friendlyRoad(), cut = [];
+    let stage = null, there = 0;
+    if (staged.length) {
+      const reach = q => staged.filter(([a]) => a.at === q || Number.isFinite(this.route(a.at, q, safe).length)).length;
+      stage = this.pois.filter(q => q.owner === 0 && q !== dest && q.town && !q.town.hostile)
+        .map(q => [q, reach(q), this.route(q, dest).length]).sort((x, y) => y[1] - x[1] || x[2] - y[2])[0]?.[0] || null;
+      for (const [a, p] of staged) {
+        if (stage && p === stage) { this.waitAt(a, p); there += headcount(a.units); continue; }
+        if (stage && this.order(a, stage, safe)) { there += headcount(a.units); continue; }
+        this.waitAt(a, p);
+        cut.push(p.name);
+      }
+    }
+    return { stage, there, cut };
+  }
+  // An army waits at a place of yours: inside its village, or in its garrison if it has none.
+  waitAt(a, p) {
+    if (p.town) return this.enterTown(a, p, p);
+    mergeInto(p.garrison, a.units);
+    this.removeArmy(a);
   }
 
   // How much of a vassal's strength at p answers a call to arms.
@@ -1538,7 +1554,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickHousehold(this); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickHousehold(this); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); tickArriere(this); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
@@ -1912,7 +1928,7 @@ function lookouts(p) {
 
 // Men in different armour stay in different regiments (one level to a regiment).
 const sameGear = (a, b) => { const x = gearOf(a), y = gearOf(b); return x.armour === y.armour && x.shield === y.shield; };
-const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}) });
+const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...(u.until ? { until: u.until } : {}) });
 
 export function mergeInto(garrison, units) {
   for (const u of units) recruit(garrison, u.key, u.count, u.name, null, gearFields(u));
@@ -1922,7 +1938,7 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
   const size = TYPES[key]?.count || 40;
   const like = { key, ...gear };
   while (n > 0) {
-    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite);
+    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && (u.until || 0) === (gear.until || 0));
     if (!g) garrison.push(g = { ...unit(key, 0, name || `${house ? house.short + ' ' : ''}${(TYPES[key]?.name || key).toLowerCase()}`), ...gear, xp: 0 });
     const k = Math.min(n, size - g.count);
     if (gear.battles) g.battles = Math.max(g.battles || 0, gear.battles);

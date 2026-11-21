@@ -224,7 +224,8 @@ export const baseArmour = key => TYPES[key]?.armour ?? (fullKit(key).armour ? 'p
 export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key), shield: u.shield ?? canShield(u.key ?? u.T?.key) });
 // What a regiment carries between the map and the field: its armour and its battle count
 // (r.battles, the short service record on its card).
-export const carry = u => ({ ...gearOf(u), battles: u.battles || 0 });
+// An arrière-ban levy also carries the time it goes home (world/arriere.js).
+export const carry = u => ({ ...gearOf(u), battles: u.battles || 0, ...(u.until ? { until: u.until } : {}) });
 const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, bandit: 0.7,
   crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
 export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;

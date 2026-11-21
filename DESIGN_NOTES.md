@@ -640,4 +640,27 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
   - the banners: 147, plus 22 already at the muster place;
   - three vassals: 48;
   - every sellsword company in the realm together: about 180.
-  So the rank caps are headroom until a bigger source of men lands. The proposed source, rural levies, is with the orchestrator.
+  So the rank caps are headroom until a bigger source of men lands. That source is now the arrière-ban, below.
+
+### The arrière-ban (built 2026-11-21, orchestrator's ruling)
+
+- **What it is.** From the rank of Lord, every place you hold, a vassal's too, calls up men from its countryside, beyond its village people. No villager is taken. **Lord 30 a place, Count 45, Duke and King 60** (world/arriere.js `ARRIERE`).
+- **Its own order.** "Call the arrière-ban" sits under "Call the banners", on the realm panel and on each of your places. It asks first and shows the cost: "Call the arrière-ban: 660 men, 1,980 gold, 330 food a minute, 10 minutes".
+- **The cost.**
+  - Gold to call: 3 a man.
+  - Food to keep: they eat like any army (supply.js), loading carts from their own place's stores. Inside a village they eat from its stores, since a village feeds only its own people. A village with no food to spare sends a regiment of them home hungry.
+- **Mass, not quality.** They are militia spears: no armour, morale 45, weaker than spearmen.
+- **Ten minutes.** They serve ten minutes, then go home. After that the countryside rests five minutes before it answers again.
+  - Each unit carries its own time home (`u.until`, `r.until` in a village). It survives joins, garrisons, field fights, wounds and saves, through `carry()` and `gearFields`.
+  - Garrisons never merge levies with men who stay.
+  - A village under attack keeps its levies until the fight ends.
+- **The march.** The levies march by friendly roads. Columns with no such road gather where the banners would (`World.stageColumns`, now shared with callBanners).
+- **The league uses it too.** Its host adds a duke's levy from each member place, up to one duke's army (1,000 with engines). These levies serve from the muster for two minutes plus ten.
+- **Measured on the Duke save:**
+  - 11 places, 660 levies, 1,980 gold.
+  - With the banners, 494 men stood at Ashford and 244 at Kingsbridge, the staging place. That is 738 men, plus about 180 sellswords, so about 920 against the 1,000 cap.
+  - The league host came to 1,226 before its cap: 168 from garrisons, 1,032 levies and 26 engine crew. It is now capped at 1,000.
+- **Open:**
+  - A duke's 1,000 against a league host of 1,000 puts about 2,000 men on one field. That is past the 1,276-man battle bench, so it is for fidelity and QC to measure.
+  - If the league's strongest house has no road to your best place, `raiseHost` raises nothing. That rule is older than the arrière-ban.
+  - The prompt has not been seen by eye: the pane was hidden.

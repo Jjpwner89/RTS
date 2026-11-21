@@ -371,6 +371,21 @@ async function worldChecks(w) {
     return sample(out);
   });
 
+  // The arrière-ban (world/arriere.js): the preview's men and price follow the rank, and a
+  // levy's time home survives the trips between map, village and garrison.
+  await check('the arrière-ban: preview and time home', async () => {
+    const A = await import('./world/arriere.js'), { carry } = await import('./economy.js'), { mergeInto } = await import('./world/world.js');
+    const out = [], P = A.arrierePlan(w, w.home), per = A.ARRIERE.per[w.rank] || 0;
+    if (P.men !== per * P.places.length) out.push(`preview says ${P.men} men from ${P.places.length} places at ${per} each`);
+    if (P.gold !== P.men * A.ARRIERE.gold) out.push(`preview asks ${P.gold} gold for ${P.men} men`);
+    if (per && P.places.some(p => p.owner !== 0)) out.push('a place not yours would answer');
+    const g = [];
+    mergeInto(g, [{ key: 'militia', count: 50, name: 'test', until: 99 }, { key: 'militia', count: 10, name: 'test' }]);
+    if (carry({ key: 'militia', until: 99 }).until !== 99) out.push('carry() drops the time home');
+    if (g.filter(u => u.until === 99).reduce((n, u) => n + u.count, 0) !== 50) out.push('a garrison merges levies with men who stay');
+    return out;
+  });
+
   await check('houses and armies: numbers are sane', () => {
     const out = [];
     for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);
