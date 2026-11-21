@@ -20,7 +20,7 @@ const TOOLS = [
 // Takes goods from the keep first, then the storehouses, then wherever they lie; gold
 // from the purse.
 export function payGoods(town, cost) {
-  const holders = [town.keep, ...town.stores().filter(b => b !== town.keep), ...town.holders()];
+  const holders = [town.keep, ...town.stores().filter(b => b !== town.keep), ...town.holders().filter(b => b.state !== 'site')];
   for (const [g, n] of Object.entries(cost)) {
     if (g === 'gold') { town.purse.gold -= n; continue; }
     let left = n;

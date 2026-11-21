@@ -519,8 +519,6 @@ export class Town {
       }
     }
     const barracks = this.buildings.some(b => b.kind === 'barracks' && b.state === 'active');
-    // Firewood burns only from the stores; while they are low, wood is always taken in.
-    const lowWood = stores.reduce((n, b) => n + (b.store.wood || 0), 0) < 20;
     for (const from of holders) {
       if (from.B.storage || (only && only !== from)) continue;
       let to = null, bd = Infinity;
@@ -528,11 +526,10 @@ export class Town {
       for (const g in from.store) {
         if (barracks && ARMS.includes(g)) continue;
         const n = this.spare(from, g, wants);
-        // Far from any store, a yard keeps its goods until it is half full: workshops and
-        // sites nearby draw from it directly, and nobody walks a crate across the village
-        // only to carry it back. Food always goes in, for the meals.
-        const far = bd > 40 && g !== 'food' && !(g === 'wood' && lowWood);
-        if (!only && n < (far ? holdOf(g) / 2 : Math.min(crate(g), 5 * (BULK[g] || 1)))) continue;
+        // (creator, 2026-11-20) Only food is carried in as it comes, for the meals. Other
+        // goods stay in the yard, where workshops, sites and hearths draw on them, until the
+        // yard is filling up.
+        if (!only && n < (g === 'food' || g === 'bread' ? Math.min(crate(g), 5 * (BULK[g] || 1)) : holdOf(g) * 0.6)) continue;
         consider(from, to || this.keep, g, n, 3);
       }
     }
@@ -1045,6 +1042,7 @@ export class Town {
     for (const [g, n] of Object.entries(cost)) {
       let left = n;
       for (const b of [...this.stores(), ...this.holders()]) {
+        if (b.state === 'site') continue;
         const k = Math.min(left, b.store[g] || 0);
         if (k > 0) { this.put(b, g, -k); left -= k; }
         if (left <= 0) break;
@@ -1583,9 +1581,9 @@ export class Town {
         if (n > 0) { this.put(b, g, -n); need -= n; }
       }
       if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
-      // Hearths: each house, and the keep, burns a little wood.
+      // Hearths: each house, and the keep, burns a little wood, fetched from wherever it is.
       const fire = this.hearths * FIREWOOD / 2;
-      const wood = stores.reduce((n, b) => n + (b.store.wood || 0), 0);
+      const wood = this.holders().reduce((n, b) => n + (b.state === 'site' ? 0 : b.store.wood || 0), 0);
       const wasCold = this.cold;
       this.cold = wood < fire;
       this.spend({ wood: Math.min(fire, wood) });
