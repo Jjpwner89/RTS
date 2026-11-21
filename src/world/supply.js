@@ -83,19 +83,23 @@ function liveOffTheLand(w, a, land, need) {
   return land;
 }
 
-// Food in a village's keep and storehouses, keeping back one meal for the villagers.
+// Food and bread in a village's keep and storehouses, keeping back one meal for the villagers.
+// A loaf is a meal on the march as at home (playtest, 2026-11-21: a village with its stores in
+// bread loaded nothing on the carts).
+const MEALS = ['food', 'bread'];
 export function spareFood(town) {
-  const have = town.stores().reduce((n, b) => n + (b.store.food || 0), 0);
+  const have = town.stores().reduce((n, b) => n + MEALS.reduce((m, g) => m + (b.store[g] || 0), 0), 0);
   return Math.max(0, Math.floor(have - town.population / 2));
 }
 
+// Grain first, then bread.
 export function takeFood(town, n) {
   let left = Math.min(n, spareFood(town));
   const got = left;
-  for (const b of town.stores()) {
-    const k = Math.min(left, b.store.food || 0);
-    if (k > 0) { town.put(b, 'food', -k); left -= k; }
+  for (const g of MEALS) for (const b of town.stores()) {
     if (left <= 0) break;
+    const k = Math.min(left, b.store[g] || 0);
+    if (k > 0) { town.put(b, g, -k); left -= k; }
   }
   return got;
 }
