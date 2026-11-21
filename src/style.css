@@ -327,7 +327,7 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 /* Words over the village (townlabels.js): why a building is stuck, and what a deposit has left. */
 .town-labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
 .town-labels .stuck { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--bad); color: var(--bad); }
-.town-tip { position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; white-space: nowrap; font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--panel); border: 1px solid var(--edge); color: var(--ink, #f2e6cc); }
+.town-tip { position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: min(420px, calc(100vw - 16px)); font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--panel); border: 1px solid var(--edge); color: var(--ink, #f2e6cc); }
 /* The staffing control: − workers wanted + */
 #info .row.staff { margin-top: 2px; align-items: center; }
 #info .row.staff span { flex: 1; text-align: center; color: var(--dim); font-size: 12px; }

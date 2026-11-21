@@ -136,6 +136,7 @@ export class TownView {
     this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.55 });
     this.ruinMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: '#3a3430' });
     this.ghostMat = new THREE.MeshBasicMaterial({ color: '#7fe08a', transparent: true, opacity: 0.45, depthWrite: false });
+    this.missMat = new THREE.MeshBasicMaterial({ color: '#ff6a5a', transparent: true, opacity: 0.45, depthWrite: false });
     this.geos = {};
     this.meshes = new Map();
     this.icons = {};
@@ -263,6 +264,7 @@ export class TownView {
       m.visible = !!s;
       if (!s) return;
       if (m.userData.kind !== s.kind) { m.geometry = this.geo(s.kind); m.userData.kind = s.kind; }
+      m.material = s.miss ? this.missMat : this.ghostMat;
       m.position.set(s.x, this.heightAt(s.x, s.z), s.z);
       m.rotation.y = Math.atan2(-s.x, -s.z);
     });

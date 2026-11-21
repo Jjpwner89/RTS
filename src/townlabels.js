@@ -60,8 +60,9 @@ export class TownLabels {
     if (at && !town.hostile) {
       const g = BUILDINGS[placing]?.gather;
       if (placing?.startsWith('tpl:')) {
-        const name = placing.slice(4), T = TEMPLATES[name], n = town.templatePreview(name, at).length, c = town.templateCheck(name);
-        text = `${T.name}: ${n} of ${T.list.length} buildings fit here` + (c.ok ? '' : ` · ${c.reason}`);
+        const name = placing.slice(4), T = TEMPLATES[name], plan = town.templatePreview(name, at), c = town.templateCheck(name);
+        const missed = [...new Set(plan.missed.map(s => s.B.name.toLowerCase()))];
+        text = `${T.name}: ${plan.length} of ${T.list.length} buildings fit here` + (missed.length ? ` · won't fit: ${missed.join(', ')}` : '') + (c.ok ? '' : ` · ${c.reason}`);
       } else if (placing === 'road') {
         if (!roadFrom) text = 'Click where the road starts';
         else if (Math.hypot(at.x - roadFrom.x, at.z - roadFrom.z) < 2) text = 'Click where it ends (Esc to stop)';
@@ -87,6 +88,8 @@ export class TownLabels {
     const p = screen(at.x, town.heightAt(at.x, at.z) + 2, at.z);
     if (!p) { this.tip.hidden = true; return; }
     if (this.tip.textContent !== text) this.tip.textContent = text;
-    this.tip.style.transform = `translate(${Math.round(p.x + 16)}px, ${Math.round(p.y + 12)}px)`;
+    // Kept on the screen: a long tip near the right edge sits to the left of the cursor.
+    const wide = this.tip.offsetWidth, x = p.x + 16 + wide > innerWidth - 8 ? Math.max(8, p.x - 16 - wide) : p.x + 16;
+    this.tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(p.y + 12)}px)`;
   }
 }

@@ -1147,7 +1147,7 @@ function frame(now) {
       const ghost = ghostKind(st.placing);
       b.townView.showGhost(ghost, st.hoverAt, ghost && st.hoverAt && b.town.canPlace(ghost, st.hoverAt.x, st.hoverAt.z).ok);
       const tpl = st.placing?.startsWith('tpl:') && st.hoverAt ? st.placing.slice(4) : null;
-      b.townView.showGhosts(tpl ? b.town.templatePreview(tpl, st.hoverAt) : [], tpl && b.town.templateCheck(tpl).ok);
+      b.townView.showGhosts(tpl ? b.town.templateGhosts(tpl, st.hoverAt) : [], tpl && b.town.templateCheck(tpl).ok);
       townHud.update(st.selected, [...b.controls.selection], st.placing);
       b.roadView.update({ from: st.placing === 'road' ? st.roadFrom : null, at: st.hoverAt });
       labels.update(b.town, stage.camera, { hoverAt: st.hoverAt, placing: st.placing === 'road' || st.placing?.startsWith('tpl:') ? st.placing : ghost, roadFrom: st.roadFrom });

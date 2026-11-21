@@ -550,7 +550,8 @@ export class Town {
       t.from.reserved[t.g] -= t.n;
       const n = Math.min(t.n, t.from.store[t.g] || 0);
       t.to.incoming[t.g] -= t.n - n;
-      if (n < 1) { t.to.incoming[t.g] -= n; v.task = null; return true; }
+      // A part-crate for a site (the broken logs left by firewood) is still carried.
+      if (n < Math.min(1, t.n) - 1e-6) { t.to.incoming[t.g] -= n; v.task = null; return true; }
       this.put(t.from, t.g, -n);
       t.n = n;
       v.load = { g: t.g, n };
@@ -664,24 +665,37 @@ export class Town {
 
   // Where each building of a template would go round (x, z), as [{ kind, B, x, z }], without
   // building anything: the first as near the spot as it fits, the rest in rings round it;
-  // gatherers beside the resource nearest the spot.
+  // gatherers beside the resource nearest the spot. What will not fit is in `spots.missed`,
+  // at the nearest spot it tried that is clear of the rest: on your land if it can be (steep
+  // ground, a wall or rocks being what stopped it), else past it.
   planTemplate(name, x, z) {
     const T = TEMPLATES[name], spots = [];
+    spots.missed = [];
     if (!T) return spots;
-    const fits = (kind, px, pz) => this.canPlace(kind, px, pz, { free: true, planned: spots }).ok && spots.push({ kind, B: BUILDINGS[kind], x: px, z: pz });
-    if (T.gather) {
-      for (const kind of T.list) this.gathererSpot(kind, x, z, spots, fits);
-      return spots;
-    }
+    let tried = null, past = null;
+    const clear = (kind, px, pz) => Math.hypot(px, pz) >= KEEP.radius + BUILDINGS[kind].radius + 3 && ![...this.buildings, ...spots, ...spots.missed].some(b => Math.hypot(b.x - px, b.z - pz) < b.B.radius + BUILDINGS[kind].radius + 1.5);
+    const fits = (kind, px, pz) => {
+      if (this.canPlace(kind, px, pz, { free: true, planned: spots }).ok) return spots.push({ kind, B: BUILDINGS[kind], x: px, z: pz });
+      const inLand = Math.hypot(px, pz) <= this.territory;
+      if (!tried && (inLand || !past) && clear(kind, px, pz)) {
+        if (inLand) tried = { x: px, z: pz };
+        else past = { x: px, z: pz };
+      }
+      return false;
+    };
+    const missed = kind => { const at = tried || past || { x, z }; spots.missed.push({ kind, B: BUILDINGS[kind], x: at.x, z: at.z, miss: true }); };
     for (const kind of T.list) {
+      tried = past = null;
       let done = false;
-      for (let r = 0; r <= 48 && !done; r += 3) {
+      if (T.gather) done = this.gathererSpot(kind, x, z, spots, fits);
+      else for (let r = 0; r <= 48 && !done; r += 3) {
         const steps = r ? Math.max(6, Math.round(r * 0.9)) : 1;
         for (let i = 0; i < steps && !done; i++) {
           const a = (i / steps) * Math.PI * 2 + r * 0.37;
           done = fits(kind, x + Math.sin(a) * r, z + Math.cos(a) * r);
         }
       }
+      if (!done) missed(kind);
     }
     return spots;
   }
@@ -693,6 +707,12 @@ export class Town {
     if (c && c.name === name && c.n === n && (now - c.when < 100 || dist(c.at, at) < 1)) return c.spots;
     this.tplPreview = { name, n, when: now, at: { x: at.x, z: at.z }, spots: this.planTemplate(name, at.x, at.z) };
     return this.tplPreview.spots;
+  }
+
+  // Every ghost to draw for the template under the cursor: the ones that fit, then the misses.
+  templateGhosts(name, at) {
+    const spots = this.templatePreview(name, at);
+    return spots.missed.length ? [...spots, ...spots.missed] : spots;
   }
 
   // Lays out a town template round (x, z), exactly as planTemplate shows it.
@@ -1328,12 +1348,20 @@ export class Town {
   }
 
   // The walker's way to (tx, tz), planned once a leg: again only when the goal moves a few
-  // metres or a road is laid or lifted.
+  // metres, a road is laid or lifted, or the walls change.
   roadWay(v, tx, tz) {
     const r = v.roadWay;
-    if (r && r.ver === this.roadsVersion && Math.abs(r.tx - tx) + Math.abs(r.tz - tz) < 3) return r;
+    if (r && r.ver === this.roadsVersion && r.wallsVer === this.battle.nav.version && Math.abs(r.tx - tx) + Math.abs(r.tz - tz) < 3) return r;
     if (this.roadNetVer !== this.roadsVersion) { this.roadNet = new RoadNet(this.roads); this.roadNetVer = this.roadsVersion; }
-    return v.roadWay = { ver: this.roadsVersion, tx, tz, i: 0, pts: this.roadNet.plan(v, { x: tx, z: tz }) || [] };
+    let pts = this.roadNet.plan(v, { x: tx, z: tz }) || [];
+    // A road through a wall (not a gate) is no way at all: walking it means going round to
+    // the gate and back, so the walker goes the plain way instead.
+    const nav = this.battle.nav;
+    if (pts.length && nav.any) {
+      let a = v;
+      for (const b of [...pts, { x: tx, z: tz }]) { if (!nav.clear(0, a.x, a.z, b.x, b.z)) { pts = []; break; } a = b; }
+    }
+    return v.roadWay = { ver: this.roadsVersion, wallsVer: nav.version, tx, tz, i: 0, pts };
   }
 
   updateVillager(v, dt) {
