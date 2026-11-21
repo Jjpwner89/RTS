@@ -12,6 +12,8 @@ Before you report anything as done:
 - **Run the consistency checks** (section 4) and say that they pass.
 - **Say plainly what isn't done or wasn't checked.** "Not checked in a siege" is useful; "done" when it wasn't checked is not.
 
+**Your own port only** (Orchestrator, 2026-11-21). Many sessions serve their clones on nearby ports at once. Before serving, pick a port that `lsof -nP -iTCP:<port> -sTCP:LISTEN` shows free; after starting, check the listener serves your own clone. Never open another session's localhost: its page runs their code and writes to their test slot and settings (audio mute, `rts.campaign.test`). Never stop a server you didn't start. And never touch `rts.campaign.save`, the creator's real campaign.
+
 ## 2. One way of doing each thing
 
 Build a feature once and share it with every view that needs it. When the storm, the capture, the look-round and the world map each made their own version of a place, they disagreed. Before adding a second code path for something that already exists, use or extend the first one.
