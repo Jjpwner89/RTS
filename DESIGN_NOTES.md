@@ -582,3 +582,21 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
     - Count: the banners raise 24 levies, and the hall trained 6 knights in 7.5 minutes.
     - Duke: 48 levies raised and 163 men answering, with three vassals sending 16 each.
 - **"0 levies" from the banners was right, not a bug.** Levies are raised only where an active barracks has kit in its racks, and the old test saves had none. Even now, the Lord save (one village besides the castle) sends no one: Ashford's 20-man guard keeps its 12 levies and the retinue home.
+
+### Round 4 fixes on the climb (2026-11-21, QC and the Manager)
+
+- **Goals never lag or repeat** (`goals.js updateGoals`):
+  - The goal shown is always the first one not passed: past the furthest goal done.
+  - Each tick announces at most one goal, the furthest one finished.
+  - A world with no goals counted yet (a new or test campaign, an old save) is set quietly, without a toast for everything it already holds.
+  - Before, the Count save toasted "Feed your people" twice, and the Lord save showed goal 0.
+- **The retinue always answers the banners.** It is the lord's household, not the village's guard. The guard of 20 is made of the village's levies and garrison only. On the Lord save the 19-man retinue now marches and Ashford keeps its 12 levies.
+  - The preview says who stays and why: "Ashford raises 12 fresh levies and sends 19 (your retinue); it keeps its 12 levies as its guard."
+- **The bands are warned of and answered plainly:**
+  - The help page, the opening message and the first goals' tips say a band will come and what to do: keep the retinue home, and right-click the outlaws with it.
+  - Band sizes are exact ("18 men"), not "about 20".
+  - A beaten band says "The outlaws are beaten off at Ashford: 13 dead, none of ours." A band that gets away says what it took, with the dead. Both lines go to the village if you are watching it, and to the map log otherwise.
+  - The bandit chief's portrait (assets/art/portraits/bandits.png) is queued with Art for Codex.
+- **A worn-down household guard is put to you.** Below a quarter of its 30 men in one of your villages, you choose: fill the ranks (5 gold a man), send them to work as villagers, or keep them. (`companies.js tickHousehold`; asked once, saved on the regiment.)
+- **No wagon, in your own lands, is no alarm.** The army card says the farms round the nearest place will feed the men, instead of "No village has food to send".
+- **The Count and Duke saves' hall kit sits in the hall**, where the banners cannot arm levies with it. After calling the banners on Count, the hall can still train both men-at-arms and knights.

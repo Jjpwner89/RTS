@@ -19,7 +19,7 @@ const SEED = 7;
 const STOCK = { wood: 250, stone: 200, planks: 80, iron: 30, food: 400, flax: 20, string: 20 };
 // Arms for the barracks racks: a regiment of spears and one of bows. The hall's kit is on top.
 const ARMS = { spears: 24, shields: 24, bows: 12, arrows: 120 };
-const HALL_ARMS = { mail: 12, swords: 12, shields: 36, armour: 6, lances: 6, horses: 6 };
+const HALL_ARMS = { mail: 12, swords: 12, shields: 12, armour: 6, lances: 6, horses: 6 };
 
 // The game quietly answers everything itself: fights are reckoned, offers and news pass,
 // and settlers are taken in when there is room.
@@ -97,9 +97,14 @@ export async function makeTestCampaign(key, progress = () => {}) {
   // veterans home from the wars, mail and plate, and the fees.
   if (raise(t, 'barracks')) {
     const b = t.buildings.find(o => o.kind === 'barracks' && o.state === 'active');
-    for (const [g, n] of Object.entries({ ...ARMS, ...(T.vassals ? HALL_ARMS : {}) })) t.put(b, g, n);
+    for (const [g, n] of Object.entries(ARMS)) t.put(b, g, n);
   }
   if (T.vassals && raise(t, 'hall')) {
+    // The hall's kit sits in the hall itself: it counts as the village's, but nobody hauls it
+    // to the barracks racks, where calling the banners would arm levies with it first (QC,
+    // 2026-11-21: the Count save's hall was left short of swords, horses and lances).
+    const hall = t.buildings.find(o => o.kind === 'hall' && o.state === 'active');
+    for (const [g, n] of Object.entries(HALL_ARMS)) t.put(hall, g, n);
     t.keepPeak = Math.max(t.keepPeak || 1, 3);
     for (const v of t.villagers.filter(o => o.state !== 'soldier').slice(0, 12)) v.xp = Math.max(v.xp || 0, 1);
   }
