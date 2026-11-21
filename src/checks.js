@@ -155,12 +155,31 @@ async function battleChecks({ battle, town, label }) {
   if (town) await check(`${label}: nobody inside a building`, () => {
     const out = [];
     const inside = (o, what) => {
-      for (const b of solid) if (Math.hypot(o.x - b.x, o.z - b.z) < b.B.radius * 0.6) { out.push(`${what} inside the ${b.B.name} at ${at(b)}`); return; }
+      for (const b of solid) {
+        if (b.B.gather?.node === 'field' && o.job === b) continue;   // a farm's footprint is its field, worked by its own people
+        if (Math.hypot(o.x - b.x, o.z - b.z) < b.B.radius * 0.6) { out.push(`${what} inside the ${b.B.name} at ${at(b)}`); return; }
+      }
       const k = town.keep;
       if (Math.hypot(o.x - k.x, o.z - k.z) < k.B.radius * 0.6) out.push(`${what} inside the keep`);
     };
     for (const v of town.villagers) if (!v.hidden && v.state !== 'soldier') inside(v, `villager ${v.id} (${v.state})`);
     for (const r of regs) { const s = r.soldiers.find(s => live(s) && !s.perch); if (s) inside(s, r.name); }
+    return sample(out);
+  });
+
+  // (2026-11-20) Walkers once followed a road into a wall and went round by the gate and back.
+  if (town) await check(`${label}: no walker's road runs through a wall`, () => {
+    const out = [], nav = battle.nav;
+    if (!nav.any) return out;
+    for (const v of town.villagers) {
+      const r = v.roadWay;
+      if (!r?.pts?.length || r.i >= r.pts.length) continue;
+      let a = v;
+      for (const b of [...r.pts.slice(r.i), { x: r.tx, z: r.tz }]) {
+        if (!nav.clear(0, a.x, a.z, b.x, b.z)) { out.push(`villager ${v.id} (${v.state}) is taking a road through a wall near ${at(b)}`); break; }
+        a = b;
+      }
+    }
     return sample(out);
   });
 
@@ -398,6 +417,10 @@ async function findAssets() {
   }
   for (const m of ['wall.stone', 'wall.wood', 'gate.stone', 'gate.wood', 'tower.stone', 'tower.wood', 'wagon']) if (!buildingModel(m)) noModel.push(`'${m}'`);
   push('models', [], noModel.map(n => `no baked model for ${n}: drawn as a shape built in code`));
+
+  // Event pictures: every event listed as painted has its picture (world/events.js PAINTED).
+  const { PAINTED } = await import('./world/events.js');
+  push(`event pictures (${PAINTED.size} painted)`, (await missing([...PAINTED].map(id => `assets/art/events/${id}.png`))).map(f => `missing ${f}`));
   return out;
 }
 

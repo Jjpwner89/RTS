@@ -1361,8 +1361,9 @@ export class Town {
       if (r.i < r.pts.length && Math.hypot(r.pts[r.i].x - v.x, r.pts[r.i].z - v.z) < 0.8) r.i++;
       if (r.i < r.pts.length) ({ x: tx, z: tz } = r.pts[r.i]);
     }
-    // Round any walls, through the gates (battle.js).
+    // Round any walls, through the gates (battle.js), and round any building in the way.
     ({ x: tx, z: tz } = this.battle.steerWalker(v, side, tx, tz, dt));
+    ({ x: tx, z: tz } = this.around(v, tx, tz));
     const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz) || 0.01;
     const step = Math.min(d, speed * dt * (this.onRoad(v.x, v.z) ? ROAD.speed : 1));
     v.x += dx / d * step; v.z += dz / d * step;
@@ -1371,6 +1372,29 @@ export class Town {
     v.v = speed;
     v.phase += step * 2.2;
     return false;
+  }
+
+  // A walker heading through a building goes round it instead: toward a point beside the
+  // nearest one in the way, on the side the straight line passes, until the way is clear.
+  // The building being walked to (its door is outside it) and one already stood in are
+  // left alone.
+  around(v, tx, tz) {
+    const dx = tx - v.x, dz = tz - v.z, len = Math.hypot(dx, dz);
+    if (len < 1) return { x: tx, z: tz };
+    const ux = dx / len, uz = dz / len;
+    let best = null, bt = Infinity;
+    for (const b of [this.keep, ...this.buildings]) {
+      if (b.state === 'ruined' || b.state === 'site') continue;
+      const r = b.B.radius * 0.8 + 0.6, ox = b.x - v.x, oz = b.z - v.z, t = ox * ux + oz * uz;
+      if (t <= 0 || t >= len + r || t >= bt) continue;
+      const px = ox - ux * t, pz = oz - uz * t;
+      if (px * px + pz * pz >= r * r || ox * ox + oz * oz < r * r || Math.hypot(tx - b.x, tz - b.z) < r) continue;
+      bt = t; best = { b, r, px, pz };
+    }
+    if (!best) return { x: tx, z: tz };
+    let sx = -best.px, sz = -best.pz, sl = Math.hypot(sx, sz);
+    if (sl < 0.01) { sx = -uz; sz = ux; sl = 1; }
+    return { x: best.b.x + sx / sl * (best.r + 1.2), z: best.b.z + sz / sl * (best.r + 1.2) };
   }
 
   // The walker's way to (tx, tz), planned once a leg: again only when the goal moves a few
