@@ -329,3 +329,6 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 /* A news card waits in the corner: the map under it and the clock go on. */
 #prompt.soft { top: auto; bottom: 120px; left: 50%; transform: translateX(-50%); width: min(380px, calc((100vw - 32px) / var(--hud))); }
 #herald p { white-space: pre-line; }
+
+/* The small line on a lit (active) button reads in the button's own ink, not the panel's green. */
+#info .recipe.on small { color: var(--btn-on-ink); opacity: .9; }

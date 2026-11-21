@@ -380,7 +380,7 @@ export class TownHud {
         el.classList.toggle('on', !off);
         // A market's price falls as it sells (economy.js GLUT): say what this one pays now.
         const now = r?.gold ? priceShare(this.town.glut, saleGood(r), this.town.time) : 1;
-        el.querySelector('small').textContent = off ? 'off' : now < 0.95 ? `on · ${Math.round(r.gold * now)} gold now${now < GLUT.floor ? ', held back' : ''}` : 'on';
+        el.querySelector('small').textContent = off ? 'off' : now < 0.95 ? `on · ${Math.round(r.gold * now)} gold${now < GLUT.floor ? ', held' : ' now'}` : 'on';
       }
     }
   }
