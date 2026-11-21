@@ -578,12 +578,25 @@ export class Town {
     return { kind: 'haul', phase: 'fetch', ...best };
   }
 
+  // A walker that has stayed put for 8 s within 9 m of where it is going (a wall's gate or a block
+  // between it and the door, playtest round 3: builders circled 5 m short of a knights' hall for ten
+  // minutes) is counted as arrived: the crate is handed over, or the work done, from where it stands.
+  // `k.t` stays on the villager for checks().
+  stuckNear(v, tx, tz, dt) {
+    const k = v.stuckK ??= { x: v.x, z: v.z, t: 0 };
+    k.t += dt;
+    if (Math.hypot(v.x - k.x, v.z - k.z) > 1.5) { k.x = v.x; k.z = v.z; k.t = 0; return false; }
+    return k.t > 8 && Math.hypot(tx - v.x, tz - v.z) < 9;
+  }
+  unstick(v) { v.stuckK = null; }
+
   doHaul(v, dt) {
     const t = v.task;
     if (t.phase === 'fetch') {
       if (gone(t.from)) { this.cancelHaul(v); return true; }
       const d = this.door(t.from, v);
-      if (!this.walk(v, d.x, d.z, dt)) return false;
+      if (!this.walk(v, d.x, d.z, dt) && !this.stuckNear(v, d.x, d.z, dt)) return false;
+      this.unstick(v);
       t.from.reserved[t.g] -= t.n;
       const n = Math.min(t.n, t.from.store[t.g] || 0);
       t.to.incoming[t.g] -= t.n - n;
@@ -603,7 +616,11 @@ export class Town {
       t.to.incoming[t.g] = (t.to.incoming[t.g] || 0) + t.n;
     }
     const d = this.door(t.to, v);
-    if (!this.walk(v, d.x, d.z, dt)) return false;
+    if (!this.walk(v, d.x, d.z, dt)) {
+      if (!this.stuckNear(v, d.x, d.z, dt)) return false;
+      if (!t.to.cutOff) { t.to.cutOff = true; this.event(`Carriers can't reach the ${t.to.B.name.toLowerCase()}'s door (a wall or a building is in the way): they hand the goods over from where they stand. Clear a way to it.`, 1); }
+    }
+    this.unstick(v);
     this.put(t.to, t.g, t.n);
     audio.play('crate', t.to, this.battle); // audio
     t.to.incoming[t.g] -= t.n;
@@ -1660,8 +1677,12 @@ export class Town {
       if (short.length && this.selfHaul(v, dt)) return;
       b.status = short.length ? `Waiting for ${short.map(([g]) => GOODS[g].name.toLowerCase()).join(' and ')}` : 'Materials on the way';
     }
-    const a = Math.atan2(v.x - b.x, v.z - b.z);
-    if (!this.walk(v, b.x + Math.sin(a) * (b.B.radius + 0.8), b.z + Math.cos(a) * (b.B.radius + 0.8), dt)) return;
+    const a = Math.atan2(v.x - b.x, v.z - b.z), wx = b.x + Math.sin(a) * (b.B.radius + 0.8), wz = b.z + Math.cos(a) * (b.B.radius + 0.8);
+    if (!this.walk(v, wx, wz, dt)) {
+      if (!this.stuckNear(v, wx, wz, dt)) return;
+      if (!b.cutOff) { b.cutOff = true; this.event(`Builders can't get up to the ${b.B.name.toLowerCase()} (a wall or a building is in the way): they build from where they stand. Clear a way to it.`, 1); }
+    }
+    this.unstick(v);
     v.yaw = Math.atan2(b.x - v.x, b.z - v.z);
     if (b.progress >= ready - 1e-6) return;
     v.phase += dt * 6;
