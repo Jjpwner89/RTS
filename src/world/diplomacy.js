@@ -154,9 +154,13 @@ function bestOf(w) {
 function raiseHost(w) {
   const C = w.coalition, T = bestOf(w);
   if (!T) return;
-  const lead = C.members.map(h => FACTIONS[h]).sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
-  const near = w.pois.filter(p => p.owner === lead.index).map(p => ({ p, d: w.route(p, T).length })).filter(o => o.d < Infinity).sort((a, b) => a.d - b.d)[0];
-  if (!near) return;
+  // The strongest member with a road to your best place leads it; with none, it tries again later.
+  let lead = null, near = null;
+  for (const h of C.members.map(h => FACTIONS[h]).sort((a, b) => w.strength(b.index) - w.strength(a.index))) {
+    near = w.pois.filter(p => p.owner === h.index).map(p => ({ p, d: w.route(p, T).length })).filter(o => o.d < Infinity).sort((a, b) => a.d - b.d)[0];
+    if (near) { lead = h; break; }
+  }
+  if (!near) { C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
   const S = near.p, units = [], from = [];
   for (const h of C.members) {
     let n = 0;

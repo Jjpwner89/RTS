@@ -21,8 +21,6 @@ import { TYPES } from '../battle.js';
 export const STAGES = ['Settling', 'Expanding', 'Contending'];
 const STAGE_AT = [1200, 2400];        // seconds into the campaign, before pace
 const PACE = { hothead: 0.75, raider: 0.75, schemer: 1, merchant: 1, builder: 1.3, turtler: 1.3 };
-const CATCH = [0.75, 1];              // your strength against theirs that moves them up early
-const CATCH_FROM = 360;               // but not in the first six minutes
 const NEXT_DOOR = 420;                // a settling house reaches only this far by road
 export const stageOf = h => (h.invader ? 2 : h.ai?.stage ?? 0);
 
@@ -40,18 +38,14 @@ const BENT = {
 const TIDE = { first: 100, every: 200 };
 const bent = h => BENT[h.trait] || BENT.schemer;
 
-// Moves a house up a stage when its time comes, or once you are nearly as strong as it is.
-// It never goes back down.
+// Moves a house up a stage when its time comes. It never goes back down. (It used to move
+// up early once you were nearly as strong as it, a rubber band, cut 2026-11-21: the creator
+// wants houses to grow by the same rules as you, so a gap compounds.)
 function climb(w, h) {
   const ai = h.ai;
   if (h.invader) { ai.stage = 2; return; }
   const k = (PACE[h.trait] ?? 1) * fierceness(w).stage;
   let s = w.time >= STAGE_AT[1] * k ? 2 : w.time >= STAGE_AT[0] * k ? 1 : 0;
-  if (w.time > CATCH_FROM) {
-    const ratio = w.strength(0) / Math.max(1, w.strength(h.index));
-    if (ratio >= CATCH[1]) s = 2;
-    else if (ratio >= CATCH[0]) s = Math.max(s, 1);
-  }
   // A campaign saved before the stages: the house takes its stage quietly.
   if (ai.stage === undefined) { ai.stage = s; return; }
   if (s <= ai.stage) return;
@@ -374,7 +368,7 @@ function sendRaid(w, h, plan) {
   const size = Math.min(spare * 0.5, w.defence(mark) * 0.55 + 12);
   if (size < 14) return;
   const units = takeUnits(from.garrison, size);
-  if (headcount(units) < 10) { for (const u of units) from.garrison.push(u); return; }
+  if (!units.length) return;
   const a = w.spawnArmy(h.index, units, from, `${h.short} raiders`, 'raid');
   if (!w.order(a, mark)) { w.removeArmy(a); for (const u of units) from.garrison.push(u); return; }
   plan.raids++;
