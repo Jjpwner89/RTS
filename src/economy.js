@@ -1376,8 +1376,8 @@ export class Town {
 
   // A walker heading through a building goes round it instead: toward a point beside the
   // nearest one in the way, on the side the straight line passes, until the way is clear.
-  // The building being walked to (its door is outside it) and one already stood in are
-  // left alone.
+  // The building being walked to (its door is outside it) and one already stood in the
+  // heart of are left alone.
   around(v, tx, tz) {
     const dx = tx - v.x, dz = tz - v.z, len = Math.hypot(dx, dz);
     if (len < 1) return { x: tx, z: tz };
@@ -1388,7 +1388,10 @@ export class Town {
       const r = b.B.radius * 0.8 + 0.6, ox = b.x - v.x, oz = b.z - v.z, t = ox * ux + oz * uz;
       if (t <= 0 || t >= len + r || t >= bt) continue;
       const px = ox - ux * t, pz = oz - uz * t;
-      if (px * px + pz * pz >= r * r || ox * ox + oz * oz < r * r || Math.hypot(tx - b.x, tz - b.z) < r) continue;
+      // (Only someone well inside, at its heart, is let walk out straight; one who has merely
+      // cut the corner of the margin is still steered round.)
+      const core = b.B.radius * 0.45;
+      if (px * px + pz * pz >= r * r || ox * ox + oz * oz < core * core || Math.hypot(tx - b.x, tz - b.z) < r) continue;
       bt = t; best = { b, r, px, pz };
     }
     if (!best) return { x: tx, z: tz };
