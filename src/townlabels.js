@@ -4,7 +4,7 @@
 // deposits in its reach are summed beside the cursor. A DOM layer over the canvas; the
 // 3D view itself is untouched.
 import * as THREE from 'three';
-import { BUILDINGS, ROAD } from './economy.js';
+import { BUILDINGS, ROAD, TEMPLATES } from './economy.js';
 
 // Statuses that mean a building wants something from you, and how long they must last
 // before the label shows (so a crate on its way doesn't flicker one up).
@@ -59,7 +59,10 @@ export class TownLabels {
     let text = null;
     if (at && !town.hostile) {
       const g = BUILDINGS[placing]?.gather;
-      if (placing === 'road') {
+      if (placing?.startsWith('tpl:')) {
+        const name = placing.slice(4), T = TEMPLATES[name], n = town.templatePreview(name, at).length, c = town.templateCheck(name);
+        text = `${T.name}: ${n} of ${T.list.length} buildings fit here` + (c.ok ? '' : ` · ${c.reason}`);
+      } else if (placing === 'road') {
         if (!roadFrom) text = 'Click where the road starts';
         else if (Math.hypot(at.x - roadFrom.x, at.z - roadFrom.z) < 2) text = 'Click where it ends (Esc to stop)';
         else {

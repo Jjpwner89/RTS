@@ -28,7 +28,7 @@ import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData 
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { KINDS } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
-const ghostKind = k => k === 'road' ? null : k?.startsWith('tpl:') ? TEMPLATES[k.slice(4)].list[0] : k;
+const ghostKind = k => k === 'road' || k?.startsWith('tpl:') ? null : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, prisoners, opinion, DUES, LEVIES, TEMPERS, WANTS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
@@ -1130,10 +1130,12 @@ function frame(now) {
       if (st.selected?.removed) st.selected = null;
       b.townView.update(st.selected);
       const ghost = ghostKind(st.placing);
-      b.townView.showGhost(ghost, st.hoverAt, ghost && st.hoverAt && b.town.canPlace(ghost, st.hoverAt.x, st.hoverAt.z, { free: ghost !== st.placing }).ok);
+      b.townView.showGhost(ghost, st.hoverAt, ghost && st.hoverAt && b.town.canPlace(ghost, st.hoverAt.x, st.hoverAt.z).ok);
+      const tpl = st.placing?.startsWith('tpl:') && st.hoverAt ? st.placing.slice(4) : null;
+      b.townView.showGhosts(tpl ? b.town.templatePreview(tpl, st.hoverAt) : [], tpl && b.town.templateCheck(tpl).ok);
       townHud.update(st.selected, [...b.controls.selection], st.placing);
       b.roadView.update({ from: st.placing === 'road' ? st.roadFrom : null, at: st.hoverAt });
-      labels.update(b.town, stage.camera, { hoverAt: st.hoverAt, placing: st.placing === 'road' ? 'road' : ghost, roadFrom: st.roadFrom });
+      labels.update(b.town, stage.camera, { hoverAt: st.hoverAt, placing: st.placing === 'road' || st.placing?.startsWith('tpl:') ? st.placing : ghost, roadFrom: st.roadFrom });
     } else labels.hide();
   }
   if (mode === 'world') labels.hide();

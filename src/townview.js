@@ -249,6 +249,28 @@ export class TownView {
     this.territoryRing.visible = true;
   }
 
+  // A whole template's layout while it is being placed: one ghost for every building, in
+  // the colour of whether it can be laid down now.
+  showGhosts(list, ok) {
+    this.ghosts ??= [];
+    while (this.ghosts.length < list.length) {
+      const m = new THREE.Mesh(undefined, this.ghostMat);
+      this.scene.add(m);
+      this.ghosts.push(m);
+    }
+    this.ghosts.forEach((m, i) => {
+      const s = list[i];
+      m.visible = !!s;
+      if (!s) return;
+      if (m.userData.kind !== s.kind) { m.geometry = this.geo(s.kind); m.userData.kind = s.kind; }
+      m.position.set(s.x, this.heightAt(s.x, s.z), s.z);
+      m.rotation.y = Math.atan2(-s.x, -s.z);
+    });
+    if (!list.length) return;
+    this.ghostMat.color.set(ok ? '#7fe08a' : '#ff6a5a');
+    this.territoryRing.visible = true;
+  }
+
   update(selected) {
     const town = this.town;
     // While you storm a place its defenders wear their house's colour.

@@ -90,8 +90,10 @@ function frame(now) {
   placeSun(controls.cam, heightAt);
   view.update(controls.selection);
   townView.update(selected);
-  const ghost = placing === 'road' ? null : placing?.startsWith('tpl:') ? TEMPLATES[placing.slice(4)].list[0] : placing;
-  townView.showGhost(ghost, hoverAt, ghost && hoverAt && town.canPlace(ghost, hoverAt.x, hoverAt.z, { free: ghost !== placing }).ok);
+  const ghost = placing === 'road' || placing?.startsWith('tpl:') ? null : placing;
+  townView.showGhost(ghost, hoverAt, ghost && hoverAt && town.canPlace(ghost, hoverAt.x, hoverAt.z).ok);
+  const tpl = placing?.startsWith('tpl:') && hoverAt ? placing.slice(4) : null;
+  townView.showGhosts(tpl ? town.templatePreview(tpl, hoverAt) : [], tpl && town.templateCheck(tpl).ok);
   hud.update(controls.selection, paused, speed);
   townHud.update(selected, [...controls.selection], placing);
   roadView.update({ from: placing === 'road' ? road.roadFrom : null, at: hoverAt });

@@ -604,7 +604,8 @@ export class Town {
 
   canAfford(cost) { return Object.entries(cost).every(([g, n]) => this.free(g) >= n); }
 
-  canPlace(kind, x, z, { free = false } = {}) {
+  // `planned`: buildings not yet placed (a template's layout) to keep clear of as well.
+  canPlace(kind, x, z, { free = false, planned = null } = {}) {
     const B = BUILDINGS[kind], p = { x, z };
     if (!free && !this.canAfford(B.cost)) return { ok: false, reason: `Needs ${listCost(B.cost)}` };
     if (B.hall) {
@@ -618,6 +619,7 @@ export class Town {
     if (Math.hypot(x, z) > this.territory) return { ok: false, reason: 'Outside your land' };
     if (Math.hypot(x, z) < KEEP.radius + B.radius + 3) return { ok: false, reason: 'Too close to the keep' };
     for (const b of this.buildings) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
+    if (planned) for (const b of planned) if (dist(b, p) < b.B.radius + B.radius + 1.5) return { ok: false, reason: 'Something is in the way' };
     for (const n of [...this.nodes.rock, ...this.nodes.ore]) if (dist(n, p) < B.radius + 6) return { ok: false, reason: 'Something is in the way' };
     if (this.battle.walls.structureAt(x, z) || this.battle.walls.pieceAt(x, z, null, B.radius)) return { ok: false, reason: 'A wall is in the way' };
     const h = this.heightAt(x, z), r = B.radius;
@@ -648,19 +650,26 @@ export class Town {
     return { ok: true, building: b };
   }
 
-  // Lays out a town template round (x, z): the first building as near the spot as it fits,
-  // the rest in rings round it. All of it must be affordable at once.
-  placeTemplate(name, x, z) {
+  // Whether a template can be laid down now: people enough, and all of it affordable at once.
+  templateCheck(name) {
     const T = TEMPLATES[name];
     if (!T) return { ok: false, reason: 'No such template' };
     if (T.at && this.population < T.at) return { ok: false, reason: `Needs ${T.at} people` };
     const cost = templateCost(name);
     if (!this.canAfford(cost)) return { ok: false, reason: `Needs ${listCost(cost)}` };
-    const placed = [];
+    return { ok: true };
+  }
+
+  // Where each building of a template would go round (x, z), as [{ kind, B, x, z }], without
+  // building anything: the first as near the spot as it fits, the rest in rings round it;
+  // gatherers beside the resource nearest the spot.
+  planTemplate(name, x, z) {
+    const T = TEMPLATES[name], spots = [];
+    if (!T) return spots;
+    const fits = (kind, px, pz) => this.canPlace(kind, px, pz, { free: true, planned: spots }).ok && spots.push({ kind, B: BUILDINGS[kind], x: px, z: pz });
     if (T.gather) {
-      for (const kind of T.list) { const res = this.placeGatherer(kind, x, z); if (res) placed.push(res); }
-      if (!placed.length) return { ok: false, reason: 'Nothing to work near here' };
-      return { ok: true, placed: placed.length, of: T.list.length };
+      for (const kind of T.list) this.gathererSpot(kind, x, z, spots, fits);
+      return spots;
     }
     for (const kind of T.list) {
       let done = false;
@@ -668,23 +677,43 @@ export class Town {
         const steps = r ? Math.max(6, Math.round(r * 0.9)) : 1;
         for (let i = 0; i < steps && !done; i++) {
           const a = (i / steps) * Math.PI * 2 + r * 0.37;
-          const res = this.place(kind, x + Math.sin(a) * r, z + Math.cos(a) * r, { free: true });
-          if (res.ok) { placed.push(res.building); done = true; }
+          done = fits(kind, x + Math.sin(a) * r, z + Math.cos(a) * r);
         }
       }
     }
-    if (!placed.length) return { ok: false, reason: 'No room here' };
-    return { ok: true, placed: placed.length, of: T.list.length };
+    return spots;
   }
 
-  // One gatherer, set beside the resource nearest (x, z) that no other of its kind works
-  // yet; a farm on the open ground nearest the spot.
-  placeGatherer(kind, x, z) {
+  // The template's plan while the cursor hovers: worked out again only when the cursor has
+  // moved a little, a tenth of a second has passed, or the village has changed.
+  templatePreview(name, at) {
+    const c = this.tplPreview, now = performance.now(), n = this.buildings.length;
+    if (c && c.name === name && c.n === n && (now - c.when < 100 || dist(c.at, at) < 1)) return c.spots;
+    this.tplPreview = { name, n, when: now, at: { x: at.x, z: at.z }, spots: this.planTemplate(name, at.x, at.z) };
+    return this.tplPreview.spots;
+  }
+
+  // Lays out a town template round (x, z), exactly as planTemplate shows it.
+  placeTemplate(name, x, z) {
+    const check = this.templateCheck(name);
+    if (!check.ok) return check;
+    const T = TEMPLATES[name], spots = this.planTemplate(name, x, z);
+    if (!spots.length) return { ok: false, reason: T.gather ? 'Nothing to work near here' : 'No room here' };
+    let placed = 0;
+    for (const p of spots) if (this.place(p.kind, p.x, p.z, { free: true }).ok) placed++;
+    this.tplPreview = null;
+    return { ok: true, placed, of: T.list.length };
+  }
+
+  // A spot for one gatherer beside the resource nearest (x, z) that no other of its kind
+  // works (or is planned to); a farm on the open ground nearest the spot. `fits(kind, x, z)`
+  // takes the spot if it will do.
+  gathererSpot(kind, x, z, planned, fits) {
     const B = BUILDINGS[kind], g = B.gather, at = { x, z };
     const tries = [];
     if (g.node === 'field') tries.push(at);
     else {
-      const worked = this.buildings.filter(b => b.kind === kind);
+      const worked = [...this.buildings, ...planned].filter(b => b.kind === kind);
       const nodes = this.nodes[g.node].filter(n => (n.standing ?? true) && !worked.some(b => dist(b, n) < g.range * 0.5))
         .sort((p, q) => dist(p, at) - dist(q, at)).slice(0, 24);
       tries.push(...nodes);
@@ -694,12 +723,18 @@ export class Town {
         const steps = Math.max(8, Math.round(r * 0.8));
         for (let i = 0; i < steps; i++) {
           const a = (i / steps) * Math.PI * 2 + r * 0.53;
-          const res = this.place(kind, c.x + Math.sin(a) * r, c.z + Math.cos(a) * r, { free: true });
-          if (res.ok) return res.building;
+          if (fits(kind, c.x + Math.sin(a) * r, c.z + Math.cos(a) * r)) return true;
         }
       }
     }
-    return null;
+    return false;
+  }
+
+  // One gatherer placed beside its resource (see gathererSpot).
+  placeGatherer(kind, x, z) {
+    let b = null;
+    this.gathererSpot(kind, x, z, [], (k, px, pz) => { const res = this.place(k, px, pz, { free: true }); if (res.ok) b = res.building; return res.ok; });
+    return b;
   }
 
   demolish(b) {
