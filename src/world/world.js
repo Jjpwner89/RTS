@@ -7,7 +7,7 @@ import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, kingGift, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
-import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
+import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, taxedHeads, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
@@ -306,7 +306,7 @@ export class World {
     const box = e.pop * COFFER;
     if (e.gold > box) { if (h && !h.bandit && !v) h.gold += e.gold - box; e.gold = box; }
     const want = this.keepHome(p), have = headcount(p.garrison);
-    if (have < want) for (const u of arm(e, Math.min(6, want - have), v ? Math.max(12, housing(e) * 0.4) : keepAtWork(e, h?.ai?.deep, AT_WORK.guard), v ? 'best' : armourPolicy(h)))
+    if (have < want) for (const u of arm(e, Math.min(6, want - have), v ? Math.max(12, housing(e) * 0.4) : keepAtWork(e, pressedAt(h, p), AT_WORK.guard), v ? 'best' : armourPolicy(h)))
       recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`, null, gearFields(u));
     // A house's men eat from the stores; those it cannot feed go home to their fields.
     if (h && !h.bandit && !v) {
@@ -365,10 +365,10 @@ export class World {
     let raised = 0;
     // Places with a real economy arm men from their own stores and people.
     const real = this.pois.filter(p => p.owner === h.index && p.eco?.buildings).sort((p, q) => kits(q.eco) - kits(p.eco));
-    const keep = p => keepAtWork(p.eco, h.ai?.deep);
-    const take = (p, stock) => {
+    const keep = p => keepAtWork(p.eco, pressedAt(h, p));
+    const take = (p, stock, floor = keep(p), upto = n) => {
       const e = stock ? { ...p.eco, stock } : p.eco;
-      for (const u of arm(e, Math.min(n - raised, 6), keep(p), armourPolicy(h))) {
+      for (const u of arm(e, Math.min(upto - raised, 6), floor, armourPolicy(h))) {
         recruit(at.garrison, u.key, u.count, null, h, gearFields(u));
         raised += u.count;
       }
@@ -383,9 +383,21 @@ export class World {
       if (raised >= n || p.eco.pop - keep(p) < 1) break;
       for (const s of stores) { if (s !== p && raised < n) take(p, s.eco.stock); }
     }
+    // A muster still short (rivals.js houseMind, h.ai.muster) draws deeper, down to the last
+    // twelve, from its own places within a march of where it gathers, nearest the target
+    // first, and only as many as it is short: the rest of its lands keep their workers.
+    const M = h.ai?.muster, T = M && this.byId[M.at], S = M && this.byId[M.from];
+    if (T && S && M.short > 0 && raised < n) {
+      const upto = Math.min(n, raised + M.short);
+      for (const p of real.filter(p => dist(p, S) < 400).sort((p, q) => dist(p, T) - dist(q, T))) {
+        if (raised >= upto) break;
+        take(p, null, 12, upto);
+        for (const s of stores) { if (s !== p && raised < upto) take(p, s.eco.stock, 12, upto); }
+      }
+    }
     if (raised) h.arms = Math.max(0, h.arms - raised);
     while (raised < n && h.arms >= 1) {
-      const from = this.pois.filter(p => p.owner === h.index && p.eco && !p.eco.buildings && p.eco.pop > this.popCap(p) * 0.45)
+      const from = this.pois.filter(p => p.owner === h.index && p.eco && !p.eco.buildings && p.eco.pop > (pressedAt(h, p) ? 12 : this.popCap(p) * 0.45))
         .sort((p, q) => q.eco.pop / this.popCap(q) - p.eco.pop / this.popCap(p))[0];
       if (!from) break;
       const k = Math.min(n - raised, 6, Math.floor(h.arms));

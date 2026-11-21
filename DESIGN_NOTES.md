@@ -620,6 +620,31 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
     - Passive 7: 41/25, 38/23, 30/17, 19/10, 42/24.
     - Passive 91: 43/31, 17/7, 14/8, 32/15, 55/36.
     - Almost every house is arming or at war with another house for most of the game, so it drafts deep most of the time: 13–55% of its homes, against 41–57% under the fixed floor.
+- **Narrowed** (Orchestrator: "peacetime" means no threat near, not no war anywhere). Drafting deep is decided place by place (holdings.js `pressedAt`, rivals.js houseMind `h.ai.pressed`).
+  - A place drafts down to the last 12 only with an enemy host or enemy place, outlaws aside, within 400 of it.
+  - A muster still short of what its target needs (`h.ai.muster`) also drafts deep, as many as it is short. It draws from the house's places within 400 of where it gathers, nearest the target first. A muster that can never fill (Carrow's, 460–540 short) hollowed out every place for its 10 minutes before this limit.
+  - Arming, or a war far off, keeps the half-homes floor.
+  - Men beyond the reserve stand down to work whenever a place is hollow with its threat gone and no muster holding them (before, only when the house had no plan at all).
+- **Outcome** (seeds 7, 21, 91, to minute 120; wage share is wages over all income):
+
+  | Run | First war on you | Banked 60 / 90 / 120 | Wage share to 120 | Fell |
+  |---|---|---|---|---|
+  | Engaged 7 | none | 642 / 1,298 / 4 | 101% | alive |
+  | Engaged 21 | Dunmore 106 | 899 / 4,557 / 9,747 | 63% | alive |
+  | Engaged 91 | none | 482 / 1,909 / 2,077 | 90% | alive |
+  | Passive 7 | Varn 13, Wyndham 24 | n/a | n/a | 56 |
+  | Passive 21 | Varn 26, Wyndham 47 | n/a | n/a | 56 |
+  | Passive 91 | Varn 63 | 1,639 / 3,133 / 4,777 | 7% | alive |
+
+  - Passive 91 at minute 110 holds its seat, at war with Varn alone, with no enemy army or place within 400 and no league. Varn there is small and poor: 2 places, 86 men and 515 gold at minute 80, beaten down by its neighbours. Penhallow, the strong house (10 places, 7,390 gold), is not at war with it.
+  - **House fullness at minute 80** (homes %, the house's places with buildings):
+    - Engaged 7: 22, 31, 43, 27, 38.
+    - Engaged 21: 32, 46, 23, 34, 20.
+    - Engaged 91: 33, 25, 50, 14, 36.
+    - Passive 91: 45, 36, 51, 36, 55.
+    - On seed 7 at minute 80, places with no threat near ran at 40–60% (a few at 14–21% where a muster that could not fill drew on them). Places on a front ran at 8–46%. On a crowded map most houses have several places within 400 of an enemy's.
+    - The house figures also count places newly taken, whose people are few.
+- checks(): Lord 71/0, Count 90/0, King 126/0.
 
 ## Test campaigns (built 2026-11-20)
 

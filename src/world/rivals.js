@@ -14,7 +14,7 @@
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit } from './world.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
-import { standDown, keepAtWork } from './holdings.js';
+import { standDown, keepAtWork, pressedAt } from './holdings.js';
 import { houseRuns } from './supply.js';
 import { TYPES } from '../battle.js';
 
@@ -91,7 +91,7 @@ const spareAt = (w, p) => power(p.garrison) - w.keepHome(p);
 // with 218 sets of kit and 63 men to spare thought it had 281).
 export function fieldOf(w, h, mine = held(w, h)) {
   const spare = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0);
-  const draft = mine.reduce((n, p) => n + (!p.eco ? 0 : Math.max(0, p.eco.pop - (p.eco.buildings ? keepAtWork(p.eco, h.ai?.deep) : w.popCap(p) * 0.45))), 0);
+  const draft = mine.reduce((n, p) => n + (!p.eco ? 0 : Math.max(0, p.eco.pop - (p.eco.buildings ? keepAtWork(p.eco, pressedAt(h, p)) : pressedAt(h, p) ? 12 : w.popCap(p) * 0.45))), 0);
   return spare + Math.min(Math.max(0, h.arms), draft);
 }
 // The men a house has tied up in the wars it is in: enemy hosts within a march of its places,
@@ -172,16 +172,24 @@ function houseMind(w, h) {
   // while the people can spare them; building, it keeps a modest field reserve and sends men
   // beyond it home to work, with their weapons back in the stores.
   ai.stance = chooseStance(w, h, B, stage, mine);
-  // How deep it drafts (holdings.js keepAtWork): arming, at war, or an enemy host within 400.
-  const atWar = FACTIONS.some(o => o !== h && o.alive && !o.bandit && w.atWar(h.index, o.index));
-  ai.deep = ai.stance === 'war' || atWar || w.armies.some(a => !a.gone && !a.wagon && a.side != null && a.side !== h.index && a.side !== w.bandits && w.atWar(h.index, a.side) && mine.some(p => dist(a, p) < 400));
+  // How deep it drafts (holdings.js keepAtWork): its places with an enemy host or place,
+  // outlaws aside, within 400; and a muster still short of what its target needs, which draws
+  // deeper from the places nearest the target, as many as it is short.
+  const foe = s => s != null && s !== h.index && s !== w.bandits && w.atWar(h.index, s);
+  const foeHosts = w.armies.filter(a => !a.gone && !a.wagon && foe(a.side)), foePlaces = w.pois.filter(q => foe(q.owner) && q.kind !== 'camp');
+  ai.pressed = mine.filter(p => foeHosts.some(a => dist(p, a) < 400) || foePlaces.some(q => dist(p, q) < 400)).map(p => p.id);
+  ai.muster = plan?.phase === 'muster' && plan.staging?.owner === h.index
+    ? { at: plan.target.id, from: plan.staging.id, short: Math.max(0, Math.ceil(w.defence(plan.target) * B.need + 20 - spareAt(w, plan.staging))) } : null;
   // Its rear: places with no enemy place or army within a short march (World.keepHome).
   const foes = w.pois.filter(p => p.owner !== null && p.owner !== h.index && w.atWar(h.index, p.owner));
   const hosts = w.armies.filter(a => !a.gone && !a.wagon && a.side !== h.index && w.atWar(h.index, a.side));
   ai.rear = mine.filter(p => !foes.some(q => dist(p, q) < 400) && !hosts.some(a => dist(p, a) < 400)).map(p => p.id);
   const arming = ai.stance === 'war';
   if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
-  if (!arming && !plan && muster.eco?.buildings) {
+  // Building with nothing planned; or places it drafted deep stand hollow, the threat gone and
+  // no muster holding the men.
+  const hollow = mine.some(p => p.eco?.buildings && !p.town && !pressedAt(h, p) && p.eco.pop < keepAtWork(p.eco, false) - 6);
+  if ((!arming && !plan || hollow && plan?.phase !== 'muster') && muster.eco?.buildings) {
     const over = headcount(muster.garrison) - (w.keepHome(muster) + SETTLED_RESERVE);
     if (over > 0) standDown(muster.eco, muster.garrison, Math.min(over, 6), mine.filter(p => p.eco?.buildings && !p.town));
   }
@@ -448,7 +456,7 @@ export function musterProblems(w) {
     // Judged on what the house saw at its last think, not now: men can reach the muster
     // between thinks (every 8 s), and it marches at the next (seed 21, minute 49).
     if (P.seen?.ready) out.push(`${h.name} saw it could march on ${P.target.name} at its last think and did not (waited ${P.waited} s)`);
-    const people = w.pois.some(p => p.owner === h.index && p.eco?.buildings && p.eco.pop - keepAtWork(p.eco, h.ai?.deep) >= 6);   // as World.raiseFromPeople keeps
+    const people = w.pois.some(p => p.owner === h.index && p.eco?.buildings && p.eco.pop - keepAtWork(p.eco, pressedAt(h, p)) >= 6);   // as World.raiseFromPeople keeps
     if (h.ai.stance === 'war' && h.arms >= 12 && people && w.time - (h.ai.raisedAt ?? -Infinity) > 60) out.push(`${h.name} has ${Math.round(h.arms)} arms and people to spare, and raised nobody for ${P.target.name}`);
   }
   return out;
