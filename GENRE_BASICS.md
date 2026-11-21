@@ -6,17 +6,19 @@ What players of Stronghold, Age of Empires, Total War and Manor Lords expect wit
 
 First audit, 20 Nov (quality-check session). Played: a fresh campaign's opening, the Lord test (templates, a storm of unwalled Brackholm, its capture, granting it and Cranholm Castle to a vassal and looking round both, a storm of walled Emberley), and checks() on every page. Still ❓ because they need the browser pane on screen to watch motion: animations, the first 30–40 minutes of a new campaign, battle.html's river map, and the Muster page. Screenshots are in the group's notes folder, under qc-shots/.
 
+Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers and knights marching close up, storms of Hollwick (a village) and Ashley Castle in the Lord test, and the Muster page, with checks() on each. The pane was still hidden, so I stepped time from the console and took stills: anything about motion (feet skating, how a clip plays) stays ❓.
+
 ## Units
 
 | Basic | Status | Notes |
 |---|---|---|
-| Walk, run and idle animations; feet don't skate | ❓ | Units slid with a bob until the animation wiring (2026-11-20) |
+| Walk, run and idle animations; feet don't skate | ❓ | Units slid with a bob until the animation wiring (2026-11-20). 21 Nov: stills show spearmen in stride, spears upright, shields on; the clip follows each man's speed (march under 3.6 m/s, run above). Skating needs a visible pane |
 | Attack, block, hit and death animations that read at battle distance | ❓ | |
-| Riders and horses walk, trot and gallop by speed | ❓ | |
+| Riders and horses walk, trot and gallop by speed | ❓ | 21 Nov: stills show knights seated with lances, horses mid-stride; trot under 5 m/s and gallop above in the code. Needs a visible pane to judge |
 | Villagers visibly do their job: chop, mine, hoe, carry, build | ❓ | |
 | Corpses or a fall, not units vanishing | ❓ | |
-| Units turn to face where they move and fight | ❓ | |
-| Units don't overlap, clip through walls or buildings, or stand in water | ⚠️ | 20 Nov: villagers walked through the keep and into storehouses (checks() caught it); fixed in 88c4adc and 8526f15. River water not yet checked by hand |
+| Units turn to face where they move and fight | ✅ | 21 Nov: a long move turns the men to march; short moves sideways, back or forward keep their facing exactly (3b0afe1). Facing in a melee not checked |
+| Units don't overlap, clip through walls or buildings, or stand in water | ⚠️ | 20 Nov: villagers walked through the keep and into storehouses (checks() caught it); fixed in 88c4adc and 8526f15. 21 Nov, river map (seed 11): over about 170 s of fighting nobody stood in deep water without an order, and the fight jammed onto the bridge. But regiments far from a crossing swim the deep channel straight over (75 men in it at once) instead of marching to the ford |
 
 ## Selection and orders
 
@@ -24,11 +26,11 @@ First audit, 20 Nov (quality-check session). Played: a fresh campaign's opening,
 |---|---|---|
 | Clear selection marking (rings, banners, cards) | ⚠️ | 20 Nov: there's a footprint outline and a highlighted card, but both are faint at storm distance; the selected regiment's banner doesn't change |
 | Hover highlight on units, buildings and places | ⚠️ | 20 Nov: on the map, only the cursor changes over a place. A place's label (the obvious target) can't be clicked or right-clicked; you must hit the small model |
-| Box select, add or remove with Shift/Cmd/Ctrl, double-click for all of a type | ❓ | Fixed 2026-11-20 (3b0afe1) |
+| Box select, add or remove with Shift/Cmd/Ctrl, double-click for all of a type | ✅ | Fixed 2026-11-20 (3b0afe1). 20 Nov: box select picks a regiment by its banner or men in a storm. Double-click not tried |
 | Orders show where they go (a move marker, a line preview) | ⚠️ | 20 Nov: in a fight, a ghost outline marks the destination. On the world map a marching army shows no route line |
 | Units acknowledge orders at once (a voice, a sound or movement within a moment) | ❓ | |
 | Control groups (Ctrl+1–9) | ❌ | 20 Nov: none in controls.js; 1–3 set the game speed |
-| Formations keep their shape on the march and through gaps | ❓ | |
+| Formations keep their shape on the march and through gaps | ❓ | 21 Nov: short moves step across or back as a block (3b0afe1); regiments go into column only at a crossing. Gaps between buildings not checked |
 
 ## Buildings and the village
 
@@ -40,7 +42,7 @@ First audit, 20 Nov (quality-check session). Played: a fresh campaign's opening,
 | Every building says what it's doing or why it's stuck | ❓ | Bottleneck notes 2026-11-20 |
 | Worker and hauler paths look sensible, use roads, and don't get stuck | ⚠️ | 20 Nov: 12 template sites were hauled and built in about 2 game minutes. Walk-throughs fixed in 8526f15; roads through gates not played |
 | Burning, damaged and ruined states | ❓ | |
-| Places look like what they are: walls where walled, castles like castles, towns with streets | ⚠️ | rts-places session from 2026-11-20. 20 Nov: walls now match the numbers on the map, in storms and in look-rounds (b8f93e9). But a castle's keep is still the timber tower inside stone walls, villages are scattered rather than streets, a storm dropped one of Emberley's two mines without a word, and a Brackholm house stands on its road |
+| Places look like what they are: walls where walled, castles like castles, towns with streets | ⚠️ | rts-places session from 2026-11-20. 20 Nov: walls now match the numbers on the map, in storms and in look-rounds (b8f93e9). 21 Nov, after places.js (ddec890, d3f733c): storms of Hollwick and Ashley Castle placed every building in the tally; Ashley has a level-3 stone keep inside a 26-piece stone curtain; anything that can't be placed is now said. Streets not yet seen on screen, small places still read sparse (Coldden has 8 houses), and the Brackholm road house not rechecked |
 
 ## Information and feedback
 
