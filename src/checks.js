@@ -21,6 +21,12 @@ const consoleError = console.error.bind(console);
 console.error = (...a) => { keep(a.map(x => x?.stack || x?.message || x).join(' ')); consoleError(...a); };
 addEventListener('error', e => keep(e.message ? `${e.message} (${e.filename?.split('/').pop()}:${e.lineno})` : `failed to load ${e.target?.src || e.target?.href || e.target?.tagName}`), true);
 addEventListener('unhandledrejection', e => keep(`unhandled: ${e.reason?.stack || e.reason}`));
+// Files that failed to load. The page's own resource list stops at 250 entries, so watch as they come.
+const failedLoads = new Set();
+try {
+  new PerformanceObserver(list => { for (const e of list.getEntries()) if (e.responseStatus >= 400) failedLoads.add(`${e.responseStatus} ${e.name.replace(location.origin, '')}`); })
+    .observe({ type: 'resource', buffered: true });
+} catch { /* an older browser: the list below still catches the first 250 */ }
 
 // Who has stood in the same spot while busy, sampled every two seconds of real time and
 // measured in game time (a paused game is nobody's fault).
@@ -440,7 +446,7 @@ async function findAssets() {
 
 function pageChecks() {
   group = 'Page';
-  const failed = performance.getEntriesByType('resource').filter(e => e.responseStatus >= 400).map(e => `${e.responseStatus} ${e.name.replace(location.origin, '')}`);
+  const failed = [...failedLoads, ...performance.getEntriesByType('resource').filter(e => e.responseStatus >= 400).map(e => `${e.responseStatus} ${e.name.replace(location.origin, '')}`)];
   results.push({ group, name: 'no console errors', status: errors.length ? 'fail' : 'pass', detail: sample(errors, 8) });
   results.push({ group, name: 'every file loaded', status: failed.length ? 'fail' : 'pass', detail: sample([...new Set(failed)], 8) });
 }
