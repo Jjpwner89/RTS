@@ -832,10 +832,10 @@ export class Town {
   // ---- levies ----
 
   // Kit is taken from this barracks' own racks, so it has to be carried there first.
-  levyCheck(key, barracks) {
+  // `free` lets a plan ask about hands it has already counted out (World.bannerPlan).
+  levyCheck(key, barracks, free = this.villagers.filter(v => v.state !== 'soldier').length) {
     const kit = KITS[key].kit, have = g => Math.floor(barracks.store[g] || 0);
     const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(have(g) / n)));
-    const free = this.villagers.filter(v => v.state !== 'soldier').length;
     const n = Math.min(this.levyMax?.() || LEVY_MAX, byKit, free);   // a duke's levies come forty strong
     const short = Object.entries(kit).filter(([g, k]) => have(g) < k * LEVY_MIN)
       .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);

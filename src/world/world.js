@@ -41,6 +41,7 @@ const MEET = 14;        // opposing armies this close fight
 // one every twelve), and families settle in its houses as they do in yours.
 const SMITHY = 1 / 90, ARRIVALS = 1 / 18;
 const LORD_HERE = 8;          // mood in the village where your lord is
+const BANNER_GUARD = 20;      // men every village keeps home when the banners are called
 const KNIGHT_LEVEL = 3;       // a captain of this level may be knighted with a village
 const LADIES = new Set(['Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel']);
 const SIEGE_MEAL = 160;       // seconds a unit of food feeds one mouth in a besieged place
@@ -512,49 +513,99 @@ export class World {
     this.log(`Your army has marched into ${p.name}.`);
   }
 
-  // Call the banners: every village of yours raises what its barracks can arm (keeping
-  // half its people at work) and sends its whole garrison, bar the men on its walls, to
-  // `dest`. They join that village's garrison there, ready to be mustered as one host.
-  callBanners(dest) {
+  // Call the banners (ruling, 2026-11-21): your villages send their spare men and your
+  // vassals their share, and nothing else. An army already in the field is never pulled
+  // in, and every village keeps its guard: the men on its walls, its militia, and at
+  // least BANNER_GUARD men in all, bows and spears first. Each barracks also raises what
+  // it can arm, keeping half its people at work (a third under the levy decree).
+  // bannerPlan works out who would come without moving anyone, so the call can be
+  // shown before it is made; callBanners carries out that same plan.
+  bannerPlan(dest) {
     const BEST = ['knight', 'cav', 'maa', 'crossbow', 'lightcav', 'sword', 'spear', 'archer'];
-    let men = 0, from = 0;
+    const KEEP = ['crossbow', 'archer', 'spear', 'sword', 'maa', 'lightcav', 'cav', 'knight'];
+    const rankOf = c => c.stays ? -1 : c.retinue ? 99 : KEEP.includes(c.key) ? KEEP.indexOf(c.key) : 50;
+    const plan = { dest, villages: [], vassals: [], men: 0, raised: 0, from: 0 };
     for (const p of this.pois) {
       const t = p.town;
       if (p.owner !== 0 || !t || t.hostile || t.underAttack) continue;
+      // Fresh levies, counted on a copy of each barracks' racks and of the free hands.
+      const raise = [];
+      let free = t.villagers.filter(v => v.state !== 'soldier').length;
+      const floor = t.population / (decreed(this, 'levy') ? 3 : 2);
       for (const b of t.buildings) {
         if (b.kind !== 'barracks' || b.state !== 'active') continue;
-        for (const key of BEST) {
-          while (t.levyCheck(key, b).ok && t.villagers.filter(v => v.state !== 'soldier').length - t.levyCheck(key, b).n >= t.population / (decreed(this, 'levy') ? 3 : 2)) t.raise(key, b);
+        const racks = { store: { ...b.store }, policy: b.policy };
+        for (const key of BEST) for (;;) {
+          const c = t.levyCheck(key, racks, free);
+          if (!c.ok || free - c.n < floor) break;
+          for (const [g, n] of Object.entries(outfitKit(key, c.n, c.fit))) racks.store[g] = (racks.store[g] || 0) - n;
+          free -= c.n;
+          raise.push({ key, b, n: c.n });
         }
       }
-      if (p === dest) continue;
-      const regs = t.garrison().filter(r => !r.routing && !r.regrouping && !r.posts);
-      if (!regs.length) continue;
-      const a = this.muster(p, regs);
-      if (!a) continue;
-      a.name = `Banners of ${p.name}`;
-      men += headcount(a.units);
-      from++;
-      if (!this.order(a, dest)) this.enterTown(a, p, p);
+      const men = r => r.soldiers.filter(s => s.alive && !s.gone).length;
+      const all = [
+        ...t.garrison().map(r => ({ reg: r, key: r.T.key, men: men(r), retinue: !!r.retinue, stays: !!(r.posts || r.T.militia || r.routing || r.regrouping) })),
+        ...raise.map(l => ({ levy: l, key: l.key, men: l.n })),
+      ].filter(c => c.men > 0).sort((x, y) => rankOf(x) - rankOf(y));
+      const v = { p, raise, raised: raise.reduce((n, l) => n + l.n, 0), keep: 0, send: [], men: 0 };
+      const home = p === dest ? new Set(all) : guardOf(all, BANNER_GUARD);
+      for (const c of all) if (home.has(c)) v.keep += c.men; else { v.send.push(c); v.men += c.men; }
+      if (!v.raised && !v.men) continue;
+      plan.villages.push(v);
+      plan.raised += v.raised;
+      plan.men += v.men;
+      if (v.men) plan.from++;
     }
     // Vassals send their share of their men, unless they are too aggrieved to.
     for (const p of this.pois) {
       const v = vassalOf(this, p);
       if (!v || p === dest || p.owner !== 0) continue;
-      if (v.refusing) { this.log(`${v.name} sends nobody from ${p.name}.`, 1); continue; }
+      if (v.refusing) { plan.vassals.push({ v, p, men: 0, refusing: true }); continue; }
+      const n = headcount(takeUnits(p.garrison.map(g => ({ ...g })), this.vassalWant(v, p)));
+      if (!n) continue;
+      plan.vassals.push({ v, p, men: n });
+      plan.men += n;
+      plan.from++;
+    }
+    plan.here = dest.town ? dest.town.garrison().reduce((n, r) => n + r.alive, 0) : 0;
+    return plan;
+  }
+
+  callBanners(dest) {
+    const plan = this.bannerPlan(dest);
+    let men = 0, from = 0;
+    for (const v of plan.villages) {
+      const t = v.p.town;
+      for (const l of v.raise) l.reg = t.raise(l.key, l.b).reg;
+      const regs = v.send.map(c => c.reg || c.levy.reg).filter(r => r && !r.gone);
+      if (!regs.length) continue;
+      const a = this.muster(v.p, regs);
+      if (!a) continue;
+      a.name = `Banners of ${v.p.name}`;
+      men += headcount(a.units);
+      from++;
+      if (!this.order(a, dest)) this.enterTown(a, v.p, v.p);
+    }
+    for (const { v, p, refusing } of plan.vassals) {
+      if (refusing) { this.log(`${v.name} sends nobody from ${p.name}.`, 1); continue; }
       const n = this.vassalMen(v, p, dest);
       if (n) { men += n; from++; }
     }
-    const here = dest.town ? dest.town.garrison().reduce((n, r) => n + r.alive, 0) : 0;
-    this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} village${from > 1 ? 's' : ''}, to join ${here} there.` : `The banners are called, but no other village has men to send. ${here} stand ready at ${dest.name}.`);
+    this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} place${from > 1 ? 's' : ''}, to join ${plan.here} there.` : `The banners are called, but no other place has men to spare. ${plan.here} stand ready at ${dest.name}.`);
     return { men, from };
+  }
+
+  // How much of a vassal's strength at p answers a call to arms.
+  vassalWant(v, p) {
+    const share = levyShare(v) * (decreed(this, 'levy') ? 1.5 : 1) * (1 + seatPower(this, 'marshal'));
+    return power(p.garrison) * Math.min(0.9, share);
   }
 
   // A vassal's share of the men at one of their places marches for dest, as an army of
   // yours that remembers whose men they are (a.vassal). Returns how many went.
   vassalMen(v, p, dest) {
-    const share = levyShare(v) * (decreed(this, 'levy') ? 1.5 : 1) * (1 + seatPower(this, 'marshal'));
-    const units = takeUnits(p.garrison, power(p.garrison) * Math.min(0.9, share));
+    const units = takeUnits(p.garrison, this.vassalWant(v, p));
     if (!units.length) return 0;
     const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
     a.vassal = v.id;
@@ -1691,6 +1742,26 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
 }
 
 // Takes roughly `want` strength out of a garrison, a slice of each regiment.
+// The regiments a village keeps as its guard when the banners are called: those that
+// must stay (on the walls, militia, broken), then the fewest extra men that make up
+// `guard`, regiments being sent whole. `all` comes sorted best-to-keep first (bows and
+// spears before horse); a large garrison simply keeps in that order.
+function guardOf(all, guard) {
+  const keep = new Set(all.filter(c => c.stays));
+  let need = guard - [...keep].reduce((n, c) => n + c.men, 0);
+  const rest = all.filter(c => !c.stays);
+  if (need <= 0) return keep;
+  if (rest.length > 12) { for (const c of rest) if (need > 0) { keep.add(c); need -= c.men; } return keep; }
+  let best = null, bestMen = Infinity;
+  for (let m = 1; m < 1 << rest.length; m++) {
+    let men = 0;
+    for (let i = 0; i < rest.length; i++) if (m & 1 << i) men += rest[i].men;
+    if (men >= need && men < bestMen) { best = m; bestMen = men; }
+  }
+  rest.forEach((c, i) => { if (best === null || best & 1 << i) keep.add(c); });
+  return keep;
+}
+
 export function takeUnits(garrison, want) {
   const total = power(garrison);
   if (want <= 0 || total <= 0) return [];

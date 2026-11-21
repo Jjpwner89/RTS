@@ -732,6 +732,22 @@ function showResult(title, text, button, fn, book = false) {
   box.classList.add('open');
 }
 
+// Call the banners shows who would come before anyone moves (ruling, 2026-11-21).
+function askBanners(dest) {
+  const plan = world.bannerPlan(dest), list = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
+  const lines = plan.villages.map(v => `${v.p.name}${v.raised ? ` raises ${v.raised} fresh levies and` : ''}${v.men ? ` sends ${v.men}, keeping ${v.keep} on guard` : ` keeps ${v.keep} at home`}.`);
+  const sent = plan.vassals.filter(x => x.men).map(x => `${x.v.name} sends ${x.men} from ${x.p.name}`);
+  if (sent.length) lines.push(`Of your vassals, ${list(sent)}.`);
+  const no = [...new Set(plan.vassals.filter(x => x.refusing).map(x => x.v.name))];
+  if (no.length) lines.push(`${list(no)} will send nobody.`);
+  lines.push(plan.men ? `In all, ${plan.men} men march for ${dest.name}, to join the ${plan.here} there. Armies in the field stay where they are.` : `Nobody has men to spare past their guard: ${plan.here} stand ready at ${dest.name}.`);
+  const ok = plan.men > 0 || plan.raised > 0;
+  asks.unshift({ kind: 'choice', ev: { title: `Call the banners to ${dest.name}`, text: lines.join(' '), at: dest, choices: [
+    { label: plan.men ? `Call them (${plan.men} men)` : 'Raise the levies', ok, why: 'No village or vassal has men to spare', run: () => { world.callBanners(dest); } },
+    { label: 'Not now', ok: true, run: () => {} },
+  ] } });
+}
+
 function flash(text, good = false) {
   const t = $('toast');
   for (const line of $('log').children) if (line.textContent === text) line.remove();   // said once, below
@@ -782,7 +798,7 @@ function worldPanel() {
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div><div class="decrees" data-f="decrees"></div>`
-      + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men to ${world.home.name}">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
+      + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come to ${world.home.name}: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners to ${world.home.name}</button>` : '')
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('caravan', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
@@ -797,7 +813,7 @@ function worldPanel() {
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
-        + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="Every village raises what its barracks can arm, keeping half its people at work, and sends its men here">${ico('crown')} Call the banners here</button>` : '')
+        + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come here: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners here</button>` : '')
         + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
         // (creator, 2026-11-20) Supplies are asked for by the village that needs them: another
         // of your villages sends half its spare food and building goods here.
@@ -1016,7 +1032,7 @@ $('wpanel').onclick = e => {
     if (a) selected = a; else flash('Nobody fit to march.');
   }
   if (act === 'garrison' && it.at?.town) world.enterTown(it, it.at, it.last);
-  if (act === 'banners') { world.callBanners(it && !it.units ? it : world.home); panelKey = null; }
+  if (act === 'banners') { askBanners(it && !it.units ? it : world.home); panelKey = null; }
   if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
   if (act === 'gather' && it && !it.units) { const n = world.gatherAt(it); flash(n ? `${n} ${n > 1 ? 'armies are' : 'army is'} on the way to ${it.name}.` : 'No army of yours is free to come.', !!n); }
