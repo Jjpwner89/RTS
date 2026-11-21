@@ -1937,6 +1937,11 @@ export class Town {
 
   // Houses with a hearth, and the keep's.
   get hearths() { return 1 + this.buildings.filter(b => b.state === 'active' && b.B.housing).length; }
+  // Wood the hearths can draw on: everything held but what sits at building sites.
+  hearthWood() { return this.holders().reduce((n, b) => n + (b.state === 'site' ? 0 : b.store.wood || 0), 0); }
+  // Cold right now, not as of the last meal (a loaded village shows the flag it was saved with).
+  get coldNow() { return this.hearthWood() < this.hearths * FIREWOOD / 2; }
+
   // Meals in the stores for each person.
   get larder() {
     const meals = this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0);
@@ -2038,7 +2043,7 @@ export class Town {
       else if (!out && this.foodWarned && this.larder >= 4) this.foodWarned = false;
       // Hearths: each house, and the keep, burns a little wood, fetched from wherever it is.
       const fire = this.hearths * FIREWOOD / 2;
-      const wood = this.holders().reduce((n, b) => n + (b.state === 'site' ? 0 : b.store.wood || 0), 0);
+      const wood = this.hearthWood();
       const wasCold = this.cold;
       this.cold = wood < fire;
       this.spend({ wood: Math.min(fire, wood) });
