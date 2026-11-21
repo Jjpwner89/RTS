@@ -754,6 +754,7 @@ export class Battle {
     r.posts = null;
     r.access = null;
     r.targetWall = null;
+    r.after = null;
   }
 
   // ---- deployment ----
@@ -935,12 +936,47 @@ export class Battle {
       this.clearPosts(r);
       r.targetReg = target;
       r.dest = null;
+      if (this.nav.any) this.breachFor(r, target);
     }
+  }
+
+  // A foe behind walls with every gate on the way shut can't be walked to: rams and foot go
+  // for the nearest gate they can reach, ladder men raise ladders on the nearest wall, and
+  // once through they go on at the foe (r.after). Horse and bowmen are told why. False when
+  // the foe can be reached after all.
+  breachFor(r, t) {
+    if (r.ai === 'siege' || r.posts || this.nav.reachable(r.side, r.cx, r.cz, t.cx, t.cz)) return false;
+    const E = r.engine, ladders = E?.kind === 'ladder' && !E.ladders.length;
+    const up = E?.kind === 'ladder' && E.ladders.find(l => !l.down && l.piece.state === 'up');
+    if (up) { this.orderMan([r], up.piece, up.x, up.z); return true; }   // up their own ladders
+    if (this.shoots(r) || (E && !ladders && E.kind !== 'ram')) return false;   // they shoot over
+    let best = null, bs = Infinity;
+    if (!r.T.mounted) for (const p of this.walls.pieces) {
+      if (p.side === r.side || p.state !== 'up' || !!p.gate === ladders) continue;
+      const f = this.faceSpot(r, p, 0, 1);
+      if (!this.nav.reachable(r.side, r.cx, r.cz, f.x, f.z)) continue;
+      const mx = (p.a.x + p.b.x) / 2, mz = (p.a.z + p.b.z) / 2;
+      const sc = Math.hypot(f.x - r.cx, f.z - r.cz) + Math.hypot(t.cx - mx, t.cz - mz);
+      if (sc < bs) { bs = sc; best = p; }
+    }
+    const say = r.side === 0 && !(this.time - this.saidBreach < 3);
+    if (say) this.saidBreach = this.time;
+    if (!best) {
+      if (say) this.event(0, r.T.mounted ? `${this.label(r)} can't ride at men behind a wall: break a gate first.` : `${this.label(r)} can't find a way in to them.`);
+      if (!r.T.mounted) console.warn(`breachFor: no gate or wall ${r.name} can reach on the way to ${t.name}`);
+      r.targetReg = null;
+      return true;
+    }
+    this.orderAttackWall([r], best, (best.a.x + best.b.x) / 2, (best.a.z + best.b.z) / 2);
+    r.after = t;
+    if (say) this.event(0, `${this.label(r)} can't reach them inside the walls: ${ladders ? 'raising ladders' : 'breaking a gate'} first.`);
+    return true;
   }
 
   orderHalt(regs) {
     for (const r of regs) {
       if (!this.usable(r) || r.posts) continue;
+      r.after = null;
       r.dest = null;
       r.targetReg = null;
       r.targetWall = null;
@@ -1683,6 +1719,10 @@ export class Battle {
     const T = r.T, F = FORMATIONS[r.formation] || FORMATIONS.line;
     if (r.posts) return;
 
+    // Through the wall (or ladders up): on at the foe it was sent for. And a foe that has
+    // gone behind walls is looked for a way in to, once a second.
+    if (r.after && !r.targetWall && !r.targetReg && !r.dest) { const t = r.after; r.after = null; if (this.usable(t)) this.orderAttack([r], t); }
+    if (r.targetReg && !r.targetReg.gone && this.nav.any && (r.reachCd = (r.reachCd || 0) - dt) <= 0) { r.reachCd = 1; this.breachFor(r, r.targetReg); }
     if (r.targetWall) this.aimAtWall(r, dt);
     else if (r.targetReg) {
       const t = r.targetReg;
