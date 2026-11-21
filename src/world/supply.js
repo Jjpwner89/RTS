@@ -10,6 +10,7 @@
 
 import { FACTIONS, power, headcount } from './world.js';
 import { housing, kits, takeKit, AT_WORK } from './holdings.js';
+import { priceShare, glut } from '../economy.js';
 import { workDone } from './works.js';
 
 export const EAT = 1 / 120;        // food per man per second
@@ -384,7 +385,12 @@ function moveCaravan(w, cart, dt) {
     return w.removeArmy(cart);
   }
   // Both lords profit: the sender its gold, the market at the other end half as much again.
+  // A market that has had many caravans pays less for the next (economy.js GLUT), so trade
+  // spreads across the markets; W.gold becomes what this one paid.
   const pay = (side, n) => { if (side !== null && side !== undefined && FACTIONS[side]) FACTIONS[side].gold += n; };
+  const full = W.gold;
+  W.gold = Math.round(full * priceShare(to.glut, 'caravan', w.time));
+  glut(to.glut ??= {}, 'caravan', full, w.time);
   pay(cart.side, W.gold);
   if (to.owner !== cart.side) pay(to.owner, Math.round(W.gold / 2));
   if (cart.side === 0) w.log(`The caravan from ${W.from.name} reached ${to.name}: ${W.gold} gold.`);

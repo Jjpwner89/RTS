@@ -175,6 +175,18 @@ export const ROAD = { width: 3, perStone: 3, max: 40, speed: 1.5 };
 const RCELL = 2, RSPAN = 240, RN = Math.ceil(RSPAN * 2 / RCELL);
 // What draws settlers besides food and mood: a name for comfort and safety.
 export const REPUTE = { monastery: 0.4, market: 0.25, well: 0.15, safe: 0.2, raided: -0.4, cold: -0.3 };
+// A glutted market (Orchestrator, 2026-11-21: one town's market sold 13,700 gold of goods by
+// minute 120): every good a market sells lowers what the next brings there, and the price
+// mends over a few minutes. It halves once GLUT.half of a good has been sold and not yet
+// mended, mends GLUT.mend goods a minute, and below GLUT.floor of the full price the market
+// keeps the goods instead. So selling across several markets pays. The same for your
+// markets, a house's (holdings.js) and caravans (supply.js), each place its own glut.
+export const GLUT = { half: 120, mend: 60, floor: 0.35 };
+const glutOf = (G, g, now) => { const o = G?.[g]; return o ? Math.max(0, o.n - GLUT.mend * (now - o.at) / 60) : 0; };
+export const priceShare = (G, g, now) => 1 / (1 + glutOf(G, g, now) / GLUT.half);
+export function glut(G, g, n, now) { G[g] = { n: glutOf(G, g, now) + n, at: now }; }
+export const saleGood = r => Object.keys(r.in)[0];
+
 // Tax rates: gold collected for each villager, and what the village thinks of it.
 export const TAXES = [
   { name: 'No taxes', gold: 0, mood: 12 }, { name: 'Low taxes', gold: 0.5, mood: 6 }, { name: 'Fair taxes', gold: 1, mood: 0 },
@@ -520,8 +532,9 @@ export class Town {
       && !this.savingPlanks(r)
       && !this.savingWood(r)
       && Object.keys(r.out).every(k => this.stock[k] < (r.keep ?? Infinity) && (b.store[k] || 0) < holdOf(k))
-      // a market sells only what is spare above its reserve
-      && (r.above === undefined || Object.entries(r.in).every(([g, n]) => this.free(g) >= r.above + n)));
+      // a market sells only what is spare above its reserve, and not into a glut
+      && (r.above === undefined || Object.entries(r.in).every(([g, n]) => this.free(g) >= r.above + n))
+      && (!r.gold || priceShare(this.glut, saleGood(r), this.time) >= GLUT.floor));
   }
 
   // What may be carried away from a building. Workshops keep what they need themselves;
@@ -2194,7 +2207,11 @@ export class Town {
       audio.tick(CRAFT_SOUND[b.kind] || 'hammer', b, dt, 0.6, this.battle); // audio: a saw or a smith's hammer, else a hammer
       if (b.timer <= 0) {
         for (const [k, n] of Object.entries(b.recipe.out)) this.put(b, k, n);
-        if (b.recipe.gold) { this.purse.gold += b.recipe.gold; this.earned = (this.earned || 0) + b.recipe.gold; }
+        if (b.recipe.gold) {
+          const g = saleGood(b.recipe), gold = b.recipe.gold * priceShare(this.glut, g, this.time);
+          glut(this.glut ??= {}, g, b.recipe.in[g], this.time);
+          this.purse.gold += gold; this.earned = (this.earned || 0) + gold;
+        }
         b.recipe = null;
       }
       return;

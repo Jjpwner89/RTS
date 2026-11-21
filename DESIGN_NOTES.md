@@ -548,6 +548,25 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
   - The passive player banks 4,700–5,000 by minute 120 and pays 0–5 a minute from its home guard. No house went broke: the poorest hover at 300–500 gold, paying wages above their free guard.
 - checks(): "treasury: a keep taxes in full only as far as it reaches, and places keep only a strongbox".
 
+### Markets that fill, and the passive player in danger again (2026-11-21, Orchestrator's ruling (b), then (a))
+- **Sale prices fall as a market sells** (economy.js `GLUT`, `priceShare`, `glut`). Each good a place sells adds to its glut, which drains at 60 a minute. A sale brings `1 / (1 + glut / 120)` of its price: half after 120 sold, back to full a few minutes after selling stops. Below 35% of the price, the workshop holds the goods back rather than sell. The same rule applies to your market workshops (Town.doCraft), a house's trade (holdings.js runEconomy) and caravans (supply.js moveCaravan, by the gold the market pays). So trading across several markets pays, and one town can't absorb everything. The town panel shows the price a sale brings now, and the market note says why.
+- **Market tax ×1.5** (realm.js KINDS, was 2). With (b) alone, seed 21's peaceful player still banked 26,100 by minute 120, from four market towns.
+- **The draft floor below the homes** (holdings.js `AT_WORK` guard 0.45, field 0.5; `HOMES_AHEAD` 0.65). A house built its next home once its people filled 65% of the homes, and drafted no one below 65%. So every new home raised the floor with it, and almost no one was drafted after the opening. At minute 110 on seed 7, Varn had 143 men and 580 sets of kit in its stores, its places at 60–65% of their homes. It had marched on the passive player's seat once (minute 84) and given up after 10 minutes without the men. Homes still go up at 65%; men may now be drafted down to half.
+- **Outcome** (seeds 7, 21, 91, to minute 120; wage share is wages over tax, and over all income in brackets):
+
+  | Run | Banked 60 / 90 / 120 | Wage share 60 / 90 / 120 | First war on you | Fell |
+  |---|---|---|---|---|
+  | Passive 7 | n/a | n/a | 14 | 58 |
+  | Passive 21 | 990 at 60 | 14% at 60 | 14 | 66 |
+  | Passive 91 | 1,632 / 3,129 / 4,982 | 12% / 9% / 6% | 15 | alive |
+  | Engaged 7 | 607 / 454 / 0 | 116% / 122% / 126% (89% / 96% / 101%) | none | alive |
+  | Engaged 21 | 221 / 4,349 / 10,928 | 107% / 85% / 78% (97% / 65% / 60%) | none | alive |
+  | Engaged 91 | 42 / 920 / 803 | 119% / 114% / 125% (102% / 90% / 96%) | none | alive |
+
+  - Passive at minute 110: it fell on seeds 7 and 21. On seed 91 it holds its seat with 10 men, at war with Varn, but no enemy army or place is within 400. Varn there is poor (4 places, 101 men, 1,424 gold) and the strong houses are far off.
+  - The engaged bot fields 190 men at 60, 280–350 at 90 and 400–490 at 120. On seeds 7 and 91 it runs at break-even from minute 60 and is held by its purse: men stood down unpaid 36–58 times. Seed 21 banks 10,900 by minute 120 from four market towns.
+  - No house declared war on the engaged bot by minute 120 (before: minutes 28, 99 and 98). Its 350–480 men by minute 90–110 make every house's prey score low. Not yet broken down by preyScore inputs.
+
 ## Test campaigns (built 2026-11-20)
 
 The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.

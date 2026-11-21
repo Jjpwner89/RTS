@@ -4,7 +4,7 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate } from '../economy.js';
+import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, GLUT, priceShare, glut, saleGood } from '../economy.js';
 import { TYPES } from '../battle.js';
 
 const EFF = 0.4;            // share of a hard-driven village's output a steward gets
@@ -112,7 +112,7 @@ export const builtCount = e => Object.values(e.buildings).reduce((n, k) => n + k
 // ---- running it ----
 
 // One step of `dt` seconds for place p. Returns gold made for its lord.
-export function runEconomy(p, dt, { pace = 1 } = {}) {
+export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
   const e = p.eco, s = e.stock, B = e.buildings;
   // Who works: as many jobs as there are hands for.
   let jobs = 0;
@@ -138,7 +138,9 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
     // (as in your villages, planks are kept back for building before they go into kit)
     const list = R.filter(r => !r.off && Object.keys(r.out).every(g => (s[g] || 0) < (r.keep ?? 400))
       && (r.above === undefined || Object.entries(r.in).every(([g, q]) => (s[g] || 0) >= r.above + q))
-      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < RESERVE.planks + r.in.planks + (e.wantHall ? BUILDINGS.hall.cost.planks : 0)));
+      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < RESERVE.planks + r.in.planks + (e.wantHall ? BUILDINGS.hall.cost.planks : 0))
+      // its market, as yours, won't sell into a glut (economy.js GLUT)
+      && (!r.gold || priceShare(e.glut, saleGood(r), now) >= GLUT.floor));
     if (!list.length) continue;
     for (const r of list) {
       let cycles = n * (BUILDINGS[k].jobs || 1) * work / r.time / list.length;
@@ -146,7 +148,7 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
       if (cycles <= 0) continue;
       for (const [g, q] of Object.entries(r.in)) s[g] -= q * cycles;
       for (const [g, q] of Object.entries(r.out)) s[g] = (s[g] || 0) + q * cycles;
-      if (r.gold) gold += r.gold * cycles;
+      if (r.gold) { const g = saleGood(r); gold += r.gold * cycles * priceShare(e.glut, g, now); glut(e.glut ??= {}, g, r.in[g] * cycles, now); }
     }
   }
   // Eating: bread first. Hungry places lose people.
@@ -201,10 +203,10 @@ function nextBuild(e) {
   if (builtCount(e) >= (e.maxBuilt ?? 40)) { clear(e); return null; }
   if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
   if (e.cold && (B_count(e, 'woodcutter') < 1 + (e.buildings.house || 0) / 8)) return 'woodcutter';
-  // Homes ahead of the people, as you build them: once its people reach the share a house
-  // keeps at work (AT_WORK; Orchestrator, 2026-11-21: places ran at a quarter of their land, a
-  // house only going up when the last was full, while men were drafted as fast as people came).
-  if (e.pop >= Math.min(housing(e) - 3, housing(e) * AT_WORK.field) && housing(e) < (e.maxPop ?? 120)) return 'house';
+  // Homes ahead of the people, as you build them, once they are two thirds full (HOMES_AHEAD;
+  // Orchestrator, 2026-11-21: places ran at a quarter of their land, a house only going up
+  // when the last was full, while men were drafted as fast as people came).
+  if (e.pop >= Math.min(housing(e) - 3, housing(e) * HOMES_AHEAD) && housing(e) < (e.maxPop ?? 120)) return 'house';
   if (e.planAt < plan.length) return plan[e.planAt];
   if ((s.wood || 0) < 40) return 'woodcutter';
   // a little more of its trade, every other turn
@@ -285,11 +287,15 @@ export function arm(e, n, keep = 12, policy = 'best') {
 // meal for the people is kept back, as your villages keep one back when an army draws on
 // them (supply.js spareFood). Returns how many went unfed.
 export const PEOPLE_FIRST = 0.5;   // food a head
-// How many of its room a house's place keeps at work when it arms men: three in five for its
-// guard, a little more before men go to its field army (Orchestrator, 2026-11-21: rival places
+// How many of its room a house's place keeps at work when it arms men: nearly half for its
+// guard, half before men go to its field army (Orchestrator, 2026-11-21: rival places
 // ran at 40% of room, drafted down as fast as people settled, where a player who means to
 // grow keeps most of his people working). Its vassal's places are yours and keep 40%.
-export const AT_WORK = { guard: 0.6, field: 0.65 };
+// The floor sits below the share at which homes go up (HOMES_AHEAD): level with it, every new
+// house raised the floor with it and no man was ever drafted (rivals stood at 140 men by minute
+// 110 with 600 sets of kit in their stores, and the passive player was left alone).
+export const AT_WORK = { guard: 0.45, field: 0.5 };
+export const HOMES_AHEAD = 0.65;
 export function feedMen(e, men, dt) {
   let need = men * EAT * dt, spare = Math.max(0, (e.stock.food || 0) + (e.stock.bread || 0) - e.pop * PEOPLE_FIRST);
   for (const g of ['bread', 'food']) { const k = Math.min(need, spare, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; need -= k; spare -= k; }

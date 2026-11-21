@@ -452,6 +452,11 @@ async function worldChecks(w) {
     if (E.taxedHeads(r3, 3) !== r3) out.push(`a village of ${r3} under a level-3 keep pays for ${E.taxedHeads(r3, 3)} heads`);
     if (Math.abs(E.taxedHeads(r3 + 30, 3) - (r3 + 30 * E.BEYOND_REACH)) > 1e-9) out.push(`thirty heads past a level-3 keep pay as ${E.taxedHeads(r3 + 30, 3) - r3}`);
     if (!(E.taxedHeads(150, 4) > E.taxedHeads(150, 3))) out.push('a greater keep does not raise the tax of a village of 150');
+    // A glutted market pays less, and mends within a few minutes.
+    const G = {};
+    E.glut(G, 'wood', E.GLUT.half, 0);
+    if (Math.abs(E.priceShare(G, 'wood', 0) - 0.5) > 1e-9) out.push(`a market that has just sold ${E.GLUT.half} wood pays ${E.priceShare(G, 'wood', 0).toFixed(2)} of the price, not half`);
+    if (E.priceShare(G, 'wood', 300) !== 1) out.push('five minutes on, the glut has not mended');
     for (const p of w.pois) if (p.eco?.buildings && !p.town && (p.eco.gold || 0) > p.eco.pop * COFFER + 50) out.push(`${p.name} hoards ${Math.round(p.eco.gold)} gold, past its strongbox of ${Math.round(p.eco.pop * COFFER)}`);
     return out;
   });

@@ -291,7 +291,7 @@ export class World {
   tickEconomy(p, dt, K, e, h) {
     const lvl = e.level;
     const pace = h?.trait === 'builder' ? 1.15 : h?.trait === 'raider' || h?.trait === 'hothead' ? 1.05 : 1;
-    const traded = runEconomy(p, dt, { pace });
+    const traded = runEconomy(p, dt, { pace, now: this.time });
     const v = vassalOf(this, p);
     // Rival lords tax as you do at fair taxes, the merchant house half as much again; a
     // vassal at a middling mood.
