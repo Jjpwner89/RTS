@@ -973,6 +973,20 @@ export class Town {
     return { ok: true, n };
   }
 
+  // The nearest spot to p where a regiment clears every standing building and the keep by
+  // `room` m, so militia bands formed up or posted round a crowded place don't stand inside
+  // a house (QC, Foxgate Abbey, 2026-11-21). p itself when nothing near is clear.
+  clearSpot(p, room = 9) {
+    const blocks = [...this.buildings.filter(b => b.state === 'active' && b.B.radius && b.B.gather?.node !== 'field'), this.keep];
+    const ok = (x, z) => blocks.every(b => Math.hypot(x - b.x, z - b.z) > b.B.radius + room);
+    if (ok(p.x, p.z)) return p;
+    for (let d = 4; d <= 60; d += 4) for (let a = 0; a < 12; a++) {
+      const x = p.x + Math.sin(a * Math.PI / 6) * d, z = p.z + Math.cos(a * Math.PI / 6) * d;
+      if (ok(x, z)) return { ...p, x, z };
+    }
+    return p;
+  }
+
   muster() {
     const c = this.musterCheck();
     if (!c.ok) return c;
@@ -996,7 +1010,7 @@ export class Town {
       const band = men.slice(Math.floor(i * men.length / k), Math.floor((i + 1) * men.length / k));
       const off = (i - (k - 1) / 2) * 22;
       const behind = (o, a) => ({ x: o.x - Math.sin(a) * 16 + Math.cos(a) * off, z: o.z - Math.cos(a) * 16 - Math.sin(a) * off });
-      const { x, z } = behind(at, face);
+      const { x, z } = this.clearSpot(behind(at, face));
       for (const v of band) {
         v.musterJob = v.job; v.musterSite = v.site;
         if (v.load) { this.put(this.keep, v.load.g, v.load.n); v.load = null; v.carry = null; }
@@ -1006,7 +1020,7 @@ export class Town {
       }
       const r = this.battle.addRegiment(0, 'folk', x, z, face, { count: band.length, from: band });
       r.levy = 'folk';
-      r.post = { ...behind(this.keep, home), angle: home };   // their place by the keep (thinkMilitia)
+      r.post = { ...this.clearSpot(behind(this.keep, home)), angle: home };   // their place by the keep (thinkMilitia)
       r.soldiers.forEach((s, j) => { band[j].state = 'soldier'; band[j].soldier = s; s.villager = band[j]; });
       regs.push(r);
     }
