@@ -204,7 +204,7 @@ function pose(r, def, t) {
     const src = rigs[def.rig], from = idleOf(src), to = idleOf(base);
     sample(src, def.src, t);
     sample(base, 'Idle', 0);
-    retarget(src, base, { names: src.names, from, to, feet: true });
+    retarget(src, base, { names: src.names, from, to, feet: true, plant: def.rig === 'kaykit' });
     if (r.from) retarget(r.from, r);
     return;
   }
@@ -252,26 +252,29 @@ function pose(r, def, t) {
   if (r.from) retarget(r.from, r);
 }
 // Each foot in turn lifted `lift` metres and set down where it was, over the first half of its own half of the loop
-// (`u` 0 to 1 through it): the hip, knee and foot solved as two bones, the knee bending forward as it does at rest.
-// (The men's feet hang from the root, apart from their legs: both are moved.)
+// (`u` 0 to 1 through it). (The men's feet hang from the root, apart from their legs: both are moved.)
 function stepInPlace(r, { lift }, u) {
   for (const [side, off] of [['L', 0], ['R', 0.5]]) {
     const k = ((u + off) % 1) * 2, h = k < 1 ? lift * Math.sin(Math.PI * k) : 0;
-    if (h <= 0) continue;
-    const up = r.bones.get('UpperLeg' + side), low = r.bones.get('LowerLeg' + side), foot = r.bones.get('Foot' + side);
-    const hip = up.getWorldPosition(new THREE.Vector3()), knee = low.getWorldPosition(new THREE.Vector3()), end = foot.getWorldPosition(new THREE.Vector3());
-    const endOnShin = low.worldToLocal(end.clone()), L1 = hip.distanceTo(knee), L2 = knee.distanceTo(end);
-    const target = end.clone().add(new THREE.Vector3(0, h, 0)), to = target.clone().sub(hip), d = Math.min(L1 + L2 - 1e-4, Math.max(Math.abs(L1 - L2) + 1e-4, to.length()));
-    const axis = to.normalize(), bend = knee.clone().sub(hip);
-    bend.addScaledVector(axis, -bend.dot(axis));
-    if (bend.lengthSq() < 1e-8) bend.set(0, 0, 1);
-    bend.normalize();
-    const a = (L1 * L1 + d * d - L2 * L2) / (2 * d), newKnee = hip.clone().addScaledVector(axis, a).addScaledVector(bend, Math.sqrt(Math.max(0, L1 * L1 - a * a)));
-    aim(up, knee.clone().sub(hip), newKnee.clone().sub(hip));
-    aim(low, low.localToWorld(endOnShin.clone()).sub(newKnee), target.clone().sub(newKnee));
-    foot.position.copy(foot.parent.worldToLocal(target));
-    foot.updateMatrixWorld(true);
+    if (h > 0) reachFoot(r, side, r.bones.get('Foot' + side).getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, h, 0)));
   }
+}
+// Put a foot at `target` in the world: the hip, knee and foot solved as two bones, the knee bending the way it bends
+// now (forward, at rest).
+function reachFoot(r, side, target) {
+  const up = r.bones.get('UpperLeg' + side), low = r.bones.get('LowerLeg' + side), foot = r.bones.get('Foot' + side);
+  const hip = up.getWorldPosition(new THREE.Vector3()), knee = low.getWorldPosition(new THREE.Vector3()), end = foot.getWorldPosition(new THREE.Vector3());
+  const endOnShin = low.worldToLocal(end.clone()), L1 = hip.distanceTo(knee), L2 = knee.distanceTo(end);
+  const to = target.clone().sub(hip), d = Math.min(L1 + L2 - 1e-4, Math.max(Math.abs(L1 - L2) + 1e-4, to.length()));
+  const axis = to.normalize(), bend = knee.clone().sub(hip);
+  bend.addScaledVector(axis, -bend.dot(axis));
+  if (bend.lengthSq() < 1e-8) bend.set(0, 0, 1);
+  bend.normalize();
+  const a = (L1 * L1 + d * d - L2 * L2) / (2 * d), newKnee = hip.clone().addScaledVector(axis, a).addScaledVector(bend, Math.sqrt(Math.max(0, L1 * L1 - a * a)));
+  aim(up, knee.clone().sub(hip), newKnee.clone().sub(hip));
+  aim(low, low.localToWorld(endOnShin.clone()).sub(newKnee), target.clone().sub(newKnee));
+  foot.position.copy(foot.parent.worldToLocal(target));
+  foot.updateMatrixWorld(true);
 }
 // Turn a bone in the world so that direction `from` (from its origin) points along `to`.
 function aim(b, from, to) {
@@ -335,9 +338,11 @@ function thrown(r, def, t) {
 // his do, scaled to her height. `from` and `to` set other reference poses than the rests (the knight's idle and the
 // man's), and `names` the bones of `m` known by other names on `f`. Both skeletons' feet hang from the root (they are
 // IK targets), so with `feet` each foot is put back at the end of its shin, as it is in `to`, and the body (which the
-// legs hang from) moves with the hips.
+// legs hang from) moves with the hips. With `plant` each foot goes instead where `m`'s does, scaled as the hips are,
+// and the leg reaches it, so a foot planted in the source stays planted (KayKit's legs are shorter for their height:
+// turned alone, a sawyer's back foot slid 18 cm).
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _p = new THREE.Vector3();
-function retarget(m, f, { names = {}, from = m.rest, to = f.rest, feet = false } = {}) {
+function retarget(m, f, { names = {}, from = m.rest, to = f.rest, feet = false, plant = false } = {}) {
   const turn = new Map();
   for (const [name, b] of m.bones) if (from.has(name)) for (const n of [].concat(names[name] || name)) turn.set(n, b.getWorldQuaternion(new THREE.Quaternion()).multiply(_q.copy(from.get(name).q).invert()));
   const hips = Object.keys(names).find(n => [].concat(names[n]).includes('Hips')) || 'Hips', k = to.get('Hips').p.y / from.get(hips).p.y;
@@ -358,6 +363,9 @@ function retarget(m, f, { names = {}, from = m.rest, to = f.rest, feet = false }
     const at = to.get('Foot' + side).p.clone().sub(s0.p).applyQuaternion(_q.copy(s0.q).invert()).applyQuaternion(shin.getWorldQuaternion(_q2)).add(shin.getWorldPosition(_p));
     foot.position.copy(foot.parent.worldToLocal(at));
     foot.updateMatrixWorld(true);
+    if (!plant) continue;
+    const src = Object.keys(names).find(n => [].concat(names[n]).includes('Foot' + side)) || 'Foot' + side;
+    reachFoot(f, side, m.bones.get(src).getWorldPosition(new THREE.Vector3()).sub(from.get(src).p).multiplyScalar(k).add(to.get('Foot' + side).p));
   }
 }
 
