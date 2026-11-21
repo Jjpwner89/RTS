@@ -1180,6 +1180,7 @@ function worldLog() {
   while (seenWorld < world.events.length) {
     const ev = world.events[seenWorld++];
     if (toast.classList.contains('show') && toast.textContent === ev.text) continue;
+    if ($('result').classList.contains('open') && $('result').querySelector('p').textContent === ev.text) continue;   // the card is already saying it
     if (ev.text.startsWith('Goal done:')) { goalsWaiting.push(ev); continue; }
     newsLine(logEl, ev);
   }

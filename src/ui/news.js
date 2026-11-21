@@ -56,12 +56,13 @@ export function tick(w) {
 }
 
 // Beside the thing: to its right if there is room, else under, over or left of it, kept on
-// screen and off every panel and card that holds buttons (a notice never covers a choice,
+// screen and off every panel and card that holds buttons (the one the thing sits in included:
+// a build button's notice goes above the bar, not over its neighbours) (a notice never covers a choice,
 // whichever came first). False when there is nowhere clear: the line waits, the seal stays.
 const AVOID = '#wpanel, #info, #build, #stock, #orders, #cards, #alerts, #goals, #defences, #log > div:not(.fade)';
 function place(el) {
   const r = el.getBoundingClientRect(), s = slip.getBoundingClientRect(), pad = 8;
-  const boxes = [...document.querySelectorAll(AVOID)].filter(b => b.getClientRects().length && !b.contains(el)).map(b => b.getBoundingClientRect());
+  const boxes = [...document.querySelectorAll(AVOID)].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect());
   const cx = r.left + r.width / 2 - s.width / 2, cy = r.top + r.height / 2 - s.height / 2;
   const cands = [[r.right + 10, cy, 'right'], [cx, r.bottom + 10, 'below'], [cx, r.top - s.height - 10, 'above'], [r.left - s.width - 10, cy, 'left']];
   if (el.closest('#top')) cands.unshift(cands.splice(1, 1)[0]);   // the next button is to the right: go under the bar
