@@ -72,8 +72,11 @@ export function soldierClip(s, b, info, out) {
   const strike = rig === 'dog' ? ['Bite', 'bite'] : info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
   let k = timed(...strike, now - (s.struckAt ?? -99), close ? s.cd : null);
   if (k) return k;
-  // a shot: bows, crossbows and javelins each their own way
-  if (T.range) {
+  // a shot: bows, crossbows and javelins each their own way, only while he stands: a man walking off mid-reload
+  // walks (the battle's reload runs on), and takes up the shot again once he stops (on his feet from 0.4 m/s,
+  // still again under 0.2, so a shuffle in the ranks doesn't flicker)
+  s.afoot = s.v >= 0.4 || (s.afoot && s.v >= 0.2);
+  if (T.range && !s.afoot) {
     const shot = T.javelin ? ['Javelin_Throw', 'release-javelin'] : info.weapon === 'crossbow' ? ['Crossbow_Span', 'shoot'] : ['Bow_Loose', 'loose'];
     const loosing = !s.target && r.ammo >= 1 && now - (r.lastShot ?? -99) < T.reload * 1.5;
     k = timed(...shot, now - (s.shotAt ?? -99), loosing ? s.fireCd : null);

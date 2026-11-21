@@ -160,6 +160,23 @@ async function battleChecks({ battle, town, label }) {
     return sample(out);
   });
 
+  // A shooter shows his shot (loose, span, throw) only while he stands: one walking off mid-reload walks rather than
+  // gliding in the pose (view.js soldierClip). Asked of a copy of each moving shooter, so nothing is changed.
+  const anim = await import('./anim.js');
+  if (anim.animReady()) await check(`${label}: nobody shoots on the move`, async () => {
+    const out = [], { unitModel } = await import('./models.js'), { soldierClip } = await import('./view.js'), seen = {};
+    for (const r of regs) {
+      if (!r.T.range) continue;
+      const info = unitModel(r.T.key)?.anim;
+      if (!info || info.horse) continue;
+      const shots = ['Bow_Loose', 'Crossbow_Span', 'Javelin_Throw'].map(n => anim.clipOf(info.rig, n)).filter(Boolean);
+      let n = 0;
+      for (const s of r.soldiers) if (live(s) && s.v >= 0.4 && shots.includes(soldierClip({ ...s }, battle, info, seen).c)) n++;
+      if (n) out.push(`${r.name} (side ${r.side}): ${n} men walking or running in their shooting pose`);
+    }
+    return sample(out);
+  });
+
   await check(`${label}: nobody stuck for over a minute`, () => {
     const out = [];
     for (const r of regs) { const t = stuckFor(r, battle); if (t > STUCK) out.push(`${r.name} has had an order for ${Math.round(t)}s and not moved, at ${at({ x: r.cx, z: r.cz })}`); }
