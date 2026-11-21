@@ -8,6 +8,7 @@ import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
 import { BUILDINGS } from './economy.js';
 import { fxFor } from './fx.js';
+import { lamps } from './look.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 // anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
@@ -232,6 +233,21 @@ export class TownView {
     this.selectRing = circle(1, '#ffd970', 0.9);
     this.findRing = circle(1, '#7fd0ff', 0.95);   // a deposit the Find button points at
     for (const o of [this.ghostRange, this.territoryRing, this.selectRing, this.findRing]) { o.visible = false; scene.add(o); }
+    // By night, lit windows in every standing building and the keep (look.js lamps).
+    this.lights = lamps(scene);
+    this.lightsKey = '';
+  }
+
+  // A lamp in each standing building, a little above the door, shown on the side the camera sees; three in the keep.
+  placeLights() {
+    const list = [], k = this.keep, kr = k.geometry.boundingSphere || (k.geometry.computeBoundingSphere(), k.geometry.boundingSphere);
+    for (const [dx, dz] of [[0, 0], [2, 1], [-2, 1]]) list.push({ x: k.position.x + dx, y: k.position.y + 2.4 + Math.abs(dx), z: k.position.z + dz, size: 7, push: kr.radius * 0.7 });
+    for (const [b, o] of this.meshes) {
+      if (b.state !== 'active') continue;
+      const g = o.mesh.geometry, r = (g.boundingSphere || (g.computeBoundingSphere(), g.boundingSphere)).radius;
+      list.push({ x: b.x, y: o.mesh.position.y + Math.min(2.2, r * 0.45), z: b.z, size: 4 + r * 0.6, push: r * 0.75 });
+    }
+    this.lights.set(list);
   }
 
   // The keep's level: see keepLevelOf.
@@ -317,6 +333,8 @@ export class TownView {
       this.keep.geometry = heartModel(town.kind, level);
       this.flag.position.y = this.heightAt(0, 0) + keepTop(this.keep.geometry) + 2.5;
     }
+    const lightsKey = town.buildings.map(b => (b.state || '-')[0] + (b.level || 1)).join('') + level;
+    if (lightsKey !== this.lightsKey) { this.lightsKey = lightsKey; this.placeLightsSoon = true; }
     for (const [b, o] of this.meshes) {
       if (!b.removed) continue;
       this.scene.remove(o.mesh, o.icon);
@@ -424,6 +442,7 @@ export class TownView {
     P.gear.count = P.cloth.count = n;
     if (P.gearLight) P.gearLight.count = P.clothLight.count = nl;
     P.crate.count = P.carry.count = k;
+    if (this.placeLightsSoon) { this.placeLightsSoon = false; this.placeLights(); }
     this.updatePiles();
     fxFor(this.scene, this.heightAt).town(town, this.meshes);   // fx: scaffolds, dust, fire and smoke, chimneys
     for (const m of Object.values(P)) {

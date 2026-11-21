@@ -13,6 +13,7 @@ import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
 import { TYPES, lookChain } from '../battle.js';
 import { fxFor } from '../fx.js';
+import { lamps } from '../look.js';
 
 // The map's half-width follows world.half, which grows when the north opens in Part 2.
 export const WORLD_HALF = REALM_RADIUS + 140;
@@ -228,6 +229,9 @@ export class WorldView {
     }
     this.fog = this.makeFog();
     this.fogTrees(woods);
+    // By night, lit windows and camp fires in every place you have seen (look.js lamps).
+    this.lights = lamps(this.scene);
+    this.lightsDirty = true;
 
     this.columnGeo = columnModel();
     this.armyGeo = new Map();   // each army's figure, by its troops and whether it is ragged
@@ -406,11 +410,13 @@ export class WorldView {
     };
     this.screen = [];
     this.updateFog();
+    const inSight = this.world.pois.reduce((k, p) => k + (p.visible ? 'v' : '-'), '');
+    if (this.lightsDirty || inSight !== this.lightsSeen) { this.lightsSeen = inSight; this.placeLights(); }
 
     // (a place laid out afresh costs a few milliseconds: one a frame)
     let relay = 1;
     for (const [p, o] of this.places) {
-      if (o.look !== this.lookKey(p) && (relay-- > 0 || !o.parts)) this.dress(p, o);
+      if (o.look !== this.lookKey(p) && (relay-- > 0 || !o.parts)) { this.dress(p, o); this.lightsDirty = true; }
       // Fog of war: places you have never seen are unknown; others show what you last saw.
       const shown = p.visible ? p.owner : p.seen ? p.known.owner : undefined;
       const own = shown === undefined ? { name: 'Unknown', color: '#8a8478' } : shown === null ? NEUTRAL : FACTIONS[shown];
@@ -628,6 +634,25 @@ export class WorldView {
       if (d < s.r && d < bd) { bd = d; best = s; }
     }
     return best;
+  }
+
+  // A lamp in each house, keep and tent of the places in sight, on the side the camera sees.
+  placeLights() {
+    this.lightsDirty = false;
+    const list = [], v = new THREE.Vector3();
+    for (const [p, o] of this.places) {
+      if (!o.parts?.visible || !p.visible) continue;
+      o.group.updateMatrixWorld(true);
+      const S = o.parts.getWorldScale(v).x;
+      for (const m of o.parts.children) {
+        if (!m.isMesh) continue;
+        const g = m.geometry, r = (g.boundingSphere || (g.computeBoundingSphere(), g.boundingSphere)).radius * m.scale.x * S;
+        if (r < 1.2 || r > 16) continue;
+        m.getWorldPosition(v);
+        list.push({ x: v.x, y: v.y + Math.min(3, r * 0.4), z: v.z, size: 5 + r, push: r * 0.8 });
+      }
+    }
+    this.lights.set(list.slice(0, 4000));
   }
 
   // ---- places: each kind has its own look, and it grows with the place's level ----

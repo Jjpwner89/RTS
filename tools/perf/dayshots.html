@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Day shots</title>
+<style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style>
+<iframe id="f"></iframe>
+<script type="module">
+// Shots of the campaign's world map and your village at given times of day (look.js), in a headless Chrome:
+//   PAGE=dayshots.html sh tools/perf/runprof.sh 'test=lord&at=world:30,world:105,town:105'
+// Each shot stops the campaign's clock at that many seconds, waits, and PUTs a jpg to the shot sink; then posts done.
+const P = new URLSearchParams(location.search);
+const SINK = P.get('sink') || 8733, SHOTS = P.get('shotport') || 8732;
+const post = o => fetch(`http://127.0.0.1:${SINK}/prof.json`, { method: 'POST', body: JSON.stringify(o) });
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const f = document.getElementById('f');
+f.src = `../../world.html?test=${P.get('test') || 'lord'}`;
+try {
+  await new Promise(r => f.onload = r);
+  const w = f.contentWindow;
+  for (let i = 0; i < 120 && !w.game; i++) await sleep(250);
+  const G = w.game, st = G.stage, errs = [];
+  w.addEventListener('error', e => errs.push(e.message));
+  await sleep(2500);
+  for (const shot of (P.get('at') || 'world:105').split(',')) {
+    const [view, t] = shot.split(':');
+    if (view === 'town' && G.mode !== 'town') { G.enterTown(G.world.pois.find(p => p.town && p.owner === 0) || G.world.pois.find(p => p.town)); await sleep(3000); }
+    if (view === 'world' && G.mode !== 'world') { G.showWorld(); await sleep(2000); }
+    w.look.look.clock = () => +t;
+    await sleep(1500);
+    const cv = st.renderer.domElement;
+    // draw a frame and copy it at once, before the browser clears it
+    await new Promise(res => w.requestAnimationFrame(() => w.requestAnimationFrame(res)));
+    st.renderer.render(st.current(), st.camera); const c2 = document.createElement('canvas'); c2.width = 1024; c2.height = Math.round(1024 * cv.height / cv.width);
+    c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height);
+    const blob = await new Promise(res => c2.toBlob(res, 'image/jpeg', 0.88));
+    await fetch(`http://127.0.0.1:${SHOTS}/day-${view}-${t}.jpg`, { method: 'PUT', body: blob });
+  }
+  await post({ done: true, errs, night: w.look.NIGHT.value, stage: Object.keys(st) });
+} catch (e) { await post({ error: String(e.stack || e) }); }
+</script>

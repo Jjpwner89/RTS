@@ -8,7 +8,7 @@ import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor, gaitSpeed, CADENCE } from './anim.js';
 import { fxFor } from './fx.js';
-import { SUN_DIR } from './look.js';
+import { SUN_DIR, NIGHT, lamps } from './look.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -532,6 +532,8 @@ export class BattleView {
     this.syncSoldiers();
     this.buildArrows();
     this.syncBanners();
+    this.torches = lamps(scene, '#ffb25e');   // by night each regiment carries a torch by its banner
+    this.torchCount = 0;
     if (keeps) buildKeeps(scene, heightAt);
     this.outlines = new THREE.Group();
     scene.add(this.outlines);
@@ -802,8 +804,24 @@ export class BattleView {
       }
       bn.sprite.material.opacity = r.routing ? 0.45 + 0.3 * Math.sin(b.time * 6) : 1;
     }
+    if (NIGHT.value > 0.15) this.carryTorches();
     this.drawOutlines(selection);
     this.fx.battle(b, this, selection);   // fx
+  }
+
+  // A torch beside each regiment's banner, so a regiment reads by night (none for the gone or unseen).
+  carryTorches() {
+    const T = this.torches;
+    if (this.torchCount !== this.banners.length) {
+      this.torchCount = this.banners.length;
+      T.set(this.banners.map(() => ({ x: 0, y: -1e4, z: 0, size: 9 })));
+    }
+    this.banners.forEach((bn, i) => {
+      const r = bn.r, p = bn.sprite.position;
+      if (r.gone || r.unseen) T.move(i, 0, -1e4, 0);
+      else T.move(i, p.x + 1.2, p.y - 3.2, p.z);
+    });
+    T.update();
   }
 
   // Marks on the ground: where selected regiments stand, where they are heading, and whom they attack. Each is a

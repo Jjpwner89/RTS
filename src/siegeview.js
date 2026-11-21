@@ -12,6 +12,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, WOOD, DARK, STONE, STONE_DARK, METAL } from './view.js';
 import { buildingModel } from './models.js';
 import { MATERIALS, PIECE_MAX } from './walls.js';
+import { NIGHT } from './look.js';
 
 const PALE = '#c9b38a', ROPE = '#b8a27a', MOSS = '#6f6a5c';
 
@@ -340,7 +341,8 @@ export class SiegeView {
   }
 
   updateTorches() {
-    const night = this.battle.weather === 'night';
+    // a night battle, or night falling on the campaign's clock (look.js)
+    const night = this.battle.weather === 'night' || NIGHT.value > 0.4;
     this.torchGlow.visible = night;
     if (!night) { this.torchFlames.count = 0; return; }
     if (this.torchVersion !== this.battle.walls.version) { this.torchVersion = this.battle.walls.version; this.placeTorches(); }

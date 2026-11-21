@@ -98,18 +98,40 @@ function turnYear(t) {
   year.bare = Math.floor(f * 4) === 3;
 }
 
-// The day, through the weather: the sun's strength (i) and colour, the sky's light (hemi), the sky and haze, and
-// how high the sun stands (degrees). Dawn and dusk are warm and low; the night is moonlit and never dark enough to
-// hide a regiment. d: 0 midnight, 0.5 noon. Keys without colours keep the weather's own.
+// The day, through the weather: the sun's strength (i) and colour, the sky's light (hemi) and its colour, the sky
+// and haze, how high the sun (or by night the moon) stands (degrees), and how dark it is (night: lamps, torches and
+// stars). Dawn and dusk are warm and low; the night is a dark moonlit blue, and regiments read by their banners,
+// torches and rings (view.js), not by a bright world. d: 0 midnight, 0.5 noon. Keys without colours keep the weather's.
+const MOON = { i: 0.27, sun: '#8fa8dc', hemi: 0.5, sky: '#5a7ccc', zenith: '#070f24', horizon: '#1a2846', haze: '#18243f', elev: 42, night: 1 };
 const DAYKEYS = [
-  { d: 0, i: 0.42, sun: '#a9bde0', hemi: 0.8, zenith: '#2e4366', horizon: '#7d8b9c', haze: '#7f8c99', elev: 34 },
-  { d: 0.22, i: 0.78, sun: '#ffc29a', hemi: 0.88, zenith: '#7f97ba', horizon: '#efcfb2', haze: '#e0cdbb', elev: 11 },
-  { d: 0.32, i: 1, hemi: 1, elev: 24 },
-  { d: 0.5, i: 1, hemi: 1, elev: 38 },
-  { d: 0.68, i: 1, hemi: 1, elev: 30 },
-  { d: 0.8, i: 0.74, sun: '#ffad78', hemi: 0.84, zenith: '#6d7fa8', horizon: '#e9b391', haze: '#d9b9a0', elev: 10 },
-  { d: 1, i: 0.42, sun: '#a9bde0', hemi: 0.8, zenith: '#2e4366', horizon: '#7d8b9c', haze: '#7f8c99', elev: 34 },
+  { d: 0, ...MOON },
+  { d: 0.17, ...MOON },
+  { d: 0.205, i: 0.36, sun: '#c48f8a', hemi: 0.66, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 14, night: 0.7 },
+  { d: 0.24, i: 0.72, sun: '#ff9a5c', hemi: 0.74, zenith: '#5d72a4', horizon: '#f4ae7e', haze: '#d9a588', elev: 7, night: 0.15 },
+  { d: 0.3, i: 0.95, sun: '#ffd2a6', hemi: 0.94, elev: 17, night: 0 },
+  { d: 0.38, i: 1, hemi: 1, elev: 28, night: 0 },
+  { d: 0.5, i: 1, hemi: 1, elev: 40, night: 0 },
+  { d: 0.66, i: 1, hemi: 1, elev: 30, night: 0 },
+  { d: 0.745, i: 0.74, sun: '#ff8a4c', hemi: 0.74, zenith: '#53659c', horizon: '#f39a62', haze: '#d6936f', elev: 6, night: 0.15 },
+  { d: 0.785, i: 0.38, sun: '#d0787a', hemi: 0.66, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 14, night: 0.7 },
+  { d: 0.83, ...MOON },
+  { d: 1, ...MOON },
 ];
+// The time of day for the top bar: a little dial with the sun (by day) or the moon (by night) climbing over the
+// horizon, and its name. Returns { html, name, key }; key changes when the drawing does.
+const TIMES = [[0.17, 'Night'], [0.25, 'Dawn'], [0.42, 'Morning'], [0.58, 'Midday'], [0.74, 'Afternoon'], [0.83, 'Dusk'], [1.01, 'Night']];
+export function dayDial(t) {
+  const d = dayOf(t), name = TIMES.find(([e]) => d < e)[1], up = d >= 0.22 && d < 0.78;
+  const f = up ? (d - 0.22) / 0.56 : ((d + 0.22) % 1) / 0.44, a = Math.PI * Math.min(1, Math.max(0, f));
+  const x = (16 - 12 * Math.cos(a)).toFixed(1), y = (17 - 11 * Math.sin(a)).toFixed(1);
+  const sky = name === 'Night' ? '#1b2547' : name === 'Dawn' || name === 'Dusk' ? '#d98a62' : '#7fb0dc';
+  const disc = up ? `<circle cx="${x}" cy="${y}" r="3.4" fill="#ffd45a"/>` : `<circle cx="${x}" cy="${y}" r="3.2" fill="#e8eefc"/><circle cx="${(+x + 1.6).toFixed(1)}" cy="${(+y - 1).toFixed(1)}" r="2.6" fill="${sky}"/>`;
+  const html = `<svg viewBox="0 0 32 19" width="32" height="19" aria-hidden="true"><path d="M2 17A14 14 0 0 1 30 17Z" fill="${sky}"/>${disc}<path d="M1 17.5H31" stroke="#c9b48a" stroke-width="1.2"/></svg>${name}`;
+  return { html, name, key: `${name}${x}${y}` };
+}
+
+// How dark it is, 0 by day to 1 at night: lamps and torches light, stars come out (lamps(), siegeview.js torches).
+export const NIGHT = { value: 0 };
 const AZIMUTH = Math.atan2(SUN_DIR.z, SUN_DIR.x), tmp = new THREE.Color();
 // the campaign starts in the morning
 export const dayOf = t => ((t / DAY + 0.3) % 1 + 1) % 1;
@@ -120,16 +142,19 @@ function turnDay(s, t) {
   const j = DAYKEYS.findIndex(k => k.d > d), A = DAYKEYS[j - 1], B = DAYKEYS[j], k = (d - A.d) / (B.d - A.d), w = k * k * (3 - 2 * k);
   const num = key => A[key] + (B[key] - A[key]) * w;
   // a colour from the keys, each falling back to the weather's own; a dull sky takes only some of the day's colour
-  const B0 = L.base, wc = L.weather === 'clear' ? 1 : 0.35;
+  const B0 = L.base, wc = L.weather === 'clear' ? 1 : 0.8;
   const col = (key, out, base) => out.copy(tmp.set(A[key] || base).lerp(new THREE.Color(B[key] || base), w)).lerp(base, 1 - wc);
   L.sun.intensity = B0.sunI * num('i');
   col('sun', L.sun.color, B0.sun);
   L.hemi.intensity = B0.hemiI * num('hemi');
+  col('sky', L.hemi.color, PALETTE.skyLight);
   const u = L.sky.material.uniforms;
   col('zenith', u.uZenith.value, B0.zenith);
   col('horizon', u.uHorizon.value, B0.horizon);
   col('haze', s.fog.color, B0.haze);
   s.background.copy(u.uHorizon.value);
+  L.night = u.uNight.value = num('night') * wc;
+  u.uSunCol.value.copy(L.sun.color).multiplyScalar(L.weather === 'clear' ? 1 : 0.35);
   const e = THREE.MathUtils.degToRad(num('elev'));
   SUN_DIR.set(Math.cos(AZIMUTH) * Math.cos(e), Math.sin(e), Math.sin(AZIMUTH) * Math.cos(e));
   u.uSun.value.copy(SUN_DIR); SKY.uSunDir.value.copy(SUN_DIR);
@@ -146,7 +171,7 @@ void main() {
   gl_Position = p.xyww;
 }`;
 const SKY_FS = /* glsl */`
-uniform vec3 uZenith, uHorizon, uSun, uSunCol; uniform float uCloud, uTime;
+uniform vec3 uZenith, uHorizon, uSun, uSunCol; uniform float uCloud, uTime, uNight;
 varying vec3 vDir;
 float h(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
@@ -163,7 +188,10 @@ void main() {
   // clouds on a high flat ceiling, thinning toward the horizon
   vec2 cp = d.xz / max(d.y + .12, .05) * 1.6 + uTime * vec2(.006, .002);
   float c = smoothstep(.55 - uCloud * .35, .9, fbm(cp)) * smoothstep(0., .25, d.y);
-  vec3 cloud = mix(uHorizon * 1.05, vec3(1.), .5 + .5 * pow(s, 3.)) * (1. - uCloud * .35);
+  vec3 cloud = mix(uHorizon * 1.05, vec3(1. - uNight * .82), .5 + .5 * pow(s, 3.)) * (1. - uCloud * .35);
+  // stars by night, behind the clouds
+  vec2 sp = d.xz / (d.y + .3) * 140.;
+  col += uNight * step(.992, h(floor(sp))) * smoothstep(.04, .3, d.y) * (1. - c) * (.35 + .5 * h(floor(sp) + 3.));
   col = mix(col, cloud, c * (.55 + uCloud * .4));
   gl_FragColor = vec4(col, 1.);
   #include <tonemapping_fragment>
@@ -173,7 +201,7 @@ export const SKY_TIME = { value: 0 };
 function skyDome() {
   const mat = new THREE.ShaderMaterial({
     uniforms: { uZenith: { value: PALETTE.zenith.clone() }, uHorizon: { value: PALETTE.horizon.clone() }, uSun: { value: SUN_DIR.clone() },
-      uSunCol: { value: PALETTE.sun.clone() }, uCloud: { value: WEATHER.clear.cloud }, uTime: SKY_TIME },
+      uSunCol: { value: PALETTE.sun.clone() }, uCloud: { value: WEATHER.clear.cloud }, uTime: SKY_TIME, uNight: { value: 0 } },
     vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, fog: false,
   });
   const dome = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 16), mat);
@@ -192,7 +220,11 @@ export function prepare(s) {
   const L = s.userData.look;
   if (!L) return;
   const t = look.clock?.();
-  if (t != null) { turnYear(t); if (L.weather !== 'night') turnDay(s, t); }
+  if (t != null) turnYear(t);
+  if (L.weather === 'night') L.night = L.sky.material.uniforms.uNight.value = 1;
+  else if (t != null) turnDay(s, t);
+  else L.night = L.sky.material.uniforms.uNight.value = 0;
+  NIGHT.value = L.night;
   const u = L.sky.material.uniforms;
   SKY.uZenith.value.copy(u.uZenith.value); SKY.uHorizon.value.copy(u.uHorizon.value);
   SKY.uSunCol.value.copy(L.sun.color); SKY.uSunI.value = L.sun.intensity / PALETTE.sunI;
@@ -414,4 +446,68 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
   for (const q of qualities) out[q] = { gpuMinMs: low(gpu[q]), gpuMs: med(gpu[q]), gpuP90Ms: p90(gpu[q]), cpuMs: med(cpu[q]), ...info[q] };
   return out;
 }
-if (typeof window !== 'undefined') window.look = { bench, quality, setQuality, setWeather, look, QUALITY, GRADE, PALETTE, SEASON, year, dayOf };
+// ---- lamps ----
+// Warm lights that come on as night falls (NIGHT): lit windows and hearths in villages, fires in camps, torches
+// carried by regiments. Each is a glow facing the camera, a bright core in a soft halo, drawn a little toward the
+// camera (push, metres) so a lamp set inside a house shows on the wall you see. They come on one by one through
+// dusk and flicker. Cheap: one draw for all of a view's lamps, and none by day.
+const LAMP_VS = /* glsl */`
+attribute float aSize, aPush, aSeed;
+uniform float uNight, uTime, uH;
+varying float vA;
+void main() {
+  vec4 mv = modelViewMatrix * vec4(position, 1.);
+  mv.xyz += normalize(-mv.xyz) * aPush;
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = min(320., aSize * projectionMatrix[1][1] * uH * .5 / -mv.z);
+  float flick = .86 + .14 * sin(uTime * (6. + aSeed * 5.) + aSeed * 40.) * sin(uTime * 2.3 + aSeed * 17.);
+  vA = smoothstep(.15 + aSeed * .5, .3 + aSeed * .5, uNight) * flick;
+}`;
+const LAMP_FS = /* glsl */`
+uniform vec3 uColor;
+varying float vA;
+void main() {
+  vec2 q = gl_PointCoord * 2. - 1.;
+  float r2 = dot(q, q);
+  if (r2 > 1. || vA < .01) discard;
+  gl_FragColor = vec4(uColor * vA * (exp(-r2 * 30.) * 2.2 + exp(-r2 * 5.) * .3) * (1. - r2), 1.);
+}`;
+const lampSize = new THREE.Vector2();
+// Adds a set of lamps to a scene; set(list) places them: [{ x, y, z, size (metres across, 6), push (0) }].
+export function lamps(scene, color = '#ffa04a') {
+  const geo = new THREE.BufferGeometry();
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uNight: NIGHT, uTime: SKY_TIME, uH: { value: 800 }, uColor: { value: new THREE.Color(color).multiplyScalar(2.2) } },
+    vertexShader: LAMP_VS, fragmentShader: LAMP_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  points.renderOrder = 10;
+  points.visible = false;
+  points.onBeforeRender = r => { mat.uniforms.uH.value = r.getDrawingBufferSize(lampSize).y; };
+  scene.add(points);
+  let n = 0;
+  // shown only after dark (checked each frame by the scene's own drawing)
+  const was = scene.onBeforeRender;
+  scene.onBeforeRender = function (...a) { was.apply(this, a); points.visible = n > 0 && NIGHT.value > 0.15; };
+  return {
+    points,
+    set(list) {
+      n = list.length;
+      const pos = new Float32Array(n * 3), size = new Float32Array(n), push = new Float32Array(n), seed = new Float32Array(n);
+      list.forEach((l, i) => {
+        pos.set([l.x, l.y, l.z], i * 3); size[i] = l.size ?? 6; push[i] = l.push ?? 0;
+        seed[i] = (Math.sin(l.x * 12.9898 + l.z * 78.233) * 43758.5453 % 1 + 1) % 1;
+      });
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+      geo.setAttribute('aPush', new THREE.BufferAttribute(push, 1));
+      geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+    },
+    // moves lamp i (for lamps that follow something), then update() once all are moved
+    move(i, x, y, z) { geo.attributes.position?.array.set([x, y, z], i * 3); },
+    update() { if (geo.attributes.position) geo.attributes.position.needsUpdate = true; },
+  };
+}
+
+if (typeof window !== 'undefined') window.look = { bench, quality, setQuality, setWeather, look, QUALITY, GRADE, PALETTE, SEASON, year, dayOf, NIGHT };

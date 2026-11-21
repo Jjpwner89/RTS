@@ -1,7 +1,7 @@
 // The campaign: one world map, and a zoom into any place on it. Your villages are the
 // full village game; meetings on the road and attacks on other places become field
 // battles you fight (or auto-resolve). URL option: ?seed=123 for a fixed map.
-import { look } from './look.js';
+import { look, dayDial } from './look.js';
 import { createStage } from './stage.js';
 import { TownLabels } from './townlabels.js';
 import { showOrderHint } from './ui/orderhint.js';
@@ -1274,6 +1274,9 @@ function topBar() {
     { const html = foes.length ? `${ico('warning', '#ffb05a')} ${foes.map(a => `${a.name} (${headcount(a.units)})`).join(', ')} on the march` : ''; if ($('strength').dataset.was !== html) { $('strength').dataset.was = html; $('strength').innerHTML = html; $('strength').title = html.replace(/<[^>]*>/g, '').trim(); } }
   }
   if (mode === 'town') $('clock').textContent = clock(world.time);
+  // the time of day by the clock, in every view (look.js)
+  { const dd = dayDial(world.time), el = $('daydial') || $('clock').insertAdjacentElement('beforebegin', Object.assign(document.createElement('span'), { id: 'daydial' }));
+    if (el.dataset.key !== dd.key) { el.dataset.key = dd.key; el.innerHTML = dd.html; el.title = `${dd.name}: a day passes in two and a half minutes. Night falls dark; torches and banners show where your men stand.`; } }
   const n = mode === 'town' ? current.controls.selection.size : 0;
   $('march').hidden = !n;
   $('march').innerHTML = `March out <span class="long">with ${n} regiment${n === 1 ? '' : 's'}</span><span class="short">(${n})</span>`;
