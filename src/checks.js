@@ -340,9 +340,12 @@ async function battleChecks({ battle, town, label }) {
     const { STUCK, AFTER, FEW, MANY } = await import('./townlabels.js');
     const stuck = [town.keep, ...town.buildings].filter(b => b.state !== 'ruined' && !b.removed && STUCK.test(b.status || '') && b.stuckSince != null && town.time - b.stuckSince >= AFTER);
     const strip = document.querySelector('.town-labels .stuck-strip'), chips = strip && !strip.hidden ? [...strip.querySelectorAll('[data-k] b')].reduce((n, e) => n + +e.textContent, 0) : 0;
+    // (a building behind the camera has no badge to draw)
+    const cam = window.game.stage?.camera, V = cam?.position.constructor;
+    const seen = stuck.filter(b => !cam || new V(b.x, town.heightAt(b.x, b.z) + (b.B.radius || 4) * 1.4 + 3, b.z).project(cam).z <= 1);
     const badges = document.querySelectorAll('.town-labels .stuck:not(.prio)').length, out = [];
     if (chips !== (stuck.length > FEW ? stuck.length : 0)) out.push(`${stuck.length} buildings stuck, the strip counts ${chips}`);
-    if (stuck.length <= MANY && badges !== stuck.length) out.push(`${stuck.length} buildings stuck, ${badges} badges`);
+    if (stuck.length <= MANY && badges !== seen.length) out.push(`${stuck.length} buildings stuck (${seen.length} in front of the camera), ${badges} badges`);
     if (stuck.length > MANY && badges > 1) out.push(`${stuck.length} stuck: only the badge under the pointer should show, ${badges} do`);
     return out;
   });
