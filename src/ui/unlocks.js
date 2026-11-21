@@ -14,9 +14,9 @@ export const UNLOCKS = {
   'b:hall': { when: rank('Count'), intro: "New: a knights' hall trains your veterans into men-at-arms and knights." },
   'b:cathedral': { when: rank('Count'), intro: 'New: a cathedral, the showpiece of a realm, in a village of 100 people.' },
   // The Realm screen's tabs arrive with what they are about (the Realm screen itself comes at Lord).
-  'tab:vassals': { when: w => (w.vassals || []).length > 0, intro: 'New: the Vassals tab: each vassal\'s opinion and why, what they want, and what you can do with them.' },
-  'tab:houses': { when: w => w.met?.size > 0 || w.pois.some(p => p.owner > 0 && p.seen), intro: 'New: the Houses tab: the great houses you have met, and gifts, peace and marriage with them.' },
-  'tab:council': { when: rank('Count'), intro: 'New: the Council tab: a steward, a marshal and an envoy, chosen from your vassals.' },
+  'tab:vassals': { when: w => (w.vassals || []).length > 0, intro: 'New: Vassals: each one\'s mood, wants and dues.' },
+  'tab:houses': { when: w => w.met?.size > 0 || w.pois.some(p => p.owner > 0 && p.seen), intro: 'New: Houses: gifts, peace and marriage with the great houses.' },
+  'tab:council': { when: rank('Count'), intro: 'New: Council: seat vassals as steward, marshal and envoy.' },
   gather: { when: rank('Duke'), intro: 'New: Gather your armies here sends every free army to one place, to march out again as one host.' },
   decrees: { when: w => w.crowned || w.rank === 'King', intro: 'New: royal decrees, in the Your realm panel: the king\'s peace, the great levy, the tithe and the king\'s roads.' },
   // Sellsword companies wait at market towns: worth a section once you have seen one of them.

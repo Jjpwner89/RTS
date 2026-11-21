@@ -67,14 +67,22 @@ function place(el) {
   const cx = r.left + r.width / 2 - s.width / 2, cy = r.top + r.height / 2 - s.height / 2;
   const cands = [[r.right + 10, cy, 'right'], [cx, r.bottom + 10, 'below'], [cx, r.top - s.height - 10, 'above'], [r.left - s.width - 10, cy, 'left']];
   if (el.closest('#top')) cands.unshift(cands.splice(1, 1)[0]);   // the next button is to the right: go under the bar
-  // A Realm tab: under the whole tab row (beside the tab it would hide its neighbours), by the tab.
+  // A Realm tab: in the header's empty stretch to the right of the tabs, so it hides no card or tab. With no room
+  // there (a narrow window) there is no slip, and the tab's tooltip says it instead.
   const row = el.closest('#realm nav');
-  if (row) cands.unshift([Math.min(r.left, innerWidth - s.width - pad), row.closest('header').getBoundingClientRect().bottom + 6, 'below']);
+  let room = null;
+  if (row) {
+    const head = row.closest('header'), hb = head.getBoundingClientRect(), last = row.lastElementChild.getBoundingClientRect(), x = row.closest('#realm').querySelector('.close').getBoundingClientRect().left;
+    room = last.right + 10 + s.width <= x - 6 && s.height <= hb.height + 4;
+    if (room) cands.unshift([last.right + 10, hb.top + (hb.height - s.height) / 2, 'right']);
+    else el.dataset.tip = UNLOCKS[shown]?.intro || '';
+  }
   // A button inside a docked panel: beside the panel (a slip beside the button would sit on the panel).
   const dock = el.closest('#wpanel, #info, #stock, #alerts, #defences');
   if (dock) { const d = dock.getBoundingClientRect(); cands.unshift([d.left - s.width - 10, cy, 'left'], [d.right + 10, cy, 'right']); }
   const ok = ([x, y]) => x >= pad && y >= pad && x + s.width <= innerWidth - pad && y + s.height <= innerHeight - pad;
   const clear = ([x, y]) => boxes.every(b => x >= b.right || x + s.width <= b.left || y >= b.bottom || y + s.height <= b.top);
+  if (row && !room) return false;
   const pick = cands.find(c => ok(c) && clear(c));
   if (!pick) return false;
   slip.style.left = `${Math.round(pick[0])}px`;
