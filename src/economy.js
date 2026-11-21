@@ -498,32 +498,41 @@ export class Town {
     const wants = new Map(holders.map(b => [b, this.wants(b)]));
     const stores = this.stores();
     let best = null, bs = Infinity;
-    const consider = (from, to, g, n, rank) => {
-      if (n < 1) return;
+    // `least`: a building site short of a fraction (firewood leaves broken logs in store)
+    // still gets its last crate, of whatever is needed to finish it.
+    const consider = (from, to, g, n, rank, least = 1) => {
+      if (n < least) return;
       const s = rank * 150 + dist(v, from) + dist(from, to);
-      if (s < bs) { bs = s; best = { from, to, g, n: Math.min(Math.floor(n), crate(g)) }; }
+      if (s < bs) { bs = s; best = { from, to, g, n: Math.min(n >= 1 ? Math.floor(n) : n, crate(g)) }; }
     };
     for (const to of holders) {
       const w = wants.get(to);
       const rank = to.state === 'site' ? 0 : to.kind === 'barracks' ? 2 : 1;
       for (const g in w) {
         const need = w[g] - (to.store[g] || 0) - (to.incoming[g] || 0);
-        if (need < 1) continue;
+        const site = to.state === 'site';
+        if (need < (site ? 0.01 : 1)) continue;
         for (const from of holders) {
           if (from === to || (only && only !== to && only !== from)) continue;
-          consider(from, to, g, Math.min(need, this.spare(from, g, wants)), rank);
+          consider(from, to, g, Math.min(site ? Math.ceil(need - 1e-6) : need, this.spare(from, g, wants)), rank, site ? Math.min(1, need) : 1);
         }
       }
     }
     const barracks = this.buildings.some(b => b.kind === 'barracks' && b.state === 'active');
+    // Firewood burns only from the stores; while they are low, wood is always taken in.
+    const lowWood = stores.reduce((n, b) => n + (b.store.wood || 0), 0) < 20;
     for (const from of holders) {
       if (from.B.storage || (only && only !== from)) continue;
+      let to = null, bd = Infinity;
+      for (const s of stores) if (dist(s, from) < bd) { bd = dist(s, from); to = s; }
       for (const g in from.store) {
         if (barracks && ARMS.includes(g)) continue;
         const n = this.spare(from, g, wants);
-        if (!only && n < Math.min(crate(g), 5 * (BULK[g] || 1))) continue;
-        let to = null, bd = Infinity;
-        for (const s of stores) if (dist(s, from) < bd) { bd = dist(s, from); to = s; }
+        // Far from any store, a yard keeps its goods until it is half full: workshops and
+        // sites nearby draw from it directly, and nobody walks a crate across the village
+        // only to carry it back. Food always goes in, for the meals.
+        const far = bd > 40 && g !== 'food' && !(g === 'wood' && lowWood);
+        if (!only && n < (far ? holdOf(g) / 2 : Math.min(crate(g), 5 * (BULK[g] || 1)))) continue;
         consider(from, to || this.keep, g, n, 3);
       }
     }

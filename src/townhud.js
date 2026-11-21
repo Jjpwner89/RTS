@@ -167,7 +167,7 @@ export class TownHud {
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
     const armed = t.underArms;
     set('pop', `${ico('people')} ${t.population} / ${t.housing}${armed ? ` <small>(${armed} under arms)</small>` : ''}`);
-    set('idle', `${t.hauling} carrying · ${t.idle} idle`);
+    set('idle', `${t.hauling} carrying · ${t.idle} without a job`);
     const m = Math.round(t.mood);
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
