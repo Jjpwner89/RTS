@@ -2044,7 +2044,15 @@ export class Town {
       b.status = 'Working';
       audio.tick(g.node, v, dt, 1.2, this.battle); // audio: chopping or picking
       if (t.timer <= 0) { t.phase = 'back'; v.carry = Object.keys(g.out)[0]; }
-    } else if (this.walk(v, b.x + Math.sin(b.angle) * (b.B.radius + 1), b.z + Math.cos(b.angle) * (b.B.radius + 1), dt)) {
+    } else {
+      // Home to the door, or (a door against a town wall, QC at Kingsbridge: two woodcutters walked on
+      // the spot for minutes) set down from where they stand, as carriers do.
+      const d = this.door(b, v);
+      if (!this.walk(v, d.x, d.z, dt)) {
+        if (!this.stuckNear(v, d.x, d.z, dt)) return;
+        if (!b.cutOff) { b.cutOff = true; this.event(`The ${b.B.name.toLowerCase()}'s workers can't reach its door (a wall or a building is in the way): they set down what they bring from where they stand. Clear a way to it.`, 1); }
+      }
+      this.unstick(v);
       // A hunt takes from the game of its patch; a deposit gives what it has left.
       let k = 1;
       if (g.game) k = this.huntAt(t.spot) ? 1 : 0;
