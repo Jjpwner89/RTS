@@ -48,12 +48,29 @@ const moveAngle = s => !s.vx && !s.vz ? 0 : wrap(Math.atan2(s.vx, s.vz) - s.yaw)
 const wrap = a => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
 // Where each way of stepping goes (moveAngle), so the body can be turned to step exactly the way he moves.
 const WAY_AT = { On: 0, Left: Math.PI / 2, Right: -Math.PI / 2, Back: Math.PI };
+const TURN_RATE = 2.4, DRIFT = 0.3;   // how fast a man at rest turns his body as he steps round, or shifts his feet a little, in radians a second (pickClip)
+// where his right and left feet stand in the Turn clip, against his middle, in metres (x to his left, z on)
+const TURN_FEET = [[-0.07, 0.32], [0.185, -0.09]];
 // The figure is drawn turned `s.lean` from his facing (update()): on the move, by what's left between the way he
 // moves and the way his clip steps, so his planted feet don't skate sideways; eased there and back as he moves and stops.
+// At rest he is drawn facing `s.faceAt` (pickClip), and stepping round on the spot he turns on his planted foot, so he
+// is drawn shifted (`s.shiftX`, `s.shiftZ`) from where he stands, and eased back after.
 export function soldierClip(s, b, info, out) {
-  s.leanTo = 0;
-  const k = pickClip(s, b, info, out);
-  s.lean = (s.lean || 0) + wrap(s.leanTo - (s.lean || 0)) * Math.min(1, (s.animDt || 0) * 8);
+  s.leanTo = 0; s.atRest = false;
+  const drawn = s.drawn ?? s.yaw + (s.lean || 0), k = pickClip(s, b, info, out);
+  // (anything else he does, a step round cut short by a blow or a shot included, takes up from the way he is drawn
+  // facing the next time he comes to rest)
+  if (!s.atRest) { s.turnT = s.faceAt = null; s.lean = (s.lean || 0) + wrap(s.leanTo - (s.lean || 0)) * Math.min(1, (s.animDt || 0) * 8); }
+  if (s.turnT != null) {
+    // the planted foot (his right while the left is up, the first half of each second) stays where it is on the ground
+    const [x, z] = TURN_FEET[s.turnT % 1 < 0.5 ? 0 : 1], now = s.yaw + s.lean;
+    const at = a => [x * Math.cos(a) + z * Math.sin(a), z * Math.cos(a) - x * Math.sin(a)], [x0, z0] = at(drawn), [x1, z1] = at(now);
+    s.shiftX = (s.shiftX || 0) + x0 - x1;
+    s.shiftZ = (s.shiftZ || 0) + z0 - z1;
+  } else if (s.shiftX || s.shiftZ) {
+    const e = Math.max(0, 1 - (s.animDt || 0) * (s.atRest ? 0.7 : 4)); s.shiftX *= e; s.shiftZ *= e;
+  }
+  s.drawn = s.yaw + s.lean;
   return k;
 }
 // Whether a dead man goes down in his skeleton's Death clip (a rider thrown as his horse falls in its own); without
@@ -103,11 +120,13 @@ function pickClip(s, b, info, out) {
       out.hc = clipOf('horse', 'Death'); out.ht = now - (s.diedAt ?? now);
       return show('Ride_Fall', out.ht);
     }
-    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', HORSE_GAITS.filter(n => clipOf('horse', n)), s.v), pace = g.name;
-    // (a horse turns its body the way it goes, unless it is backing or shoved more than a little aside)
-    const a = moveAngle(s);
-    if (s.v >= 0.4 && Math.abs(a) < Math.PI / 3) s.leanTo = a;
-    s.animT += dt * g.rate;
+    // a horse pushed back walks backwards (its walk played back), turned so it backs the way it goes; otherwise it
+    // turns its body the way it goes, unless shoved more than a little aside
+    const a = moveAngle(s), backing = s.v >= 0.4 && Math.abs(a) > 2 * Math.PI / 3 && !!clipOf('horse', 'Walk');
+    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', backing ? ['Walk'] : HORSE_GAITS.filter(n => clipOf('horse', n)), s.v), pace = g.name;
+    if (backing) s.leanTo = wrap(a - Math.PI);
+    else if (s.v >= 0.4 && Math.abs(a) < Math.PI / 3) s.leanTo = a;
+    s.animT += dt * g.rate * (backing ? -1 : 1);
     out.hc = clipOf('horse', pace); out.ht = s.animT;
     const lance = info.weapon === 'lance';
     if (close && lance) { s.couchAt ??= now; return show('Ride_Couch', now - s.couchAt); }
@@ -152,7 +171,20 @@ function pickClip(s, b, info, out) {
   if (braced) { s.braceAt ??= now; return show('Spear_Brace', now - s.braceAt); }
   s.braceAt = null;
   if (info.shield && r.formation === 'tight') return gait('Shield_Wall');
-  return gait(info.rest);
+  // at rest his body follows his facing slowly, shifting his feet; when it swings round more than 30 degrees he steps
+  // round on the spot, a foot every half second, his body coming round with his steps, until he faces it as a foot
+  // comes down
+  s.atRest = true;
+  s.faceAt ??= wrap(s.drawn ?? s.yaw);
+  const turn = UPRIGHT[info.weapon] ? 'TurnArmed' : 'Turn', off = wrap(s.yaw - s.faceAt), was = s.turnT;
+  if (was == null && Math.abs(off) > 0.5 && clipOf(rig, turn)) s.turnT = 0.5;
+  const rate = s.turnT != null ? TURN_RATE : DRIFT;
+  s.faceAt = wrap(s.faceAt + clamp(off, -rate * dt, rate * dt));
+  s.lean = wrap(s.faceAt - s.yaw);
+  if (s.turnT == null) return gait(info.rest);
+  s.turnT += dt;
+  if (was != null && (s.turnT * 2 | 0) > (was * 2 | 0) && Math.abs(s.lean) < 0.05) { s.turnT = null; return gait(info.rest); }
+  return show(turn, s.turnT);
 }
 
 // ---- soldier models, built from primitives facing +z ----
@@ -663,7 +695,7 @@ export class BattleView {
           const walking = s.v > 0.4 && s.alive && !still;
           const bob = walking ? Math.abs(Math.sin(s.phase)) * (mounted ? 0.18 : 0.1) : 0;
           const fwd = still ? 0 : s.lunge * 0.35, fall = still ? 0 : s.fall;
-          d.position.set(s.x + Math.sin(s.yaw) * fwd, s.y + bob - fall * 0.15, s.z + Math.cos(s.yaw) * fwd);
+          d.position.set(s.x + (s.shiftX || 0) + Math.sin(s.yaw) * fwd, s.y + bob - fall * 0.15, s.z + (s.shiftZ || 0) + Math.cos(s.yaw) * fwd);
           d.rotation.set(-fall * Math.PI / 2 * (mounted ? 0 : 1), s.yaw + (s.lean || 0), mounted ? fall * Math.PI / 2 : 0);
           d.scale.setScalar(1);
         }

@@ -53,6 +53,8 @@ const HUMAN_CLIPS = {
   // stepping back or sideways, facing on (shoved in a melee, closing up in a ring facing out): the stock runs back and
   // to each side, slowed to a walk's stride
   Step_Back: { src: 'Run_Back', loop: true, speed: 0.45 }, Step_Left: { src: 'Run_Left', loop: true, speed: 0.45 }, Step_Right: { src: 'Run_Right', loop: true, speed: 0.45 },
+  // turning on the spot: standing as at rest, stepping each foot up and down in turn (`steps`, stepInPlace)
+  Turn: { src: 'Idle', at: 0, loop: true, length: 1, steps: { lift: 0.09 } }, TurnArmed: { src: 'Idle', at: 0, loop: true, length: 1, steps: { lift: 0.09 }, arm: 0 },
   Step_BackArmed: { src: 'Run_Back', loop: true, speed: 0.45, arm: 0 }, Step_LeftArmed: { src: 'Run_Left', loop: true, speed: 0.45, arm: 0 }, Step_RightArmed: { src: 'Run_Right', loop: true, speed: 0.45, arm: 0 },
   Death: { src: 'Death', hold: true }, Sword_Slash: { src: 'Sword_Slash' },
   // a second death, falling forward onto his face (the knight's, KNIGHT), and two ways of taking a blow
@@ -187,13 +189,14 @@ function pose(r, def, t) {
     if (r.from) retarget(r.from, r);
     return;
   }
-  sample(base, def.src, t);
+  const at = def.at ?? t;   // (a clip held at one moment of its source, as the turn holds the idle)
+  sample(base, def.src, at);
   const over = def.arm != null ? [RIGHT_ARM, 'March_Upright', def.arm] : def.upper ? [UPPER, ...def.upper] : null;
   if (over) {
     const keep = over[0].map(n => base.bones.get(n)), held = new Map();
     sample(base, over[1], over[2] === 'step' ? t / base.clips[def.src].duration * base.clips[over[1]].duration : over[2]);
     for (const b of keep) held.set(b, b.quaternion.clone());
-    sample(base, def.src, t);
+    sample(base, def.src, at);
     for (const [b, q] of held) b.quaternion.copy(q);
     base.root.updateMatrixWorld(true);
   }
@@ -226,7 +229,36 @@ function pose(r, def, t) {
     }
     base.root.updateMatrixWorld(true);
   }
+  if (def.steps) stepInPlace(base, def.steps, t / (def.length || 1));
   if (r.from) retarget(r.from, r);
+}
+// Each foot in turn lifted `lift` metres and set down where it was, over the first half of its own half of the loop
+// (`u` 0 to 1 through it): the hip, knee and foot solved as two bones, the knee bending forward as it does at rest.
+// (The men's feet hang from the root, apart from their legs: both are moved.)
+function stepInPlace(r, { lift }, u) {
+  for (const [side, off] of [['L', 0], ['R', 0.5]]) {
+    const k = ((u + off) % 1) * 2, h = k < 1 ? lift * Math.sin(Math.PI * k) : 0;
+    if (h <= 0) continue;
+    const up = r.bones.get('UpperLeg' + side), low = r.bones.get('LowerLeg' + side), foot = r.bones.get('Foot' + side);
+    const hip = up.getWorldPosition(new THREE.Vector3()), knee = low.getWorldPosition(new THREE.Vector3()), end = foot.getWorldPosition(new THREE.Vector3());
+    const endOnShin = low.worldToLocal(end.clone()), L1 = hip.distanceTo(knee), L2 = knee.distanceTo(end);
+    const target = end.clone().add(new THREE.Vector3(0, h, 0)), to = target.clone().sub(hip), d = Math.min(L1 + L2 - 1e-4, Math.max(Math.abs(L1 - L2) + 1e-4, to.length()));
+    const axis = to.normalize(), bend = knee.clone().sub(hip);
+    bend.addScaledVector(axis, -bend.dot(axis));
+    if (bend.lengthSq() < 1e-8) bend.set(0, 0, 1);
+    bend.normalize();
+    const a = (L1 * L1 + d * d - L2 * L2) / (2 * d), newKnee = hip.clone().addScaledVector(axis, a).addScaledVector(bend, Math.sqrt(Math.max(0, L1 * L1 - a * a)));
+    aim(up, knee.clone().sub(hip), newKnee.clone().sub(hip));
+    aim(low, low.localToWorld(endOnShin.clone()).sub(newKnee), target.clone().sub(newKnee));
+    foot.position.copy(foot.parent.worldToLocal(target));
+    foot.updateMatrixWorld(true);
+  }
+}
+// Turn a bone in the world so that direction `from` (from its origin) points along `to`.
+function aim(b, from, to) {
+  const turn = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize()), want = turn.multiply(b.getWorldQuaternion(new THREE.Quaternion()));
+  b.quaternion.copy(b.parent.getWorldQuaternion(_q2).invert().multiply(want));
+  b.updateMatrixWorld(true);
 }
 // Each bone's average turn over a looping clip (and, for bones the clip moves about, its average place in the world).
 const means = new Map();
