@@ -124,7 +124,7 @@ const SHAPES = {
 // Where each arm pivots on its engine. Both the built-in and the baked arms are made around their
 // own pivot, so the arm's group sits at the pivot and turns about it.
 const ARM_AT = { mangonel: { y: 2.3, z: 0.4 }, trebuchet: { y: 7.2, z: 0 } };
-const BAKED_PIVOT = { mangonel: { y: 0.75, z: 1.27 }, trebuchet: { y: 6.71, z: 0.88 } };
+const BAKED_PIVOT = { mangonel: { y: 1.91, z: 0.71 }, trebuchet: { y: 6.56, z: 3.32 } };   // (bake.js pivots())
 const ENGINE_BACK = { ram: 0, mangonel: 1.6, trebuchet: 3 };
 
 // A soft round glow for torchlight.

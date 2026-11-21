@@ -247,67 +247,70 @@ async function packColour(name, material) {
 }
 const rtsFlat = async name => split(await R.rtsModel(name)).gear;
 
-// ---- Kenney Castle Kit (CC0): its colours come from a palette texture; read them into vertex colours ----
-const palettes = new Map();
-function pixels(tex) {
-  if (palettes.has(tex)) return palettes.get(tex);
-  const img = tex.image, cv = document.createElement('canvas');
-  cv.width = img.width; cv.height = img.height;
-  const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
-  const out = { w: img.width, h: img.height, d: cx.getImageData(0, 0, img.width, img.height).data };
-  palettes.set(tex, out);
+// ---- Ankers Low Poly Medieval Weapons (CC0): timber siege engines, each one flat-coloured mesh in centimetres with
+// its front toward -z (the mesh's own +y, its z up) ----
+// Its browns become weathered timber, as the game's other wood is; greys stay.
+function weathered(c) {
+  const hsl = {}; c.getHSL(hsl);
+  return hsl.s < 0.25 ? c : c.setHSL(0.075, Math.min(0.45, hsl.s * 0.55), hsl.l * 0.72);
+}
+// A mesh's triangles in islands (those that share a corner), each with its box in the mesh's own units.
+function islands(g) {
+  const P = g.attributes.position, n = P.count / 3, at = i => `${P.getX(i).toFixed(3)},${P.getY(i).toFixed(3)},${P.getZ(i).toFixed(3)}`;
+  const up = Array.from({ length: n }, (_, i) => i), root = a => { while (up[a] !== a) a = up[a] = up[up[a]]; return a; }, seen = new Map();
+  for (let t = 0; t < n; t++) for (let i = t * 3; i < t * 3 + 3; i++) {
+    const k = at(i);
+    if (!seen.has(k)) seen.set(k, t);
+    else up[root(t)] = root(seen.get(k));
+  }
+  const out = new Map();
+  for (let t = 0; t < n; t++) {
+    const r = root(t);
+    if (!out.has(r)) out.set(r, { tris: [], box: new THREE.Box3() });
+    const s = out.get(r);
+    s.tris.push(t);
+    for (let i = t * 3; i < t * 3 + 3; i++) s.box.expandByPoint(new THREE.Vector3().fromBufferAttribute(P, i));
+  }
+  return [...out.values()];
+}
+// A non-indexed geometry's chosen triangles, with their colours.
+function someTris(g, tris) {
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const a = g.attributes[name], v = [];
+    for (const t of tris) for (let i = t * 3; i < t * 3 + 3; i++) v.push(a.getX(i), a.getY(i), a.getZ(i));
+    out.setAttribute(name, new THREE.Float32BufferAttribute(v, 3));
+  }
   return out;
 }
-// Kenney's toy orange and blue become weathered wood and a hide roof; greys stay.
-function kenneyTone(c) {
-  const hsl = {}; c.getHSL(hsl);
-  if (hsl.s < 0.25) return c;
-  if (hsl.h > 0.5 && hsl.h < 0.75) return c.setHSL(0.08, 0.22, Math.min(0.5, hsl.l * 0.7));
-  return c.setHSL(0.075, Math.min(0.45, hsl.s * 0.55), hsl.l * 0.72);
-}
-async function kenney(name) {
-  const o = (await C.gltf('assets/kenney/' + name + '.glb')).scene.clone(true);
-  o.traverse(m => {
-    if (!m.isMesh) return;
-    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(), uv = g.attributes.uv, n = g.attributes.position.count, col = [], c = new THREE.Color();
-    const mat = [].concat(m.material)[0], px = mat.map ? pixels(mat.map) : null;
-    for (let i = 0; i < n; i++) {
-      if (px && uv) {
-        const x = Math.min(px.w - 1, Math.max(0, Math.floor(uv.getX(i) * px.w))), y = Math.min(px.h - 1, Math.max(0, Math.floor(uv.getY(i) * px.h))), k = (y * px.w + x) * 4;
-        c.setRGB(px.d[k] / 255, px.d[k + 1] / 255, px.d[k + 2] / 255, THREE.SRGBColorSpace);
-      } else c.copy(mat.color);
-      kenneyTone(c);
-      col.push(c.r, c.g, c.b);
-    }
-    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    m.geometry = g;
-    m.material = new THREE.MeshLambertMaterial({ vertexColors: true });
-  });
-  return o;
-}
-// An engine with a moving arm: the frame and the arm baked apart at one scale, the arm about its own pivot.
-// `length` is the size in metres along the engine's longest ground side; `turn` turns its front to +z.
-async function engine(name, armNode, { length, height, turn = 0 }) {
-  const o = await kenney(name);
-  const g = new THREE.Group(); g.add(o); o.rotation.y = turn;
+// An engine, turned to face +z and sized to `length` (its longer ground side) or `height` in metres. `arm(box)` picks
+// the islands that swing, and `pivot` ([y, z] in the mesh's units, on its middle line) is where they turn; the arm is
+// baked about its pivot, which siegeview.js turns it about (BAKED_PIVOT, from pivots() below).
+async function ankers(file, { length, height, arm = null, pivot = null }) {
+  const o = (await C.fbx('assets/ankers/' + file + '.fbx')).clone(true);
+  let mesh = null;
+  o.traverse(m => { if (m.isMesh) mesh = m; });
+  const src = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone(), mats = [].concat(mesh.material), col = [], c = new THREE.Color();
+  const groups = src.groups.length ? src.groups : [{ start: 0, count: src.attributes.position.count, materialIndex: 0 }];
+  for (const gr of groups) for (let i = 0; i < gr.count; i++) { weathered(c.copy(mats[gr.materialIndex].color)); col.push(c.r, c.g, c.b); }
+  src.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const swing = arm ? islands(src).filter(s => arm(s.box)).flatMap(s => s.tris) : [], moving = new Set(swing);
+  const part = tris => { const m = new THREE.Mesh(someTris(src, tris), new THREE.MeshLambertMaterial({ vertexColors: true })); m.position.copy(mesh.position); m.quaternion.copy(mesh.quaternion); m.scale.copy(mesh.scale); mesh.parent.add(m); return m; };
+  const frameMesh = part([...Array(src.attributes.position.count / 3).keys()].filter(t => !moving.has(t))), armMesh = swing.length ? part(swing) : null;
+  mesh.parent.remove(mesh);
+  const g = new THREE.Group(), turn = new THREE.Group();
+  turn.add(o); turn.rotation.y = Math.PI; g.add(turn);
   g.updateMatrixWorld(true);
   const b = new THREE.Box3().setFromObject(g), s = b.getSize(new THREE.Vector3()), mid = b.getCenter(new THREE.Vector3());
-  const k = height ? height / s.y : length / Math.max(s.x, s.z);
-  const arm = armNode && o.getObjectByName(armNode);
-  // the arm keeps its place's rotation and scale, with its pivot moved to the origin
-  const wm = arm ? arm.matrixWorld.clone() : null;
-  if (arm) arm.parent.remove(arm);
-  const place = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-mid.x, -b.min.y, -mid.z));
-  const frame = split(g).gear.applyMatrix4(place);
-  if (!arm) return { frame };
-  const pivot = new THREE.Vector3().setFromMatrixPosition(wm);
-  wm.setPosition(0, 0, 0);
+  const k = height ? height / s.y : length / Math.max(s.x, s.z), foot = new THREE.Vector3(mid.x, b.min.y, mid.z);
+  if (!armMesh) return { frame: split(g).gear.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-foot.x, -foot.y, -foot.z))) };
+  const at = armMesh.localToWorld(new THREE.Vector3(0, pivot[0], pivot[1]));
+  const armWorld = armMesh.geometry.clone().applyMatrix4(armMesh.matrixWorld).translate(-at.x, -at.y, -at.z).scale(k, k, k);
+  armMesh.parent.remove(armMesh);
+  const frame = split(g).gear.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-foot.x, -foot.y, -foot.z)));
   const holder = new THREE.Group();
-  arm.matrixAutoUpdate = false; arm.matrix.copy(wm);
-  holder.add(arm);
-  const armGeo = split(holder).gear.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k));
-  const pv = pivot.sub(new THREE.Vector3(mid.x, b.min.y, mid.z)).multiplyScalar(k);
-  return { frame, arm: armGeo, pivot: pv.toArray().map(v => +v.toFixed(2)) };
+  holder.add(new THREE.Mesh(armWorld, new THREE.MeshLambertMaterial({ vertexColors: true })));
+  return { frame, arm: split(holder).gear, pivot: at.sub(foot).multiplyScalar(k).toArray().map(v => +v.toFixed(2)) };
 }
 
 // ---- units ----
@@ -945,10 +948,17 @@ async function brokenGate(kind) {
 const ENGINES = {};
 async function engines() {
   if (ENGINES.done) return ENGINES;
-  ENGINES.ram = await engine('siege-ram', null, { length: 6, turn: -Math.PI / 2 });
-  ENGINES.mangonel = await engine('siege-catapult', 'catapult', { length: 4, turn: -Math.PI / 2 });
-  ENGINES.trebuchet = await engine('siege-trebuchet', 'arm', { height: 9, turn: -Math.PI / 2 });
-  ENGINES.tower = await engine('siege-tower', null, { height: 10, turn: -Math.PI / 2 });
+  // Ankers's timber engines (they read as real ones where Kenney's read as toys, close and at battle distance)
+  ENGINES.ram = await ankers('Ankers_Battering_Ram', { length: 6 });
+  // the catapult's arm: its beam, the bowl at its back end, the iron-banded block at its front and the rope down to the
+  // windlass; it turns on the axle across the top of the frame
+  const narrow = b => b.max.x - b.min.x < 1.5 && Math.abs(b.max.x + b.min.x) < 1.6;
+  ENGINES.mangonel = await ankers('Ankers_Catapult', { length: 4, arm: b => narrow(b) && b.min.z > 0.85 && b.max.z < 2.9, pivot: [1.205, 2.38] });
+  // the trebuchet's: its 12 m beam, the sling hanging from its long end, and the counterweight box (its iron bands,
+  // hangers and hinge) under its short end; it turns on the axle across the frame's peaks. It stands 7 m: at the game's
+  // old 9 m its long beam ran 20 m.
+  ENGINES.trebuchet = await ankers('Ankers_Trebuchet', { height: 7, arm: b => b.max.x - b.min.x < 2.4 && Math.abs(b.max.x + b.min.x) < 2.4 && ((b.min.y > 2.5 && b.min.z > -0.2) || b.max.y - b.min.y > 10 || b.max.y < -6), pivot: [2.63, 3.03] });
+  ENGINES.tower = await ankers('Ankers_Siege_Tower', { height: 10 });
   ENGINES.done = true;
   return ENGINES;
 }
