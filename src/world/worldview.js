@@ -242,6 +242,12 @@ export class WorldView {
     this.ring.renderOrder = 5;
     this.ring.visible = false;
     this.scene.add(this.ring);
+    // What the pointer rests on (set by worldcontrols): a paler ring under it and a lit label.
+    this.hovered = null;
+    this.hoverRing = new THREE.LineLoop(this.ring.geometry, new THREE.LineBasicMaterial({ color: '#fff4cc', depthTest: false, transparent: true, opacity: 0.8 }));
+    this.hoverRing.renderOrder = 4;
+    this.hoverRing.visible = false;
+    this.scene.add(this.hoverRing);
     // Where armies are heading (route()): your own marching armies always, any other only while selected.
     this.routes = new Map();   // army → { band, end }
     this.routeMat = { own: routeMaterial(FACTIONS[0].color, 0.75), chosen: routeMaterial('#ffd970', 0.9) };
@@ -427,6 +433,7 @@ export class WorldView {
         : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>${spyLine}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
+      o.label.classList.toggle('hover', this.hovered === p);
       this.screen.push({ kind: 'place', it: p, x: s.x, y: s.y + 30, r: 46, el: o.label });
     }
 
@@ -527,6 +534,7 @@ export class WorldView {
         : `${a.lord != null ? `${ico('crown')} ` : ''}${ico(a.retreating ? 'retreat' : a.mode === 'raid' ? 'raid' : a.mode === 'siege' ? 'siege' : 'battle')} ${know < 3 ? `~${rough(men)}` : men}${a.side === 0 && a.food <= 0 ? ` ${ico('warning', '#ff8a5a')}` : ''}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; o.label.style.borderColor = know > 1 ? FACTIONS[a.side].color : '#8a8070'; }
       o.label.classList.toggle('selected', selected === a);
+      o.label.classList.toggle('hover', this.hovered === a);
       this.screen.push({ kind: 'army', it: a, x: s.x, y: s.y + 8, r: 30 });
     }
 
@@ -551,6 +559,14 @@ export class WorldView {
       if (near) o.label.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
     }
 
+    // A pale ring under what the pointer rests on (not the selected one: it has its own).
+    const hv = this.hovered && !this.hovered.gone && this.hovered !== selected ? this.hovered : null;
+    this.hoverRing.visible = !!hv;
+    if (hv) {
+      const isArmy = this.armies.has(hv), x = isArmy && hv.at && !hv.path.length ? hv.x + 24 : hv.x, z = isArmy && hv.at && !hv.path.length ? hv.z + 24 : hv.z;
+      this.hoverRing.position.set(x, this.heightAt(x, z) + 1, z);
+      this.hoverRing.scale.setScalar(isArmy ? 16 : 60);
+    }
     // A ring under whatever is selected, and the road each army will take.
     const it = selected && !selected.gone ? selected : null;
     this.ring.visible = !!it;

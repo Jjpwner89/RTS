@@ -286,3 +286,6 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #stock .goods .trend.up { color: var(--good); }
 #stock .goods .trend.down.low { color: var(--bad); }
 #stock .goods .trend:empty { display: none; }
+
+/* The map answers the pointer: a place or army under it lights its label (and gets a pale ring, worldview.js). */
+.wlabel.hover { border-color: var(--gold); background: var(--btn-hover); box-shadow: var(--surface-shadow), 0 0 0 2px var(--gold); z-index: 2; }

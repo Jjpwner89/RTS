@@ -74,9 +74,11 @@ export class WorldControls {
 
   onMove(e) {
     const d = this.drag;
+    if (d) this.view.hovered = null;
     if (!d) {
       const hit = e.target === this.dom ? this.view.pick(...this.local(e)) : null;
       this.dom.style.cursor = hit ? 'pointer' : 'default';
+      this.view.hovered = hit && (hit.kind === 'place' || hit.kind === 'army') ? hit.it : null;
       // What a right-click here would do (ui/orderhint.js), said before it is done.
       const at = hit ? (hit.kind === 'place' ? hit : this.view.pick(...this.local(e), 'place')) : null;
       this.hooks.hint?.(at ? at.it : null, e.clientX, e.clientY);
