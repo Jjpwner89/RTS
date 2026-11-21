@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fbm, rng } from './noise.js';
+import { SKY, look } from './look.js';
 
 // Seconds, shared by every material that moves (grass, water, clouds).
 export const TIME = { value: 0 };
@@ -34,12 +35,42 @@ const withWorld = sh => sh.vertexShader
 
 // ---- the ground ----
 
+// Photographed ground (Poly Haven, CC0: assets/textures/CREDITS.md) used as detail: each is
+// divided by its own average colour, so it adds grain and flecks without changing the palette.
+const GROUND_TEX = ['grass', 'earth', 'track', 'soil', 'rock'];
+let ground = null;
+function linearMean(img) {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0, 32, 32);
+  const d = g.getImageData(0, 0, 32, 32).data, lin = v => (v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4, m = [0, 0, 0];
+  for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) m[k] += lin(d[i + k]);
+  return new THREE.Color(...m.map(v => Math.max(0.01, v / (d.length / 4))));
+}
+function groundTextures() {
+  if (ground) return ground;
+  ground = {};
+  const blank = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+  blank.needsUpdate = true;
+  const loader = new THREE.TextureLoader();
+  for (const n of GROUND_TEX) {
+    const t = ground['t' + n] = { value: blank }, m = ground['m' + n] = { value: new THREE.Color(1, 1, 1) };
+    loader.load(new URL(`../assets/textures/${n}.jpg`, import.meta.url).href, tex => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      m.value.copy(linearMean(tex.image));
+      t.value = tex;
+    }, undefined, e => console.warn(`scenery: assets/textures/${n}.jpg did not load, so the ground is drawn without that detail`, e));
+  }
+  return ground;
+}
+
 // land: a landMask() for tracks and fields, or null.
 export function groundMaterial(land = null) {
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const uniforms = { uTime: TIME, uMask: { value: land?.tex || null }, uExtent: { value: land?.extent || 1 },
     uHomeA: { value: new THREE.Vector2(land?.homes[0]?.x || 0, land?.homes[0]?.z || 0) },
-    uHomeB: { value: new THREE.Vector2(land?.homes[1]?.x ?? 0, land?.homes[1]?.z ?? 1e5) } };
+    uHomeB: { value: new THREE.Vector2(land?.homes[1]?.x ?? 0, land?.homes[1]?.z ?? 1e5) }, ...groundTextures() };
   if (land) { mat.defines = { LAND: '' }; mat.userData.mask = land.tex; mat.userData.land = land; mat.userData.uniforms = uniforms; }
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, uniforms);
@@ -48,38 +79,46 @@ export function groundMaterial(land = null) {
       .replace('#include <common>', `#include <common>
 varying vec3 vWPos; varying vec3 vWN;
 uniform float uTime, uExtent; uniform sampler2D uMask; uniform vec2 uHomeA, uHomeB;
-${NOISE}`)
+uniform sampler2D tgrass, tearth, ttrack, tsoil, trock; uniform vec3 mgrass, mearth, mtrack, msoil, mrock;
+${NOISE}
+// a texture's detail at p: its colour over its average, partly greyed so the palette keeps its hue
+vec3 dtl(sampler2D t, vec3 m, vec2 p, float sat) { vec3 d = texture2D(t, p).rgb / m; return mix(vec3(dot(d, vec3(.3, .59, .11))), d, sat); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   vec3 col = diffuseColor.rgb;
   vec2 p = vWPos.xz;
   float near = 1. - smoothstep(60., 260., length(cameraPosition - vWPos));
   float slope = 1. - vWN.y;
-  // Broad patches of lusher and drier grass, then clumps, then blades up close.
+  // Broad patches of lusher and drier grass, then clumps, then the grass itself: the
+  // photographed grass at two sizes, so it never shows a repeat.
   col *= mix(vec3(.86, .95, .80), vec3(1.10, 1.03, .88), lfbm(p * .012));
-  col *= .88 + .24 * lfbm(p * .09 + 3.1);
-  float blades = lvn(vec2(p.x * 2.2 + lvn(p * .3) * 3., p.y * .7) * 1.6) * .6 + lvn(p * 4.3) * .4;
-  col *= mix(1., .86 + .28 * blades, near);
-  // Bare earth showing through in worn hollows.
-  float bare = smoothstep(.63, .74, lfbm(p * .035 + 9.));
-  vec3 earth = vec3(.44, .36, .25) * (.85 + .3 * lvn(p * 2.5));
-  col = mix(col, earth, bare * .75 * max(0., 1. - slope * 2.));
+  // and wide sweeps of meadow, lusher in the hollows, paler and drier on the rises
+  col *= mix(vec3(.84, .93, .86), vec3(1.12, 1.06, .9), smoothstep(.3, .75, lfbm(p * .0035 + 41.)));
+  col *= .9 + .2 * lfbm(p * .09 + 3.1);
+  col *= dtl(tgrass, mgrass, p / 3.3, .6) * mix(vec3(1.), dtl(tgrass, mgrass, p / 21. + .37, .5), .6);
+  // Bare earth showing through in worn hollows, grass breaking up its edges.
+  vec3 earthD = dtl(tearth, mearth, p / 4.6, .8);
+  float bare = smoothstep(.65, .82, lfbm(p * .035 + 9.) + (earthD.g - 1.) * .12);
+  vec3 earth = vec3(.42, .35, .25) * earthD;
+  // (seen from afar the hollows are small things: less of them on the map)
+  col = mix(col, earth, bare * (.3 + .4 * near) * max(0., 1. - slope * 2.));
   // Rock on the steep sides, in ledges.
   float rk = smoothstep(.16, .32, slope + (lvn(p * .2) - .5) * .12);
-  float ledge = .78 + .22 * smoothstep(.2, .8, fract(vWPos.y * .45 + lvn(p * .15) * 1.5));
-  col = mix(col, vec3(.52, .50, .46) * ledge * (.85 + .3 * lvn(p * 1.3)), rk);
+  float ledge = .82 + .18 * smoothstep(.2, .8, fract(vWPos.y * .45 + lvn(p * .15) * 1.5));
+  col = mix(col, vec3(.5, .49, .45) * ledge * dtl(trock, mrock, p / 11., .7), rk);
 #ifdef LAND
   vec4 mk = texture2D(uMask, p / (2. * uExtent) + .5);
   // Fields: furrows round the nearest keep; ploughed earth, ripe grain or young green.
   vec2 rel = p - (length(p - uHomeA) < length(p - uHomeB) ? uHomeA : uHomeB);
   float furrow = smoothstep(-.3, .3, sin(atan(rel.y, rel.x) * length(rel) * 2.4));
   vec3 crop = mk.b < .3 ? vec3(.36, .26, .17) : mk.b < .7 ? vec3(.66, .52, .25) : vec3(.34, .48, .19);
-  crop *= (.74 + .3 * furrow) * (.9 + .2 * lvn(p * .8));
+  crop *= (.74 + .3 * furrow) * (.9 + .2 * lvn(p * .8)) * (mk.b < .3 ? dtl(tsoil, msoil, p / 3., .6) : dtl(tgrass, mgrass, p / 2.7, .3));
   col = mix(col, crop, smoothstep(.55, .95, mk.g));
   // Tracks: packed earth with ruts.
   float wear = smoothstep(.15, .9, mk.r + (lvn(p * .7) - .5) * .25);
   float rut = smoothstep(.75, 1., mk.r) * (.5 + .5 * sin(lvn(p * .5) * 6.));
-  col = mix(col, vec3(.43, .35, .25) * (.82 + .3 * lvn(p * 3.)) * (1. - rut * .18), wear * .9);
+  vec3 trackCol = mix(vec3(.42, .35, .25) * earthD, vec3(.45, .37, .27) * dtl(ttrack, mtrack, p / 3.8, .7), smoothstep(.4, .85, mk.r));
+  col = mix(col, trackCol * (1. - rut * .18), wear * .9);
   // Paved roads: rounded cobbles in greys and buff, dark joints, a kerb of darker setts along each edge.
   float pave = smoothstep(.5, .75, mk.b) * (1. - smoothstep(.4, .8, mk.g));
   float kerb = smoothstep(.2, .45, mk.b) * (1. - smoothstep(.55, .8, mk.b)) * (1. - smoothstep(.4, .8, mk.g));
@@ -106,22 +145,47 @@ ${NOISE}`)
 
 // ---- water ----
 
+// Moving water: ripples that catch the sky (reflected by angle, more toward the horizon),
+// the sun glinting off them, the colour deepening away from the banks, and foam along them.
+// The mesh's uv.x runs 0..1 from bank to bank, where it has one (fieldview.js).
 export function waterMaterial({ opacity = 0.85 } = {}) {
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity, side: THREE.DoubleSide });
+  mat.defines = { USE_UV: '' };
   mat.onBeforeCompile = sh => {
-    sh.uniforms.uTime = TIME;
+    Object.assign(sh.uniforms, { uTime: TIME }, SKY);
     sh.vertexShader = withWorld(sh);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vWPos; varying vec3 vWN; uniform float uTime;\n${NOISE}`)
+      .replace('#include <common>', `#include <common>
+varying vec3 vWPos; varying vec3 vWN; uniform float uTime, uSunI; uniform vec3 uZenith, uHorizon, uSunDir, uSunCol;
+${NOISE}
+float wv(vec2 p) { return lvn(p * .45 + vec2(uTime * .55, uTime * .18)) * .6 + lvn(p * 1.3 - vec2(uTime * .8, -uTime * .1)) * .3 + lvn(p * 3.1 + vec2(uTime * 1.4, 0.)) * .1; }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-{
-  vec2 p = vWPos.xz;
-  float r = lvn(p * .35 + vec2(uTime * .6, uTime * .2)) * .6 + lvn(p * 1.1 - vec2(uTime * .9, 0.)) * .4;
-  diffuseColor.rgb *= .85 + .3 * r;
-  diffuseColor.rgb += smoothstep(.78, .9, lvn(p * 1.8 + vec2(uTime * 1.3, uTime * .4))) * .18;
-}`)
+vec2 wp = vWPos.xz;
+float e = .25, w0 = wv(wp);
+vec3 wn = normalize(vec3((w0 - wv(wp + vec2(e, 0.))) * 1.6, 1., (w0 - wv(wp + vec2(0., e))) * 1.6));
+float bank = 1.;
+#ifdef USE_UV
+bank = min(vUv.x, 1. - vUv.x) * 2.;
+#endif
+// deeper toward the middle, lighter and greener at the edges
+diffuseColor.rgb *= mix(vec3(1.15, 1.25, 1.1), vec3(.6, .74, .84), smoothstep(0., .6, bank));
+diffuseColor.rgb *= .9 + .2 * w0;`)
       .replace('#include <opaque_fragment>', `#include <opaque_fragment>
-  { vec3 V = normalize(cameraPosition - vWPos); gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.78, .86, .9), pow(1. - max(V.y, 0.), 3.) * .5); }`);
+{
+  vec3 V = normalize(cameraPosition - vWPos);
+  float fres = .04 + .96 * pow(1. - max(dot(V, wn), 0.), 5.);
+  vec3 R = reflect(-V, wn);
+  vec3 sky = mix(uHorizon, uZenith, pow(max(R.y, 0.), .6));
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, sky * .9, clamp(fres * 1.1 + .05, 0., .7));
+  gl_FragColor.rgb += uSunCol * uSunI * (pow(max(dot(R, uSunDir), 0.), 180.) * 2.5 + pow(max(dot(R, uSunDir), 0.), 24.) * .12);
+  float foam = 0.;
+  #ifdef USE_UV
+  foam = smoothstep(.16, .0, min(vUv.x, 1. - vUv.x) + (lvn(wp * 1.7 + uTime * vec2(.6, .1)) - .5) * .08) * .55;
+  #endif
+  foam += smoothstep(.83, .95, lvn(wp * 1.9 + vec2(uTime * 1.2, uTime * .3))) * .12;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.86, .9, .9) * (.6 + .4 * uSunI), foam);
+  gl_FragColor.a = max(gl_FragColor.a, foam);
+}`);
   };
   return mat;
 }
@@ -280,8 +344,32 @@ function grassMaterial() {
   return swayMat;
 }
 
+// Trees: shaded darker toward the trunk and the underside of the crown (light gets in from
+// above), and their crowns lean a little in the wind, each tree in its own time.
+let treeMat = null;
+export function treeMaterial() {
+  if (treeMat) return treeMat;
+  treeMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  treeMat.onBeforeCompile = sh => {
+    sh.uniforms.uTime = TIME;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vUp;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vUp = position.y;
+{ vec4 wp = instanceMatrix * vec4(0., 0., 0., 1.);
+  float h = max(0., position.y - 2.2);
+  float s = sin(uTime * 1.1 + wp.x * .07 + wp.z * .05) * .6 + sin(uTime * 2.3 + wp.x * .19) * .25;
+  transformed.x += s * .045 * h; transformed.z += s * .025 * h; }`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vUp;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+diffuseColor.rgb *= mix(.62, 1.04, smoothstep(2.4, 6.8, vUp));`);
+  };
+  return treeMat;
+}
+
 const CELL = 60;           // grass is cut into squares so far ones can be skipped
-const GRASS_SEEN = 270;    // grass further than this from the camera isn't drawn
+// How far grass is drawn from the camera, and how much of it, follow the picture setting (look.js).
 
 // Grass, flowers, stones and bushes over the map. avoid(x, z): no cover there (a keep, water).
 // Returns { update(camera), clear(x, z, r) }; clear() takes cover off ground a building now stands on.
@@ -315,7 +403,7 @@ export function drawCover(scene, heightAt, seed, { avoid = () => false, land = n
       mesh.setMatrixAt(i, m.compose(p, q, s));
       mesh.setColorAt(i, it.c);
     });
-    mesh.count = list.length;
+    mesh.count = mesh.userData.full = list.length;
     mesh.castShadow = shadow;
     mesh.receiveShadow = true;
     mesh.computeBoundingSphere();
@@ -348,11 +436,11 @@ export function drawCover(scene, heightAt, seed, { avoid = () => false, land = n
   // Stones, more on the slopes.
   const stoneGeo = new THREE.DodecahedronGeometry(0.35, 0).scale(1, 0.55, 0.8);
   build(stoneGeo, new THREE.MeshLambertMaterial({ flatShading: true }),
-    scatter(2500, (x, z) => !avoid(x, z) && (slopeAt(x, z) > 0.2 || rand() < 0.25), () => 0.5 + rand() * rand() * 2.4, (x, z, c) => c.setHSL(0.1, 0.05 + rand() * 0.05, 0.42 + rand() * 0.15)));
+    scatter(2500, (x, z) => !avoid(x, z) && (slopeAt(x, z) > 0.2 || rand() < 0.25), () => 0.5 + rand() * rand() * 2.4, (x, z, c) => c.setHSL(0.1, 0.05 + rand() * 0.05, 0.3 + rand() * 0.12)));
 
   // Bushes: at the edges of woods, round fields, and here and there.
   const bushes = [];
-  const bush = (x, z, k) => { if (!avoid(x, z) && Math.abs(x) < half + 60 && Math.abs(z) < half + 60) bushes.push({ x, z, k, c: new THREE.Color().setHSL(0.24 + rand() * 0.07, 0.35 + rand() * 0.15, 0.22 + rand() * 0.1) }); };
+  const bush = (x, z, k) => { if (!avoid(x, z) && Math.abs(x) < half + 60 && Math.abs(z) < half + 60) bushes.push({ x, z, k, c: new THREE.Color().setHSL(0.25 + rand() * 0.07, 0.28 + rand() * 0.12, 0.17 + rand() * 0.08) }); };
   for (const t of trees?.spots || []) if (rand() < 0.35) { const a = rand() * 6.28, d = 2 + rand() * 4; bush(t.x + Math.cos(a) * d, t.z + Math.sin(a) * d, 0.6 + rand() * 0.8); }
   for (const f of land?.fields || []) {
     const c = Math.cos(f.ang), sn = Math.sin(f.ang), P = 2 * (f.w + f.l);
@@ -373,9 +461,14 @@ export function drawCover(scene, heightAt, seed, { avoid = () => false, land = n
 
   const cover = {
     update(camera) {
-      const c = camera.position;
+      const c = camera.position, { cover: seen, density } = look.q;
+      // Less grass on a lower setting: each square draws the first part of its list.
+      if (density !== this.density) {
+        this.density = density;
+        for (const cell of cells.values()) for (const mesh of cell.meshes) mesh.count = Math.ceil(mesh.userData.full * density);
+      }
       for (const cell of cells.values()) {
-        const show = Math.hypot(cell.x - c.x, cell.z - c.z, c.y - heightAt(cell.x, cell.z)) < GRASS_SEEN + CELL * 0.7;
+        const show = Math.hypot(cell.x - c.x, cell.z - c.z, c.y - heightAt(cell.x, cell.z)) < seen + CELL * 0.7;
         for (const mesh of cell.meshes) mesh.visible = show;
       }
     },

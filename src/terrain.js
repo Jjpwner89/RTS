@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fbm, rng } from './noise.js';
-import { groundMaterial, tick } from './scenery.js';
+import { groundMaterial, treeMaterial, tick } from './scenery.js';
 
 export const HALF = 250;          // playable area is -HALF..HALF on x and z
 const EXTENT = 380;               // mesh reaches past the edge so fog hides the border
@@ -48,7 +48,7 @@ export function drawGround(scene, heightAt, seed, { extent = EXTENT, seg = 220, 
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
-  const grass = new THREE.Color('#6f8f45'), dry = new THREE.Color('#a39a5c');
+  const grass = new THREE.Color('#5f8540'), dry = new THREE.Color('#9b935c');
   const dirt = new THREE.Color('#7d6a4a'), rock = new THREE.Color('#8a8578');
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
@@ -121,7 +121,7 @@ function treeKinds() {
     birch: mergeGeometries([trunk(0.18, 4.6, '#d9d4c8'), paint(new THREE.IcosahedronGeometry(1.4, 0).scale(1, 1.4, 1).translate(0, 5.2, 0), '#ffffff'), blob(1.0, 0.8, 4.3, 0.3, '#e0e0e0')]),
   };
 }
-const TONES = { oak: [0.23, 0.42, 0.3], pine: [0.36, 0.3, 0.22], birch: [0.19, 0.45, 0.42] };
+const TONES = { oak: [0.29, 0.36, 0.21], pine: [0.38, 0.32, 0.18], birch: [0.23, 0.38, 0.33] };
 
 // Pines gather in their own stands, birches at the edges of broadleaf woods.
 function kindOf(t) {
@@ -132,7 +132,7 @@ function kindOf(t) {
 export function drawTrees(scene, heightAt, trees) {
   const { spots } = trees;
   const kinds = treeKinds();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const mat = treeMaterial();
   const group = new THREE.Group();
   const lists = { oak: [], pine: [], birch: [] };
   for (const t of spots) lists[kindOf(t)].push(t);

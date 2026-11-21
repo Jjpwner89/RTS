@@ -3,6 +3,7 @@
 // the ground it may deploy on; and the weather: rain falling, or fog closing in.
 import * as THREE from 'three';
 import { waterMaterial } from './scenery.js';
+import { setWeather } from './look.js';
 
 export class FieldView {
   constructor(scene, battle) {
@@ -24,7 +25,7 @@ export class FieldView {
 
   // One ribbon of water along the river, at the level the channel was cut to.
   drawWater(R) {
-    const pts = [], idx = [], colors = [];
+    const pts = [], idx = [], colors = [], uvs = [];
     const deep = new THREE.Color('#3f6f86'), shallow = new THREE.Color('#6f9a95');
     const step = 3, X = 390;
     let row = 0;
@@ -37,12 +38,14 @@ export class FieldView {
       for (const side of [-1, 1]) {
         pts.push(x + nx * side * (R.half + 0.6), y, z + nz * side * (R.half + 0.6));
         colors.push(c.r, c.g, c.b);
+        uvs.push(side < 0 ? 0 : 1, x / 10);   // across the river, bank to bank (the water's foam)
       }
       if (row > 0) { const a = (row - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(idx);
     geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, waterMaterial({ opacity: 0.85 }));
@@ -100,25 +103,10 @@ export class FieldView {
     return { b, g, deck, fire, flames, smoke, planks, wood, state: 'up' };
   }
 
-  // Greyer sky, closer fog and duller light for the battle's weather; rain falls around
-  // wherever the camera looks.
+  // Greyer sky, closer fog and duller light for the battle's weather (look.js); rain falls
+  // around wherever the camera looks.
   setWeather(kind) {
-    const scene = this.scene;
-    if (!this.clearSky) {
-      this.clearSky = { bg: scene.background, fog: scene.fog && { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far }, lights: [] };
-      scene.traverse(o => { if (o.isLight) this.clearSky.lights.push([o, o.intensity]); });
-    }
-    const C = this.clearSky;
-    const look = { clear: null, rain: { sky: '#8d969c', near: 90, far: 480, light: 0.72 }, fog: { sky: '#c4c8c4', near: 20, far: 200, light: 0.85 },
-      night: { sky: '#161d2b', near: 40, far: 320, light: 0.16 } }[kind];
-    const sky = look ? new THREE.Color(look.sky) : null;
-    scene.background = sky || C.bg;
-    if (C.fog && scene.fog) {
-      scene.fog.color.copy(sky || C.fog.color);
-      scene.fog.near = look ? look.near : C.fog.near;
-      scene.fog.far = look ? look.far : C.fog.far;
-    }
-    for (const [l, i] of C.lights) l.intensity = i * (look ? look.light : 1);
+    setWeather(this.scene, kind);
     if (kind === 'rain' && !this.rain) this.rain = this.makeRain();
     if (this.rain) this.rain.visible = kind === 'rain';
     this.weather = kind;
@@ -206,7 +194,7 @@ export function drawDeployZone(group, battle, D) {
     pos.setXYZ(i, x, H(x, z), z);
   }
   geo.computeVertexNormals();
-  g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, fog: false })));
+  g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffd970', transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide, fog: false })));
   const edge = [];
   const run = (xa, za, xb, zb) => {
     const n = Math.ceil(Math.hypot(xb - xa, zb - za) / 3);
