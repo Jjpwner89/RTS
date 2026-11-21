@@ -67,6 +67,11 @@ const SOUNDS = {
   mob:      { files: ['sfx/mob1', 'sfx/mob2'], vol: 0.7, gap: 4, cap: 1 },
   boom:     { files: ['sfx/boom'], vol: 0.85, gap: 3, cap: 1 },
   cart:     { files: ['sfx/cart'], vol: 0.5, gap: 4, cap: 1 },
+  // Game feel (fx.js): an order heard, a charge, a building site passing a third of its work.
+  // Stand-ins from the sounds already here until their own arrive.
+  order:    { files: ['ui/click1'], vol: 0.3, gap: 0.25, cap: 1 },
+  charge:   { files: ['sfx/warcry3'], vol: 0.6, gap: 2, cap: 1 },
+  stage:    { files: ['sfx/hammer1'], vol: 0.5, gap: 0.5, cap: 2 },
 };
 // The same blow sounds different from a dog or a Norrhold axe, and a javelin is no arrow.
 const VARIANT = { clash: { wardog: 'dog', axeman: 'axeshield' }, bow: { javelin: 'javelin' } };
