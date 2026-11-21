@@ -15,4 +15,4 @@ class H(http.server.BaseHTTPRequestHandler):
         data = self.rfile.read(int(self.headers['Content-Length']))
         with open(os.path.join(OUT, name), 'ab') as f: f.write(data + b'\n')
         self.send_response(200); self.cors(); self.end_headers(); self.wfile.write(b'ok')
-http.server.HTTPServer(('127.0.0.1', 8733), H).serve_forever()
+http.server.HTTPServer(('127.0.0.1', int(sys.argv[2]) if len(sys.argv) > 2 else 8733), H).serve_forever()
