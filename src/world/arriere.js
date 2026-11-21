@@ -30,6 +30,25 @@ export function arrierePlan(w, dest) {
   return plan;
 }
 
+// Where the arrière-ban gathers when you don't pick a place (Orchestrator, 2026-11-21: not
+// always at your seat): the place of yours nearest your biggest army in the field; with none
+// out, the one nearest an enemy, place or army; at peace, your seat.
+const isLevyHost = a => a.units.length > 0 && a.units.every(isLevy);   // the arrière-ban itself on its way
+export function musterPlace(w) {
+  const mine = w.pois.filter(p => p.owner === 0 && p.kind !== 'camp' && !p.town?.hostile && !p.town?.underAttack && !p.town?.revolt);
+  if (!mine.length) return w.home;
+  const d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z), nearest = to => mine.reduce((b, p) => (d(p, to) < d(b, to) ? p : b));
+  const army = w.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !isLevyHost(a)).sort((a, b) => headcount(b.units) - headcount(a.units))[0];
+  if (army) return nearest(army);
+  // Outlaws are not a front.
+  const foe = s => s !== null && s !== 0 && s !== w.bandits && w.atWar(0, s);
+  const foes = [...w.pois.filter(p => foe(p.owner) && p.kind !== 'camp'), ...w.armies.filter(a => !a.gone && !a.wagon && foe(a.side))];
+  if (!foes.length) return w.home?.owner === 0 ? w.home : mine[0];
+  let best = mine[0], bd = Infinity;
+  for (const p of mine) for (const q of foes) if (d(p, q) < bd) { bd = d(p, q); best = p; }
+  return best;
+}
+
 // Each place's men march for dest by friendly roads; columns with no such road gather where
 // the banners would (World.stageColumns). Those called to dest itself go straight in.
 export function callArriere(w, dest) {

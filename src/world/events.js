@@ -402,6 +402,14 @@ export function tickSettlers(w, dt) {
   settlerEvent(w, p, id);
 }
 
+// Events keep the seasons of world time (World.season: 0 spring to 3 winter, a year of 1200 s;
+// not the sky's clock, which holds still during a fight): a midsummer fair only in summer,
+// blight with the grain on the stalk, tournaments and pilgrims in the open months. And no
+// event comes twice in a year (round 4: fevers came again and again).
+export const IN_SEASON = { fair: [1], harvest: [1, 2], tournament: [0, 1], pilgrims: [0, 1, 2] };
+export const EVENT_AGAIN = 1200;
+export const eventReady = (w, id) => (!IN_SEASON[id] || IN_SEASON[id].includes(w.season)) && w.time - (w.eventAt?.[id] ?? -1e9) >= EVENT_AGAIN;
+
 export function tickEvents(w, dt) {
   tickPlaces(w, dt);
   tickSettlers(w, dt);
@@ -412,7 +420,7 @@ export function tickEvents(w, dt) {
   const held = w.pois.filter(p => p.owner === 0 && !p.vassal && !p.falling && (p.town ? places.includes(p) : p.eco));
   const options = [];
   for (const [id, E] of Object.entries(EVENTS)) {
-    if (id === w.lastEvent) continue;
+    if (id === w.lastEvent || !eventReady(w, id)) continue;
     for (const p of E.any ? held : places) if (E.when(w, p)) options.push([id, p]);
   }
   if (!options.length) return;
@@ -427,6 +435,7 @@ export function fire(w, id, p) {
   if (id === 'tournament') extra.champ = (w.captains || []).filter(c => c.alive && c.side === 0 && c.captive === undefined).sort((a, b) => b.level - a.level)[0] || null;
   if (id === 'scheme') { const t = turncoat(w); Object.assign(extra, { cap: t.c, army: t.a, house: schemer(w) }); }
   w.lastEvent = id;
+  (w.eventAt ??= {})[id] = w.time;
   if (id === 'refugees') ((w.settlerSeen ??= {}).refugees ??= { at: -1e9, variant: -1 }).at = w.time;
   const choices = E.choices(w, p, extra);
   const ev = { id, image: picture(id), title: E.title(p), text: E.text(w, p, extra), at: p,

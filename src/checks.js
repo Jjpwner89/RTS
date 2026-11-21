@@ -494,6 +494,19 @@ async function worldChecks(w) {
   // Newcomers don't repeat: no kind comes twice inside its cooldown, and nothing is asked of the real
   // world (the clock, the choice hook and the settler state are put back).
   const Ev = await import('./world/events.js');
+  await check('events keep their seasons and come once a year at most', () => {
+    const keep = { time: w.time, at: w.eventAt }, out = [], names = ['spring', 'summer', 'autumn', 'winter'];
+    try {
+      const y = Math.ceil(w.time / 1200) * 1200 + 1200;
+      for (const [id, months] of Object.entries(Ev.IN_SEASON)) for (let s = 0; s < 4; s++) {
+        w.time = y + s * 300 + 10; w.eventAt = {};
+        if (Ev.eventReady(w, id) !== months.includes(s)) out.push(`${id} ${months.includes(s) ? "can't come" : 'can come'} in ${names[s]}`);
+        w.eventAt = { [id]: w.time - Ev.EVENT_AGAIN / 2 };
+        if (Ev.eventReady(w, id)) out.push(`${id} can come again ${Ev.EVENT_AGAIN / 120} min after the last`);
+      }
+    } finally { w.time = keep.time; w.eventAt = keep.at; }
+    return out;
+  });
   await check('settlers: no kind twice within 20 minutes', () => {
     if (!w.pois.some(p => p.owner === 0 && p.town && !p.town.underAttack && !p.town.hostile && !p.town.revolt && !p.town.readOnly)) return null;
     const keep = { time: w.time, clock: w.settlerClock, seen: w.settlerSeen, last: w.lastSettlers, choice: w.hooks.choice }, came = [], out = [];
@@ -558,6 +571,12 @@ async function worldChecks(w) {
       if (Math.abs(after - before - 6 * E.HOUSEHOLD_PAY) > 0.01) out.push(`six household men add ${(after - before).toFixed(2)} gold a minute, not ${6 * E.HOUSEHOLD_PAY}`);
       if (!t.disband(r, true) || t.population !== pop) out.push(`a disbanded household changed the village from ${pop} to ${t.population} people`);
     } finally { if (!r.gone) t.battle.disband(r); }
+    // every man in the field draws a wage (an army has no home guard), and twenty spearmen draw the foot's
+    const paid0 = TR.wagesOf(w, 0), a = w.spawnArmy(0, [{ key: 'spear', count: 20, name: 'Wage test (checks())' }], p, 'Wage test');
+    try {
+      const now = TR.wagesOf(w, 0);
+      if (Math.abs(now.gold - paid0.gold - 20 * TR.WAGES.foot) > 0.01 || now.men - paid0.men !== 20) out.push(`twenty spearmen in the field add ${(now.gold - paid0.gold).toFixed(2)} gold a minute and ${now.men - paid0.men} paid men, not ${20 * TR.WAGES.foot} and 20`);
+    } finally { w.removeArmy(a); }
     // kit in = kit out, for every levy type, with and without armour and a shield
     const rack = t.armoury({ x: 0, z: 0 }), was = { ...rack.store };
     try {

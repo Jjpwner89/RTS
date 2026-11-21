@@ -16,7 +16,7 @@ const NAMES = ['the Grey Company', 'the Black Lanterns', 'the Red Hounds', 'the 
 const CAPTAINS = ['Bors Hale', 'Ysolt of the Marches', 'Cade Ferro', 'Old Garm', 'Wenna Holt', 'Tybalt Crane', 'Ansel Duro', 'Maud Ironside'];
 // A company's name at the start of a sentence.
 const Name = c => c.name[0].toUpperCase() + c.name.slice(1);
-const WAGE = { sellsword: 0.5, hiredxbow: 0.6 };   // gold per man per minute
+export const WAGE = { sellsword: 0.5, hiredxbow: 0.6 };   // gold per man per minute
 const UNPAID_GRUMBLE = 45, UNPAID_DESERT = 150;     // seconds behind with their pay
 const REFORM = 600;                                  // seconds before a broken company is hiring again
 export const WEAK = 0.25;                                   // under this share of its size, its captain asks you what now

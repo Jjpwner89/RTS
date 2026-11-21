@@ -1,9 +1,12 @@
-// What gold buys besides men: the pay of elite soldiers, and goods at the market towns.
+// What gold buys besides men: soldiers' wages, and goods at the market towns.
 //
-// Knights and men-at-arms draw pay every minute, as mercenary companies do, wherever they
-// stand: in a village, a garrison or an army in the field. It is the realm's great drain
-// on gold, and it grows with the army, for the rivals as for you. Unpaid, they grumble,
-// and then stand down a company at a time.
+// Wages (Orchestrator, 2026-11-21, after M&B: every man under arms is paid; the round 4
+// player sat on 6,000 to 14,000 idle gold). Every soldier beyond his place's home guard
+// draws a wage every minute, wherever he stands: in a village, a garrison or an army in the
+// field. Levies cost least, trained foot more, mail and horse more, and the household,
+// sellswords and the elite most. It is the realm's great drain on gold and grows with the
+// army, for the rivals as for you, so gold, not people, sets how big an army can be.
+// Unpaid, they grumble, and then stand down a company at a time.
 //
 // A market town you hold, or whose lord is at peace with you, sells iron, horses, grain,
 // mail and swords. Every lot bought there raises its price, which settles back slowly; a cart
@@ -11,53 +14,89 @@
 // there too for their own stores, at the going price.
 import { FACTIONS } from './world.js';
 import { ELITE, HOUSEHOLD_PAY } from '../economy.js';
+import { TYPES } from '../battle.js';
+import { WAGE as HIRED } from './companies.js';
 
-const payOf = key => key === 'household' ? HOUSEHOLD_PAY : (ELITE[key] ?? ELITE.maa).pay;      // gold per man per minute
+// Gold per man per minute. A sellsword company's wage is its own (companies.js); men hired at
+// the keep pay the same rate. The arrière-ban is paid up front when called (arriere.js) and
+// the village militia called out to fight is not soldiers at all, so neither draws a wage.
+export const WAGES = { levy: 0.2, foot: 0.3, heavy: 0.35 };
+// Men in each place, the cheapest first, who are its home guard and draw nothing. The
+// household, hired men and the elite always draw pay.
+export const HOME_GUARD = 12;
 const UNPAID_GRUMBLE = 45, UNPAID_STAND_DOWN = 150, STAND_DOWN_EVERY = 30;
 
-// Every elite soldier of `side`, as [holder, count, key, standDown()] rows.
-function elitesOf(w, side) {
-  const out = [];
+function payOf(key, gear, elite) {
+  if (key === 'household') return HOUSEHOLD_PAY;
+  if (elite || ELITE[key]) return (ELITE[key] ?? ELITE.maa).pay;
+  if (HIRED[key]) return HIRED[key];
+  const T = TYPES[key];
+  if (!T || T.engine || key === 'folk') return 0;
+  if (T.militia) return WAGES.levy;
+  const armour = gear ?? T.armour;
+  return T.mounted || /cav/.test(key) || armour === 'mail' || armour === 'plate' ? WAGES.heavy : WAGES.foot;
+}
+const always = (key, elite) => key === 'household' || elite || !!ELITE[key] || !!HIRED[key];
+
+// Every paid soldier of `side`, as { n, key, pay, off(), where } rows: n men beyond the home
+// guard at pay a man. Men of a hired company are paid by the company (companies.js).
+function paidOf(w, side) {
+  const out = [], hired = new Set((w.companies || []).filter(c => c.employer === side && !c.gone).map(c => c.name));
+  const add = (list, where, guard) => {
+    const rows = list.filter(x => x.n > 0 && x.pay > 0 && !hired.has(x.name)).sort((a, b) => a.pay - b.pay);
+    let free = guard;
+    for (const x of rows) {
+      const k = always(x.key, x.elite) ? 0 : Math.min(free, x.n);
+      free -= k;
+      if (x.n - k > 0) out.push({ ...x, n: x.n - k, where });
+    }
+  };
   for (const p of w.pois) {
-    if (p.owner !== side) continue;
+    if (p.owner !== side || p.vassal) continue;
     if (p.town && !p.town.hostile) {
-      for (const r of p.town.battle.regs) if (r.side === 0 && (r.elite || r.T.key === 'household') && !r.gone && r.alive > 0)
-        out.push({ n: r.alive, key: r.T.key, off: () => p.town.disband(r), where: p.name });
+      add(p.town.battle.regs.filter(r => r.side === 0 && !r.gone && r.alive > 0 && !r.until)
+        .map(r => ({ n: r.alive, key: r.T.key, name: r.name, elite: !!r.elite, pay: payOf(r.T.key, r.armour, r.elite), off: () => p.town.disband(r) })), p.name, HOME_GUARD);
     } else {
-      for (const u of p.garrison) if (u.elite || u.key === 'household') out.push({ n: u.count, key: u.key, off: () => { p.garrison = p.garrison.filter(o => o !== u); }, where: p.name });
+      add(p.garrison.filter(u => !u.until).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { p.garrison = p.garrison.filter(o => o !== u); } })), p.name, HOME_GUARD);
     }
   }
   for (const a of w.armies) {
-    if (a.side !== side || a.gone) continue;
-    for (const u of a.units) if (u.elite || u.key === 'household') out.push({ n: u.count, key: u.key, off: () => { a.units = a.units.filter(o => o !== u); }, where: a.name });
+    if (a.side !== side || a.gone || a.wagon) continue;
+    add(a.units.filter(u => !u.until).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { a.units = a.units.filter(o => o !== u); } })), a.name, 0);
   }
   return out;
 }
 
-// Gold a minute that `side`'s elite soldiers draw.
-export const elitePay = (w, side) => elitesOf(w, side).reduce((n, e) => n + e.n * payOf(e.key), 0);
+// What `side`'s soldiers draw: gold a minute, and the men paid.
+export function wagesOf(w, side) {
+  const rows = paidOf(w, side);
+  return { gold: rows.reduce((n, e) => n + e.n * e.pay, 0), men: rows.reduce((n, e) => n + e.n, 0),
+    elite: rows.filter(e => always(e.key, e.elite)).reduce((n, e) => n + e.n * e.pay, 0) };
+}
+// Gold a minute of wages (it was the elite's pay alone before every soldier was paid).
+export const elitePay = (w, side) => wagesOf(w, side).gold;
 
 export function payElites(w, dt) {
   w.elitePay ??= {};
   for (const H of FACTIONS) {
     if (!H.alive || H.bandit || H.invader) continue;
-    const list = elitesOf(w, H.index);
+    const list = paidOf(w, H.index);
     if (!list.length) { delete w.elitePay[H.index]; continue; }
-    const due = list.reduce((n, e) => n + e.n * payOf(e.key), 0) * dt / 60;
+    const due = list.reduce((n, e) => n + e.n * e.pay, 0) * dt / 60;
     const S = w.elitePay[H.index] ??= { unpaid: 0, grumbled: false, next: 0 };
     if (H.gold >= due) { H.gold -= due; S.unpaid = 0; S.grumbled = false; continue; }
     H.gold = 0;
     S.unpaid += dt;
     if (H.index === 0 && S.unpaid >= UNPAID_GRUMBLE && !S.grumbled) {
       S.grumbled = true;
-      w.log('Your knights, men-at-arms and household guard want their pay. Unpaid much longer, they will stand down.', 1);
+      w.log('Your soldiers want their pay. Unpaid much longer, they will stand down a company at a time.', 1);
     }
     if (S.unpaid < UNPAID_STAND_DOWN || w.time < S.next) continue;
     S.next = w.time + STAND_DOWN_EVERY;
     // The smallest company goes first.
     const e = list.sort((a, b) => a.n - b.n)[0];
     e.off();
-    if (H.index === 0) w.log(`Unpaid, ${e.n} of your elite men at ${e.where} have stood down and gone home.`, 1);
+    if (H.index === 0) w.log(`Unpaid, ${e.n} of your men at ${e.where} have stood down and gone home.`, 1);
   }
 }
 

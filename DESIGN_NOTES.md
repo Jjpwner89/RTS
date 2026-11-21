@@ -473,6 +473,24 @@ Rival houses grow by your rules, so a gap compounds. Nothing in this section ada
   - No muster stalls.
 - **The gap left.** By these inputs the peaceful bot is the hardest target in reach, so it is picked last. Its places hold 30+ men, and towns count their people as defenders. Rival places stand at 0–40 men because rival villages sit at 20–30% of their room: food doesn't move between a house's places, garrisons eat the rest, and stood-down men overfill one village while another holds 8,000 food. Scores at seed 21, minute 113: a Dunmore village 7.1, the player's best 4.3. Making the player a natural target needs either houses whose places are manned (the economics) or a looser bot.
 
+### Every soldier is paid; the arrière-ban gathers near the front; events keep the seasons (2026-11-21, Orchestrator, after round 4)
+- **Wages** (world/treasury.js `wagesOf`, `payElites`). In round 4 the player sat on 6,000–14,000 idle gold. Now, in each place, the first 12 men (`HOME_GUARD`, cheapest first) are its home guard and draw nothing. Every other soldier draws gold every minute, wherever he stands, for rivals as for you:
+  - Levies (militia): 0.2.
+  - Trained foot: 0.3.
+  - Mail or horse: 0.35.
+  - Household: 0.4, unchanged.
+  - Sellswords hired at the keep: their company rate, 0.5 to 0.6.
+  - Men-at-arms 0.6 and knights 1.5, unchanged.
+
+  Not paid by this: a hired company (it is paid by companies.js), the arrière-ban (paid up front), the village militia called out to fight, and engines. An army has no home guard. Unpaid men grumble after 45 s, then a company at a time stands down from 150 s, as the elite did before. The realm's treasury shows "Soldiers' wages (N men)", and the top bar says "your soldiers draw N a minute".
+- **The share it takes.** Count test save at minute 24: 78 men paid, 23 a minute of 139 tax. In the sims the peaceful bot's wages run at a fifth to a half of its tax: 133 of 683 (seed 21), 122 of 272 (seed 7) and 176 of 335 (seed 91) at minute 120, with 20,000–47,000 gold still banked. The tax grows with the people far faster than an army's wages. With the household's 12 a minute kept as the dearest native wage, gold does not become the limit on army size; the Orchestrator has the question. Rival houses take in about 70–90 a minute and pay 10–90, and none ran short in nine runs.
+- **The arrière-ban gathers near the front** (arriere.js `musterPlace`). With no place picked, it is called to the place of yours nearest your biggest army in the field. With none out, it goes to the place nearest an enemy, a place or an army (outlaws are not a front). At peace it goes to your seat. The overview button names the place.
+- **Events keep the seasons** (events.js `IN_SEASON`, `eventReady`), by world time (`World.season`), not the sky's clock:
+  - The midsummer fair comes in summer only.
+  - Blight comes in summer or autumn.
+  - Tournaments come in spring or summer; pilgrims in spring to autumn.
+  - No event comes twice in a year (`EVENT_AGAIN`, `w.eventAt`, saved). Round 4 had fevers again and again.
+
 ## Test campaigns (built 2026-11-20)
 
 The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.

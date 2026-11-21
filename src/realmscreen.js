@@ -15,7 +15,7 @@ import { GOOD_GROUPS, TAXES } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
   moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN,
   suitors, matchCost, claimant, kinWar, kingGift, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
-import { elitePay } from './world/treasury.js';
+import { wagesOf, HOME_GUARD } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
 import { alerts } from './world/alerts.js';
@@ -617,14 +617,14 @@ export class RealmScreen {
     const w = this.w;
     const towns = w.pois.filter(p => p.owner === 0 && p.town && !p.vassal && !p.town.hostile);
     const taxes = towns.reduce((n, p) => n + w.taxOf(p) * 60, 0);
-    const elites = elitePay(w, 0);
+    const pay = wagesOf(w, 0), elites = pay.gold, paidMen = pay.men;
     const hired = (w.companies || []).filter(c => c.employer === 0 && !c.gone);
     const wages = hired.reduce((n, c) => n + wage(c), 0);
     const roads = decreed(w, 'roads') ? ROAD_UPKEEP * 60 : 0;
     const tribute = FACTIONS.filter(h => w.dip?.[h.index]?.vassal && h.alive && h.gold > 0).length * 36;
     const dues = this.rate('paid');
     const net = taxes + tribute + (dues || 0) - elites - wages - roads;
-    return { towns, taxes, elites, hired, wages, roads, tribute, dues, net, observed: this.rate('gold') };
+    return { towns, taxes, elites, paidMen, hired, wages, roads, tribute, dues, net, observed: this.rate('gold') };
   }
 
   tab_treasury() {
@@ -640,7 +640,7 @@ export class RealmScreen {
         ${m.tribute ? line('Tribute from vassal houses', m.tribute) : ''}
       </tbody></table></section>
       <section class="box"><h4>Goes out</h4><table class="money"><tbody>
-        ${line("Knights' and men-at-arms' pay", -m.elites)}
+        ${line(`Soldiers' wages (${num(m.paidMen)} men)`, -m.elites, `every man beyond ${HOME_GUARD} home guard a place, wherever he stands`)}
         ${line(`Sellsword wages (${plural(m.hired.length, 'company', 'companies')})`, -m.wages)}
         ${m.roads ? line("Wardens of the king's roads", -m.roads) : ''}
       </tbody></table></section>

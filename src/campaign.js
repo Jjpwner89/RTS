@@ -27,7 +27,7 @@ import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
-import { ARRIERE, arrierePlan, callArriere } from './world/arriere.js';
+import { ARRIERE, arrierePlan, callArriere, musterPlace } from './world/arriere.js';
 import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData } from './world/save.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { turnOut } from './world/militia.js';
@@ -924,7 +924,7 @@ function worldPanel() {
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div><div class="decrees" data-f="decrees"></div>`
-      + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come to ${world.home.name}: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners to ${world.home.name}</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. See the cost first">${ico('spears')} Call the arrière-ban to ${world.home.name}</button>` : '')
+      + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come to ${world.home.name}: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners to ${world.home.name}</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. They gather at your place nearest your army in the field, or nearest the enemy. See the cost first">${ico('spears')} Call the arrière-ban to ${musterPlace(world).name}</button>` : '')
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('caravan', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
@@ -968,7 +968,7 @@ function worldPanel() {
     set('realm', `${held.length} of ${world.pois.length} places held · ${men} soldiers`);
     const backing = FACTIONS.filter(h => world.dip[h.index]?.backs && h.alive).length;
     const pay = elitePay(world, 0);
-    set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${pay ? ` · your elite men draw ${Math.round(pay)} a minute` : ''}${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
+    set('gold', `${ico('gold', '#e8c45a')} ${Math.floor(FACTIONS[0].gold)} gold${pay ? ` · your soldiers draw ${Math.round(pay)} a minute` : ''}${backing ? ` · ${ico('crown', '#e8c45a')} ${backing} house${backing > 1 ? 's' : ''} back your claim` : ''}`);
     const list = el.querySelector('[data-f="houses"]');
     // Houses you have not met share one line; you learn who they are by finding their lands.
     const unmet = FACTIONS.slice(1, world.bandits).filter(h => !world.knows(h.index) && h.alive && !world.atWar(0, h.index));
@@ -1170,7 +1170,7 @@ $('wpanel').onclick = e => {
   }
   if (act === 'garrison' && it.at?.town) world.enterTown(it, it.at, it.last);
   if (act === 'banners') { askBanners(it && !it.units ? it : world.home); panelKey = null; }
-  if (act === 'arriere') { askArriere(it && !it.units ? it : world.home); panelKey = null; }
+  if (act === 'arriere') { askArriere(it && !it.units && it.owner === 0 ? it : musterPlace(world)); panelKey = null; }
   if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
   if (act === 'gather' && it && !it.units) { const n = world.gatherAt(it); flash(n ? `${n} ${n > 1 ? 'armies are' : 'army is'} on the way to ${it.name}.` : 'No army of yours is free to come.', !!n); }
