@@ -2,7 +2,7 @@
 // How it all looks (light, haze, sky, the quality setting, the finishing pass) is look.js.
 import * as THREE from 'three';
 import { LOD } from './models.js';
-import { look, onQuality, lightScene, prepare, mountPicture, Post, SUN_DIR, PALETTE } from './look.js';
+import { look, onQuality, guessQuality, lightScene, prepare, mountPicture, Post, SUN_DIR, PALETTE } from './look.js';
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -46,8 +46,9 @@ export function createStage(canvas) {
     resize();
     renderer.shadowMap.needsUpdate = true;
   }
+  guessQuality(renderer.getContext());
   applyQuality(look.q);
-  onQuality(applyQuality);
+  onQuality((name, q) => applyQuality(q));
   mountPicture();
 
   // A whole-screen frame through the stage camera goes through the finishing pass (look.js);

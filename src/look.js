@@ -13,21 +13,40 @@ export const QUALITY = {
   medium: { name: 'Medium', scale: 1.5, shadow: 2048, soft: true, post: true, ao: 0.5, msaa: 4, cover: 230, density: 0.8 },
   high: { name: 'High', scale: 2, shadow: 4096, soft: true, post: true, ao: 0.75, msaa: 4, cover: 300, density: 1 },
 };
-const KEY = 'rts.look';
+// The one place the picture setting lives: localStorage 'rts.quality' = 'low' | 'medium' | 'high'.
+// Other modules read quality() and follow onQuality(); fx.js scales its effects by it.
+export const QUALITY_KEY = 'rts.quality';
 function startQuality() {
   const asked = new URLSearchParams(location.search).get('quality');
-  if (QUALITY[asked]) return asked;
-  try { const s = localStorage.getItem(KEY); if (QUALITY[s]) return s; } catch { /* no storage */ }
-  return 'medium';
+  if (QUALITY[asked]) return { name: asked, chosen: true };
+  try {
+    const s = localStorage.getItem(QUALITY_KEY) ?? localStorage.getItem('rts.look');   // (its first name, one evening)
+    if (QUALITY[s]) return { name: s, chosen: true };
+  } catch { /* no storage */ }
+  return { name: 'medium', chosen: false };
 }
-export const look = { quality: startQuality(), get q() { return QUALITY[this.quality]; } };
+const start = startQuality();
+export const look = { quality: start.name, chosen: start.chosen, get q() { return QUALITY[this.quality]; } };
+export const quality = () => look.quality;
 const listeners = new Set();
+// f(name, settings) whenever the setting changes; returns a function that stops listening.
 export const onQuality = f => { listeners.add(f); return () => listeners.delete(f); };
-export function setQuality(name) {
+export function setQuality(name, { save = true } = {}) {
   if (!QUALITY[name]) { console.warn(`look: no quality "${name}" (low, medium, high)`); return; }
   look.quality = name;
-  try { localStorage.setItem(KEY, name); } catch { /* no storage */ }
-  for (const f of listeners) f(look.q);
+  if (save) { look.chosen = true; try { localStorage.setItem(QUALITY_KEY, name); } catch { /* no storage */ } }
+  for (const f of listeners) f(name, look.q);
+}
+// Until the player picks one, a weak or software GPU starts on Low (createStage asks).
+const WEAK_GPU = /SwiftShader|llvmpipe|Software|Microsoft Basic|Intel\(R\) (HD|UHD) Graphics|Mali-[GT]?[0-9]|Adreno \(TM\) [1-5]/i;
+export function guessQuality(gl) {
+  if (look.chosen) return;
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+  if (WEAK_GPU.test(gpu) || (navigator.hardwareConcurrency || 8) <= 2) {
+    console.info(`look: starting on Low picture for this GPU (${gpu || 'unknown'}); the sound panel's Picture setting changes it`);
+    setQuality('low', { save: false });
+  }
 }
 
 // ---- palette ----
@@ -267,7 +286,7 @@ function pictureRow() {
   sel.value = look.quality;
   sel.style.cssText = 'font: inherit; color: var(--ink); background: rgba(0,0,0,.25); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px;';
   sel.onchange = () => setQuality(sel.value);
-  onQuality(() => { sel.value = look.quality; });
+  onQuality(name => { sel.value = name; });
   pan.insertBefore(row, pan.querySelector('.row'));
   return true;
 }
@@ -322,4 +341,4 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
   for (const q of qualities) out[q] = { gpuMinMs: low(gpu[q]), gpuMs: med(gpu[q]), gpuP90Ms: p90(gpu[q]), cpuMs: med(cpu[q]), ...info[q] };
   return out;
 }
-if (typeof window !== 'undefined') window.look = { bench, setQuality, setWeather, look, QUALITY, GRADE, PALETTE };
+if (typeof window !== 'undefined') window.look = { bench, quality, setQuality, setWeather, look, QUALITY, GRADE, PALETTE };
