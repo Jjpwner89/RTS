@@ -18,7 +18,7 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 | Villagers visibly do their job: chop, mine, hoe, carry, build | ❓ | |
 | Corpses or a fall, not units vanishing | ❓ | |
 | Units turn to face where they move and fight | ✅ | 21 Nov: a long move turns the men to march; short moves sideways, back or forward keep their facing exactly (3b0afe1). Facing in a melee not checked |
-| Units don't overlap, clip through walls or buildings, or stand in water | ⚠️ | 20 Nov: villagers walked through the keep and into storehouses (checks() caught it); fixed in 88c4adc and 8526f15. 21 Nov, river map (seed 11): over about 170 s of fighting nobody stood in deep water without an order, and the fight jammed onto the bridge. But regiments far from a crossing swim the deep channel straight over (75 men in it at once) instead of marching to the ford |
+| Units don't overlap, clip through walls or buildings, or stand in water | ⚠️ | 20 Nov: villagers walked through the keep and into storehouses (checks() caught it); fixed in 88c4adc and 8526f15. 21 Nov, river map (seed 11): over about 170 s of fighting nobody stood in deep water without an order, and the fight jammed onto the bridge. But regiments far from a crossing swim the deep channel straight over (75 men in it at once) instead of marching to the ford. Battles: intended when a crossing is more than about 70 m out of the way (DESIGN_NOTES, Rivers) |
 
 ## Selection and orders
 
@@ -29,7 +29,7 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 | Box select, add or remove with Shift/Cmd/Ctrl, double-click for all of a type | ✅ | Fixed 2026-11-20 (3b0afe1). 20 Nov: box select picks a regiment by its banner or men in a storm. Double-click not tried |
 | Orders show where they go (a move marker, a line preview) | ⚠️ | 20 Nov: in a fight, a ghost outline marks the destination. On the world map a marching army shows no route line |
 | Units acknowledge orders at once (a voice, a sound or movement within a moment) | ❓ | |
-| Control groups (Ctrl+1–9) | ❌ | 20 Nov: none in controls.js; 1–3 set the game speed |
+| Control groups (Ctrl+1–9) | ✅ | Built 2026-11-21 (2c13600). 21 Nov: Ctrl+1 makes a group, 1 recalls it, Shift+2 adds another (keys pressed from the console). The number on the card not yet seen on screen |
 | Formations keep their shape on the march and through gaps | ❓ | 21 Nov: short moves step across or back as a block (3b0afe1); regiments go into column only at a crossing. Gaps between buildings not checked |
 
 ## Buildings and the village
@@ -60,12 +60,12 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 | Basic | Status | Notes |
 |---|---|---|
 | Smooth pan, zoom and rotate; no drift after a drag | ❓ | Drift reported 2026-11-19, fix unconfirmed. 20 Nov: world drag pans directly with no momentum in the code; the map moved between my screenshots twice, but the pane was hidden, so not confirmed |
-| Edge-scroll or WASD, and centring on a selection | ⚠️ | 20 Nov: WASD, arrows, Q/E and F to centre work; there's no edge-scroll, and in a village or battle left-drag selects, so only the keys pan |
+| Edge-scroll or WASD, and centring on a selection | ⚠️ | 20 Nov: WASD, arrows, Q/E and F to centre work; there's no edge-scroll, and in a village or battle left-drag selects, so only the keys pan. Edge-scroll added in battles and villages 2026-11-21 (2c13600), not yet tried |
 | Pause, and orders while paused | ✅ | 20 Nov: Pause in the top bar and on Space; "Paused: you can still build and give orders" |
-| Game speed control | ✅ | Built 2026-11-20. 20 Nov: ½× to 4× in the top bar, and 1/2/3 keys. The deploy countdown runs at game speed, so at 4× a storm starts before you've read the deploy panel |
+| Game speed control | ✅ | Built 2026-11-20. 20 Nov: ½× to 4× in the top bar, and 1/2/3 keys. The deploy countdown runs at game speed, so at 4× a storm starts before you've read the deploy panel. The countdown runs in real seconds since 2c13600; speed moved to − and + (21 Nov: + steps it up) |
 | Steady frame rate in the biggest battles and towns | ❓ | |
 | No layout breaking at common window sizes | ⚠️ | 20 Nov: at 800×600 the left stock panel, the build menu and the Defences panel cover half the village, and toasts stack over each other at the top. The toast now sits above the panels (8526f15) |
-| Keyboard shortcuts shown on buttons | ⚠️ | 20 Nov: build buttons show their letter key; battle commands only show theirs in tooltips |
+| Keyboard shortcuts shown on buttons | ✅ | 20 Nov: build buttons show their letter key. 21 Nov: the battle orders bar shows them too (Line N, Tight T … Dig mine U, 2c13600) |
 
 ## Game flow
 
