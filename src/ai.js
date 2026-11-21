@@ -367,7 +367,8 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20) && (gate.material !== 'stone' || lastResort)))) {
     if (gate.material === 'stone' && !weak && !st.axes) { st.axes = true; battle.event(side, side ? 'With no ram left, the enemy set about the stone gate with axes.' : 'With no ram left, our men set about the stone gate with axes.'); }
     for (const r of foot) if (!r.posts && !r.mine && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
-  } else if (stuck && !digging && !gate && !foot.length && !st.warned) {
+  } else if (stuck && !digging && !st.warned && !battle.regs.some(r => r.side === side && !r.gone && !r.engine && !r.T.mounted && !r.T.range)) {
+    // No foot left at all (routed men may rally) and nothing else to break in with: say so, once.
     st.warned = true;
     console.warn('thinkSiegeAttack: no ram, ladder, thrower, mine or foot left to make a way in');
     battle.event(side, side ? 'The enemy has nothing left to break the walls with.' : 'We have nothing left to break the walls with.');

@@ -43,6 +43,7 @@ export class Nav {
       if (!box) box = { x0: x - r, x1: x + r, z0: z - r, z1: z + r };
       else { box.x0 = Math.min(box.x0, x - r); box.x1 = Math.max(box.x1, x + r); box.z0 = Math.min(box.z0, z - r); box.z1 = Math.max(box.z1, z + r); }
     };
+    const breachedAt = n => !(n.tower && n.tower.state === 'up') && n.pieces.some(q => q.state === 'broken');
     for (const p of this.walls.pieces) {
       if (p.state !== 'up') continue;
       const r = p.M.thick / 2 + 0.7;
@@ -50,11 +51,14 @@ export class Nav {
       // A gate's door is the middle half: open to its owner, shut to everyone else. The
       // posts either side stop at the door's edge, so their rounded ends don't close it.
       const e = r / (Math.hypot(p.b.x - p.a.x, p.b.z - p.a.z) || 1);
+      // An end beside a breach (no standing tower there) stops at its last stone too, so the
+      // gap is as wide as the wall that fell (its rounded end used to close half of it).
+      const ta = breachedAt(p.a) ? e : 0, tb = breachedAt(p.b) ? 1 - e : 1;
       for (let side = 0; side < 2; side++) {
         if (p.gate && (side === p.side || p.forced)) {
-          this.capsule(side, p, 0, Math.max(0, 0.25 - e), r);
-          this.capsule(side, p, Math.min(1, 0.75 + e), 1, r);
-        } else this.capsule(side, p, 0, 1, r);
+          this.capsule(side, p, ta, Math.max(ta, 0.25 - e), r);
+          this.capsule(side, p, Math.min(tb, 0.75 + e), tb, r);
+        } else this.capsule(side, p, ta, tb, r);
       }
     }
     for (const n of this.walls.nodes) {

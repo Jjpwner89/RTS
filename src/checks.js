@@ -177,6 +177,35 @@ async function battleChecks({ battle, town, label }) {
     return sample(out);
   });
 
+  // The dead lie down: two seconds after he falls a man is flat, posed in his Death clip (measured: the top of the
+  // posed figure under 0.9 m) or toppled whole (view.js fallsInClip), never standing dead in his rest pose.
+  await check(`${label}: every dead man lies down within 2 s`, async () => {
+    const out = [], { unitModel } = await import('./models.js'), { lookChain } = await import('./battle.js'), { fallsInClip } = await import('./view.js');
+    const tops = new Map(), standing = new Map();
+    const topOf = (key, model, info, frame) => {
+      const k = key + '/' + frame;
+      if (!tops.has(k)) {
+        const p = anim.poseOf(model.gear, info.rig, 'Death', 'Idle', frame);
+        let hi = -Infinity;
+        for (let i = 1; i < p.length; i += 3) hi = Math.max(hi, p[i]);
+        tops.set(k, hi);
+      }
+      return tops.get(k);
+    };
+    for (const s of battle.soldiers) {
+      if (s.alive || s.gone || battle.time - (s.diedAt ?? battle.time) < 2) continue;
+      const key = lookChain(s.reg.T.key).find(k => unitModel(k)), model = key && unitModel(key), info = anim.animReady() && model?.anim;
+      let flat = s.fall >= 1;
+      if (info && fallsInClip(info, s)) {
+        const c = anim.clipOf(info.rig, 'Death');
+        flat = topOf(key, model, info, Math.min(c.frames - 1, Math.floor((battle.time - s.diedAt) * c.fps))) < 0.9;
+      }
+      if (!flat) standing.set(s.reg.name, (standing.get(s.reg.name) || 0) + 1);
+    }
+    for (const [name, n] of standing) out.push(`${name}: ${n} dead still on their feet`);
+    return sample(out);
+  });
+
   await check(`${label}: nobody stuck for over a minute`, () => {
     const out = [];
     for (const r of regs) { const t = stuckFor(r, battle); if (t > STUCK) out.push(`${r.name} has had an order for ${Math.round(t)}s and not moved, at ${at({ x: r.cx, z: r.cz })}`); }

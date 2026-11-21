@@ -32,6 +32,8 @@ const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // ca
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // The gaits a man (or a war dog) on foot moves in, slowest first, for gaitFor to pick from. Read by checks.js too.
 export const footGaits = info => info.rig === 'wolf' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];
+// Whether a dead man goes down in his skeleton's Death clip; without one (or on a horse) he topples whole (update()).
+export const fallsInClip = (info, s) => !s.alive && !info.horse && !!clipOf(info.rig, 'Death');
 export function soldierClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
   const dt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
@@ -593,8 +595,9 @@ export class BattleView {
         if (s.gone || s.reg.unseen) {     // unseen: hidden from you in the woods (battle.updateSight)
           d.position.set(0, -50, 0); d.scale.setScalar(0.001);
         } else {
-          // an animated soldier steps, strikes and falls in his clips; a rider still topples with his horse
-          const mounted = s.reg.T.mounted, still = !!m.anim;
+          // an animated soldier steps, strikes and falls in his clips; a rider still topples with his horse, and a man
+          // whose skeleton has no Death clip topples whole rather than stand dead in his rest pose
+          const mounted = s.reg.T.mounted, still = !!m.anim && (s.alive || fallsInClip(m.anim, s));
           const walking = s.v > 0.4 && s.alive && !still;
           const bob = walking ? Math.abs(Math.sin(s.phase)) * (mounted ? 0.18 : 0.1) : 0;
           const fwd = still ? 0 : s.lunge * 0.35, fall = still && !mounted ? 0 : s.fall;

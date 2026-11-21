@@ -1764,6 +1764,13 @@ export class Battle {
     if (r.runOnce && !r.dest && !r.targetReg && !r.targetWall && !r.after) r.runOnce = false;   // that run is over
     if (r.after && !r.targetWall && !r.targetReg && !r.dest) { const t = r.after, hurry = r.runOnce; r.after = null; if (t.move) { this.orderMove([r], t.move.x, t.move.z, t.move.angle); r.runOnce = hurry; } else if (this.usable(t)) { this.orderAttack([r], t); r.runOnce = hurry; } }
     if (r.targetReg && !r.targetReg.gone && this.nav.any && (r.reachCd = (r.reachCd || 0) - dt) <= 0) { r.reachCd = 1; this.breachFor(r, r.targetReg); }
+    // Breaking a gate only to get at someone (r.after): once another way in has opened (a breach,
+    // a gate down elsewhere), go on by it rather than finish this one.
+    else if (r.after && r.targetWall && this.nav.any && (r.reachCd = (r.reachCd || 0) - dt) <= 0) {
+      r.reachCd = 1;
+      const t = r.after.move ? { cx: r.after.move.x, cz: r.after.move.z } : r.after;
+      if (this.nav.reachable(r.side, r.cx, r.cz, t.cx, t.cz)) { r.targetWall = null; r.wallPoint = null; r.dest = null; }
+    }
     if (r.targetWall) this.aimAtWall(r, dt);
     else if (r.targetReg) {
       const t = r.targetReg;
@@ -1836,7 +1843,16 @@ export class Battle {
           const k = Math.min(1, dt * 0.8);
           r.x += (r.cx - r.x) * k; r.z += (r.cz - r.z) * k; r.viaCd = 0;
         } else if (!(walled && this.nav.blockedAt(r.side, nx, nz))) { r.x = nx; r.z = nz; }
-        else r.viaCd = 0;
+        else {
+          // Caught on the corner of a wall's cell (the straight-line test samples past corners):
+          // slide along it, as the men do, rather than stand at a gate post for good.
+          const sx = r.x + Math.sign(dx) * stepLen * 0.7, sz = r.z + Math.sign(dz) * stepLen * 0.7;
+          if (Math.abs(dx) >= Math.abs(dz) ? !this.nav.blockedAt(r.side, r.x, sz) : !this.nav.blockedAt(r.side, sx, r.z)) {
+            if (Math.abs(dx) >= Math.abs(dz)) r.z = sz; else r.x = sx;
+          } else if (!this.nav.blockedAt(r.side, sx, r.z)) r.x = sx;
+          else if (!this.nav.blockedAt(r.side, r.x, sz)) r.z = sz;
+          r.viaCd = 0;
+        }
       } else if (!r.via) {
         r.angle = turnToward(r.angle, r.dest.angle, dt * 1.2);
         if (!r.targetReg && !r.targetWall && Math.abs(angleDiff(r.angle, r.dest.angle)) < 0.01) {
