@@ -569,20 +569,32 @@ async function findAssets() {
   // Clips: the animated soldiers and villagers stand in their bind pose without assets/anim.bin, and play a wrong
   // clip if their skeleton lacks one the views ask for (view.js soldierClip, townview.js villagerClip). A gait whose
   // stride can't be measured (anim.js gaitSpeed) can't keep pace with the ground: its feet would slide.
-  const { animReady, clipOf, gaitSpeed, rigOffset } = await import('./anim.js');
+  const { animReady, clipOf, gaitSpeed, gaitFor, rigOffset } = await import('./anim.js');
+  const { footGaits } = await import('./view.js');
   const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
   const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch'], HORSE = ['Idle', 'Trot', 'Gallop'], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Mine', 'Hoe', 'Idle'];
-  const GAITS = ['Walk', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun'], HORSE_GAITS = ['Trot', 'Gallop'];
+  const DOG = ['Idle', 'Walk', 'Trot', 'Run', 'Rout', 'Bite', 'Death'];
+  const GAITS = ['Walk', 'Trot', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun'], HORSE_GAITS = ['Trot', 'Gallop'];
   const noClip = new Set();
   if (!animReady()) noClip.add('assets/anim.json or anim.bin did not load: animated soldiers are left out');
   else for (const key of [...Object.keys(TYPES), 'villager', 'captain', 'lord', 'lady']) {
     const a = unitModel(key)?.anim;
     if (!a) continue;
-    for (const n of key === 'villager' ? WORK : a.horse ? RIDE : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
+    for (const n of key === 'villager' ? WORK : a.horse ? RIDE : a.rig === 'dog' ? DOG : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
     if (a.horse) for (const n of HORSE) if (!clipOf('horse', n)) noClip.add(`no horse '${n}' clip`);
     for (const n of a.horse ? HORSE_GAITS : GAITS) {
       const rig = a.horse ? 'horse' : a.rig;
       if (clipOf(rig, n) && !(gaitSpeed(rig, n) > 0)) noClip.add(`can't measure the ${rig} '${n}' stride: it plays at its own pace and its feet slide`);
+    }
+    // every pace a man or dog on foot moves at, from a shuffle to a little past his top speed, has a gait that keeps up
+    const T = TYPES[key];
+    if (T && !a.horse) {
+      const slide = [];
+      for (let v = 0.8; v <= T.speed * 1.25; v += 0.05) {
+        const g = gaitFor(a.rig, footGaits(a), v), feet = gaitSpeed(a.rig, g.name) * g.rate / v;
+        if (Math.abs(feet - 1) > 0.05) slide.push(v);
+      }
+      if (slide.length) noClip.add(`${key}: from ${slide[0].toFixed(1)} to ${slide.at(-1).toFixed(1)} m/s no ${a.rig} gait keeps pace, so the feet slide`);
     }
   }
   // A lord rides with his bannerman, a second rider in the same model posed by the same clip (bake.js split()).

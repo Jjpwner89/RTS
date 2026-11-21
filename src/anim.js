@@ -30,7 +30,7 @@ try {
 }
 export const animReady = () => !!table;
 
-// A clip of a skeleton ('male', 'female', 'horse'): { start, frames, fps, duration, loop?, hold?, events? }.
+// A clip of a skeleton ('male', 'female', 'horse', 'dog'): { start, frames, fps, duration, loop?, hold?, events? }.
 export const clipOf = (rig, name) => table?.clips[rig]?.[name] || null;
 // How many frames a woman's clip starts after the man's of the same name (0: they are not aligned).
 export const rigOffset = () => rigStep;

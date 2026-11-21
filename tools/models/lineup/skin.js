@@ -3,8 +3,9 @@
 // needs to follow them. The game skins on the GPU (src/anim.js), so thousands of instanced soldiers can each play
 // their own clip.
 //
-// Three skeletons: the Quaternius modular men (one skeleton shared by the adventurer, farmer and king), the women
-// (the same bones in a different rest pose, so clips are retargeted onto it), and the 2018 horse.
+// Four skeletons: the Quaternius modular men (one skeleton shared by the adventurer, farmer and king), the women
+// (the same bones in a different rest pose, so clips are retargeted onto it), the 2018 horse, and the war dog (made
+// here, its clips worked out in code: see the end).
 // A human has 24 bones (fingers fold into the wrist, curled round a grip) and seven "prop" bones that carry what a
 // soldier holds: right-hand weapon, bow, shield, and the villagers' axe, pick and hoe. Each clip decides
 // where a prop goes or hides it (a zero matrix). Horse vertices use bone numbers from 128.
@@ -177,9 +178,11 @@ function props(r, name, def, t) {
 }
 
 // One frame: SLOTS matrices as rows of a 3x4, in the rig's metres.
+// a bone's matrix as the table keeps it: three rows of four
+const pack = (out, i, m) => { const e = m.elements; out.set([e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14]], i * 12); };
 function frame(r, name, def, t) {
   pose(r, def, t);
-  const out = new Float32Array(SLOTS * 12), put = (i, m) => { const e = m.elements; out.set([e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14]], i * 12); };
+  const out = new Float32Array(SLOTS * 12), put = (i, m) => pack(out, i, m);
   r.slots.forEach((n, i) => put(i, skinMatrix(r, n)));
   if (r.name !== 'horse') for (const [k, m] of Object.entries(props(r, name, def, t))) put(PROP[k], m);
   return out;
@@ -193,17 +196,17 @@ export async function bakeClips() {
   // (the woman's clips are the man's, in the same order, so each of hers starts a fixed number of frames after his:
   // a model with both, a lady and her bannerman, plays one clip, anim.js)
   const humans = { ...humanDefs, ...riderDefs };
-  const plan = [['male', humans], ['female', humans], ['horse', HORSE_CLIPS]];
+  const plan = [['male', humans], ['female', humans], ['horse', HORSE_CLIPS], ['dog', DOG_CLIPS]];
   const frames = [], table = {};
   for (const [rn, defs] of plan) {
-    const r = rigs[rn];
+    const r = rigs[rn], made = rn === 'dog';
     table[rn] = {};
     for (const [name, def] of Object.entries(defs)) {
-      const dur = r.clips[def.src]?.duration ?? (r.from || r).clips[def.src].duration;
+      const dur = made ? def.duration : r.clips[def.src]?.duration ?? (r.from || r).clips[def.src].duration;
       const n = Math.max(1, Math.round(dur * FPS)), count = def.loop ? n : n + 1;
       table[rn][name] = { start: frames.length, frames: count, fps: n / dur, duration: +dur.toFixed(4), ...(def.loop ? { loop: true } : {}), ...(def.hold ? { hold: true } : {}),
         ...(rigs.meta[def.src]?.events ? { events: Object.fromEntries(rigs.meta[def.src].events.map(e => [e.event, +e.time.toFixed(4)])) } : {}) };
-      for (let i = 0; i < count; i++) frames.push(frame(r, name, def, i * dur / n));
+      for (let i = 0; i < count; i++) frames.push(made ? dogFrame(def, i * dur / n) : frame(r, name, def, i * dur / n));
     }
   }
   const per = SLOTS * 3, rowFrames = Math.floor(2048 / per), width = per * rowFrames, height = Math.ceil(frames.length / rowFrames);
@@ -328,3 +331,65 @@ function nearest(body, v) {
 }
 // The rig a Quaternius person is baked on.
 export const rigOf = file => /Female/.test(file) ? 'female' : 'male';
+
+// ---- the war dog ----
+// The dog (bake.js warDog) is rigid pieces, each hung on one of these bones, and every clip turns them about their
+// joints: no source clips, so they are worked out here. In the dog's own metres, facing +z, left at +x.
+export const DOG = ['Body', 'Head', 'Tail', 'LegFL', 'LegFR', 'LegHL', 'LegHR'];
+const JOINT = { Body: [0, 0.62, 0], Head: [0, 0.8, 0.42], Tail: [0, 0.78, -0.56], LegFL: [0.13, 0.6, 0.27], LegFR: [-0.13, 0.6, 0.27], LegHL: [0.13, 0.6, -0.4], LegHR: [-0.13, 0.6, -0.4] };
+// The skin a dog's figure carries into the bake (derive()): its space is the dog's, every piece on one bone.
+export function dogSkin() {
+  return { rig: 'dog', G: new THREE.Matrix4(), k: 1, base: 0, pose0: Array.from({ length: SLOTS }, () => new THREE.Matrix4()), slot: new Map(DOG.map((n, i) => [n, i])) };
+}
+// A gait: how long a stride takes, the share of it each paw is down, how far a leg swings each way (radians) and how
+// much it folds as it comes forward, when each leg's stance starts, and how the body rises and pitches. A planted paw
+// slides back at about 1 m/s walking, 1.9 trotting and 4.5 running (anim.js gaitSpeed measures it), so with each
+// played a little faster or slower every pace from a stroll to a flat-out charge has a gait whose feet keep up.
+const DOG_GAITS = {
+  Walk: { duty: 0.62, swing: 0.32, fold: 0.2, at: { LegHL: 0, LegFL: 0.25, LegHR: 0.5, LegFR: 0.75 }, rise: 0.012, pitch: 0.02, beats: 2 },
+  Trot: { duty: 0.5, swing: 0.4, fold: 0.25, at: { LegFL: 0, LegHR: 0, LegFR: 0.5, LegHL: 0.5 }, rise: 0.02, pitch: 0.03, beats: 2 },
+  Run: { duty: 0.38, swing: 0.6, fold: 0.32, at: { LegFL: 0, LegFR: 0.1, LegHR: 0.5, LegHL: 0.6 }, rise: 0.03, pitch: 0.09, beats: 1 },
+};
+const DOG_CLIPS = {
+  Idle: { duration: 2.4, loop: true }, Walk: { duration: 0.62, loop: true, gait: 'Walk' }, Trot: { duration: 0.5, loop: true, gait: 'Trot' }, Run: { duration: 0.4, loop: true, gait: 'Run' },
+  Rout: { duration: 0.4, loop: true, gait: 'Run', tail: -0.6 }, Bite: { duration: 0.7 }, Death: { duration: 0.9, hold: true },
+};
+const about = (j, m) => new THREE.Matrix4().makeTranslation(...j).multiply(m).multiply(new THREE.Matrix4().makeTranslation(-j[0], -j[1], -j[2]));
+const rotX = a => new THREE.Matrix4().makeRotationX(a), rotY = a => new THREE.Matrix4().makeRotationY(a), rotZ = a => new THREE.Matrix4().makeRotationZ(a);
+const ease = x => x * x * (3 - 2 * x);
+// One leg at u through its stride (0: the paw comes down ahead): back along the ground, then folded and forward.
+function legAt(g, u) {
+  if (u < g.duty) return { a: -g.swing + 2 * g.swing * u / g.duty, fold: 0 };
+  const s = (u - g.duty) / (1 - g.duty);
+  return { a: g.swing - 2 * g.swing * ease(s), fold: g.fold * Math.sin(Math.PI * s) };
+}
+function dogFrame(def, t) {
+  const D = def.duration, x = t / D, TAU = Math.PI * 2;
+  let body = new THREE.Matrix4(), nod = 0, look = 0, wag = 0, lift = def.tail ?? 0;
+  const legs = Object.fromEntries(DOG.slice(3).map(n => [n, { a: 0, fold: 0 }]));
+  if (def.gait) {
+    const g = DOG_GAITS[def.gait], pitch = g.pitch * Math.sin(TAU * x + 0.6);
+    body = new THREE.Matrix4().makeTranslation(0, g.rise * Math.sin(TAU * g.beats * x), 0).multiply(about(JOINT.Body, rotX(pitch)));
+    for (const n in legs) legs[n] = legAt(g, (x - g.at[n] + 1) % 1);
+    nod = -pitch * 0.8; wag = (def.tail ? 0.15 : 0.25) * Math.sin(TAU * x);
+  } else if (def === DOG_CLIPS.Idle) {   // breathing, looking about, the tail going
+    body = new THREE.Matrix4().makeTranslation(0, 0.006 * Math.sin(TAU * 2 * x), 0);
+    look = 0.3 * Math.sin(TAU * x); nod = 0.06 * Math.sin(TAU * 2 * x); wag = 0.3 * Math.sin(TAU * 4 * x);
+  } else if (def === DOG_CLIPS.Bite) {   // a lunge: hind legs drive, the head snaps down and in at the middle
+    const e = Math.sin(Math.PI * x);
+    body = new THREE.Matrix4().makeTranslation(0, 0.04 * e, 0.3 * e).multiply(about(JOINT.Body, rotX(-0.12 * e)));
+    legs.LegHL.a = legs.LegHR.a = 0.35 * e; legs.LegFL.a = legs.LegFR.a = -0.45 * e; legs.LegFL.fold = legs.LegFR.fold = 0.2 * e;
+    nod = -0.35 * Math.sin(TAU * x); wag = 0.2 * e;   // (head up as it springs, down as it lands)
+  } else {   // Death: over onto its left side, legs gone slack
+    const e = ease(Math.min(1, x * 1.2));
+    body = about([0.28, 0, 0], rotZ(-(Math.PI / 2 - 0.12) * e));
+    for (const n in legs) legs[n] = { a: (n[3] === 'F' ? -0.25 : 0.3) * e, fold: 0.1 * e };
+    nod = 0.35 * e; lift = -0.4 * e;
+  }
+  const out = new Float32Array(SLOTS * 12), on = m => body.clone().multiply(m);
+  pack(out, 0, body);
+  pack(out, 1, on(about(JOINT.Head, rotY(look).multiply(rotX(nod)))));
+  pack(out, 2, on(about(JOINT.Tail, rotY(wag).multiply(rotX(lift)))));
+  DOG.slice(3).forEach((n, i) => pack(out, 3 + i, on(about(JOINT[n], rotX(legs[n].a).multiply(new THREE.Matrix4().makeScale(1, 1 - legs[n].fold, 1))))));
+  return out;
+}

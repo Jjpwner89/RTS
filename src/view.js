@@ -30,7 +30,9 @@ const WHITE = new THREE.Color('#ffffff');
 // a horse's and its rider's share one clock. Also read by tools/viewer.html, with a stand-in soldier and battle.
 const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // carried upright on the march
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const HORSE_TROT = 2.4;   // the stock trot steps short: a horse trots a little quicker than its clip before it gallops
+const HORSE_TROT = 2.4;
+// The gaits a man (or a war dog) on foot moves in, slowest first, for gaitFor to pick from. Read by checks.js too.
+export const footGaits = info => info.rig === 'dog' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];   // the stock trot steps short: a horse trots a little quicker than its clip before it gallops
 export function soldierClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
   const dt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
@@ -68,7 +70,7 @@ export function soldierClip(s, b, info, out) {
 
   if (!s.alive) return show('Death', now - (s.diedAt ?? now));
   // a blow, or the wind-up to one
-  const strike = info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
+  const strike = rig === 'dog' ? ['Bite', 'bite'] : info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
   let k = timed(...strike, now - (s.struckAt ?? -99), close ? s.cd : null);
   if (k) return k;
   // a shot: bows, crossbows and javelins each their own way
@@ -82,7 +84,7 @@ export function soldierClip(s, b, info, out) {
   if (b.winner === r.side) { s.animT += dt; return show('Cheer', s.animT % 2.6); }
   if (s.v >= 0.4 || s.climb > 0) {
     // (a climber keeps stepping up his ladder however slowly he rises)
-    return pace(UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'], Math.max(s.v, 0.8));
+    return pace(footGaits(info), Math.max(s.v, 0.8));
   }
   // standing: spears brace against what's coming, shields close up in a tight line
   const braced = T.braces && info.weapon === 'spear' && (r.formation === 'square' || r.hold || r.engaged > 0);

@@ -456,32 +456,34 @@ async function lordParty(body, tint) {
 }
 // ---- Norrhold's host: northern, wintry ----
 // A big rough-coated war dog, facing +z: grey with a pale chest, a team cloth over the shoulders and a
-// spiked collar. About 0.8 m at the shoulder.
+// spiked collar. About 0.8 m at the shoulder. Each piece rides one bone of the dog's skeleton (skin.js DOG).
 function warDog() {
   const g = new THREE.Group(), fur = plain('#5d5650'), pale = plain('#b8ae9e'), dark = plain('#2b2622');
-  const add = (geo, mat, x, y, z, { rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1 } = {}) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.scale.set(sx, sy, sz); g.add(m); return m; };
+  const add = (bone, geo, mat, x, y, z, { rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1 } = {}) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.scale.set(sx, sy, sz); m.userData.attach = bone; g.add(m); return m; };
   const ball = new THREE.IcosahedronGeometry(1, 1);
-  add(ball, fur, 0, 0.62, -0.12, { sx: 0.24, sy: 0.24, sz: 0.5 });          // body
-  add(ball, fur, 0, 0.68, 0.24, { sx: 0.28, sy: 0.3, sz: 0.3 });            // deep chest and shoulders
-  add(ball, pale, 0, 0.58, 0.38, { sx: 0.17, sy: 0.2, sz: 0.12 });          // pale chest
-  add(new THREE.CylinderGeometry(0.11, 0.15, 0.36, 7), fur, 0, 0.86, 0.46, { rx: 0.75 });   // neck
-  add(new THREE.BoxGeometry(0.26, 0.24, 0.3), fur, 0, 0.98, 0.62);          // head
-  add(new THREE.BoxGeometry(0.17, 0.14, 0.24), pale, 0, 0.92, 0.86);        // muzzle
-  add(new THREE.BoxGeometry(0.08, 0.06, 0.05), dark, 0, 0.96, 0.98);        // nose
+  add('Body', ball, fur, 0, 0.62, -0.12, { sx: 0.24, sy: 0.24, sz: 0.5 });          // body
+  add('Body', ball, fur, 0, 0.68, 0.24, { sx: 0.28, sy: 0.3, sz: 0.3 });            // deep chest and shoulders
+  add('Body', ball, pale, 0, 0.58, 0.38, { sx: 0.17, sy: 0.2, sz: 0.12 });          // pale chest
+  add('Head', new THREE.CylinderGeometry(0.11, 0.15, 0.36, 7), fur, 0, 0.86, 0.46, { rx: 0.75 });   // neck
+  add('Head', new THREE.BoxGeometry(0.26, 0.24, 0.3), fur, 0, 0.98, 0.62);          // head
+  add('Head', new THREE.BoxGeometry(0.17, 0.14, 0.24), pale, 0, 0.92, 0.86);        // muzzle
+  add('Head', new THREE.BoxGeometry(0.08, 0.06, 0.05), dark, 0, 0.96, 0.98);        // nose
   for (const s of [-1, 1]) {
-    add(new THREE.ConeGeometry(0.06, 0.15, 4), fur, s * 0.09, 1.15, 0.58, { rz: -s * 0.25, rx: -0.2 });   // ears
-    add(new THREE.CylinderGeometry(0.06, 0.045, 0.6, 6), fur, s * 0.13, 0.3, 0.3, { rx: -0.12 });         // fore legs
-    add(new THREE.CylinderGeometry(0.075, 0.045, 0.6, 6), fur, s * 0.13, 0.31, -0.45, { rx: 0.18 });      // hind legs
-    for (const z of [0.34, -0.38]) add(new THREE.BoxGeometry(0.1, 0.05, 0.14), dark, s * 0.13, 0.025, z + 0.03);   // paws
+    const side = s > 0 ? 'L' : 'R';
+    add('Head', new THREE.ConeGeometry(0.06, 0.15, 4), fur, s * 0.09, 1.15, 0.58, { rz: -s * 0.25, rx: -0.2 });   // ears
+    add('LegF' + side, new THREE.CylinderGeometry(0.06, 0.045, 0.6, 6), fur, s * 0.13, 0.3, 0.3, { rx: -0.12 });         // fore legs
+    add('LegH' + side, new THREE.CylinderGeometry(0.075, 0.045, 0.6, 6), fur, s * 0.13, 0.31, -0.45, { rx: 0.18 });      // hind legs
+    for (const z of [0.34, -0.38]) add((z > 0 ? 'LegF' : 'LegH') + side, new THREE.BoxGeometry(0.1, 0.05, 0.14), dark, s * 0.13, 0.025, z + 0.03);   // paws
   }
-  add(new THREE.CylinderGeometry(0.035, 0.05, 0.45, 5), fur, 0, 0.82, -0.66, { rx: -0.9 });    // tail, carried high
-  const collar = add(new THREE.TorusGeometry(0.14, 0.035, 5, 10), teamMat(0.8), 0, 0.84, 0.5, { rx: 0.75 + Math.PI / 2 });
+  add('Tail', new THREE.CylinderGeometry(0.035, 0.05, 0.45, 5), fur, 0, 0.82, -0.66, { rx: -0.9 });    // tail, carried high
+  const collar = add('Head', new THREE.TorusGeometry(0.14, 0.035, 5, 10), teamMat(0.8), 0, 0.84, 0.5, { rx: 0.75 + Math.PI / 2 });
   for (let i = 0; i < 8; i++) {
     const a = i / 8 * Math.PI * 2, sp = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.09, 4), plain('#9aa0a6'));
     sp.position.set(Math.cos(a) * 0.17, Math.sin(a) * 0.17, 0); sp.rotation.z = a - Math.PI / 2; collar.add(sp);
   }
   // a short war-coat over the back in the team colour
-  add(new THREE.CylinderGeometry(0.29, 0.31, 0.62, 10, 1, true, -Math.PI / 2, Math.PI), teamMat(1), 0, 0.64, 0.02, { rx: Math.PI / 2, sy: 1 }).material.side = THREE.DoubleSide;
+  add('Body', new THREE.CylinderGeometry(0.29, 0.31, 0.62, 10, 1, true, -Math.PI / 2, Math.PI), teamMat(1), 0, 0.64, 0.02, { rx: Math.PI / 2, sy: 1 }).material.side = THREE.DoubleSide;
+  g.userData.skin = SK.dogSkin();
   return g;
 }
 // Fur over the shoulders: a pale shaggy mantle.
