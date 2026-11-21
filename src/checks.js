@@ -227,6 +227,10 @@ async function worldChecks(w) {
   walledPlace = places.walledPlace;
   group = 'World';
 
+  // The top bar on the map shows the map's own line, not the last fight's numbers (QC audit, 2026-11-21).
+  if (window.game.mode === 'world') await check('the map bar shows no battle numbers', () =>
+    /men standing/.test(document.getElementById('strength')?.textContent || '') ? [`it reads "${document.getElementById('strength').textContent}"`] : []);
+
   // Every place's layout (places.js): its whole tally laid out, nothing overlapping, walls as its numbers say.
   await check('places: every layout holds its tally', () => sample(places.checkPlaces(w), 10));
 

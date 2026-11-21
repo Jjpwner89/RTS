@@ -468,22 +468,25 @@ export class WorldView {
     }
   }
 
-  // The army or place under a screen point (canvas pixels), armies first.
+  // The army or place under a screen point (canvas pixels). A name label you point at
+  // is what you meant, even where another place's model is nearer (QC audit, 2026-11-21);
+  // off the labels, the nearest model wins, armies first.
   pick(x, y) {
+    const o = this.labelsEl.getBoundingClientRect();
     let best = null, bd = Infinity;
+    for (const s of this.screen || []) {
+      if (!s.el || s.el.style.display === 'none') continue;
+      const r = s.el.getBoundingClientRect();
+      if (x < r.left - o.left || x > r.right - o.left || y < r.top - o.top || y > r.bottom - o.top) continue;
+      if (s.kind === 'army' && best?.kind !== 'army') best = s;
+      else if (!best) best = s;
+    }
+    if (best) return best;
     for (const s of this.screen || []) {
       const d = Math.hypot(s.x - x, s.y - y) - (s.kind === 'army' ? 20 : 0);
       if (d < s.r && d < bd) { bd = d; best = s; }
     }
-    if (best) return best;
-    // A place's name label counts as the place.
-    const o = this.labelsEl.getBoundingClientRect();
-    for (const s of this.screen || []) {
-      if (!s.el || s.el.style.display === 'none') continue;
-      const r = s.el.getBoundingClientRect();
-      if (x >= r.left - o.left && x <= r.right - o.left && y >= r.top - o.top && y <= r.bottom - o.top) return s;
-    }
-    return null;
+    return best;
   }
 
   // ---- places: each kind has its own look, and it grows with the place's level ----

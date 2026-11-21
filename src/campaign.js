@@ -94,7 +94,7 @@ const hooks = {
   stormEnded: (p, won, chose) => {
     const here = mode === 'town' && current.poi === p;
     if (won) {
-      if (here) { setMode('town', townBundle(p)); flash(`${p.name} is yours!`, true); }
+      if (here) setMode('town', townBundle(p));   // "You have taken …" is in the news line already
       else asks.push({ kind: 'news', title: `${p.name} is taken`, text: 'Your army has stormed it. It is yours now, with whatever is left standing.' });
       return;
     }
@@ -529,9 +529,15 @@ function bareHanded(enc) {
   return walledPlace(enc.poi) && !enc.army.units.some(u => TYPES[u.key]?.engine);
 }
 
+// Events, offers and news wait while you command a fight and for a few seconds after it
+// (playtest, 2026-11-19): a capture isn't buried under "Masons on the road".
+const CALM = 5000;
+let fightSeen = 0;
+
 function nextAsk() {
+  if (mode === 'field' || fighting()) fightSeen = performance.now();
   if (mode === 'field' || $('prompt').classList.contains('open') || $('result').classList.contains('open') || !asks.length) return;
-  const i = fighting() ? asks.findIndex(a => !WAITS.has(a.kind)) : 0;
+  const i = performance.now() - fightSeen < CALM ? asks.findIndex(a => !WAITS.has(a.kind)) : 0;
   if (i < 0) return;
   const a = asks.splice(i, 1)[0];
   if (a.kind === 'encounter' && (a.enc.army.gone || world.encounter !== a.enc)) return nextAsk();
@@ -710,6 +716,7 @@ function showResult(title, text, button, fn, book = false) {
 
 function flash(text, good = false) {
   const t = $('toast');
+  for (const line of $('log').children) if (line.textContent === text) line.remove();   // said once, below
   t.textContent = text;
   t.classList.toggle('good', good);
   t.classList.add('show');
@@ -998,7 +1005,7 @@ $('wpanel').onclick = e => {
   if (act?.startsWith('decree:')) { const r = toggleDecree(world, act.slice(7)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('work:')) { const r = startWork(world, it, act.slice(5)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('buy:') && it) { const r = buy(world, it, act.slice(4)); flash(r.ok ? r.text : r.why, r.ok); }
-  if (act?.startsWith('run:')) { const from = world.byId[act.slice(4)], r = sendRun(world, from, it); flash(r.ok ? `A wagon sets out from ${from.name}: ${loadText(r.wagon.wagon)}.` : r.why, r.ok); }
+  if (act?.startsWith('run:')) { const from = world.byId[act.slice(4)], r = sendRun(world, from, it); if (!r.ok) flash(r.why); }   // the news line says it set out
   if (act?.startsWith('escort:')) { const c = world.armies.find(a => a.id === +act.slice(7)); if (!escort(world, it, c)) flash('That caravan is gone.'); panelKey = null; }
   if (act === 'wagon' && it.units && !it.wagon && !it.gone) { if (!sendWagon(world, it)) flash('No village has food to spare.'); }
 };
@@ -1072,13 +1079,20 @@ $('alerts').onclick = e => {
   worldControls.lookAt(a.at);
 };
 
+// News lines at the top. One message shows once (QC audit, 2026-11-21): a line the toast
+// below is already saying is not repeated, and a burst of finished goals shows only the
+// newest. Everything stays in the chronicle.
 function worldLog() {
-  const logEl = $('log');
+  const logEl = $('log'), toast = $('toast');
   while (seenWorld < world.events.length) {
     const ev = world.events[seenWorld++];
+    if (toast.classList.contains('show') && toast.textContent === ev.text) continue;
+    const key = ev.text.startsWith('Goal done:') ? 'goal' : '';
+    if (key) for (const old of logEl.querySelectorAll(`[data-key="${key}"]`)) old.remove();
     const line = document.createElement('div');
     line.textContent = ev.text;
     line.className = ev.side === 0 ? 'good' : 'bad';
+    if (key) line.dataset.key = key;
     logEl.prepend(line);
     while (logEl.children.length > 4) logEl.lastChild.remove();
     setTimeout(() => line.classList.add('fade'), 7000);

@@ -134,7 +134,7 @@ export function wagonFrom(w, a) {
   const towns = w.pois.filter(p => p.owner === 0 && p.town && !p.town.hostile && !p.town.underAttack && spareFood(p.town) >= 20);
   const p = towns.sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0];
   if (!p) return null;
-  return { p, load: Math.min(spareFood(p.town), Math.max(40, capacity(a) - a.food), 600) };
+  return { p, load: Math.floor(Math.min(spareFood(p.town), Math.max(40, capacity(a) - a.food), 600)) };   // whole meals: stores run fractional
 }
 
 export function sendWagon(w, a) {
