@@ -51,6 +51,7 @@ const hooks = {
     if (!g) return true;
     if (placing === 'road') { placeRoad(town, road, g, e, townHud); return true; }
     const res = placing.startsWith('tpl:') ? town.placeTemplate(placing.slice(4), g.x, g.z) : town.place(placing, g.x, g.z);
+    if (res.ok && res.message) townHud.flash(res.message);
     // The same building stays in hand, to place several; right-click or Esc ends it.
     if (!res.ok) townHud.flash(res.reason);
     return true;

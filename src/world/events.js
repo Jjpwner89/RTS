@@ -1,11 +1,16 @@
 // Events with choices, after Crusader Kings and Stronghold's village life: now and then
 // something happens in one of your villages and you choose what to do about it. Each has
-// a picture (assets/art/events/<id>.png, from Art; the box shows none while it is missing).
+// a picture (assets/art/events/<id>.png, from Art), once it is painted and named in PAINTED;
+// until then the box shows none, rather than asking for a file that isn't there.
 //
 // One every seven to twelve minutes, at a village of yours that you run (or, for the kinds
 // of place in the second half of the list, any place of that kind you hold); never the same
 // one twice running. Choices that cost gold say so and can't be picked without it.
 import { FACTIONS, headcount } from './world.js';
+
+// Events whose picture is in assets/art/events/. Add the id when its painting lands.
+export const PAINTED = new Set([]);
+const picture = id => (PAINTED.has(id) ? `assets/art/events/${id}.png` : null);
 
 const FIRST = 420, EVERY = [420, 720];
 const KNIGHTS = ['Sir Aymer de Lisle', 'Sir Bertram Wode', 'Dame Isolde Fenn', 'Sir Hugo Marlowe', 'Sir Gawain of Tarn', 'Dame Petra Hale'];
@@ -310,7 +315,7 @@ function settlerEvent(w, p, id) {
     ...(id === 'refugees' ? [{ label: `Take the strongest (${Math.ceil(n / 2)} people)`, ok: room >= Math.ceil(n / 2), run: () => { spell(t, -3, 'families split at the gate', 300); return take(Math.ceil(n / 2))(); } }] : []),
     { label: 'Send them on their way', run: () => `The ${id} go on down the road.` },
   ];
-  const ev = { id: `settlers-${id}`, image: `assets/art/events/${id}.png`, title: G.title(p),
+  const ev = { id: `settlers-${id}`, image: picture(id), title: G.title(p),
     text: `${G.text(p, n)} ${p.name} has ${meals} meals in store for ${t.population} people${room < n ? `, and room for only ${Math.max(0, room)} more: build houses first` : ''}.`, at: p,
     choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
   if (w.hooks.choice) w.hooks.choice(ev);
@@ -357,7 +362,7 @@ export function fire(w, id, p) {
   if (id === 'scheme') { const t = turncoat(w); Object.assign(extra, { cap: t.c, army: t.a, house: schemer(w) }); }
   w.lastEvent = id;
   const choices = E.choices(w, p, extra);
-  const ev = { id, image: `assets/art/events/${id}.png`, title: E.title(p), text: E.text(w, p, extra), at: p,
+  const ev = { id, image: picture(id), title: E.title(p), text: E.text(w, p, extra), at: p,
     choices: choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => { if (!(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } })) };
   if (w.hooks.choice) w.hooks.choice(ev);
   else ev.choices.at(-1).run();   // nobody to ask: the plain choice

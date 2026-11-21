@@ -190,7 +190,7 @@ function townBundle(p, look = null) {
       if (!g) return true;
       if (st.placing === 'road') { placeRoad(town, st, g, e, townHud); return true; }
       const res = st.placing.startsWith('tpl:') ? town.placeTemplate(st.placing.slice(4), g.x, g.z) : town.place(st.placing, g.x, g.z);
-      if (res.ok && res.of) townHud.flash(res.placed < res.of ? `Laid out ${res.placed} of ${res.of}: no room for the rest` : 'Laid out');
+      if (res.ok && res.message) townHud.flash(res.message);
       // The same building stays in hand, to place several; right-click or Esc ends it.
       if (!res.ok) townHud.flash(res.reason);
       return true;
@@ -542,7 +542,8 @@ function nextAsk() {
     box.querySelector('p').textContent = ev.text;
     pic.onload = () => { pic.hidden = false; };
     pic.onerror = () => { pic.hidden = true; };
-    if (pic.src.endsWith(ev.image) && pic.complete) pic.hidden = !pic.naturalWidth;
+    if (!ev.image) { pic.hidden = true; pic.removeAttribute('src'); }
+    else if (pic.src.endsWith(ev.image) && pic.complete) pic.hidden = !pic.naturalWidth;
     else pic.src = ev.image;
     for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r, true); }, !c.ok]);
   } else if (a.kind === 'news') {

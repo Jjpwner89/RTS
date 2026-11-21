@@ -722,9 +722,13 @@ export class Town {
     const T = TEMPLATES[name], spots = this.planTemplate(name, x, z);
     if (!spots.length) return { ok: false, reason: T.gather ? 'Nothing to work near here' : 'No room here' };
     let placed = 0;
-    for (const p of spots) if (this.place(p.kind, p.x, p.z, { free: true }).ok) placed++;
+    const skipped = spots.missed.map(p => p.B.name.toLowerCase());
+    for (const p of spots) if (this.place(p.kind, p.x, p.z, { free: true }).ok) placed++; else skipped.push(p.B.name.toLowerCase());
     this.tplPreview = null;
-    return { ok: true, placed, of: T.list.length };
+    // What was left out is said, on screen and in the console, never dropped quietly.
+    const message = skipped.length ? `Laid out ${placed} of ${T.list.length}: no room for ${[...new Set(skipped)].join(', ')}` : 'Laid out';
+    if (skipped.length) console.warn(`${T.name} at (${Math.round(x)}, ${Math.round(z)}): ${message}`);
+    return { ok: true, placed, of: T.list.length, message };
   }
 
   // A spot for one gatherer beside the resource nearest (x, z) that no other of its kind
