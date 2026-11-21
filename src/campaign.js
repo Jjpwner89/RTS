@@ -1225,7 +1225,11 @@ news.watch('realm', () => $('realm-toggle'));
 // A new Realm tab wears its seal inside the screen; with the screen shut, the Realm button stands in for it.
 for (const k of ['vassals', 'houses', 'council']) news.watch(`tab:${k}`, () => (!$('realm').hidden && document.querySelector(`#realm nav [data-act="tab:${k}"]`)) || [$('realm-toggle'), true]);
 news.watch('gather', () => $('wpanel').querySelector('[data-f="gather"]'));
-news.watch('decrees', () => $('wpanel').querySelector('[data-f="decrees"] button') || ($('wpanel').querySelector('.is-realm > h3, h3') && $('wpanel').classList.contains('is-realm') && [$('wpanel').querySelector('h3'), true]));
+news.watch('decrees', () => {
+  const wp = $('wpanel'), b = wp.querySelector('[data-f="decrees"] button');
+  // The decrees sit low in the Your realm panel: until they are in view (or the panel is folded), its heading stands in.
+  return b?.getClientRects().length && !wp.classList.contains('folded') ? b : wp.classList.contains('is-realm') ? [wp.querySelector('h3'), true] : null;
+});
 function topBar() {
   $('realm-toggle').hidden = !unlocked(world, 'realm');
   $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
