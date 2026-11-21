@@ -58,3 +58,18 @@ If neither CC0 pack beats the current set, the better engines are ours to build.
 **The lords' parties** (bake.js `lordParty`) already outclass every free mounted-noble model found. The CC-BY carriage is a western stagecoach and was turned down.
 
 **Pavilion tents** were not packaged. The CC0 lead is AnyRPG [Medieval Tents](https://opengameart.org/content/medieval-tents) on OpenGameArt: textured, .blend only, 5.6k triangles, not yet lined up. The CC-BY fallback is Carrigan's [General's Tent](https://sketchfab.com/3d-models/generals-tent-siege-equipment-assets-6003a17f60a04a4caa6f619edbe5e91a). The Quaternius tent above reads as a modern camping tent; the Kenney A-frames are the camp pick.
+
+## Third batch (2026-11-21): ground textures and skies
+
+All CC0, from [Poly Haven](https://polyhaven.com), whose [licence page](https://polyhaven.com/license) says every texture and HDRI there is CC0, with no credit needed. Each file's md5 matched the Poly Haven API. Not wired into the game. The ground is a painted shader (`groundMaterial` in `scenery.js`), so what to use is rts-fidelity's call.
+
+**`textures/`**: 1k seamless tiles (JPEG, recompressed at quality 72 for size), named `<poly haven name>_diff.jpg`; the six with `_nor.jpg` also carry the OpenGL-convention normal map. Seamlessness was checked by tiling each 2×2.
+
+| Use | Textures |
+|---|---|
+| Grass and meadow | `leafy_grass` (+nor; the green meadow), `sparse_grass` (dark), `grass_path_2` (worn, pale), `withered_grass` (dry, for late-summer and Norrhold edges) |
+| Earth, fields and tracks | `farm_soil` (+nor), `farm_furrows` (ploughed rows, the fields under `LAND`), `muddy_tracks` (roads), `stony_dirt_path` (+nor), `brown_mud_leaves_01` (wet verges) |
+| Forest floor | `forest_floor` (+nor), `forest_leaves_02` (autumn) |
+| Rock, snow, sand, stone | `rocky_terrain`, `rock_face_03` (+nor; the steep sides), `mossy_rock`, `snow_02` (+nor; Norrhold), `coast_sand_01` (fords and shores), `cobblestone_floor_01` and `mossy_cobblestone` (village squares, bridges, keeps) |
+
+**`sky/`**: 1k equirectangular HDRIs ("puresky": sky only, no ground clutter), `.hdr` loaded by three's `RGBELoader` and used as `scene.background` or with `PMREMGenerator` for light. The game uses flat background colours today and the camera rarely looks at the sky, so this is low value: `kloppenheim_06_puresky` (soft sun and scattered cloud), `kloofendal_overcast_puresky` (grey, for rain and fog), `belfast_sunset_puresky` (dusk), `qwantani_night_puresky` (night), `snow_field_puresky` (winter). Others looked at and not packaged: `kloofendal_48d_partly_cloudy`, `kloofendal_misty_morning`, `qwantani_dusk_2`.
