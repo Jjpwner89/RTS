@@ -1,14 +1,9 @@
 [
   {
     "file": "clips-foot.glb",
-    "bytes": 3240920,
+    "bytes": 3226012,
     "joints": 62,
     "checks": "passed",
-    "khronos": {
-      "errors": 0,
-      "warnings": 5,
-      "warningNote": "Source skinned-mesh hierarchy/transforms retained; no animation warnings."
-    },
     "clips": [
       {
         "name": "Spear_Thrust",
@@ -26,10 +21,10 @@
       },
       {
         "name": "March_Upright",
-        "duration": 1.2000000476837158,
+        "duration": 1,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 20.58337488283238
+        "maxFrameRotationDegrees": 34.351003623207276
       },
       {
         "name": "Bow_Loose",
@@ -112,14 +107,9 @@
   },
   {
     "file": "clips-riders.glb",
-    "bytes": 1849096,
+    "bytes": 1824272,
     "joints": 62,
     "checks": "passed",
-    "khronos": {
-      "errors": 0,
-      "warnings": 5,
-      "warningNote": "Source skinned-mesh hierarchy/transforms retained; no animation warnings."
-    },
     "clips": [
       {
         "name": "Ride_Idle",
@@ -130,10 +120,10 @@
       },
       {
         "name": "Ride_Trot",
-        "duration": 1,
+        "duration": 0.6666666865348816,
         "loop": true,
         "tracks": 186,
-        "maxFrameRotationDegrees": 0.3206474896873254
+        "maxFrameRotationDegrees": 0.49450956280651875
       },
       {
         "name": "Ride_Gallop",
@@ -160,21 +150,16 @@
   },
   {
     "file": "clips-horse.glb",
-    "bytes": 367740,
+    "bytes": 356536,
     "joints": 28,
     "checks": "passed",
-    "khronos": {
-      "errors": 0,
-      "warnings": 2,
-      "warningNote": "Source skinned-mesh hierarchy/transforms retained; no animation warnings."
-    },
     "clips": [
       {
         "name": "Gallop",
         "duration": 0.6666666865348816,
         "loop": true,
         "tracks": 84,
-        "maxFrameRotationDegrees": 43.320337650257336
+        "maxFrameRotationDegrees": 48.391522635768865
       },
       {
         "name": "Rear",
@@ -185,10 +170,10 @@
       },
       {
         "name": "Trot",
-        "duration": 1,
+        "duration": 0.6666666865348816,
         "loop": true,
         "tracks": 84,
-        "maxFrameRotationDegrees": 15.65635219199607
+        "maxFrameRotationDegrees": 31.107784318566637
       }
     ]
   }

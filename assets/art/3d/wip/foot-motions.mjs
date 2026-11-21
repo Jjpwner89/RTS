@@ -50,8 +50,10 @@ export function footMotions(h){
   u=(u%1+1)%1;if(u<duty)return {z:span*(1-2*u/duty),y:0};
   let t=(u-duty)/(1-duty);return {z:-span+2*span*(t*t*(3-2*t)),y:lift*Math.sin(Math.PI*t)};
  }
- function walk(u,carry=false,panic=false){
-  let a=stride(u,panic?.34:.23,panic?.19:.065,panic?.42:.62),b=stride(u+.5,panic?.34:.23,panic?.19:.065,panic?.42:.62);
+ // `step`: a longer stride than the default walk's (half-length and lift, in metres)
+ function walk(u,carry=false,panic=false,step=null){
+  const span=step?step.span:panic?.34:.23,lift=step?step.lift:panic?.19:.065,duty=panic?.42:.62;
+  let a=stride(u,span,lift,duty),b=stride(u+.5,span,lift,duty);
   h.reset();h.body((panic?.78:.84)+.018*Math.cos(u*TAU*2),.02,panic?16:3,panic?-14:3*Math.sin(u*TAU),.012*Math.sin(u*TAU));
   h.legs([.13,.02275+a.y,.06+a.z],[-.13,.02275+b.y,.06+b.z]);
  }
@@ -70,9 +72,11 @@ export function footMotions(h){
   // The right hand sits where a kneeling arm reaches; the kneel depth puts the butt (0.91 m back) on the ground.
   spearArms(h,{...g,aim:aim.toArray(),rearWorld:guard.lerp(braced,k).toArray(),elbowR:mix(g.elbowR,[-.10,-.18,-.06],k),sep:g.sep-.16*k,elbowL:mix(g.elbowL,[.12,-.28,.12],k)});
  },{hold:true,...weapon('Wrist.R',SPEAR_DIAG,{lengthBehindGrip:.91}),events:[{time:1,event:'brace-held'}]}],
- ['March_Upright',36,true,(t,u)=>{
-  // Shaft upright, resting back against the right shoulder; fist at the chest, elbow down.
-  walk(u);h.arm('R',at('R',[-.03,-.10,.31]),[0,1,-.25],at('R',[-.04,-.25,-.04]),{diag:0});
+ ['March_Upright',30,true,(t,u)=>{
+  // Shaft upright, resting back against the right shoulder; fist at the chest, elbow down. A full
+  // marching stride (about 0.8 m a step, 1.3 m/s at its own pace), so it keeps up with the game's
+  // walking pace without its feet sliding (Claude, 2026-11-21).
+  walk(u,false,false,{span:.40,lift:.09});h.arm('R',at('R',[-.03,-.10,.31]),[0,1,-.25],at('R',[-.04,-.25,-.04]),{diag:0});
   h.hand('L',[.21,1.00,.04+.14*Math.sin(TAU*u)],null,[0,-1,0],.6);
  },weapon('Wrist.R',0)],
  ['Bow_Loose',48,false,(t,u)=>{

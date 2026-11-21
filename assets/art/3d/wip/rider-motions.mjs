@@ -17,7 +17,7 @@ export function riderMotions(h){
  }
  return [
  ['Ride_Idle',90,true,(t,u)=>seated('Idle',u),{horseClip:'Idle',seatHeight:1.185}],
- ['Ride_Trot',30,true,(t,u)=>seated('Trot',u),{horseClip:'Trot',phase:0,seatHeight:1.185}],
+ ['Ride_Trot',20,true,(t,u)=>seated('Trot',u),{horseClip:'Trot',phase:0,seatHeight:1.185}],
  ['Ride_Gallop',20,true,(t,u)=>seated('Gallop',u),{horseClip:'Gallop',phase:0,seatHeight:1.185}],
  // Couch and Slash (Claude, 2026-11-20): the sword arm is keyed by upper-arm and forearm
  // directions plus the wanted weapon direction, and Human.aimFk keeps the wrist natural.

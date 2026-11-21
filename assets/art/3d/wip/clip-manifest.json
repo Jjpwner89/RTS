@@ -101,7 +101,7 @@
     },
     {
       "name": "March_Upright",
-      "duration": 1.2,
+      "duration": 1,
       "loop": true,
       "weapon": {
         "bone": "Wrist.R",
@@ -418,7 +418,7 @@
     },
     {
       "name": "Ride_Trot",
-      "duration": 1,
+      "duration": 0.6666666666666666,
       "loop": true,
       "horseClip": "Trot",
       "phase": 0,
@@ -509,10 +509,10 @@
     },
     {
       "name": "Trot",
-      "duration": 1,
+      "duration": 0.6666666666666666,
       "loop": true,
       "gait": "diagonal pairs",
-      "cycleSeconds": 1
+      "cycleSeconds": 0.6666666666666666
     }
   ]
 }

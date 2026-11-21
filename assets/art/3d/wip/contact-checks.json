@@ -11,7 +11,7 @@
     },
     {
       "name": "March_Upright",
-      "maxGripError": 9.695013813359551e-8
+      "maxGripError": 9.7895739389722e-8
     },
     {
       "name": "Bow_Loose",
@@ -63,11 +63,11 @@
     },
     {
       "name": "Ride_Trot",
-      "maxGripError": 7.868131786329773e-8
+      "maxGripError": 8.883005191886187e-8
     },
     {
       "name": "Ride_Gallop",
-      "maxGripError": 8.17428956191979e-8
+      "maxGripError": 8.208089485442797e-8
     },
     {
       "name": "Ride_Couch",

@@ -27,12 +27,15 @@ export function horsePose(kind,u){
   }
  }else{
   const gallop=kind==='Gallop',cycle=u*Math.PI*2;
-  r.setPos('Body',body.clone().add(V([0,(gallop?-.15:-.035)+(gallop?.033:.016)*Math.sin(cycle*(gallop?1:2)),0])));
+  r.setPos('Body',body.clone().add(V([0,(gallop?-.21:-.06)+(gallop?.033:.016)*Math.sin(cycle*(gallop?1:2)),0])));
   r.turn('Body',[1,0,0],gallop?3+4*Math.cos(cycle):1.4*Math.cos(cycle*2));
   r.turn('Neck',[1,0,0],gallop?12+3*Math.cos(cycle):2*Math.sin(cycle*2));r.turn('Head',[1,0,0],gallop?5:0);
   const phase=gallop?{BackL:0,BackR:.12,FrontL:.48,FrontR:.60}:{FrontL:0,BackR:0,FrontR:.5,BackL:.5};
   for(let p of ['Front','Back'])for(let s of ['L','R']){
-   const [z,y]=stride(u+phase[p+s],gallop?.34:.20,gallop?.22:.12,gallop?.32:.53),point=feet[p+'Foot'+s].clone();point.z+=z;point.y+=y;
+   // Long strides, so the hooves sweep back at the speeds horses move in the game: about 5.5 m/s planted
+   // at a gallop's own pace and 2.3 m/s at a trot's (Claude, 2026-11-21; they were 3.2 and 0.75). The body
+   // sits a little lower so the legs reach the longer strides.
+   const [z,y]=stride(u+phase[p+s],gallop?.42:.32,gallop?.26:.15,gallop?.23:.42),point=feet[p+'Foot'+s].clone();point.z+=z;point.y+=y;
    leg(p,s,point);
   }
   r.turn('Tail1',[1,0,0],gallop?-14:-3);r.turn('Tail2',[0,0,1],5*Math.sin(cycle));
@@ -42,6 +45,6 @@ export function horsePose(kind,u){
 export const horseClips=[
  makeClip(r,'Gallop',20,true,(t,u)=>horsePose('Gallop',u),{gait:'four-beat charge',cycleSeconds:20/30}),
  makeClip(r,'Rear',60,false,(t,u)=>horsePose('Rear',u),{events:[{time:1,event:'rear-apex'},{time:1.8,event:'forefeet-land'}]}),
- makeClip(r,'Trot',30,true,(t,u)=>horsePose('Trot',u),{gait:'diagonal pairs',cycleSeconds:1})
+ makeClip(r,'Trot',20,true,(t,u)=>horsePose('Trot',u),{gait:'diagonal pairs',cycleSeconds:20/30})
 ];
 export function saveHorse(){console.log('Horse maximum limb reach excess',r.maxLimbError);writeClips(horseSource,horseClips,path.join(dir,'../clips-horse.glb'));}
