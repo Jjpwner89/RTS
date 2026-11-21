@@ -380,7 +380,7 @@ export class TownHud {
         el.classList.toggle('on', !off);
         // A market's price falls as it sells (economy.js GLUT): say what this one pays now.
         const now = r?.gold ? priceShare(this.town.glut, saleGood(r), this.town.time) : 1;
-        el.querySelector('small').textContent = off ? 'off' : now < 0.95 ? `on · ${Math.round(r.gold * now)} now${now < GLUT.floor ? ', held back' : ''}` : 'on';
+        el.querySelector('small').textContent = off ? 'off' : now < 0.95 ? `on · ${Math.round(r.gold * now)} gold now${now < GLUT.floor ? ', held back' : ''}` : 'on';
       }
     }
   }
@@ -425,7 +425,7 @@ export class TownHud {
     if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip, and stacks it here until haulers take it away.</p>`);
     if (B.recipes) {
       rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${this.goodsList(r.in)} → ${r.gold ? `${r.gold} ${goldIco()}` : this.goodsList(r.out)}</span><small></small></button>`).join('')}</div>`);
-      if (b.kind === 'market') rows.push(`<p class="note">Sells only what is spare: wood above ${B.recipes[0].above}, stone above ${B.recipes[1].above}, food above ${B.recipes[2].above}, and so on. The gold goes to your treasury. Each sale lowers what the next brings here, for a few minutes; below a third of the price it holds the goods back.</p>`);
+      if (b.kind === 'market') rows.push(`<p class="note">Sells only what is spare: wood above ${B.recipes[0].above}, stone above ${B.recipes[1].above}, food above ${B.recipes[2].above}, and so on. The gold goes to your treasury. Selling a lot at once fetches less: each sale lowers the next price here for a few minutes, and under ${Math.round(GLUT.floor * 100)}% of full price the market holds the goods back.</p>`);
       else if (B.recipes.length > 1) rows.push(`<p class="note">Click to switch what this workshop makes. With several on, it takes turns. Build a second one to make both at full speed.</p>`);
     }
     if (B.housing) rows.push(`<p class="note">Room for ${B.housing + 3 * ((b.level || 1) - 1)} more villagers. Its hearth burns a little wood. Houses only make room: newcomers come for spare food, a good mood and the village's name.</p>`);
