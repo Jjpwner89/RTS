@@ -37,6 +37,9 @@ f.onload = async () => {
     wrap(G.battle, 'step', 'step'); wrap(G.view, 'update', 'view'); wrap(G.fieldView, 'update', 'field');
     G.siegeView && wrap(G.siegeView, 'update', 'siege');
     wrap(G.controls, 'update', 'controls');
+    // inside the battle's step: separation, each soldier and regiment, sight, and the wall-aware nav (sieges)
+    wrap(G.battle, 'separate', 'sep'); wrap(G.battle, 'updateSoldier', 'soldiers'); wrap(G.battle, 'updateRegiment', 'regs'); wrap(G.battle, 'updateSight', 'sight');
+    for (const k of ['reachable', 'blockedAt', 'sync']) if (G.battle.nav?.[k]) wrap(G.battle.nav, k, 'nav');
     const pending = []; const gpuMs = [];
     const render = r.render;
     r.render = (s, c) => {
@@ -106,7 +109,7 @@ f.onload = async () => {
     await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, blobs: G.view.blobs?.count, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
     const SUM = {};
     for (let k = 0; k < ROUNDS; k++) for (const e of EXPS) {
-      const at = e.match(/^at:(\d+)$/), kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = at ? (L => { L.clock = () => +at[1]; return () => L.clock = null; })(w.look.look) : kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed; at:600: the campaign clock stopped at 600 s (look.js seasons and day) await sleep(1200);
+      const mN = e.match(/^m(\d+)$/), at = e.match(/^at:(\d+)$/), kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = mN ? keepOnly(+mN[1]) : at ? (L => { L.clock = () => +at[1]; return () => L.clock = null; })(w.look.look) : kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed; at:600: the campaign clock stopped at 600 s (look.js seasons and day) await sleep(1200);
       for (const key in T) delete T[key]; gpuMs.length = 0;
       r.info.autoReset = true;
       const times = []; let last = performance.now();
@@ -128,7 +131,8 @@ f.onload = async () => {
       if (P.get('verbose')) await post({ e, round: k, fps: +(n / (times.reduce((a, b) => a + b, 0) / 1000)).toFixed(1), cpuMsPerFrame: per, gpuMs: s.length ? +s[s.length >> 1].toFixed(2) : null, gpuN: s.length, calls: r.info.render.calls, ktris: Math.round(r.info.render.triangles / 1000), men: men() });
       undo();
     }
-    const best = Object.fromEntries(Object.entries(SUM).map(([e, l]) => { const f = l.map(x => x.fps).sort((a, b) => b - a), g = l.map(x => x.gpu).filter(x => x != null).sort((a, b) => a - b); return [e, { drawMs: Math.min(...l.map(x => x.syncMin)), bestFps: f[0], medFps: f[f.length >> 1], minGpuP25: g[0], sim: l[0].cpu.step ?? 0, view: l[0].cpu.view, renderCpu: l[0].cpu.render }]; }));
+    const best = Object.fromEntries(Object.entries(SUM).map(([e, l]) => { const f = l.map(x => x.fps).sort((a, b) => b - a), g = l.map(x => x.gpu).filter(x => x != null).sort((a, b) => a - b); const cpu = k => +(l.reduce((a, x) => a + (x.cpu[k] || 0), 0) / l.length).toFixed(2);
+      return [e, { drawMs: Math.min(...l.map(x => x.syncMin)), bestFps: f[0], medFps: f[f.length >> 1], minGpuP25: g[0], sim: cpu('step'), sep: cpu('sep'), soldiers: cpu('soldiers'), regs: cpu('regs'), sight: cpu('sight'), nav: cpu('nav'), view: cpu('view'), field: cpu('field'), renderCpu: cpu('render') }]; }));
     await post({ best, men: men() });
     if (P.get('checks')) { const c = await w.checks({ quiet: true }); await post({ checks: `${c.pass} pass, ${c.fail} fail, ${c.warn} warn`, failed: c.results.filter(r => r.status !== 'pass' && r.status !== 'skip').map(r => `${r.status} ${r.group}: ${r.name} ${r.detail.slice(0, 2).join(' | ')}`) }); }
     await post({ done: true });
