@@ -455,7 +455,8 @@ export class Fx {
     const at = kind === 'attack' && target ? { x: target.cx, z: target.cz } : kind === 'wall' && target ? target
       : kind === 'move' ? { x: live.reduce((n, r) => n + (r.dest?.x ?? r.cx), 0) / live.length, z: live.reduce((n, r) => n + (r.dest?.z ?? r.cz), 0) / live.length }
       : { x: live.reduce((n, r) => n + r.cx, 0) / live.length, z: live.reduce((n, r) => n + r.cz, 0) / live.length };
-    audio.play(kind === 'charge' ? 'charge' : 'order', at, this.scope); // audio
+    if (kind === 'charge') audio.play('charge', at, this.scope); // audio
+    else audio.play('order', at, this.scope); // audio
   }
 
   // An expanding, fading ring flat on the ground. opts: follow (a regiment), life, from (start scale), delay.
