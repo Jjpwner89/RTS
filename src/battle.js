@@ -2968,7 +2968,7 @@ export class Battle {
     if (r.burnBridge) return 'Burning the bridge';
     if (r.swim) return 'Swimming';
     if (r.mine && !r.mine.done && !r.mine.lost) return r.mine.side === r.side ? `Digging a mine ${Math.floor(r.mine.progress * 100)}%` : 'Counter-mining';
-    if (r.seen === false) return r.hiddenBy === 'woods' ? 'Hidden in the woods' : r.hiddenBy === 'night' ? 'Unseen in the dark' : `Unseen in the ${r.hiddenBy}`;
+    if (r.seen === false) return r.hiddenBy === 'woods' ? 'Hidden in the woods' : r.hiddenBy === 'night' ? 'Hidden by the dark' : `Hidden by the ${r.hiddenBy}`;   // the enemy can't see them: said from our side
     if (r.hold) return 'Holding';
     return '';
   }
