@@ -74,14 +74,14 @@ export class Hud {
   buildOrders() {
     let el = document.getElementById('orders');
     if (!el) { el = document.createElement('div'); el.id = 'orders'; document.body.append(el); }
-    const f = Object.entries(FORMATIONS).map(([k, F]) => `<button data-f="${k}" title="${F.desc || 'The standard line'} (${F.key.toUpperCase()})">${F.name}</button>`).join('');
+    const f = Object.entries(FORMATIONS).map(([k, F]) => `<button data-f="${k}" title="${F.desc || 'The standard line'} (${F.key.toUpperCase()})">${F.name}<kbd>${F.key.toUpperCase()}</kbd></button>`).join('');
     el.innerHTML = `<span class="group">${f}</span><span class="group">
-      <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge</button>
-      <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold</button>
-      <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will</button>
-      <button data-c="burn" title="Set the nearest bridge alight from this bank (B)">Burn bridge</button>
-      <button data-c="mine" title="Dig a mine under an enemy wall: press, then right-click the wall (U)">Dig mine</button>
-      <button data-c="counter" title="Dig out the mine heard under our wall (U)">Counter-mine</button></span>`;
+      <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge<kbd>C</kbd></button>
+      <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold<kbd>G</kbd></button>
+      <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will<kbd>R</kbd></button>
+      <button data-c="burn" title="Set the nearest bridge alight from this bank (B)">Burn bridge<kbd>B</kbd></button>
+      <button data-c="mine" title="Dig a mine under an enemy wall: press, then right-click the wall (U)">Dig mine<kbd>U</kbd></button>
+      <button data-c="counter" title="Dig out the mine heard under our wall (U)">Counter-mine<kbd>U</kbd></button></span>`;
     el.onclick = e => {
       const btn = e.target.closest('button');
       if (!btn || !this.selection?.size) return;
@@ -157,12 +157,13 @@ export class Hud {
       <span class="bar strength"><i></i></span>
       <span class="bar morale"><i></i></span>
       <span class="state"></span>
-      <span class="kit">${kitBadge(r)}</span>`);
+      <span class="kit">${kitBadge(r)}</span>
+      <span class="grp" title="Control group: press its number to select it"></span>`);
     el.title = `${r.T.role || ''}\n${kitWords(r)}`;
     el.onclick = e => this.hooks.selectCard(r, e.shiftKey || e.metaKey || e.ctrlKey);
     el.ondblclick = () => this.hooks.focus(r);
     this.cardsEl.append(el);
-    return { r, el, strength: el.querySelector('.strength i'), morale: el.querySelector('.morale i'), state: el.querySelector('.state'), kit: el.querySelector('.kit'), worn: '' };
+    return { r, el, strength: el.querySelector('.strength i'), morale: el.querySelector('.morale i'), state: el.querySelector('.state'), kit: el.querySelector('.kit'), grp: el.querySelector('.grp'), worn: '' };
   }
 
   update(selection, paused, speed) {
@@ -178,6 +179,8 @@ export class Hud {
       // A refit between fights shows at once.
       const worn = `${r.vet}|${r.armour}|${hasShield(r)}|${r.battles}`;
       if (worn !== c.worn) { c.worn = worn; c.kit.innerHTML = kitBadge(r); c.el.title = `${r.T.role || ''}\n${kitWords(r)}`; }
+      const grp = r.group ? String(r.group) : '';
+      if (c.grp.textContent !== grp) c.grp.textContent = grp;
       c.el.classList.toggle('selected', selection.has(r));
       c.el.classList.toggle('routing', r.routing);
       c.el.classList.toggle('regrouping', r.regrouping);

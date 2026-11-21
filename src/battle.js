@@ -1090,12 +1090,12 @@ export class Battle {
       const t = n <= 1 ? 0.5 : 0.5 - w / 2 + w * (k % Math.max(1, Math.floor(struct.len / 1.2))) / Math.max(1, Math.floor(struct.len / 1.2) - 1);
       const rank = Math.floor(k / Math.max(1, Math.floor(struct.len / 1.2)));
       const off = struct.M.thick / 2 + 1 + rank * 1.2;
-      return { x: struct.a.x + (struct.b.x - struct.a.x) * t + out.x * off, z: struct.a.z + (struct.b.z - struct.a.z) * t + out.z * off };
+      return { x: struct.a.x + (struct.b.x - struct.a.x) * t + out.x * off, z: struct.a.z + (struct.b.z - struct.a.z) * t + out.z * off, front: rank === 0 };
     }
     const R = struct.wall ? struct.M.towerR : struct.B.radius;
     const base = Math.atan2(r.cx - struct.x, r.cz - struct.z);
     const a = base + ((k % 12) - 5.5) * 0.18, rr = R + 1.2 + Math.floor(k / 12) * 1.2;
-    return { x: struct.x + Math.sin(a) * rr, z: struct.z + Math.cos(a) * rr };
+    return { x: struct.x + Math.sin(a) * rr, z: struct.z + Math.cos(a) * rr, front: k < 12 };
   }
 
   structGone(s) { return !s || s.removed || s.state === 'broken' || s.state === 'ruined' || (!s.wall && s.hp <= 0); }
@@ -1538,9 +1538,15 @@ export class Battle {
 
   step(dt) {
     // Time stands still while an army deploys (a storm's men only so long, then they go in).
+    // That wait is the player's own time, so it counts real seconds whatever the game speed
+    // (a pause stops it: nothing is stepped then, and the first step after adds at most 1 s).
     if (this.deploying) {
-      const D = this.deploying;
-      if (D.limit && (D.waited += dt) >= D.limit) this.beginBattle();
+      const D = this.deploying, now = performance.now() / 1000;
+      if (D.limit) {
+        if (D.clock !== undefined) D.waited += Math.min(1, now - D.clock);
+        D.clock = now;
+        if (D.waited >= D.limit) this.beginBattle();
+      }
       return;
     }
     if (!this.weatherSaid) { this.weatherSaid = true; this.event(0, WEATHER[this.weather].say); }
@@ -1962,7 +1968,7 @@ export class Battle {
     }
     if (r.targetWall && !r.engine && !this.structGone(r.targetWall)) {
       const p = this.faceSpot(r, r.targetWall, s.slot, r.alive);
-      return { x: p.x, z: p.z, perch: null, strike: r.targetWall };
+      return { x: p.x, z: p.z, perch: null, strike: r.targetWall, front: p.front };
     }
     const p = this.slotPos(r, s.slot);
     return (r.pinch && this.pinchGoal(s, p)) || { x: p.x, z: p.z, perch: null, face: p.face };
@@ -2032,8 +2038,8 @@ export class Battle {
           const face = goal.face ?? (r.posts ? r.angle : r.angle);
           s.yaw = turnToward(s.yaw, face, dt * 4);
         }
-        // Men at a wall's face hack at it.
-        if (goal.strike && d < 1.6 && s.cd <= 0) {
+        // Men at a wall's face hack at it; the ranks behind wait their turn.
+        if (goal.strike && goal.front && d < 1.6 && s.cd <= 0) {
           s.cd = T.cooldown * (0.8 + this.rand() * 0.4);
           s.lunge = 1;
           s.struckAt = this.time; // anim

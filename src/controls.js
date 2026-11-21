@@ -32,7 +32,8 @@ export class Controls {
     el.addEventListener('wheel', on(e => this.onWheel(e)), { passive: false });
     addEventListener('keydown', on(e => this.onKey(e, true)));
     addEventListener('keyup', on(e => this.onKey(e, false)));
-    addEventListener('blur', () => this.keys.clear());
+    addEventListener('blur', () => { this.keys.clear(); this.mouse.in = false; });
+    document.documentElement.addEventListener('mouseleave', () => { this.mouse.in = false; });
   }
 
   // ---- camera ----
@@ -48,7 +49,15 @@ export class Controls {
     if (k.has('d') || k.has('arrowright')) { c.x += rx * pan; c.z += rz * pan; }
     if (k.has('q')) c.yaw += dt * 1.6;
     if (k.has('e')) c.yaw -= dt * 1.6;
-    c.x = Math.max(-HALF - 40, Math.min(HALF + 40, c.x));
+    // Edge-scroll: the pointer resting at a window edge pans that way (not while dragging out
+    // a box or a line, whose corners are on screen).
+    const m = this.mouse, E = 10;
+    if (m.in && !this.drag) {
+      const ex = m.x < E ? -1 : m.x > innerWidth - E ? 1 : 0, ez = m.y < E ? 1 : m.y > innerHeight - E ? -1 : 0;
+      c.x += (rx * ex + fx * ez) * pan;
+      c.z += (rz * ex + fz * ez) * pan;
+    }
+    c.x =Math.max(-HALF - 40, Math.min(HALF + 40, c.x));
     c.z = Math.max(-HALF - 40, Math.min(HALF + 40, c.z));
     // Low and raking up close, near top-down when zoomed out to read the whole field.
     const t = (c.dist - 18) / (420 - 18);
@@ -96,8 +105,39 @@ export class Controls {
       this.keys.delete('a');
       this.setSelection(this.battle.regs.filter(r => r.side === 0 && !r.gone));
     }
-    if (['1', '2', '3'].includes(key)) this.hooks.setSpeed([1, 2, 4][+key - 1]);
+    // Control groups: Ctrl+1–9 makes the selection group N, N selects it (Shift adds it),
+    // and N twice quickly looks at it.
+    const n = /^Digit[1-9]$/.test(e.code) ? +e.code[5] : 0;
+    if (n && e.ctrlKey) { e.preventDefault(); this.setGroup(n); return; }
+    if (n && !e.metaKey && !e.altKey) { this.recallGroup(n, e.shiftKey); return; }
+    // Game speed: − slower, + faster, through the speeds the page offers.
+    if (key === '-' || key === '_' || key === '=' || key === '+') {
+      const steps = [...document.querySelectorAll('[data-speed]')].filter(b => b.getClientRects().length).map(b => +b.dataset.speed).sort((a, b) => a - b);
+      const now = +(document.querySelector('[data-speed].on')?.dataset.speed || 1);
+      const next = steps[steps.indexOf(now) + (key === '-' || key === '_' ? -1 : 1)];
+      if (!next) return;
+      this.hooks.setSpeed(next);
+      // mark it now, so a second press before the next frame steps on from here
+      for (const b of document.querySelectorAll('[data-speed]')) b.classList.toggle('on', +b.dataset.speed === next);
+      return;
+    }
     if (!e.metaKey && !e.ctrlKey) this.command(key);
+  }
+
+  setGroup(n) {
+    const sel = [...this.selection].filter(r => !r.gone);
+    for (const r of this.battle.regs) if (r.group === n) r.group = 0;
+    for (const r of sel) r.group = n;
+    this.battle.event(0, sel.length ? `Group ${n}: ${sel.length === 1 ? sel[0].name : `${sel.length} regiments`}.` : `Group ${n} cleared.`);
+  }
+
+  recallGroup(n, add) {
+    const regs = this.battle.regs.filter(r => r.group === n && r.side === 0 && !r.gone);
+    if (!regs.length) return;
+    const now = performance.now(), again = this.lastGroup?.n === n && now - this.lastGroup.t < 350;
+    this.lastGroup = { n, t: now };
+    this.setSelection(regs, add);
+    if (again) this.focus(regs);
   }
 
   // Battle commands for the selected regiments: formations, charge, hold, fire at will.
@@ -162,22 +202,24 @@ export class Controls {
     return { x: rect.left + (p.x + 1) / 2 * rect.width, y: rect.top + (1 - p.y) / 2 * rect.height, behind: p.z > 1 };
   }
 
-  // Banners are easiest to hit when zoomed out; soldiers when zoomed in.
-  regAt(x, y) {
+  // Banners are easiest to hit when zoomed out; soldiers when zoomed in. With a wall under
+  // the cursor, only a banner counts: the men behind it are out of reach of the click.
+  regAt(x, y, bannersOnly = false) {
     let best = null, bd = 22 * 22;
+    // Only what can be seen: a hidden enemy's banner isn't drawn, so it can't be clicked.
     for (const r of this.battle.regs) {
-      if (r.gone) continue;
+      if (r.gone || r.unseen) continue;
       const p = this.toScreen(this.view.bannerPos(r));
       if (p.behind) continue;
       const d = (p.x - x) ** 2 + (p.y - 14 - y) ** 2;
       if (d < bd) { bd = d; best = r; }
     }
-    if (best) return best;
+    if (best || bannersOnly) return best;
     const g = this.groundAt(x, y);
     if (!g) return null;
     let near = null, nd = 3 * 3;
     for (const s of this.battle.soldiers) {
-      if (!s.alive || s.gone) continue;
+      if (!s.alive || s.gone || s.reg.unseen) continue;
       const d = (s.x - g.x) ** 2 + (s.z - g.z) ** 2;
       if (d < nd) { nd = d; near = s; }
     }
@@ -208,7 +250,7 @@ export class Controls {
   }
 
   onMove(e) {
-    this.mouse = { x: e.clientX, y: e.clientY };
+    this.mouse = { x: e.clientX, y: e.clientY, in: true };
     const d = this.drag;
     if (!d && e.target === this.dom) this.hooks.hover?.(this.groundAt(e.clientX, e.clientY));
     if (!d) {
@@ -286,7 +328,7 @@ export class Controls {
       }
       // Ladders, rams and engines go for an enemy wall even with its defenders standing on it.
       const hit = !d.moved && this.structAt(e.clientX, e.clientY);
-      const target = hit && hit.struct.side !== 0 && sel.every(r => r.T.engine) ? null : this.regAt(e.clientX, e.clientY);
+      const target = hit && hit.struct.side !== 0 && sel.every(r => r.T.engine) ? null : this.regAt(e.clientX, e.clientY, !!hit);
       if (target && target.side === 1) { this.battle.orderAttack(sel, target); return; }
       // Onto your own wall, or against the enemy's.
       const mining = document.body.classList.contains('mining');

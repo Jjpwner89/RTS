@@ -53,6 +53,9 @@ body.paused #paused-tag { display: block; }
 .card .kit { grid-row: 2 / 4; grid-column: 1; align-self: end; justify-self: end; display: flex; gap: 1px; margin: 0 -6px -4px 0; padding: 1px; border-radius: 4px; background: rgba(20, 16, 12, 0.85); pointer-events: none; }
 .card .kit .ico { width: 14px; height: 14px; }
 .card .kit .rank { align-self: center; margin: 0 1px; fill: none; stroke: #e8c45a; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.card { position: relative; }
+.card .grp { position: absolute; top: 3px; right: 4px; font-size: 10px; font-weight: 700; color: var(--gold); line-height: 1; }
+.card .grp:empty { display: none; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .card.routing { animation: blink 0.8s infinite alternate; }
 .card.routing .morale i { background: var(--bad); }
@@ -233,6 +236,8 @@ body.campaign.mode-town #cards { left: 372px; }
 #orders.open { display: flex; }
 #orders .group { display: flex; gap: 3px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 3px; }
 #orders button { padding: 3px 9px; font-size: 12px; }
+#orders kbd { margin-left: 5px; font-family: inherit; font-size: 9px; font-weight: 600; line-height: 1; color: var(--dim); border: 1px solid var(--edge); border-radius: 3px; padding: 1px 3px; opacity: 0.8; }
+#orders button.on kbd { color: inherit; border-color: currentColor; opacity: 0.7; }
 #orders button:disabled { opacity: 0.35; cursor: default; }
 #deploy { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--gold); border-radius: 10px; padding: 6px 8px 6px 14px; z-index: 3; max-width: calc(100vw - 32px); }
 #deploy.open { display: flex; }
