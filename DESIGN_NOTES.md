@@ -463,3 +463,12 @@ The north star asks for an interface that *enables* depth rather than suffering 
 3. **Battle**: cards with labelled bars and a clear selection, orders bar that fits, deploy bar and messages apart.
 4. **Realm screen frame**: tabs by rank and event (contents stay the vassals session's).
 5. **Menus**: the title page and loading screen in the game's look, help per screen instead of one wall, the Muster in parchment.
+
+## Game feel (fx.js, rts-feel session, 2026-11-21)
+
+One effects module, `src/fx.js`, one Fx per scene (`fxFor`), fed by the views with one-line hooks: BattleView (every battle, village fight and storm), Controls (orders), TownView and WorldView. It reads state by diffing, so the simulation files stay untouched. Particles are pooled instanced meshes made only near the camera, on game time (they freeze while paused); markers and shake run on real time. `localStorage['rts.quality']` (low, medium, high; `setFxQuality`) scales counts, trails, chimneys, blood and shake.
+
+- **Orders**: a ring where a move goes and arrowheads flowing along the path; a red ring on an attack's target; a ring on a charge; a white pulse under a newly selected regiment. No order bark yet (no voice files).
+- **Combat**: a man struck flashes pale; sparks off mail and horses, a cloth puff and a few small dark drops otherwise; dust where a man falls; short streaks behind arrows and dirt where they land; dust behind running men and horses, a cloud behind a rout; a morale bar of pips under every banner, and banners that dip when wavering and lean hard in a rout; stones and falling walls throw dust and debris and shake the camera a little; gold sparks from the winners' banners when a battle is won.
+- **Village**: scaffolds round sites that rise with the work, dust while men build and a burst when done; smoke from damaged buildings and flames once badly hurt; a ruin collapses in dust and smoulders for 90 s; chimney smoke from homes and hearths.
+- **World map**: a smoke column over places being stormed, raided or starved; dust and blade flashes where armies meet; a burst in the new owner's colour when a place changes hands; dust at a new battle cairn; a ring where you send an army.

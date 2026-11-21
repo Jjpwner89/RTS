@@ -146,7 +146,7 @@ export class Controls {
     if (!sel.length) return false;
     const f = Object.entries(FORMATIONS).find(([, F]) => F.key === key);
     if (f) b.setFormation(sel, f[0]);
-    else if (key === 'c') b.orderCharge(sel);
+    else if (key === 'c') { b.orderCharge(sel); this.view.fx?.ordered('charge', sel); }
     else if (key === 'g') b.setHold(sel, !sel.every(r => r.hold));
     else if (key === 'r') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
     else if (key === 'u' && b.walls.any) {
@@ -328,17 +328,18 @@ export class Controls {
       const end = this.groundAt(e.clientX, e.clientY);
       if (d.moved && d.start && end) {
         const line = this.lineOrder(d.start, end);
-        if (line) { this.battle.orderMove(sel, ...line); return; }
+        if (line) { this.battle.orderMove(sel, ...line); this.view.fx?.ordered('move', sel); return; }
       }
       // Ladders, rams and engines go for an enemy wall even with its defenders standing on it.
       const hit = !d.moved && this.structAt(e.clientX, e.clientY);
       const target = hit && hit.struct.side !== 0 && sel.every(r => r.T.engine) ? null : this.regAt(e.clientX, e.clientY, !!hit);
-      if (target && target.side === 1) { this.battle.orderAttack(sel, target); return; }
+      if (target && target.side === 1) { this.battle.orderAttack(sel, target); this.view.fx?.ordered('attack', sel, target); return; }
       // Onto your own wall, or against the enemy's.
       const mining = document.body.classList.contains('mining');
       document.body.classList.remove('mining');
       if (hit && mining && hit.struct.side !== 0) { this.battle.orderMine(sel, hit.struct); return; }
       if (hit) {
+        this.view.fx?.ordered('wall', sel, hit);
         if (hit.struct.side === 0) this.battle.orderMan(sel, hit.struct, hit.x, hit.z);
         else this.battle.orderAttackWall(sel, hit.struct, hit.x, hit.z);
         return;
@@ -349,6 +350,7 @@ export class Controls {
       const far = Math.hypot(end.x - cx, end.z - cz) > 6;
       const angle = far ? Math.atan2(end.x - cx, end.z - cz) : sel[0].angle;
       this.battle.orderMove(sel, end.x, end.z, angle);
+      this.view.fx?.ordered('move', sel);   // fx: a marker and a path where they go
     }
   }
 }

@@ -7,6 +7,7 @@ import { unitModel, unitLook, hasLevels, buildingModel, LOD, HOUSE_STYLES } from
 import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
+import { fxFor } from './fx.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -17,6 +18,7 @@ const lookKey = s => s.look || (s.reg.armour || s.reg.shield === false ? `${s.re
 const BUILT_IN = ['spear', 'sword', 'archer', 'cav', 'militia', 'bandit'];
 
 export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
+const WHITE = new THREE.Color('#ffffff');
 
 // ---- what an animated soldier is doing ----
 
@@ -381,6 +383,7 @@ export class BattleView {
     this.outlines = new THREE.Group();
     scene.add(this.outlines);
     this.preview = [];
+    this.fx = fxFor(scene, heightAt);   // fx: hits, dust, order markers, morale bars, shake (fx.js)
   }
 
   // One pair of instanced meshes per unit type, made the first time that type appears.
@@ -452,8 +455,9 @@ export class BattleView {
       const k = soldierClip(s, this.battle, m.anim, this.clip);
       for (const g of [pair.gear.geometry, pair.cloth.geometry]) { setClip(g, i, k.c, k.t); setClip(g, i, k.hc, k.ht, true); }
     }
-    pair.cloth.setColorAt(i, dead ? this.shade.copy(s.tint).multiplyScalar(0.55) : s.tint);
-    pair.gear.setColorAt(i, dead ? this.shade.copy(s.gearTint).multiplyScalar(0.6) : s.gearTint);
+    const hit = dead ? 0 : this.fx.flash(s, this.battle.time);   // fx: a man struck flashes pale for a moment
+    pair.cloth.setColorAt(i, dead ? this.shade.copy(s.tint).multiplyScalar(0.55) : hit ? this.shade.copy(s.tint).lerp(WHITE, hit * 0.75) : s.tint);
+    pair.gear.setColorAt(i, dead ? this.shade.copy(s.gearTint).multiplyScalar(0.6) : hit ? this.shade.copy(s.gearTint).lerp(WHITE, hit * 0.6) : s.gearTint);
   }
 
   buildArrows() {
@@ -628,6 +632,7 @@ export class BattleView {
       bn.sprite.material.opacity = r.routing ? 0.45 + 0.3 * Math.sin(b.time * 6) : 1;
     }
     this.drawOutlines(selection);
+    this.fx.battle(b, this, selection);   // fx
   }
 
   // Rectangles on the ground: where selected regiments stand, and where they are heading.

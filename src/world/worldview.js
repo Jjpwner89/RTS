@@ -12,6 +12,7 @@ import { layoutOf, walledPlace, wallMaterial, worked } from './places.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
 import { TYPES, lookChain } from '../battle.js';
+import { fxFor } from '../fx.js';
 
 // The map's half-width follows world.half, which grows when the north opens in Part 2.
 export const WORLD_HALF = REALM_RADIUS + 140;
@@ -535,6 +536,7 @@ export class WorldView {
         this.pathLine.visible = true;
       }
     }
+    fxFor(this.scene, this.heightAt).world(w, side => side == null ? NEUTRAL.color : FACTIONS[side]?.color || '#8a8478');   // fx: battle smoke, captures, cairns, orders
   }
 
   // The army or place under a screen point (canvas pixels). A name label you point at

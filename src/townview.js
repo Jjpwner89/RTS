@@ -7,6 +7,7 @@ import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, TH
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
 import { BUILDINGS } from './economy.js';
+import { fxFor } from './fx.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 // anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
@@ -402,6 +403,7 @@ export class TownView {
     if (P.gearLight) P.gearLight.count = P.clothLight.count = nl;
     P.crate.count = P.carry.count = k;
     this.updatePiles();
+    fxFor(this.scene, this.heightAt).town(town, this.meshes);   // fx: scaffolds, dust, fire and smoke, chimneys
     for (const m of Object.values(P)) {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
