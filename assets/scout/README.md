@@ -30,3 +30,19 @@ Every file is **CC0 1.0** (public domain), from a Quaternius pack released befor
 - **Triangles.** The trees are 1,350–2,950 triangles each against about 100 for the code trees, and the game plants 900 or more, so they want the light versions the bake already makes (meshoptimizer) or an impostor beyond a distance. Rocks are 70–130 triangles, bushes 270–900, stumps and logs 230–610.
 - **Colours.** The packs use flat material colours with no textures, which the bake turns into vertex colours like the other Quaternius models. The trees' leaves can keep a grey crown and take the game's per-tree tint, as the code trees do.
 - **Turned down** (in the lineup, not packaged): the Fantasy RTS second-age barracks and archery range for the hall (their towers read as the keep's), the 2018 barns (American red barns), the Modular Medieval Buildings bridge (a gateway with chains), KayKit Medieval Hexagon bridges (hex-tile style), the sail ship (a galleon, too late), the 2017 dog and wolf (no colours, two clips), Fantasy RTS docks and the 2018 chicken coop.
+
+## Second batch (2026-11-21): banners, camp, nobles, siege
+
+All CC0, from [Poly Pizza](https://poly.pizza) uploads by Quaternius, Kenney and MiniPoly, each marked CC0 on its own page (linked). Comparison shots, including the CC-BY and rejected candidates, are in the scout's notes (`scout-shots/tents`, `banners`, `siege`, `nobles`).
+
+| File | Fills | Source (licence page) | Owner |
+|---|---|---|---|
+| `banners/Banner_Crossbar.glb` | A war standard: a hanging cloth from a crossbar on a spear, for bannermen, lords' parties, camps and the keep (bake.js `banner()` is boxes) | Quaternius [Banner](https://poly.pizza/m/svYG8KZxjq) | Art |
+| `banners/Banner_Pennant.glb`, `banners/Flag.glb` | A long swallowtail banner and a flag on a pole, for keeps, towers and the world map | Quaternius [Banner](https://poly.pizza/m/Kd94xlw5aj), [Flag](https://poly.pizza/m/FuOkF3WBrx) | Art |
+| `banners/Wall_Flag.glb`, `banners/Banner_Wall.glb` | Banners hung on walls and gatehouses (house colours on a captured place) | Quaternius [Wall Flag](https://poly.pizza/m/TWDvd4qPzq), [Banner Wall](https://poly.pizza/m/dQjx8fBjIl) | Art |
+| `banners/Flags_MiniPoly.glb` | Three swallowtail flags on spears with stone bases: muster points and the battle flag markers | MiniPoly [Flags](https://poly.pizza/m/ahsyGj1RmE) | Art |
+| `camp/Tent_Quaternius.glb`, `camp/Tent_Kenney.glb`, `camp/Tent_Half_Kenney.glb` | Camp tents (`unit.tent` is a cone on a cylinder): the Kenney A-frame tents with timber poles read best as soldiers' tents; the cloth takes the team colour | Quaternius [Tent](https://poly.pizza/m/5Q7qIrfDxA), Kenney [Tent](https://poly.pizza/m/LrTs3hVGXv), [Tent Half](https://poly.pizza/m/eUcofH38Cq) | Art |
+| `nobles/King.glb` | An animated king on foot (24 clips): the King rank, the crowning, a court | Quaternius [King](https://poly.pizza/m/I1gTjmuK2m) | Art, animations |
+| `nobles/Crown.glb` | A crown prop for the King rank and the realm screen | Quaternius [Crown](https://poly.pizza/m/i0PZVuVlYv) | Art |
+
+**Siege engines: nothing packaged.** No CC0 trebuchet, siege tower or ram turned up that beats the game's Kenney set; the free catapults on Poly Pizza (Poly/Google, CC-BY) are no better. Per the creator's rule, the better engines are ours to build (BRIEFS 7.3 lists them as a 3D wish, not for Codex). **The lords' parties** (bake.js `lordParty`) already outclass every free mounted-noble model found; the CC-BY carriage is a western stagecoach and was turned down. **Pavilion tents:** only CC-BY gazebos and market canopies were found, none medieval.
