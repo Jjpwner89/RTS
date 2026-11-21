@@ -343,6 +343,7 @@ export class Town {
     this.mood = 60;
     this.moodWhy = [];
     this.grief = 0;
+    this.fallen = {};   // villagers lost in the current fight, by how they fell (fell)
     this.moodClock = 0;
     this.leaveClock = 40;
     this.misery = 0;
@@ -1474,6 +1475,33 @@ export class Town {
     return v.roadWay = { ver: this.roadsVersion, wallsVer: nav.version, tx, tz, i: 0, pts };
   }
 
+  // A levy who falls in battle is a villager lost. How each fell is kept for the word
+  // after the fight (endAttack): the early game is meant to be costly, so the cost is said
+  // plainly (orchestrator, 2026-11-21).
+  fell(v) {
+    v.dead = true;
+    this.release(v);
+    this.grief += 3;
+    const r = v.soldier.reg, near = o => Math.hypot(o.cx - r.cx, o.cz - r.cz) < 30;
+    const why = !r.T.militia ? 'levy' : r.routing ? 'broke'
+      : this.battle.regs.some(o => o.side === 0 && !o.gone && !o.routing && !o.T.militia && near(o)) ? 'beside' : 'alone';
+    this.fallen[why] = (this.fallen[why] || 0) + 1;
+  }
+
+  // What the last fight cost in villagers, and how, as one line (null if nobody fell).
+  fallenWord() {
+    const f = this.fallen, n = Object.values(f).reduce((a, b) => a + b, 0);
+    if (!n) return null;
+    const one = k => f[k] === 1;
+    const parts = [
+      f.alone && `${f.alone} fought with no soldiers beside them`,
+      f.broke && `${f.broke} ${one('broke') ? 'was' : 'were'} cut down when the militia broke`,
+      f.beside && `${f.beside} fell beside your soldiers`,
+      f.levy && `${f.levy} fell in the levies`,
+    ].filter(Boolean);
+    return `The fight cost ${n} villager${n === 1 ? '' : 's'}: ${parts.join(', ')}.`;
+  }
+
   updateVillager(v, dt) {
     if (v.state === 'rebel') {
       // out past the trees, they are gone from the village
@@ -1482,8 +1510,7 @@ export class Town {
       return;
     }
     if (v.state === 'soldier') {
-      // A levy who falls in battle is a villager lost.
-      if (!v.soldier.alive) { v.dead = true; this.release(v); this.grief += 3; }
+      if (!v.soldier.alive) this.fell(v);
       return;
     }
     v.v = 0;
@@ -1897,11 +1924,12 @@ export class Town {
       const off = (i - (specs.length - 1) / 2) * 30;
       return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
+    if (!this.underAttack) this.fallen = {};
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
     this.lastRaid = this.time;
     this.lastRegs = regs;
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
-      : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!`, 1);
+      : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!${this.musterCheck().ok ? ' Your people will turn out. Lead them, or lose them.' : ''}`, 1);
     audio.play('horn', null, this.battle); audio.play('drums', null, this.battle); // audio
   }
 
@@ -1937,6 +1965,7 @@ export class Town {
 
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
+    this.fallenSaid = null;
     if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
     const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...carry(r) })).filter(sp => sp.count > 0);
     if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
@@ -1945,9 +1974,18 @@ export class Town {
       this.defendedAt = this.time;
       this.event('The militia beat them off. The village is proud: they defended their homes.');
     }
+    // What it cost, counting those who fell in its last moments (before the militia go
+    // home, so each is counted as the fight left them).
+    if (!this.underAttack) for (const v of this.villagers) if (v.state === 'soldier' && !v.soldier.alive) this.fell(v);
     // home at once, not on the next think: a militia standing at peace for that moment
     // would still offer Stand down, and a save made then would keep them under arms
     if (!this.underAttack) this.thinkMilitia();
+    if (!this.underAttack && !this.lost && !this.hostile) {
+      const word = this.fallenWord();
+      if (word) this.event(word, 1);
+      this.fallenSaid = word;   // for the world's log, when nobody is watching (world.attackTown)
+      this.fallen = {};
+    }
     g.onLeave?.(survivors);
   }
 

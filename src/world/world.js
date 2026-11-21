@@ -1071,6 +1071,7 @@ export class World {
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,
       onLeave: survivors => {
+        if (t.fallenSaid && this.hooks.watching() !== p) this.log(`${p.name}: ${t.fallenSaid}`, 1);
         if (t.lost || !survivors.length) return;
         const back = this.spawnArmy(a.side, survivors, p, a.name);
         this.retreat(back);
