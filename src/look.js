@@ -7,11 +7,12 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 // ---- quality ----
 // scale: pixel ratio cap. shadow: shadow map size (0 = no shadows). post: the finishing
 // pass. ao: ambient occlusion at this fraction of the screen (0 = none). msaa: samples.
-// cover: how far grass is drawn (metres), and how much of it.
+// cover: how far grass is drawn (metres), and how much of it. far: soldiers beyond this many
+// metres are drawn in their far model and cast no shadow (models.js LOD).
 export const QUALITY = {
-  low: { name: 'Low', scale: 1, shadow: 1024, soft: false, post: false, ao: 0, msaa: 0, cover: 150, density: 0.45 },
-  medium: { name: 'Medium', scale: 1.5, shadow: 2048, soft: true, post: true, ao: 0.5, msaa: 4, cover: 230, density: 0.8 },
-  high: { name: 'High', scale: 2, shadow: 4096, soft: true, post: true, ao: 0.75, msaa: 4, cover: 300, density: 1 },
+  low: { name: 'Low', scale: 1, shadow: 1024, soft: false, post: false, ao: 0, msaa: 0, cover: 150, density: 0.45, far: 60 },
+  medium: { name: 'Medium', scale: 1.5, shadow: 2048, soft: true, post: true, ao: 0.5, msaa: 2, cover: 230, density: 0.8, far: 100 },
+  high: { name: 'High', scale: 2, shadow: 4096, soft: true, post: true, ao: 0.75, msaa: 4, cover: 300, density: 1, far: 140 },
 };
 // The one place the picture setting lives: localStorage 'rts.quality' = 'low' | 'medium' | 'high'.
 // Other modules read quality() and follow onQuality(); fx.js scales its effects by it.

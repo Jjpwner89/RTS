@@ -8,8 +8,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
 import { animReady, prepare } from './anim.js';
 
-// Soldiers closer to the camera than this many metres are drawn in full detail, the rest in the light version.
-export const LOD = { camera: null, near: 45 };
+// Soldiers closer to the camera than `near` metres are drawn in full detail, those beyond `far` in the far version
+// (casting no shadow), the rest in the light version. stage.js sets `far` from the quality setting (look.js).
+export const LOD = { camera: null, near: 45, far: 100 };
 
 const geos = {};
 try {
@@ -54,11 +55,15 @@ export function unitLook(key, { armour, shield } = {}) {
   const id = `${key}|${level}|${shielded}`;
   if (looks.has(id)) return looks.get(id);
   const pieces = ['base', level, ...(shielded ? ['shield'] : [])];
-  const join = (part, light) => {
-    const list = pieces.map(p => (light && get(`unit.${key}.${p}.${part}.light`)) || get(`unit.${key}.${p}.${part}`)).filter(Boolean);
+  // a level ('light' or 'far') falls back to the next more detailed one the bake has
+  const join = (part, level) => {
+    const list = pieces.map(p => (level === 'far' && get(`unit.${key}.${p}.${part}.far`)) || (level && get(`unit.${key}.${p}.${part}.light`)) || get(`unit.${key}.${p}.${part}`)).filter(Boolean);
     return list.length === 1 ? list[0] : mergeGeometries(list.map(g => g.index ? g.toNonIndexed() : g));
   };
-  const look = { gear: join('gear'), cloth: join('cloth'), gearLight: join('gear', true), clothLight: join('cloth', true), anim: get(`unit.${key}.base.gear`).userData.anim };
+  const look = { gear: join('gear'), cloth: join('cloth'), gearLight: join('gear', 'light'), clothLight: join('cloth', 'light'), anim: get(`unit.${key}.base.gear`).userData.anim };
+  const far = pieces.some(p => get(`unit.${key}.${p}.gear.far`) || get(`unit.${key}.${p}.cloth.far`));
+  look.gearFar = far ? join('gear', 'far') : look.gearLight;
+  look.clothFar = far ? join('cloth', 'far') : look.clothLight;
   looks.set(id, look);
   return look;
 }
@@ -67,7 +72,8 @@ export function unitModel(key) {
   if (hasLevels(key)) return unitLook(key);
   const gear = get(`unit.${key}.gear`), cloth = get(`unit.${key}.cloth`);
   if (!gear || !cloth) return null;
-  return { gear, cloth, gearLight: get(`unit.${key}.gear.light`) || gear, clothLight: get(`unit.${key}.cloth.light`) || cloth, anim: gear.userData.anim };
+  const gearLight = get(`unit.${key}.gear.light`) || gear, clothLight = get(`unit.${key}.cloth.light`) || cloth;
+  return { gear, cloth, gearLight, clothLight, gearFar: get(`unit.${key}.gear.far`) || gearLight, clothFar: get(`unit.${key}.cloth.far`) || clothLight, anim: gear.userData.anim };
 }
 
 export const buildingModel = name => get('building.' + name);

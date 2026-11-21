@@ -43,6 +43,7 @@ export function createStage(canvas) {
     renderer.shadowMap.enabled = q.shadow > 0;
     renderer.shadowMap.type = q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     shadowSize = q.shadow;
+    if (q.far) LOD.far = q.far;
     resize();
     renderer.shadowMap.needsUpdate = true;
   }

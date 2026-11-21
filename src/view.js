@@ -456,7 +456,8 @@ export class BattleView {
   // A side's colour: the battle can set its own (`battle.sideColors`), so a house's defenders wear the house colour.
   sideColor(side) { return this.battle.sideColors?.[side] || SIDE_COLORS[side]; }
 
-  // Baked soldiers get a full and a light pair; each frame, the ones near the camera go in the full pair.
+  // Baked soldiers get a full, a light and a far pair; each frame, the ones near the camera go in the full pair and
+  // the distant ones in the far pair, which casts no shadow.
   makeMeshes(look, capacity) {
     const [key, armour, shield] = look.split('|'), chain = lookChain(key);
     // a kind that borrows another's model (sellswords wear the swordsman) still shows its own armour and shield
@@ -465,27 +466,31 @@ export class BattleView {
     const model = baked || (builtIn === 'cav' ? cavalry() : infantry(builtIn));
     // a soldier baked with a skeleton plays clips (anim.js): each instance gets its own clip and moment
     const anim = baked?.anim && animReady() ? baked.anim : null;
-    const inst = (geo, light = false) => {
+    const inst = (geo, light = false, shadow = true) => {
       const m = new THREE.InstancedMesh(anim ? animGeometry(geo, capacity) : geo, anim ? animMaterial(this.mat, { light }) : this.mat, capacity);
       if (anim) m.customDepthMaterial = animDepthMaterial(light);
       m.setColorAt(0, this.tint.setScalar(1));
       m.count = 0;
-      m.castShadow = true;
+      m.castShadow = shadow;
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.scene.add(m);
       return m;
     };
     const m = { gear: inst(model.gear), cloth: inst(model.cloth), list: [], darkened: new Set(), anim };
-    if (baked) m.light = { gear: inst(baked.gearLight, true), cloth: inst(baked.clothLight, true) };
-    m.all = [m.gear, m.cloth, ...(m.light ? [m.light.gear, m.light.cloth] : [])];
+    if (baked) {
+      m.light = { gear: inst(baked.gearLight, true), cloth: inst(baked.clothLight, true) };
+      m.far = { gear: inst(baked.gearFar, true, false), cloth: inst(baked.clothFar, true, false) };
+    }
+    m.all = [m.gear, m.cloth, ...(m.light ? [m.light.gear, m.light.cloth, m.far.gear, m.far.cloth] : [])];
     return m;
   }
 
-  // Place one soldier in the full or the light pair, darkened once he lies dead.
+  // Place one soldier in the full, the light or the far pair, darkened once he lies dead.
   drawDetailed(m, s, counts, cam) {
-    const near = !cam || this.dummy.position.distanceToSquared(cam) < LOD.near * LOD.near;
-    const pair = near ? m : m.light, i = near ? counts.full++ : counts.light++;
+    const d2 = cam ? this.dummy.position.distanceToSquared(cam) : 0;
+    const pair = d2 < LOD.near * LOD.near ? m : d2 < LOD.far * LOD.far ? m.light : m.far;
+    const i = pair === m ? counts.full++ : pair === m.light ? counts.light++ : counts.far++;
     const dead = !s.alive && s.fall >= 1;
     pair.gear.setMatrixAt(i, this.dummy.matrix);
     pair.cloth.setMatrixAt(i, this.dummy.matrix);
@@ -588,7 +593,7 @@ export class BattleView {
     const cam = LOD.camera?.position;
     for (const key in this.meshes) {
       const m = this.meshes[key], { gear, cloth, list, darkened } = m;
-      const counts = { full: 0, light: 0 };
+      const counts = { full: 0, light: 0, far: 0 };
       for (const s of list) {
         if (m.light && s.gone) continue;
         if (!m.light && !s.alive && s.fall >= 1 && darkened.has(s)) continue;   // corpses stay put
@@ -620,6 +625,7 @@ export class BattleView {
       if (m.light) {
         gear.count = cloth.count = counts.full;
         m.light.gear.count = m.light.cloth.count = counts.light;
+        m.far.gear.count = m.far.cloth.count = counts.far;
         for (const x of m.all) {
           x.instanceMatrix.needsUpdate = true;
           if (x.instanceColor) x.instanceColor.needsUpdate = true;
