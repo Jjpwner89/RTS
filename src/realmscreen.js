@@ -14,7 +14,7 @@ import { FACTIONS, headcount, seenAs } from './world/world.js';
 import { GOOD_GROUPS, TAXES } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
   moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN,
-  suitors, matchCost, claimant, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
+  suitors, matchCost, claimant, kinWar, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
 import { elitePay } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
@@ -184,7 +184,7 @@ export class RealmScreen {
       const v = w.vassals.find(o => o.id === +id);
       if (!v) return this.refuse(`No such vassal (${id}).`);
       const key = b.dataset.act;
-      if ((x === 'arrest' || x === 'revoke') && this.confirm !== key) { this.confirm = key; return this.update(true); }
+      if ((x === 'arrest' || x === 'revoke' || x === 'marry') && this.confirm !== key) { this.confirm = key; return this.update(true); }
       this.confirm = null;
       const arg = x === 'grant' || x === 'revoke' ? w.byId[y] : x === 'arms' ? w.byId[y] : y;
       this.say(w.vassalAct(v, x, arg));
@@ -519,7 +519,7 @@ export class RealmScreen {
       <h4>Land</h4>${land || '<p class="note">They hold nothing.</p>'}
       <h4>Demands</h4><div class="acts-row">${btn('demand', `${ico('gold', '#e8c45a')} Demand ${demand} gold`, demand >= DEMAND_MIN || `Their purse holds too little to ask for (${num(Math.floor(v.gold || 0))} gold; at least ${DEMAND_MIN * 2} needed)`, v.favours ? 'They owe you: they pay without bad blood' : `Half their purse. −15${T.dues ? ' (more for the greedy)' : ''}; refused if they are resentful`)}
         <label>Call to arms at <select data-set="arms">${places.map(p => `<option value="${p.id}" ${p.id === this.armsTo ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-        ${btn(`arms:${this.armsTo}`, `${ico('spears')} Call to arms`, v.refusing ? `${v.name} refuses to send anyone` : v.landless ? 'They hold no land to raise men from' : !places.length ? 'You run no village to call them to' : true, `Their share of men (${LEVIES[v.levy].name.toLowerCase()} levies${seatPower(w, 'marshal') ? ', more with your marshal' : ''}) marches there. ${v.want === 'glory' ? 'They want a war: they come gladly.' : 'Called again within ten minutes, they grumble (−6).'} Taking a rival's place while their men are out wins them glory.`)}</div>
+        ${btn(`arms:${this.armsTo}`, `${ico('spears')} Call to arms`, v.refusing ? `${v.name} refuses to send anyone` : kinWar(w, v) ? `${v.name} won't march against their spouse's kin, ${kinWar(w, v).name}` : v.landless ? 'They hold no land to raise men from' : !places.length ? 'You run no village to call them to' : true, `Their share of men (${LEVIES[v.levy].name.toLowerCase()} levies${seatPower(w, 'marshal') ? ', more with your marshal' : ''}) marches there. ${v.want === 'glory' ? 'They want a war: they come gladly.' : 'Called again within ten minutes, they grumble (−6).'} Taking a rival's place while their men are out wins them glory.`)}</div>
       ${foe ? `<h4>Their feud</h4><p class="warn">Feuding with ${esc(foe.name)}: both their villages bleed people, and both mind that you do nothing.</p><div class="acts-row">${btn('judge', `Judge for ${esc(v.name)}`, true, `+15 with them, −20 with ${foe.name}; they owe you a favour`)}<button data-act="v:${foe.id}:judge" title="+15 with ${esc(foe.name)}, −20 with ${esc(v.name)}">Judge for ${esc(foe.name)}</button>${btn('reconcile', `${ico('gold', '#e8c45a')} Reconcile them (${RECONCILE})`, me.gold >= RECONCILE || `Needs ${RECONCILE} gold; you have ${num(Math.floor(me.gold))}`, 'Both a little pleased')}</div>` : ''}
       <h4>Justice</h4><div class="acts-row">${sure('arrest') ? `<span class="warn">${odds ? `About ${Math.round(odds * 100)}% they flee to their men and rise.` : 'They will come quietly.'} Every other vassal will mind it (−10).</span> ${btn('arrest', 'Yes, arrest them', true, '', 'warn')}<button data-act="cancel">No</button>`
         : btn('arrest', 'Arrest them', true, `Every village they hold comes back to you and they go to your dungeon. ${odds ? `Defiant: about ${Math.round(odds * 100)}% they flee and rise instead.` : 'They are not defiant: they will come quietly.'}`, 'warn')}</div>
@@ -532,12 +532,14 @@ export class RealmScreen {
     const w = this.w, me = FACTIONS[0];
     if (v.wed) {
       const H = FACTIONS[v.wed.house];
-      return `<p class="${v.wed.broken ? 'bad' : 'good'}">${v.wed.broken ? `Was wed into ${esc(H.name)}, which is broken.` : `Wed into ${esc(H.name)}: ${esc(H.lord)} thinks better of you while they are content with you; they mind it (${WAR_ON_KIN}) if you go to war on it.`}</p>`;
+      return `<p class="${v.wed.broken ? 'bad' : 'good'}">${v.wed.broken ? `Was wed into ${esc(H.name)}, which is broken.` : `Wed into ${esc(H.name)}: ${esc(H.lord)} thinks better of you while they are content with you; they mind it (${WAR_ON_KIN}), will not march against it, and rise with it if already sour with you, should you go to war on it.`}</p>`;
     }
     if (v.landless) return '';
+    const sureMatch = i => this.confirm === `v:${v.id}:marry:${i}`;
     const list = suitors(w), warm = FACTIONS.slice(1, w.bandits).filter(H => H.alive && w.knows(H.index) && !w.atWar(0, H.index)).length;
-    const tip = `Wed into the house: +6 for good with them, a favour owed, and ${KIN_WARMTH} warmer from the house while they are content; they mind it (${WAR_ON_KIN}) if you go to war on it. The proud and ambitious among the rest mind it (−3). You pay half the dowry.`;
-    return `<h4>A match</h4><div class="acts-row">${list.length ? list.map(H => btn(`marry:${H.index}`, `${ico('crown')} Wed into ${esc(H.name)} (${matchCost(w, H.index)} gold)`, me.gold >= matchCost(w, H.index) || `Needs ${matchCost(w, H.index)} gold; you have ${num(Math.floor(me.gold))}`, tip)).join('')
+    const tip = `Wed into the house: +6 for good with them, a favour owed, and ${KIN_WARMTH} warmer from the house while they are content; they mind it (${WAR_ON_KIN}) and will not march against it if you go to war on it; one already sour with you rises with it. The proud and ambitious among the rest mind it (−3). You pay half the dowry.`;
+    return `<h4>A match</h4><div class="acts-row">${list.length ? list.map(H => sureMatch(H.index) ? `<span class="warn">${esc(v.name)} will not march against ${esc(H.name)}, their spouse's house, if you go to war with it (−15 with them), and a vassal already sour with you rises with it. ${matchCost(w, H.index)} gold, half the dowry.</span> ${btn(`marry:${H.index}`, 'Yes, arrange the match', true, '', 'warn')}<button data-act="cancel">No</button>`
+        : btn(`marry:${H.index}`, `${ico('crown')} Wed into ${esc(H.name)} (${matchCost(w, H.index)} gold)`, me.gold >= matchCost(w, H.index) || `Needs ${matchCost(w, H.index)} gold; you have ${num(Math.floor(me.gold))}`, tip)).join('')
       : btn('marry', `${ico('crown')} Arrange a match`, warm ? `No house likes you well enough yet (it takes ${MATCH_WARM}): send gifts` : 'You have met no house at peace with you', tip)}</div>`;
   }
 

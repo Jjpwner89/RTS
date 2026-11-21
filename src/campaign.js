@@ -798,8 +798,9 @@ function askBanners(dest) {
   if (plan.villages.some(v => v.keep && v.p !== dest)) lines.push(`Each village keeps ${plan.guard} men home against raids, in whole regiments, or all it has if fewer; your retinue always comes.`);
   const sent = plan.vassals.filter(x => x.men).map(x => `${x.v.name} sends ${x.men} from ${x.p.name}`);
   if (sent.length) lines.push(`Of your vassals, ${list(sent)}.`);
-  const no = [...new Set(plan.vassals.filter(x => x.refusing).map(x => x.v.name))];
+  const no = [...new Set(plan.vassals.filter(x => x.refusing && !x.kin).map(x => x.v.name))];
   if (no.length) lines.push(`${list(no)} will send nobody.`);
+  for (const k of new Map(plan.vassals.filter(x => x.kin && !x.v.refusing).map(x => [x.v.id, x])).values()) lines.push(`${k.v.name} won't march against their spouse's kin, ${k.kin.name}.`);
   lines.push(plan.men ? `In all, ${plan.men} men march for ${dest.name}, to join the ${plan.here} there. Armies in the field stay where they are.` : `Nobody has men to spare past their guard: ${plan.here} stand ready at ${dest.name}.`);
   const ok = plan.men > 0 || plan.raised > 0;
   asks.unshift({ kind: 'choice', ev: { title: `Call the banners to ${dest.name}`, text: lines.join(' '), at: dest, choices: [

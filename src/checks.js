@@ -468,6 +468,17 @@ async function worldChecks(w) {
     for (const H of V2.suitors(w)) { const c = V2.matchCost(w, H.index); if (!(c >= 25) || c % 25) out.push(`a match with ${H.name} costs ${c}`); }
     return out;
   });
+  // A wed vassal at war with their spouse's kin is left out of the call to arms, and said so (2026-11-21).
+  await check("a vassal at war with their spouse's house sends nobody, and the call says why", async () => {
+    const V2 = await import('./world/vassals.js'), out = [], dest = w.home;
+    if (!dest) return null;
+    const plan = w.bannerPlan(dest);
+    for (const x of plan.vassals) {
+      const K = V2.kinWar(w, x.v);
+      if (K && !(x.refusing && x.kin === K && x.men === 0)) out.push(`${x.v.name} at war with ${K.name}, their spouse's house, is still called`);
+    }
+    return out;
+  });
   // A faction's king is a real house at peace with you, never your vassal (a different king, 2026-11-21).
   await check("a faction's would-be king is a living house at peace with you", async () => {
     const V2 = await import('./world/vassals.js'), out = [], F = w.faction;

@@ -4,7 +4,7 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
-import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
+import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
@@ -603,6 +603,8 @@ export class World {
       const v = vassalOf(this, p);
       if (!v || p === dest || p.owner !== 0) continue;
       if (v.refusing) { plan.vassals.push({ v, p, men: 0, refusing: true }); continue; }
+      const kin = kinWar(this, v);
+      if (kin) { plan.vassals.push({ v, p, men: 0, refusing: true, kin }); continue; }
       const n = headcount(takeUnits(p.garrison.map(g => ({ ...g })), this.vassalWant(v, p)));
       if (!n) continue;
       plan.vassals.push({ v, p, men: n });
@@ -644,8 +646,8 @@ export class World {
         cut.push(p.name);
       }
     }
-    for (const { v, p, refusing } of plan.vassals) {
-      if (refusing) { this.log(`${v.name} sends nobody from ${p.name}.`, 1); continue; }
+    for (const { v, p, refusing, kin } of plan.vassals) {
+      if (refusing) { this.log(kin ? `${v.name} won't march against their spouse's kin, ${kin.name}: nobody from ${p.name}.` : `${v.name} sends nobody from ${p.name}.`, 1); continue; }
       let n = this.vassalMen(v, p, dest);
       if (n) { men += n; from++; continue; }
       if (stage && p !== stage && (n = this.vassalMen(v, p, stage))) there += n;
@@ -681,6 +683,8 @@ export class World {
   callToArms(v, dest) {
     if (!v || v.gone || v.prison || v.landless) return { ok: false, why: 'Holds no land to raise men from' };
     if (v.refusing) return { ok: false, why: `${v.name} refuses to send anyone` };
+    const kin = kinWar(this, v);
+    if (kin) return { ok: false, why: `${v.name} won't march against their spouse's kin, ${kin.name}` };
     if (!dest || dest.owner !== 0) return { ok: false, why: 'Call them to a place of yours' };
     let men = 0;
     for (const p of holdingsOf(this, v)) if (p !== dest) men += this.vassalMen(v, p, dest);

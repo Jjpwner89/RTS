@@ -85,6 +85,11 @@ const greatHouses = w => w.houses.slice(1, w.bandits);
 export const suitors = w => greatHouses(w).filter(H => H.alive && w.knows(H.index) && !w.atWar(0, H.index) && w.dip[H.index].opinion >= MATCH_WARM);
 export const matchCost = (w, h) => Math.round(dowryFor(w, h) / 2 / 25) * 25;
 export const isWed = v => !!v.wed && !v.wed.broken;
+// The house a wed vassal won't march against: their spouse's, while you are at war with it (Orchestrator's
+// ruling, 2026-11-21: a sharper bind, never a surprise: said on the prompt and in the call preview).
+export const kinWar = (w, v) => (isWed(v) && w.atWar(0, v.wed.house) ? w.houses[v.wed.house] : null);
+// Their opinion of you without the war on their kin: only a vassal already this sour rises with the house.
+export const baseOpinion = (w, v, at) => opinion(w, v, at).total - (kinWar(w, v) ? WAR_ON_KIN : 0);
 // Content, landed vassals wed into a house: its warmth toward you (diplomacy.js).
 export const kinWarmth = (w, h) => KIN_WARMTH * Math.min(2, living(w).filter(v => isWed(v) && v.wed.house === h && !v.landless && !v.refusing).length);
 
@@ -241,6 +246,7 @@ export function outlook(w, v) {
   const now = opinion(w, v).total, soon = opinion(w, v, w.time + AHEAD).total;
   let warn = null;
   if (v.landless) warn = null;
+  else if (kinWar(w, v) && baseOpinion(w, v) <= FACTION_ANGER + 8) warn = `Will rise with ${kinWar(w, v).name}, their spouse's house, while you are at war with it`;
   else if (!v.refusing && now >= REFUSE && soon < REFUSE) warn = 'Will stop paying dues within five minutes';
   else if (now > FACTION_ANGER && soon <= FACTION_ANGER) warn = 'Will be ripe to join a faction within five minutes';
   return { now, soon, trend: soon - now, warn };
@@ -294,10 +300,28 @@ export function tickVassals(w, dt = 5) {
       v.refusing = false;
       w.log(`${v.name} pays their dues again.`);
     }
+    // Already aggrieved, and at war with their spouse's house: they take its side and rise with it.
+    // The match alone never does this (baseOpinion leaves the war on their kin out).
+    const K = kinWar(w, v);
+    if (K && baseOpinion(w, v) <= FACTION_ANGER) defectToKin(w, v, K);
   }
   tickFeuds(w, dt);
   tickFaction(w);
   tickPetitions(w);
+}
+
+function defectToKin(w, v, K) {
+  const held = holdingsOf(w, v);
+  for (const p of held) {
+    if (v.title) for (const u of p.garrison || []) u.count *= TITLED.faction;
+    p.vassal = null; p.owner = K.index; p.free = null;
+  }
+  v.gone = true; v.council = false; v.seat = null; v.rebel = true;
+  remember(w, v, `Rose against you with ${K.name}, their spouse's house`);
+  for (const o of living(w)) mark(w, o, 8, 'Stood by you when others rose', 2400);
+  w.log(`${v.name} takes ${K.name}'s side, their spouse's house, and rises with it! ${held.map(p => p.name).join(', ')} now stand${held.length > 1 ? '' : 's'} for ${K.name}.`, 1);
+  w.chron?.(`${v.name} rose against you with ${K.name}, their spouse's house.`);
+  w.hooks.herald?.({ house: { name: v.name, color: v.color }, title: 'A vassal takes their kin\'s side', text: `${v.name} will not stand against ${K.name}, their spouse's house, and rises with it. ${held.map(p => p.name).join(', ')} now stand for ${K.name}.` });
 }
 
 function newWant(w, v) {
