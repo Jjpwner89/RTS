@@ -406,6 +406,38 @@ async function worldChecks(w) {
   // it could march, or while it has arms and people and raises nobody.
   await check('rival houses: no muster stalls with arms and men', async () => (await import('./world/rivals.js')).musterProblems(w));
 
+  // A house plays by your rules (rivals.js chooseStance): a man raised is a person taken
+  // from work, and its stance follows what it faces.
+  await check('rival houses: raised men lower production', async () => {
+    const H = await import('./world/holdings.js');
+    const p = w.pois.find(p => p.owner > 0 && p.eco?.buildings && !p.vassal && p.eco.pop - 12 > 20);
+    if (!p) return [];
+    const run = n => {
+      const q = { ...p, eco: structuredClone(p.eco) };
+      const men = n ? H.arm(q.eco, n, 12).reduce((k, u) => k + u.count, 0) : 0;
+      // what the hands made, leaving out the food the people eat
+      const goods = () => H.worth(Object.fromEntries(Object.entries(q.eco.stock).filter(([g]) => g !== 'food' && g !== 'bread')));
+      const pop = q.eco.pop, before = goods();
+      H.runEconomy(q, 60);
+      return { men, pop, made: goods() - before };
+    };
+    const a = run(0), b = run(20), out = [];
+    if (b.men && Math.abs(a.pop - b.pop - b.men) > 0.01) out.push(`raising ${b.men} men left ${p.name} ${a.pop - b.pop} fewer people`);
+    if (b.men && b.made > a.made + 1e-6) out.push(`${p.name} made more with ${b.men} men under arms (${b.made.toFixed(1)} against ${a.made.toFixed(1)})`);
+    return out;
+  });
+  await check('rival houses: stance follows their situation', async () => {
+    const R = await import('./world/rivals.js'), out = [];
+    const say = (s, war) => { if ((R.stanceScore(s) > 0.5) !== war) out.push(`${s.temper} ${JSON.stringify(s)} should be ${war ? 'arming' : 'building'}`); };
+    say({ temper: 'raider', wars: true, threat: true, prey: false, larder: 10, stage: 2 }, true);
+    say({ temper: 'turtler', wars: false, threat: true, prey: false, larder: 10, stage: 1 }, true);
+    say({ temper: 'builder', wars: false, threat: false, prey: false, larder: 1, stage: 2 }, false);
+    say({ temper: 'merchant', wars: false, threat: false, prey: true, larder: 10, stage: 1 }, false);
+    say({ temper: 'hothead', wars: false, threat: false, prey: true, larder: 10, stage: 1 }, true);
+    for (const h of FACTIONS) if (h.alive && h.index && !h.bandit && !h.invader && h.ai?.stance && !(h.ai.stance in R.STANCE)) out.push(`${h.name} has stance ${h.ai.stance}`);
+    return out;
+  });
+
   await check('houses and armies: numbers are sane', () => {
     const out = [];
     for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);

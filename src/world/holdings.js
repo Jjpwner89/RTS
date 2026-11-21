@@ -245,6 +245,29 @@ export function arm(e, n, keep = 12, policy = 'best') {
   return out;
 }
 
+// Men under arms eat as they did at work (your soldiers are villagers and eat at the
+// hearths): a house's garrison is fed from its place's stores. Returns how many went unfed.
+export function feedMen(e, men, dt) {
+  let need = men * EAT * dt;
+  for (const g of ['bread', 'food']) { const k = Math.min(need, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; need -= k; }
+  return need / (EAT * dt);
+}
+
+// Up to n men go home to work: back among the people, their weapons back in the stores
+// (armour is kept by the men who wore it). The plainest go first.
+export function standDown(e, garrison, n) {
+  let left = Math.floor(n);
+  for (let i = garrison.length - 1; i >= 0 && left > 0; i--) {
+    const u = garrison[i];
+    if (u.until || !TYPES[u.key] || TYPES[u.key].engine) continue;
+    const k = Math.min(u.count, left);
+    u.count -= k; left -= k; e.pop += k;
+    for (const [g, q] of Object.entries(kitOf(u.key))) e.stock[g] = (e.stock[g] || 0) + q * k;
+  }
+  for (let i = garrison.length - 1; i >= 0; i--) if (garrison[i].count <= 0) garrison.splice(i, 1);
+  return Math.floor(n) - left;
+}
+
 // ---- changing hands ----
 
 // A village you ran becomes a holding as it stands: what was built and not burned, its

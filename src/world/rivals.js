@@ -15,6 +15,7 @@
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit, roughly, unit } from './world.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
+import { standDown } from './holdings.js';
 import { TYPES } from '../battle.js';
 
 export const STAGES = ['Settling', 'Expanding', 'Contending'];
@@ -100,6 +101,29 @@ function nearestOwn(w, h, target) {
   return { place: best, length: bd };
 }
 
+// Build up or arm and march (creator, 2026-11-21: "make NPCs choose between econ and war
+// the same way the player does"), from what a player would read: the house's temper, the
+// wars it is in, enemies near its lands, something weak in reach, and its larder. Men under
+// arms are people taken from work, eat from the stores and, if elite, draw wages, so a
+// house that arms grows less and one that builds is weaker in the field.
+export const STANCE = { war: 'is arming', build: 'is building' };
+const LEAN = { raider: 0.6, hothead: 0.5, schemer: 0.1, merchant: -0.3, builder: -0.4, turtler: -0.2, invader: 2 };
+export function stanceScore({ temper, wars, threat, prey, larder, stage }) {
+  return (LEAN[temper] ?? 0) + (wars ? 0.5 : 0) + (threat ? 1 : 0) + (prey ? 0.5 : 0) - (larder < 3 ? 0.8 : 0) - (stage === 0 ? 0.3 : 0);
+}
+function chooseStance(w, h, B, stage, mine) {
+  const wars = FACTIONS.some(o => o !== h && o.alive && !o.bandit && w.atWar(h.index, o.index));
+  const threat = w.armies.some(a => !a.gone && !a.wagon && a.side !== h.index && a.side !== w.bandits && w.atWar(h.index, a.side) && mine.some(p => dist(a, p) < 300));
+  // Something weak in reach: a free place or an enemy's, held by fewer than the house could put in the field.
+  const field = mine.reduce((n, p) => n + Math.max(0, spareAt(w, p)), 0) + h.arms;
+  const prey = w.pois.some(p => p.owner !== h.index && p.owner !== w.bandits && (p.owner === null || w.atWar(h.index, p.owner)) && w.canAttack(h.index, p)
+    && mine.some(q => dist(p, q) < 600) && w.defence(p) * B.need + 20 < field);
+  const eco = mine.filter(p => p.eco?.buildings), mouths = eco.reduce((n, p) => n + p.eco.pop + headcount(p.garrison), 0);
+  const larder = eco.reduce((n, p) => n + (p.eco.stock.food || 0) + (p.eco.stock.bread || 0), 0) / Math.max(1, mouths);
+  const score = stanceScore({ temper: h.trait, wars, threat, prey, larder, stage });
+  return score > (h.ai.stance === 'war' ? 0.2 : 0.5) ? 'war' : 'build';
+}
+
 function houseMind(w, h) {
   const mine = held(w, h);
   if (!mine.length) return;
@@ -110,9 +134,20 @@ function houseMind(w, h) {
   if (!h.seat || h.seat.owner !== h.index) h.seat = mine[0];
   const muster = plan?.staging?.owner === h.index ? plan.staging : h.seat;
 
-  // Raise men for the field at the muster place, while the people can spare them.
-  // A settling house keeps a modest field reserve; later it raises all it can.
-  if (h.arms >= 6 && (stage > 0 || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
+  // Build up or arm, as you choose (chooseStance). Arming, it raises men at the muster place
+  // while the people can spare them; building, it keeps a modest field reserve and sends men
+  // beyond it home to work, with their weapons back in the stores.
+  ai.stance = chooseStance(w, h, B, stage, mine);
+  // Its rear: places with no enemy place or army within a short march (World.keepHome).
+  const foes = w.pois.filter(p => p.owner !== null && p.owner !== h.index && w.atWar(h.index, p.owner));
+  const hosts = w.armies.filter(a => !a.gone && !a.wagon && a.side !== h.index && w.atWar(h.index, a.side));
+  ai.rear = mine.filter(p => !foes.some(q => dist(p, q) < 400) && !hosts.some(a => dist(p, a) < 400)).map(p => p.id);
+  const arming = ai.stance === 'war';
+  if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
+  if (!arming && !plan && muster.eco?.buildings) {
+    const over = headcount(muster.garrison) - (w.keepHome(muster) + SETTLED_RESERVE);
+    if (over > 0) standDown(muster.eco, muster.garrison, Math.min(over, 6));
+  }
 
   // A rich lord at war hires a mercenary company rather than sit on his gold, and pays
   // its wages from then on (companies.js). Not while the house is still settling.
@@ -129,7 +164,7 @@ function houseMind(w, h) {
   }
 
   thinkWars(w, h, B, stage);
-  if (stage > 0) warRaids(w, h, B, plan);
+  if (stage > 0 && arming) warRaids(w, h, B, plan);
 
   // Drop a plan whose target is ours now, or no longer an enemy.
   if (plan && (plan.target.owner === h.index || !w.canAttack(h.index, plan.target))) {
@@ -140,7 +175,9 @@ function houseMind(w, h) {
     return;
   }
   if (!ai.plan) {
-    if (ai.cool <= 0) ai.plan = choosePlan(w, h, B, stage);
+    // Building, a house takes only what it can win with the men it has (free places and
+    // outlaw camps); a war on a house is for when it arms.
+    if (ai.cool <= 0) ai.plan = choosePlan(w, h, B, stage, arming);
     return;
   }
   runPlan(w, h, B, ai.plan);
@@ -158,7 +195,7 @@ function thinkWars(w, h, B, stage) {
     const since = ai.warsSince[o.index] ?? (ai.warsSince[o.index] = w.time);
     if (w.time - since > 900 && w.rand() < 0.04) { w.makePeace(h.index, o.index); delete ai.warsSince[o.index]; delete FACTIONS[o.index].ai.warsSince[h.index]; }
   }
-  if (ai.warClock > 0) return;
+  if (ai.warClock > 0 || ai.stance !== 'war') return;
   ai.warClock = (260 + w.rand() * 220) / B.war;
   // A settling house makes no wars; an expanding one one at a time.
   if (stage === 0) return;
@@ -171,10 +208,7 @@ function thinkWars(w, h, B, stage) {
     const d = Math.min(...mine.map(q => dist(p, q)));
     if (d < (p.owner === 0 && stage === 2 ? 700 : 420)) near.set(p.owner, Math.min(near.get(p.owner) ?? Infinity, d));
   }
-  // A contending house reaches further for you, a rich purse draws it, and never more than
-  // two houses at war with you at once (the north and leagues aside): pressure, not a pile-on.
-  const onYou = FACTIONS.filter(o => o.index && !o.bandit && !o.invader && o.alive && w.atWar(o.index, 0)).length;
-  if (onYou >= 2) near.delete(0);
+  // A contending house reaches further for you, and a rich purse draws it.
   const strength = i => w.strength(i);
   const ours = strength(h.index), lead = leader(w, h);
   const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || !protectedFrom(w, 0, h.index))
@@ -220,12 +254,13 @@ function leader(w, h) {
 // What a house goes for next. Settling: free villages next door and outlaw camps, and only
 // raids on an enemy. Expanding: free villages further out, and an enemy's place only where
 // it is weakly held. Contending: anything, the leader's places and Kingsbridge first.
-function choosePlan(w, h, B, stage) {
+function choosePlan(w, h, B, stage, arming = true) {
   const options = [], ours = w.strength(h.index), lead = stage === 2 ? leader(w, h) : null;
   let skirmish = null;
   for (const p of w.pois) {
     if (!w.canAttack(h.index, p) || h.ai.passed?.[p.id] > w.time) continue;
     const enemy = p.owner !== null && p.owner !== w.bandits;
+    if (enemy && !arming) continue;
     if (p.owner === 0 && stage === 0) { if (!protectedFrom(w, 0, h.index)) skirmish ??= p; continue; }
     // the free villages around your start are yours to win first
     if (p.owner === null && w.time < grace(w) && w.byId.ashford && dist(p, w.byId.ashford) < 260) continue;
@@ -294,9 +329,9 @@ function runPlan(w, h, B, plan) {
       if (plan.waited > 600) { (h.ai.passed ||= {})[T.id] = w.time + 900; h.ai.plan = null; h.ai.cool = 90; }
       return;
     }
-    // A contending house marches with most of what it has, up to twice the need, not just
-    // enough to win: its hosts are the realm's danger (creator, 2026-11-21: hosts of 20 men).
-    const want = stageOf(h) === 2 ? Math.max(need * 1.15, Math.min(spare * 0.75, need * 2)) : need * 1.15;
+    // A contending house marches with most of what it has, not just enough to win: its
+    // hosts are the realm's danger (creator, 2026-11-21: hosts of 20 men).
+    const want = stageOf(h) === 2 ? Math.max(need * 1.15, spare * 0.75) : need * 1.15;
     const units = takeUnits(S.garrison, Math.min(spare, want));
     if (!units.length) return;
     const besiege = T.owner === 0;
@@ -327,15 +362,11 @@ function siegeTrain(w, h) {
   return out;
 }
 
-const RAID_GAP = 75;
 // A small party to burn and steal from one of the enemy's places near the target.
 function sendRaid(w, h, plan) {
   const from = plan.staging && plan.staging.owner === h.index ? plan.staging : nearestOwn(w, h, plan.target).place;
   if (!from) return;
   const foe = plan.target.owner;
-  // Raids on you from every house together come no closer than RAID_GAP apart: pressure,
-  // not a stream of parties (sim, 2026-11-21: one a minute once the hosts were mended).
-  if (foe === 0 && w.time < (w.raidedYouAt ?? -Infinity) + RAID_GAP) return;
   const marks = w.pois.filter(p => p.owner === foe && (p !== plan.target || w.rand() < 0.4) && w.route(from, p).length < 800);
   if (!marks.length) return;
   const mark = marks[Math.floor(w.rand() * marks.length)];
@@ -347,7 +378,6 @@ function sendRaid(w, h, plan) {
   const a = w.spawnArmy(h.index, units, from, `${h.short} raiders`, 'raid');
   if (!w.order(a, mark)) { w.removeArmy(a); for (const u of units) from.garrison.push(u); return; }
   plan.raids++;
-  if (foe === 0) w.raidedYouAt = w.time;
   if (foe === 0) w.log(`${h.short} raiders are on the road toward ${mark.name}: about ${headcount(units)} men.`, 1);
   return true;
 }
@@ -363,7 +393,7 @@ export function musterProblems(w) {
     const need = w.defence(P.target) * bent(h).need + 20;
     if (spareAt(w, P.staging) >= need && (h.mourning ?? 0) < w.time) out.push(`${h.name} could march on ${P.target.name} and has waited ${P.waited} s`);
     const people = w.pois.some(p => p.owner === h.index && p.eco?.buildings && p.eco.pop - Math.max(12, w.popCap(p) * 0.45) >= 6);
-    if (stageOf(h) > 0 && h.arms >= 12 && people && w.time - (h.ai.raisedAt ?? -Infinity) > 60) out.push(`${h.name} has ${Math.round(h.arms)} arms and people to spare, and raised nobody for ${P.target.name}`);
+    if (h.ai.stance === 'war' && h.arms >= 12 && people && w.time - (h.ai.raisedAt ?? -Infinity) > 60) out.push(`${h.name} has ${Math.round(h.arms)} arms and people to spare, and raised nobody for ${P.target.name}`);
   }
   return out;
 }

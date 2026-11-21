@@ -7,7 +7,7 @@ import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, kingGift, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
-import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
+import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
@@ -247,8 +247,10 @@ export class World {
 
   // How many men a holding keeps at home before sending the rest to its lord.
   keepHome(p) {
-    const K = KINDS[p.kind], settling = p.owner !== null && FACTIONS[p.owner]?.ai?.stage === 0;
-    return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.5 : 1));
+    const K = KINDS[p.kind], ai = p.owner !== null ? FACTIONS[p.owner]?.ai : null, settling = ai?.stage === 0;
+    // A house arming for war strips the places no enemy is near, as you would (rivals.js).
+    const rear = ai?.stance === 'war' && ai.rear?.includes(p.id);
+    return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.5 : 1) * (rear ? 0.5 : 1));
   }
 
   popCap(p) { return p.eco.buildings ? housing(p.eco) : (25 + p.eco.level * 22) * KINDS[p.kind].pop; }
@@ -298,7 +300,12 @@ export class World {
     const want = this.keepHome(p), have = headcount(p.garrison);
     if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * 0.4), v ? 'best' : armourPolicy(h)))
       recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`, null, gearFields(u));
-    if (h && !h.bandit && !v) h.arms += kits(e);
+    // A house's men eat from the stores; those it cannot feed go home to their fields.
+    if (h && !h.bandit && !v) {
+      const unfed = p.garrison.length ? feedMen(e, headcount(p.garrison), dt) : 0;
+      if (unfed >= 1) standDown(e, p.garrison, Math.min(Math.ceil(unfed), 6));
+      h.arms += kits(e);
+    }
     if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainHall(p, e, h, dt);
     if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
   }

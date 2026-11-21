@@ -129,6 +129,12 @@ export function heal(a, share = 1) {
   a.wounded = (a.wounded || []).filter(w => w.count > 0);
 }
 
+const fromStores = (e, n) => {
+  let got = 0;
+  for (const g of ['bread', 'food']) { const k = Math.min(n - got, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; got += k; }
+  return got;
+};
+
 // Once a second.
 export function supplyArmies(w, dt) {
   for (const a of [...w.armies]) {
@@ -141,7 +147,8 @@ export function supplyArmies(w, dt) {
       const want = capacity(a) - a.food;
       if (want > 0) {
         const rate = Math.ceil(n * 0.25 * dt);
-        a.food += home.town && home.owner === 0 ? takeFood(home.town, Math.min(want, rate)) : Math.min(want, rate);
+        // A house's army at home eats from that place's stores, as yours does from your village's.
+        a.food += home.town && home.owner === 0 ? takeFood(home.town, Math.min(want, rate)) : home.eco?.buildings ? fromStores(home.eco, Math.min(want, rate)) : Math.min(want, rate);
       }
       if (a.food > 0) heal(a, REST * dt);
     } else a.food = Math.max(0, a.food - n * EAT * dt * (a.siege ? FORAGE : 1));

@@ -25,7 +25,7 @@ import { why } from './ui/why.js';
 import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
-import { stageOf } from './world/rivals.js';
+import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { ARRIERE, arrierePlan, callArriere } from './world/arriere.js';
 import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData } from './world/save.js';
@@ -1084,7 +1084,7 @@ function housePanel(el, h) {
   const held = grudgeLines(world, h).slice(0, 3);
   set('grudges', held.length ? `Holds against you: ${held.join('; ')}.` : '');
   const n = world.pois.filter(p => p.owner === h.index).length;
-  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}<br><small>${AMBITION[stageOf(h)]}</small>`);
+  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}<br><small>${AMBITION[stageOf(h)]} · ${h.short} ${STANCE[h.ai?.stance] || STANCE.build}</small>`);
 }
 
 $('wpanel').onclick = e => {
