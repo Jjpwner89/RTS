@@ -517,6 +517,9 @@ function pageChecks() {
   const failed = [...failedLoads, ...performance.getEntriesByType('resource').filter(e => e.responseStatus >= 400).map(e => `${e.responseStatus} ${e.name.replace(location.origin, '')}`)];
   results.push({ group, name: 'no console errors', status: errors.length ? 'fail' : 'pass', detail: sample(errors, 8) });
   results.push({ group, name: 'every file loaded', status: failed.length ? 'fail' : 'pass', detail: sample([...new Set(failed)], 8) });
+  // small windows shrink the panels (style.css): the top bar must still fit without scrolling
+  const top = document.getElementById('top'), wide = top && top.offsetParent ? top.scrollWidth - top.clientWidth : 0;
+  results.push({ group, name: 'the top bar fits the window', status: wide > 1 ? 'fail' : 'pass', detail: wide > 1 ? [`${wide}px of it scrolls out of sight at ${innerWidth}×${innerHeight}`] : [] });
 }
 
 // ---- running them ----
