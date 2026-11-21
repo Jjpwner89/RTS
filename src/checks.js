@@ -731,6 +731,11 @@ async function findAssets() {
   }
   for (const m of ['wall.stone', 'wall.wood', 'gate.stone', 'gate.wood', 'tower.stone', 'tower.wood', 'wagon']) if (!buildingModel(m)) noModel.push(`'${m}'`);
   push('models', [], noModel.map(n => `no baked model for ${n}: drawn as a shape built in code`));
+  // Trees: the pack models load (nature.js), and the credits name every pack they come from.
+  const { TREES, PACKS } = await import('./nature.js');
+  const credits = await fetch(base + 'credits.html').then(r => r.text()).catch(() => '');
+  push('tree models and their credits', Object.entries(PACKS).filter(([, name]) => !credits.includes(name)).map(([dir, name]) => `credits.html doesn't name ${name} (assets/scout/${dir})`),
+    TREES ? [] : ['the tree models did not load: trees are the shapes built in code']);
 
   // Event pictures: every event listed as painted has its picture (world/events.js PAINTED).
   const { PAINTED } = await import('./world/events.js');

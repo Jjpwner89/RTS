@@ -54,6 +54,9 @@ function vegetable(root, { height, bark }) {
   return g;
 }
 
+// The packs the models come from, by their folder in assets/scout; credits.html names each (checks.js).
+export const PACKS = { nature: 'Ultimate Nature', vegetation: 'Nature Kit' };
+
 export let TREES = null;
 try {
   const loader = new GLTFLoader();
