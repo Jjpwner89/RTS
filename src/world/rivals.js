@@ -11,7 +11,7 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, grace, fierceness, power, headcount, takeUnits, dist, recruit, roughly, unit } from './world.js';
+import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit } from './world.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { standDown } from './holdings.js';
@@ -309,6 +309,7 @@ function runPlan(w, h, B, plan) {
     const need = w.defence(T) * B.need + 20, spare = spareAt(w, S);
     // A house whose lord has just fallen mourns before it marches again (world/captains.js).
     const ready = (h.mourning ?? 0) < w.time && (spare >= need || (plan.waited > 420 && spare >= w.defence(T) * 1.1));
+    plan.seen = { ready, at: w.time };   // what it saw at this think (musterProblems)
     if (!ready) {
       // Given up: it looks elsewhere for a while, not straight back at the same place.
       if (plan.waited > 600) { (h.ai.passed ||= {})[T.id] = w.time + 900; h.ai.plan = null; h.ai.cool = 90; }
@@ -322,7 +323,8 @@ function runPlan(w, h, B, plan) {
     const besiege = T.owner === 0;
     if (besiege) for (const [key, count] of siegeTrain(w, h)) units.push({ key, count, name: `${h.short} ${TYPES[key].name.toLowerCase()}` });
     const host = w.spawnArmy(h.index, units, S, `The ${h.short} host`, besiege ? 'siege' : 'assault');
-    if (!w.order(host, T)) { w.removeArmy(host); return; }
+    // No road after all: the men go back into the garrison (they used to vanish with the host).
+    if (!w.order(host, T)) { w.removeArmy(host); mergeInto(S.garrison, host.units.filter(u => !TYPES[u.key]?.engine)); return; }
     plan.phase = 'march';
     plan.host = host;
     // Word of a host on the march: as big as rumour makes it, not the true count.
@@ -367,16 +369,17 @@ function sendRaid(w, h, plan) {
   return true;
 }
 
-// For checks(): a house that has sat in muster for three minutes while it could march, or
-// while it has kit and people and raises nobody.
+// For checks(): a house that has sat in muster for three minutes and, at its last think, saw
+// it could march and did not; or that has kit and people and raises nobody.
 export function musterProblems(w) {
   const out = [];
   for (const h of FACTIONS) {
     const P = h.ai?.plan;
     if (!h.alive || h.index === 0 || h.bandit || P?.phase !== 'muster' || P.waited <= 180 || !P.staging || P.staging.owner !== h.index) continue;
     if (P.target.owner === 0 && leagued(w, h.index) && leagueHost(w)) continue;
-    const need = w.defence(P.target) * bent(h).need + 20;
-    if (spareAt(w, P.staging) >= need && (h.mourning ?? 0) < w.time) out.push(`${h.name} could march on ${P.target.name} and has waited ${P.waited} s`);
+    // Judged on what the house saw at its last think, not now: men can reach the muster
+    // between thinks (every 8 s), and it marches at the next (seed 21, minute 49).
+    if (P.seen?.ready) out.push(`${h.name} saw it could march on ${P.target.name} at its last think and did not (waited ${P.waited} s)`);
     const people = w.pois.some(p => p.owner === h.index && p.eco?.buildings && p.eco.pop - Math.max(12, w.popCap(p) * 0.45) >= 6);
     if (h.ai.stance === 'war' && h.arms >= 12 && people && w.time - (h.ai.raisedAt ?? -Infinity) > 60) out.push(`${h.name} has ${Math.round(h.arms)} arms and people to spare, and raised nobody for ${P.target.name}`);
   }
