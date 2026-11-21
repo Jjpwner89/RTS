@@ -541,7 +541,13 @@ function bareHanded(enc) {
 const CALM = 5000;
 let fightSeen = 0;
 
+let shown = [];   // the open box's [button, choice] pairs: re-read every frame, as the purse changes
 function nextAsk() {
+  for (const [btn, c] of shown) {
+    const off = !c.ok, tip = off ? c.why || '' : '';
+    if (btn.disabled !== off) btn.disabled = off;
+    if (btn.title !== tip) btn.title = tip;
+  }
   if (mode === 'field' || fighting()) fightSeen = performance.now();
   if (mode === 'field' || $('prompt').classList.contains('open') || $('result').classList.contains('open') || !asks.length) return;
   const i = performance.now() - fightSeen < CALM ? asks.findIndex(a => !WAITS.has(a.kind)) : 0;
@@ -563,7 +569,7 @@ function nextAsk() {
     else if (pic.src.endsWith(ev.image) && pic.complete) pic.hidden = !pic.naturalWidth;
     else pic.src = ev.image;
     // a choice answers with its text, or { ok, text } when it can be refused; a greyed one says why
-    for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r.text ?? r, r.ok ?? true); }, !c.ok, c.why]);
+    for (const c of ev.choices) buttons.push([c.label, () => { const r = c.run(); if (r) flash(r.text ?? r, r.ok ?? true); }, !c.ok, c.why, c]);
   } else if (a.kind === 'news') {
     box.querySelector('h2').textContent = a.title;
     box.querySelector('p').textContent = a.text;
@@ -613,11 +619,13 @@ function nextAsk() {
   }
   const row = box.querySelector('.row');
   row.innerHTML = '';
-  for (const [text, fn, off, why] of buttons) {
+  shown = [];
+  for (const [text, fn, off, why, choice] of buttons) {
     const btn = document.createElement('button');
     btn.textContent = text;
     btn.disabled = !!off;
     if (off && why) btn.title = why;
+    if (choice) shown.push([btn, choice]);
     btn.onclick = () => { box.classList.remove('open'); fn(); };
     row.append(btn);
   }
