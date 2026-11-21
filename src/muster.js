@@ -9,6 +9,7 @@ import { ico } from './icons.js';
 import { TYPES, lookChain } from './battle.js';
 import { WOOD, soldierClip } from './view.js';
 import { animGeometry, animMaterial, animDepthMaterial, setClip } from './anim.js';
+import { PACE } from './pace.js';
 
 const COLOURS = ['#3d6fd6', '#c8423a', '#d6a93d', '#4f8f4a', '#7a4fa8'];
 const LORDS = {
@@ -78,8 +79,8 @@ function plinthMesh() {
 }
 
 // ---- the regiments ----
-// They all march at one pace (m/s); an animated man's gait follows it.
-const PACE = { foot: 1.7, horse: 1.7, dog: 1.7, engine: 1.7 };
+// They all march at the foot soldiers' walk (pace.js), horse and hound keeping step; an animated man's gait follows it.
+const MARCH = PACE.foot;
 const parade = { time: 0, winner: null }, clip = {};   // the stand-in battle soldierClip reads, and its answer
 // Each regiment is a block of figures in its own instanced meshes; slots are places in the block,
 // measured back from the front rank and across from the middle.
@@ -99,7 +100,7 @@ for (const { T } of ORDER) {
     const m = { slots, model, ...opts, anim, gear: new THREE.InstancedMesh(model.gearLight || model, gearMat, n) };
     if (model.clothLight) m.cloth = new THREE.InstancedMesh(model.clothLight, clothMat, n);
     if (anim) {
-      m.men = slots.map(() => ({ reg: { T }, v: PACE.foot, alive: true }));
+      m.men = slots.map(() => ({ reg: { T }, v: MARCH, alive: true }));
       m.geos = { full: [animGeometry(model.gear, n), animGeometry(model.cloth, n)], light: [animGeometry(model.gearLight, n), animGeometry(model.clothLight, n)] };
     }
     for (const x of [m.gear, m.cloth]) if (x) { x.castShadow = true; x.frustumCulled = false; scene.add(x); }
@@ -305,7 +306,7 @@ function frame() {
   t += dt;
   parade.time = t;
   for (const reg of regiments) {
-    reg.s += PACE.foot * dt;
+    reg.s += MARCH * dt;
     reg.parts.forEach(part => {
       part.slots.forEach((slot, i) => placeFigure(reg, part, slot, i, t));
       for (const x of [part.gear, part.cloth]) if (x) {

@@ -7,6 +7,7 @@
 // built matters. Workers who are stuck fetch or clear their own goods, more slowly.
 import { audio } from './audio.js';
 import { RoadNet } from './roadnet.js';
+import { PACE } from './pace.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
 import { TYPES, vetRank, VET_RANKS } from './battle.js';
@@ -271,7 +272,7 @@ export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuch
 
 const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
-const WALK = 3.4;
+const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
 // A crate holds 10 of most goods; a yard or workshop holds 30 of each before it stops
 // for haulers. Arrows are light and go four times as far.
@@ -1553,7 +1554,7 @@ export class Town {
     if (v.state === 'shelter') return;
     if (v.state === 'haul') { if (this.doHaul(v, dt) && !v.task) v.state = 'idle'; return; }
     if (v.state === 'idle') {
-      if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, WALK * 0.5)) {
+      if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, PACE.wander)) {
         const a = this.rand() * Math.PI * 2, r = 13 + this.rand() * 8;
         v.wander = this.rand() < 0.02 || !v.wander ? { x: Math.sin(a) * r, z: Math.cos(a) * r } : v.wander;
       }
@@ -2184,7 +2185,7 @@ export class Town {
       return;
     }
     const home = v.folk || { x: 0, z: 0 };
-    if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, WALK * 0.5, 1)) {
+    if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, PACE.wander, 1)) {
       const a = this.rand() * Math.PI * 2, r = 2 + this.rand() * 6;
       v.wander = { x: home.x + Math.sin(a) * r, z: home.z + Math.cos(a) * r };
     }

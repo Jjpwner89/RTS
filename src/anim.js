@@ -102,6 +102,8 @@ export function gaitSpeed(rig, name) {
   if (!(v > 0.2)) console.warn(`anim: can't measure how fast the ${rig} ${name} clip walks${geo ? '' : ' (no baked figure of that skeleton)'}; it plays at its own pace`);
   return speeds[key] = v > 0.2 ? v : NaN;
 }
+// How fast figures walk (pace B): the one table, kept three-free in pace.js for the game logic.
+export { PACE, walkSpeed } from './pace.js';
 // The range of paces a gait may play at before the next one takes over (and, past the fastest, the most it is
 // hurried before the feet slide).
 export const CADENCE = { lo: 0.6, hi: 1.6, max: 2.2 };

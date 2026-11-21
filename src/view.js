@@ -30,9 +30,8 @@ const WHITE = new THREE.Color('#ffffff');
 // a horse's and its rider's share one clock. Also read by tools/viewer.html, with a stand-in soldier and battle.
 const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // carried upright on the march
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const HORSE_TROT = 2.4;
 // The gaits a man (or a war dog) on foot moves in, slowest first, for gaitFor to pick from. Read by checks.js too.
-export const footGaits = info => info.rig === 'dog' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];   // the stock trot steps short: a horse trots a little quicker than its clip before it gallops
+export const footGaits = info => info.rig === 'dog' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];
 export function soldierClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
   const dt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
@@ -56,7 +55,7 @@ export function soldierClip(s, b, info, out) {
 
   if (info.horse) {
     if (!s.alive) { out.hc = clipOf('horse', 'Idle'); return show('Ride_Idle', 0); }   // he goes down with his horse
-    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', ['Trot', 'Gallop'], s.v, HORSE_TROT), pace = g.name;
+    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', ['Trot', 'Gallop'], s.v), pace = g.name;
     s.animT += dt * g.rate;
     out.hc = clipOf('horse', pace); out.ht = s.animT;
     const lance = info.weapon === 'lance';
