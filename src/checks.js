@@ -1,0 +1,446 @@
+// Consistency checks (HOW_WE_BUILD.md section 4). Type checks() in the browser console on
+// world.html, town.html, battle.html or muster.html: it looks over whatever is loaded and
+// prints what passes and what fails. It only reads: nothing in the game is changed, and the
+// save check reloads a copy of the campaign in a hidden frame, never the save slots.
+//
+// checks()                 everything, the asset and save checks included (a second or two)
+// checks({ quick: true })  skips the asset and save checks
+// checks({ quiet: true })  returns the results without printing
+//
+// Each page loads this with one marked line before its own script, so errors from the
+// first frame on are counted. Add a check whenever you fix a bug one could have caught:
+// write it with check(group, name, fn) below, fn returning a list of problems (strings) or
+// { warn: [...] } for things that are suspect rather than wrong.
+
+// ---- watching from the moment the page loads ----
+
+// Errors, wherever they come from.
+const errors = [];
+const keep = text => { if (errors.length < 50) errors.push(String(text).slice(0, 300)); };
+const consoleError = console.error.bind(console);
+console.error = (...a) => { keep(a.map(x => x?.stack || x?.message || x).join(' ')); consoleError(...a); };
+addEventListener('error', e => keep(e.message ? `${e.message} (${e.filename?.split('/').pop()}:${e.lineno})` : `failed to load ${e.target?.src || e.target?.href || e.target?.tagName}`), true);
+addEventListener('unhandledrejection', e => keep(`unhandled: ${e.reason?.stack || e.reason}`));
+
+// Who has stood in the same spot while busy, sampled every two seconds of real time and
+// measured in game time (a paused game is nobody's fault).
+const STUCK = 60, SAMPLE = 2000, MOVED = 3;
+const stand = new WeakMap();   // villager or regiment → { x, z, since }
+function sampleStuck() {
+  for (const { battle, town } of scenes()) {
+    const now = battle.time;
+    const note = (o, x, z, busy) => {
+      const k = stand.get(o);
+      if (!busy || !k || Math.hypot(x - k.x, z - k.z) > MOVED || now < k.since) stand.set(o, { x, z, since: now, busy });
+    };
+    // villagers walking somewhere (walk() sets v.v) with a job to do
+    for (const v of town?.villagers || []) note(v, v.x, v.z, !v.hidden && ['haul', 'build', 'work', 'flee', 'idle'].includes(v.state) && v.v > 0 && (v.state !== 'idle' || !!v.task));
+    // regiments marching to an order and not fighting
+    for (const r of battle.regs) note(r, r.cx, r.cz, !r.gone && !r.routing && !!r.dest && !(r.engaged > 0));
+  }
+}
+setInterval(() => { try { sampleStuck(); } catch { /* the checks never break the game */ } }, SAMPLE);
+const stuckFor = (o, battle) => { const k = stand.get(o); return k?.busy ? battle.time - k.since : 0; };
+
+// ---- what is loaded ----
+
+const page = location.pathname.split('/').pop() || 'index.html';
+
+// Every running battle and village: the page's own, and on the world map every village
+// that runs (held, stormed or looked round) and the field battle on screen.
+function scenes() {
+  const g = window.game, out = [], seen = new Set();
+  const add = (battle, town, label, poi = null) => {
+    if (!battle || seen.has(battle)) return;
+    seen.add(battle);
+    out.push({ battle, town, label, poi });
+  };
+  if (!g) return out;
+  if (g.world) {
+    const c = g.current;
+    if (c?.town) add(c.town.battle, c.town, `${c.poi?.name || 'village'}${c.look ? ' (look-round)' : ''}`, c.poi);
+    if (c?.battle) add(c.battle, null, 'field battle');
+    for (const p of g.world.pois) if (p.town) add(p.town.battle, p.town, p.name, p);
+  } else if (g.town) add(g.battle, g.town, 'village');
+  else if (g.battle) add(g.battle, null, 'battle');
+  return out;
+}
+
+// ---- the checks ----
+
+const results = [];
+let group = '';
+async function check(name, fn) {
+  try {
+    const r = await fn();
+    if (r === null) return results.push({ group, name, status: 'skip', detail: [] });
+    const fails = Array.isArray(r) ? r : r?.fail || [], warns = r?.warn || [];
+    results.push({ group, name, status: fails.length ? 'fail' : warns.length ? 'warn' : 'pass', detail: fails.length ? fails : warns });
+  } catch (e) {
+    results.push({ group, name, status: 'fail', detail: [`the check itself threw: ${e.message}`] });
+  }
+}
+const bad = n => typeof n !== 'number' || !Number.isFinite(n);
+const live = s => s.alive && !s.gone;
+const sample = (list, n = 6) => (list.length > n ? [...list.slice(0, n), `… and ${list.length - n} more`] : list);
+const at = o => `(${Math.round(o.x)}, ${Math.round(o.z)})`;
+
+// Stores: nothing negative or broken in any building's goods.
+function storeProblems(holders, label) {
+  const out = [];
+  for (const b of holders) for (const part of ['store', 'incoming', 'reserved']) for (const [g, n] of Object.entries(b[part] || {})) {
+    if (bad(n)) out.push(`${label}: ${b.B?.name || b.kind} ${part}.${g} is ${n}`);
+    else if (n < -1e-6) out.push(`${label}: ${b.B?.name || b.kind} ${part}.${g} is ${n.toFixed(2)}`);
+  }
+  return out;
+}
+
+// Whether a place's numbers say it is walled. Mirrors World.storm() and campaign.js's
+// warning; when the place generator gives one answer for every view, ask it instead.
+function saysWalled(p) {
+  // your own villages are walled by what you build
+  if (p.town && p.owner === 0 && !p.town.hostile) return wallsOf(p.town.battle, 0) > 0;
+  if (p.eco?.walls) return p.eco.walls !== 'none';
+  return ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
+}
+const wallsOf = (battle, side) => battle.walls.pieces.filter(q => q.side === side && q.state !== 'site').length;
+
+async function battleChecks({ battle, town, label }) {
+  const regs = battle.regs.filter(r => !r.gone);
+  const { ARMOUR, canShield } = await import('./battle.js');
+
+  await check(`${label}: regiments add up`, () => {
+    const out = [];
+    for (const r of regs) {
+      // a captain stands with his regiment but isn't one of its men
+      const alive = r.soldiers.filter(s => live(s) && !s.captain).length;
+      if (r.alive !== alive) out.push(`${r.name} (side ${r.side}): says ${r.alive} alive, has ${alive} soldiers standing`);
+      if (r.alive < 0 || r.alive > Math.max(r.initial, r.soldiers.length)) out.push(`${r.name}: ${r.alive} alive of ${r.initial}`);
+      if (!ARMOUR[r.armour]) out.push(`${r.name}: unknown armour "${r.armour}"`);
+      if (r.shield && !canShield(r.T.key)) out.push(`${r.name}: a shield on ${r.T.key}, who can't carry one`);
+      if (r.T.range && (bad(r.ammo) || r.ammo < 0 || r.ammo > r.maxAmmo + 1e-6)) out.push(`${r.name}: ammo ${r.ammo} of ${r.maxAmmo}`);
+      if (r.engine && (bad(r.engine.hp) || r.engine.hp < 0)) out.push(`${r.name}: engine hp ${r.engine.hp}`);
+      if (bad(r.morale)) out.push(`${r.name}: morale ${r.morale}`);
+    }
+    return sample(out);
+  });
+
+  await check(`${label}: nobody lost off the map`, () => {
+    const out = [];
+    for (const s of battle.soldiers) if (live(s) && (bad(s.x) || bad(s.z) || bad(s.y) || bad(s.hp))) out.push(`${s.reg.name}: a soldier at (${s.x}, ${s.z}) with ${s.hp} hp`);
+    for (const r of regs) if (bad(r.cx) || bad(r.cz)) out.push(`${r.name}: centre at (${r.cx}, ${r.cz})`);
+    for (const v of town?.villagers || []) if (bad(v.x) || bad(v.z)) out.push(`villager ${v.id} (${v.state}) at (${v.x}, ${v.z})`);
+    return sample(out);
+  });
+
+  await check(`${label}: nobody stuck for over a minute`, () => {
+    const out = [];
+    for (const r of regs) { const t = stuckFor(r, battle); if (t > STUCK) out.push(`${r.name} has had an order for ${Math.round(t)}s and not moved, at ${at({ x: r.cx, z: r.cz })}`); }
+    for (const v of town?.villagers || []) { const t = stuckFor(v, battle); if (t > STUCK) out.push(`villager ${v.id} (${v.state}${v.task?.kind ? ', ' + v.task.kind : ''}${v.job ? ' at the ' + v.job.B.name : ''}) walking on the spot for ${Math.round(t)}s at ${at(v)}`); }
+    const ran = (performance.now() / 1000) | 0;
+    return out.length ? sample(out) : ran < STUCK ? { warn: [`the page has only been open ${ran}s, so this can't see a minute's sticking yet`] } : [];
+  });
+
+  if (battle.river) await check(`${label}: nobody standing in deep water`, () => {
+    const out = [];
+    for (const r of regs) {
+      if (r.dest || r.routing) continue;
+      const wet = r.soldiers.filter(s => live(s) && battle.waterAt(s.x, s.z) >= 2).length;
+      if (wet) out.push(`${r.name}: ${wet} of ${r.alive} men standing in deep water with no order`);
+    }
+    return sample(out);
+  });
+
+  const solid = town ? town.buildings.filter(b => b.state === 'active' && b.B.radius) : [];
+  if (town) await check(`${label}: nobody inside a building`, () => {
+    const out = [];
+    const inside = (o, what) => {
+      for (const b of solid) if (Math.hypot(o.x - b.x, o.z - b.z) < b.B.radius * 0.6) { out.push(`${what} inside the ${b.B.name} at ${at(b)}`); return; }
+      const k = town.keep;
+      if (Math.hypot(o.x - k.x, o.z - k.z) < k.B.radius * 0.6) out.push(`${what} inside the keep`);
+    };
+    for (const v of town.villagers) if (!v.hidden && v.state !== 'soldier') inside(v, `villager ${v.id} (${v.state})`);
+    for (const r of regs) { const s = r.soldiers.find(s => live(s) && !s.perch); if (s) inside(s, r.name); }
+    return sample(out);
+  });
+
+  if (town) await check(`${label}: villagers and levies add up`, () => {
+    const out = [];
+    if (town.atWork + town.underArms !== town.population) out.push(`${town.atWork} at work + ${town.underArms} under arms ≠ ${town.population} people`);
+    for (const v of town.villagers) {
+      if (v.state === 'soldier' && !v.soldier) out.push(`villager ${v.id} is a soldier in no regiment`);
+      if (v.state === 'soldier' && v.soldier && !v.soldier.alive && !v.dead) out.push(`villager ${v.id} is a fallen soldier still counted`);
+    }
+    for (const b of town.buildings) {
+      for (const w of b.workers || []) if (!town.villagers.includes(w)) out.push(`the ${b.B.name} at ${at(b)} lists a worker who isn't in the village`);
+      if ((b.workers?.length || 0) > town.jobs(b)) out.push(`the ${b.B.name} at ${at(b)} has ${b.workers.length} workers for ${town.jobs(b)} jobs`);
+    }
+    for (const r of regs) {
+      if (!r.levy || r.side !== 0) continue;
+      const men = town.villagers.filter(v => v.soldier?.reg === r && v.soldier.alive).length;
+      if (men !== r.alive) out.push(`${r.name}: ${r.alive} men standing, ${men} of them villagers`);
+    }
+    return sample(out);
+  });
+
+  if (town) await check(`${label}: nothing negative in any store`, () => {
+    const out = storeProblems(town.holders(), label);
+    for (const [g, n] of Object.entries(town.stock)) if (bad(n) || n < -1e-6) out.push(`stock of ${g} is ${n}`);
+    if (bad(town.purse?.gold)) out.push(`purse holds ${town.purse?.gold} gold`);
+    return sample(out);
+  });
+}
+
+// ---- the world map ----
+
+async function worldChecks(w) {
+  const { FACTIONS, headcount } = await import('./world/world.js');
+  const { builtCount } = await import('./world/holdings.js');
+  group = 'World';
+
+  await check('places: numbers are sane', () => {
+    const out = [];
+    for (const p of w.pois) {
+      const e = p.eco;
+      if (p.owner !== null && !FACTIONS[p.owner]) out.push(`${p.name}: owned by house ${p.owner}, which doesn't exist`);
+      if (e && (bad(e.pop) || e.pop < 0)) out.push(`${p.name}: ${e.pop} people`);
+      for (const [g, n] of Object.entries(e?.stock || {})) if (bad(n) || n < -1e-6) out.push(`${p.name}: ${n} ${g} in store`);
+      for (const [k, n] of Object.entries(e?.buildings || {})) if (bad(n) || n < 0 || n % 1) out.push(`${p.name}: ${n} × ${k}`);
+      for (const u of p.garrison || []) if (bad(u.count) || u.count < 0 || u.count % 1) out.push(`${p.name}: garrison ${u.name} has ${u.count} men`);
+    }
+    return sample(out);
+  });
+
+  await check('houses and armies: numbers are sane', () => {
+    const out = [];
+    for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);
+    for (const a of w.armies) {
+      if (a.gone) continue;
+      if (bad(a.x) || bad(a.z)) out.push(`${a.name}: at (${a.x}, ${a.z})`);
+      for (const u of a.units) if (bad(u.count) || u.count <= 0 || u.count % 1) out.push(`${a.name}: ${u.name} has ${u.count} men`);
+      if (a.food !== undefined && (bad(a.food) || a.food < -1e-6)) out.push(`${a.name}: ${a.food} food`);
+    }
+    return sample(out);
+  });
+
+  // The map draws walls round a place from its kind (worldview.js cityWall); its numbers
+  // (eco.walls) and a storm decide them another way. They must agree.
+  await check('walled places have walls on the map', async () => {
+    const view = window.game.worldView, out = [];
+    const { buildingModel } = await import('./models.js');
+    if (!view?.places) return null;
+    const wallGeos = new Set(['wall.stone', 'wall.wood', 'gate.stone', 'gate.wood'].map(buildingModel).filter(Boolean));
+    for (const p of w.pois) {
+      const o = view.places.get(p);
+      if (!o?.parts || !p.seen) continue;
+      let drawn = false;
+      o.parts.traverse(m => { if (m.geometry && wallGeos.has(m.geometry)) drawn = true; });
+      if (saysWalled(p) && !drawn) out.push(`${p.name} (${p.kind}${p.seat !== undefined ? ', seat' : ''}): ${p.eco?.walls || 'walled by kind'} by its numbers, no walls on the map`);
+      if (!saysWalled(p) && drawn) out.push(`${p.name} (${p.kind}): no walls by its numbers, walls on the map`);
+    }
+    return sample(out, 10);
+  });
+
+  // A place you storm or look round is built from its numbers: it should show all of them.
+  for (const p of w.pois) {
+    const t = p.town;
+    if (!t || !p.eco?.buildings || p.owner === 0 && !t.hostile && !t.readOnly) continue;
+    const view = t.hostile ? 'storm' : t.readOnly ? 'look-round' : 'village';
+    const side = t.hostile ? 1 : 0;
+    group = `${p.name} (${view})`;
+    await check('every building in its tally is placed', () => {
+      const have = {}, out = [];
+      for (const b of t.buildings) if (b.state === 'active') have[b.kind] = (have[b.kind] || 0) + 1;
+      for (const [k, n] of Object.entries(p.eco.buildings)) if ((have[k] || 0) < n) out.push(`${k}: ${n} in its numbers, ${have[k] || 0} standing`);
+      for (const [k, n] of Object.entries(have)) if (k !== 'house' && !p.eco.buildings[k]) out.push(`${k}: ${n} standing, none in its numbers`);
+      return out.length ? [`${builtCount(p.eco)} buildings in its numbers, ${t.buildings.filter(b => b.state === 'active').length} standing`, ...sample(out, 10)] : [];
+    });
+    await check('walled by its numbers, walled here', () => {
+      const n = wallsOf(t.battle, side), says = saysWalled(p);
+      if (says && !n) return [`its numbers say ${p.eco.walls || 'walled'}; no walls here`];
+      if (!says && n) return [`its numbers say no walls; ${n} wall pieces here`];
+      const stone = t.battle.walls.pieces.filter(q => q.side === side && q.material === 'stone').length;
+      if (p.eco.walls === 'stone' && n && !stone) return [`its numbers say stone; the walls here are timber`];
+      if (p.eco.walls === 'wood' && stone) return [`its numbers say timber; ${stone} stone pieces here`];
+      return [];
+    });
+    await check('people match its numbers', () => {
+      const pop = Math.round(p.eco.pop), here = t.population + (t.hostile?.folk || []).reduce((n, u) => n + u.count, 0);
+      const out = Math.abs(here - pop) > Math.max(3, pop * 0.1) ? [`${pop} people in its numbers, ${here} here${t.hostile ? ' (villagers and those turned out)' : ''}`] : [];
+      return t.hostile && out.length ? { warn: out } : out;
+    });
+    if (t.hostile) await check('garrison matches its numbers', () => {
+      // only before the fighting starts: after that, men fall
+      if (t.battle.deploying === false || t.battle.time > 5 && !t.battle.deploy) return null;
+      const want = headcount(p.garrison) + (t.hostile.folk || []).reduce((n, u) => n + u.count, 0);
+      const here = t.battle.regs.filter(r => r.side === 1 && !r.gone).reduce((n, r) => n + r.alive, 0);
+      return here !== want ? [`${want} men in its garrison and folk, ${here} defenders here`] : [];
+    });
+  }
+}
+
+// ---- a save and reload give back the same numbers ----
+
+// Reloads a snapshot in a hidden frame with its own copy of the game's modules, so the
+// live campaign (and its module-level state, like FACTIONS) is never touched.
+async function saveChecks(w) {
+  const { canSave, snapshot } = await import('./world/save.js');
+  group = 'Save and reload';
+  await check('a save reloads to the same numbers', async () => {
+    const ok = canSave(w);
+    if (!ok.ok) return { warn: [`can't save right now (${ok.reason}), so not checked`] };
+    const before = snapshot(w);
+    const frame = document.createElement('iframe');
+    frame.style.display = 'none';
+    const map = document.querySelector('script[type="importmap"]')?.outerHTML || '';
+    frame.srcdoc = `<!doctype html><base href="${location.href}">${map}`;
+    document.body.appendChild(frame);
+    try {
+      await new Promise(r => { frame.onload = r; });
+      const url = new URL('world/save.js', import.meta.url).href;
+      const S = await frame.contentWindow.eval(`import(${JSON.stringify(url)})`);
+      const hooks = new Proxy({}, { get: (_, k) => (k === 'then' ? undefined : () => null) });
+      const w2 = S.loadGame(frame.contentWindow.JSON.parse(JSON.stringify(before)), hooks);
+      const after = JSON.parse(JSON.stringify(S.snapshot(w2)));
+      return sample(diffSaves(before, after), 12);
+    } finally { frame.remove(); }
+  });
+}
+
+function diffSaves(a, b) {
+  const out = [];
+  const same = (what, x, y) => { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(`${what}: ${short(x)} → ${short(y)}`); };
+  const short = v => { const s = JSON.stringify(v); return s && s.length > 80 ? s.slice(0, 77) + '…' : s; };
+  const round = o => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v) : v]));
+  const tally = list => { const t = {}; for (const x of list) t[x] = (t[x] || 0) + 1; return t; };
+  a.houses.forEach((h, i) => { const k = b.houses[i]; if (!h || !k) return; same(`${h.name} gold`, Math.round(h.gold || 0), Math.round(k.gold || 0)); });
+  a.pois.forEach((p, i) => {
+    const q = b.pois[i];
+    if (!q) return out.push(`${p.name}: gone after reload`);
+    same(`${p.name} owner`, p.owner, q.owner);
+    same(`${p.name} people`, Math.round(p.eco?.pop ?? 0), Math.round(q.eco?.pop ?? 0));
+    same(`${p.name} buildings`, p.eco?.buildings, q.eco?.buildings);
+    same(`${p.name} walls`, p.eco?.walls, q.eco?.walls);
+    same(`${p.name} garrison`, (p.garrison || []).map(u => `${u.count} ${u.key}`), (q.garrison || []).map(u => `${u.count} ${u.key}`));
+  });
+  same('armies', a.armies.map(x => `${x.name}: ${(x.units || []).map(u => u.count).join('+')}`), b.armies.map(x => `${x.name}: ${(x.units || []).map(u => u.count).join('+')}`));
+  for (const t of a.towns) {
+    const u = b.towns.find(o => o.i === t.i), name = a.pois[t.i]?.name;
+    if (!u) { out.push(`${name}: its village is gone after reload`); continue; }
+    same(`${name} buildings`, tally(t.buildings.map(x => `${x.kind}/${x.state}/${x.level}`)), tally(u.buildings.map(x => `${x.kind}/${x.state}/${x.level}`)));
+    same(`${name} people at work`, t.people, u.people);
+    same(`${name} regiments`, t.regiments.map(r => `${r.count} ${r.key} ${r.armour}`), u.regiments.map(r => `${r.count} ${r.key} ${r.armour}`));
+    same(`${name} keep store`, round(t.keep.store), round(u.keep.store));
+    same(`${name} walls`, t.walls.pieces.length, u.walls.pieces.length);
+    same(`${name} keep level`, t.state.keepLevel, u.state.keepLevel);
+    same(`${name} mood`, Math.round(t.state.mood), Math.round(u.state.mood));
+  }
+  return out;
+}
+
+// ---- every sound, model and icon the code names exists ----
+
+let assetMemo = null;   // assets don't change while the page is open; check them once
+async function assetChecks() {
+  group = 'Assets';
+  if (!assetMemo) assetMemo = findAssets();
+  const found = await assetMemo;
+  for (const r of found) results.push({ group, ...r });
+}
+
+async function findAssets() {
+  const out = [];
+  const push = (name, fails, warns = []) => out.push({ name, status: fails.length ? 'fail' : warns.length ? 'warn' : 'pass', detail: fails.length ? sample(fails, 12) : sample(warns, 12) });
+  const base = new URL('../', import.meta.url).href;
+  const exists = async url => { try { const r = await fetch(url, { method: 'HEAD', cache: 'no-store' }); return r.ok; } catch { return false; } };
+  const missing = async urls => (await Promise.all(urls.map(async u => ((await exists(base + u)) ? null : u)))).filter(Boolean);
+
+  // the game's own scripts, as the page loaded them
+  const scripts = [...new Set(performance.getEntriesByType('resource').map(e => e.name).filter(n => n.startsWith(base + 'src/') && n.endsWith('.js')))];
+  const sources = Object.fromEntries(await Promise.all(scripts.map(async s => [s.slice(base.length), await fetch(s).then(r => r.text()).catch(() => '')])));
+  delete sources['src/checks.js'];
+  const all = Object.values(sources).join('\n');
+
+  // Sounds: every file in audio.js's tables, and every sound name the code plays.
+  const audioSrc = sources['src/audio.js'] || await fetch(base + 'src/audio.js').then(r => r.text()).catch(() => '');
+  const files = new Set();
+  for (const m of audioSrc.matchAll(/files:\s*\[([^\]]*)\]/g)) for (const f of m[1].matchAll(/'([^']+)'/g)) files.add(`assets/audio/${f[1]}.mp3`);
+  for (const m of audioSrc.matchAll(/'((?:music)\/[^']+\.mp3)'/g)) files.add(`assets/audio/${m[1]}`);
+  for (const m of audioSrc.matchAll(/'(amb\/[^']+)'/g)) files.add(`assets/audio/${m[1]}.mp3`);
+  const names = new Set([...audioSrc.matchAll(/^\s+(\w+):\s*\{\s*files:/gm)].map(m => m[1]));
+  for (const m of audioSrc.matchAll(/const (?:ALIAS|BEDS) = \{([^}]*)\}/g)) for (const k of m[1].matchAll(/(\w+):/g)) names.add(k[1]);
+  const played = new Set();
+  for (const m of all.matchAll(/(?:audio\.(?:play|tick)|sound\?\.|\bplay)\(\s*'(\w+)'/g)) played.add(m[1]);
+  push(`sound files (${files.size})`, (await missing([...files])).map(f => `missing ${f}`));
+  push(`sounds the code plays (${played.size})`, [...played].filter(n => !names.has(n)).map(n => `plays '${n}', which audio.js doesn't have`));
+
+  // Icons: named in the code and in the game's tables.
+  const icons = new Set();
+  // ico('x'), ico(a ? 'x' : 'y'), icon: 'x' in the tables, iconImage('x')
+  for (const m of all.matchAll(/\bico\(([^()]*?)[,)]/g)) for (const q of m[1].matchAll(/'([\w-]*\w)'/g)) icons.add(q[1]);
+  for (const m of all.matchAll(/\b(?:icon:|iconImage\()\s*'([\w-]*\w)'\s*[,)}]/g)) icons.add(m[1]);
+  const { ARMOUR_LEVELS, buildingModel, unitModel } = await import('./models.js');
+  if (/[`']armour-/.test(all)) for (const l of ARMOUR_LEVELS) icons.add(`armour-${l}`);
+  for (const el of document.querySelectorAll('.ico')) { const m = el.style.getPropertyValue('--i').match(/icons\/([\w-]+)\.svg/); if (m) icons.add(m[1]); }
+  push(`icons (${icons.size})`, (await missing([...icons].map(i => `assets/icons/${i}.svg`))).map(f => `missing ${f}`));
+
+  // Models: one for every building and every kind of soldier, or it falls back to a shape built in code.
+  const { BUILDINGS } = await import('./economy.js');
+  const { TYPES, lookChain } = await import('./battle.js');
+  const noModel = [];
+  for (const kind of Object.keys(BUILDINGS)) {
+    const base = kind === 'house' ? 'house.0' : kind === 'monastery' ? 'chapel' : kind;
+    if (!buildingModel(base) && !buildingModel(kind)) noModel.push(`building '${kind}'`);
+  }
+  for (const [key, T] of Object.entries(TYPES)) {
+    // a kind without its own model borrows the nearest one (battle.js lookChain)
+    if (T.engine ? !buildingModel('siege.' + T.engine.kind) : !lookChain(key).some(k => unitModel(k))) noModel.push(`${T.engine ? 'engine' : 'soldier'} '${key}'`);
+  }
+  for (const m of ['wall.stone', 'wall.wood', 'gate.stone', 'gate.wood', 'tower.stone', 'tower.wood', 'wagon']) if (!buildingModel(m)) noModel.push(`'${m}'`);
+  push('models', [], noModel.map(n => `no baked model for ${n}: drawn as a shape built in code`));
+  return out;
+}
+
+// ---- the page as a whole ----
+
+function pageChecks() {
+  group = 'Page';
+  const failed = performance.getEntriesByType('resource').filter(e => e.responseStatus >= 400).map(e => `${e.responseStatus} ${e.name.replace(location.origin, '')}`);
+  results.push({ group, name: 'no console errors', status: errors.length ? 'fail' : 'pass', detail: sample(errors, 8) });
+  results.push({ group, name: 'every file loaded', status: failed.length ? 'fail' : 'pass', detail: sample([...new Set(failed)], 8) });
+}
+
+// ---- running them ----
+
+export async function checks({ quick = false, quiet = false } = {}) {
+  results.length = 0;
+  const t0 = performance.now();
+  pageChecks();
+  if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
+  for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
+  if (window.game?.world) await worldChecks(window.game.world);
+  if (!quick) {
+    await assetChecks();
+    if (window.game?.world) await saveChecks(window.game.world);
+  }
+  const n = s => results.filter(r => r.status === s).length;
+  const summary = { page, pass: n('pass'), fail: n('fail'), warn: n('warn'), skip: n('skip'), ms: Math.round(performance.now() - t0), results: results.slice() };
+  if (!quiet) print(summary);
+  return summary;
+}
+
+const MARK = { pass: '✅', fail: '❌', warn: '⚠️', skip: '·' };
+function print(s) {
+  const head = `checks() on ${s.page}: ${s.fail ? `${s.fail} failed` : 'all passed'}${s.warn ? `, ${s.warn} to look at` : ''} (${s.pass} passed${s.skip ? `, ${s.skip} not run` : ''}, ${s.ms} ms)`;
+  console.log(`%c${head}`, `font-weight:bold;color:${s.fail ? '#c0392b' : s.warn ? '#b9770e' : '#1e8449'}`);
+  let last = null;
+  for (const r of s.results) {
+    if (r.group !== last) { console.log(`%c${r.group}`, 'font-weight:bold'); last = r.group; }
+    const line = `  ${MARK[r.status]} ${r.name}`;
+    if (r.detail.length && r.status !== 'pass') { console.groupCollapsed(line); for (const d of r.detail) console.log(d); console.groupEnd(); }
+    else console.log(line);
+  }
+}
+
+window.checks = checks;
+checks.diffSaves = diffSaves;   // for testing the save check itself
