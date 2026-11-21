@@ -259,6 +259,48 @@ async function worldChecks(w) {
     return sample(out);
   });
 
+  // Vassals and the Realm screen (Manager review, 2026-11-21).
+  const V = await import('./world/vassals.js');
+  group = 'Vassals';
+  const kept = w.vassals.filter(v => !v.gone);
+  await check('one holder per council seat', () => Object.keys(V.SEATS).map(k => [k, kept.filter(v => v.council && v.seat === k)])
+    .filter(([, vs]) => vs.length > 1).map(([k, vs]) => `${V.SEATS[k].name}: ${vs.map(v => v.name).join(', ')}`));
+  await check('no councillor without a seat', () => kept.filter(v => v.council ? !V.SEATS[v.seat] : v.seat).map(v => `${v.name}: council ${v.council}, seat ${v.seat}`));
+  await check(`favours owed are ${V.FAVOURS} at most`, () => kept.filter(v => bad(v.favours || 0) || v.favours < 0 || v.favours > V.FAVOURS).map(v => `${v.name} owes ${v.favours}`));
+  await check("no vassal's purse below nothing", () => kept.filter(v => bad(v.gold) || v.gold < -1e-6).map(v => `${v.name}: ${v.gold} gold`));
+  // The supply form sends from and to what it shows. Drives the Realm screen's own form, then
+  // puts it back as it was; nothing is sent.
+  const R = (await import('./realmscreen.js')).RealmScreen.shown;
+  const runs = w.pois.filter(p => p.owner === 0 && p.town && !p.vassal);
+  const pick = runs.find(p => p !== w.home), other = runs.find(p => p !== pick);
+  await check("the supply form's ends are what it sends", () => {
+    if (!R || !pick || !other) return null;
+    const was = { hidden: R.el.hidden, tab: R.tab, run: { ...R.run } }, out = [];
+    try {
+      R.show('supplies');
+      const sel = R.el.querySelector('select[data-set="from"]');
+      sel.value = pick.id;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      const shown = R.el.querySelector('select[data-set="from"]').value, to = R.el.querySelector('select[data-set="to"]').value;
+      if (w.byId[R.run.from] !== pick) out.push(`chose ${pick.name} to send from; it would send from ${w.byId[R.run.from]?.name || R.run.from}`);
+      if (shown !== pick.id) out.push(`chose ${pick.name} to send from; the form shows ${w.byId[shown]?.name || shown}`);
+      if (to === pick.id) out.push(`${pick.name} is both ends`);
+      // "Send food" to a place picks someone else to send it.
+      const b = document.createElement('button');
+      b.dataset.act = `supply::${other.id}:food`;
+      R.click({ target: b });
+      if (w.byId[R.run.to] !== other) out.push(`"Send food" to ${other.name} would send to ${w.byId[R.run.to]?.name || R.run.to}`);
+      if (R.run.from === other.id) out.push(`"Send food" to ${other.name} would send from ${other.name} too`);
+    } finally {
+      Object.assign(R, { tab: was.tab, run: was.run });
+      if (was.hidden) R.hide(); else R.update(true);
+    }
+    // Redrawing in place must leave the screen itself alone (it once stripped its own id).
+    if (R.el.id !== 'realm' || R.el.hidden !== was.hidden) out.push(`after a redraw the screen is id "${R.el.id}", hidden ${R.el.hidden}`);
+    return out;
+  });
+  group = 'World';
+
   // The map draws each place from its layout (places.js, worldview.js miniature); its numbers
   // (eco.walls) say whether it is walled. They must agree.
   await check('walled places have walls on the map', async () => {

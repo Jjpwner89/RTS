@@ -1430,8 +1430,16 @@ export class World {
 
   // What you can do for or to a vassal, from the place panel.
   // arg: a place (grant, revoke, arms) or a council seat (seat); see vassals.js interact.
+  // Every dealing with a vassal, from the map panel and the Realm screen. A refusal always
+  // says why, on screen (the caller shows .text) and in the console.
   vassalAct(v, act, arg) {
-    if (!v || v.gone) return { ok: false };
+    const r = this.dealWith(v, act, arg);
+    if (!r.ok) console.warn(`[vassals] ${v?.name || 'no vassal'}, ${act}: ${r.text}`);
+    return r;
+  }
+
+  dealWith(v, act, arg) {
+    if (!v || v.gone) return { ok: false, text: 'They are no longer your vassal' };
     const me = FACTIONS[0];
     const done = interact(this, v, act, arg);
     if (done) return done;
@@ -1439,7 +1447,7 @@ export class World {
       const k = act.startsWith('dues') ? 'dues' : 'levy', up = act.endsWith('+');
       const was = v[k];
       v[k] = Math.max(0, Math.min(2, v[k] + (up ? 1 : -1)));
-      if (v[k] === was) return { ok: false };
+      if (v[k] === was) return { ok: false, text: `${k === 'dues' ? 'Dues' : 'Levies'} are as ${up ? 'heavy' : 'light'} as they go` };
       // Raising what they owe stings for a while on top of the standing grievance, unless
       // they owe you a favour.
       let text;
@@ -1456,7 +1464,7 @@ export class World {
       recall(this, v, `You judged their feud with ${foe.name} in their favour`);
       recall(this, foe, `You judged their feud with ${v.name} against them`);
       endFeud(this, v, foe);
-      owe(this, v, `judged for against ${foe.name}`);
+      owe(this, v, `judging their feud with ${foe.name} for them`);
       return { ok: true, text: `You judge for ${v.name}. ${foe.name} goes home angry.` };
     }
     if (act === 'reconcile' && foe) {
@@ -1466,7 +1474,8 @@ export class World {
       endFeud(this, v, foe);
       return { ok: true, text: `${v.name} and ${foe.name} shake hands at your table.` };
     }
-    return { ok: false };
+    if (act === 'judge' || act === 'reconcile') return { ok: false, text: `${v.name} has no feud to settle` };
+    return { ok: false, text: `No such dealing: ${act}` };
   }
 
   // Out of your dungeon, landless and grateful, until you give them a village.

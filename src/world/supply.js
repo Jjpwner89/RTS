@@ -200,7 +200,7 @@ export const cartsNear = (w, a) => w.armies.filter(o => (o.wagon?.trade || o.wag
 // burned. Half of each good stays at home. A raider who meets the wagon seizes it.
 // (2026-11-20) Raised from 40 food, 20 bread, 40 wood, 20 planks, 30 stone and 10 iron, which
 // fed a village of sixty for under a minute; still half of what is spare.
-const RUN_GOODS = { food: 120, bread: 60, wood: 80, planks: 30, stone: 60, iron: 20 };
+export const RUN_GOODS = { food: 120, bread: 60, wood: 80, planks: 30, stone: 60, iron: 20 };
 const RUN_PEOPLE = 4;
 // What a run carries (the Realm screen lets you choose): food, building goods, or both.
 export const RUN_KINDS = { all: 'Food and building goods', food: 'Food only', build: 'Building goods only' };

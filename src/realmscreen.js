@@ -16,7 +16,7 @@ import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, 
   moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN } from './world/vassals.js';
 import { elitePay } from './world/treasury.js';
 import { wage } from './world/companies.js';
-import { runCheck, sendRun, loadText, RUN_KINDS } from './world/supply.js';
+import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
 import { alerts } from './world/alerts.js';
 import { ROAD_UPKEEP, decreed } from './world/decrees.js';
 import { ico } from './icons.js';
@@ -73,6 +73,28 @@ function vassalTrouble(w, v) {
   return out;
 }
 
+// Brings `el`'s children in line with `to`'s, changing only the text, attributes and nodes
+// that differ (`el`'s own attributes are left alone). A node of another kind is replaced;
+// selects and checkboxes follow their attributes, which say what is chosen.
+function patch(el, to) {
+  const was = [...el.childNodes], now = [...to.childNodes];
+  now.forEach((n, i) => {
+    const o = was[i];
+    if (!o) el.appendChild(n);
+    else if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName) el.replaceChild(n, o);
+    else if (o.nodeType !== Node.ELEMENT_NODE) { if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; }
+    else {
+      const pick = o.tagName === 'SELECT' ? (n.querySelector('option[selected]') || n.querySelector('option'))?.value : null;
+      for (const a of [...o.attributes]) if (!n.hasAttribute(a.name)) o.removeAttribute(a.name);
+      for (const a of n.attributes) if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+      patch(o, n);
+      if (pick != null && o.value !== pick) o.value = pick;
+      if (o.tagName === 'INPUT' && o.type === 'checkbox') o.checked = o.hasAttribute('checked');
+    }
+  });
+  for (const o of was.slice(now.length)) o.remove();
+}
+
 export class RealmScreen {
   // hooks: enter(place), select(place, army or { house }), visit(place), flash(text, good).
   constructor(world, hooks) {
@@ -85,6 +107,7 @@ export class RealmScreen {
     this.run = { from: null, to: null, what: 'all', fam: true };
     this.armsTo = null;        // where a vassal is called to arms
     this.ledger = [];          // the purse and dues every ten seconds, for the treasury
+    RealmScreen.shown = this;  // the one screen, for checks()
     this.el = document.createElement('aside');
     this.el.id = 'realm';
     this.el.hidden = true;
@@ -101,14 +124,24 @@ export class RealmScreen {
   show(tab, pick) { if (tab) this.tab = tab; if (pick !== undefined) this.pick = pick; this.el.hidden = false; this.at = 0; this.update(true); }
   hide() { this.el.hidden = true; this.confirm = null; }
   toggle() { if (this.open) this.hide(); else this.show(); }
-  say(r) { if (r?.text) this.hooks.flash?.(r.text, r.ok); }
+  // What a dealing did: a refusal always says why (world.vassalAct warns in the console).
+  say(r) { if (r?.ok) { if (r.text) this.hooks.flash?.(r.text, true); } else this.hooks.flash?.(r?.text || 'That cannot be done now.', false); }
+  refuse(why) { console.warn(`[realm] ${why}`); this.hooks.flash?.(why, false); this.update(true); }
+
+  // The village of yours best able to spare `what` for `to` (most of it in store), or null.
+  giver(to, what = 'all') {
+    const w = this.w, dest = w.byId[to], key = what === 'build' ? 'wood' : 'food';
+    return w.pois.filter(p => p.owner === 0 && p.town && !p.vassal && p !== dest && runCheck(w, p, dest, what, false).ok)
+      .sort((a, b) => (runLoad(b, what, false).goods[key] || 0) - (runLoad(a, what, false).goods[key] || 0))[0] || null;
+  }
 
   change(e) {
     const k = e.target.dataset.set;
     if (!k) return;
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    if (k === 'arms') this.armsTo = +val;
-    else this.run[k] = k === 'from' || k === 'to' ? +val : val;
+    // Place ids are strings ('p12'): kept as they are.
+    if (k === 'arms') this.armsTo = val;
+    else this.run[k] = val;
     this.update(true);
   }
 
@@ -122,22 +155,32 @@ export class RealmScreen {
     if (act === 'sort') { this.sort = id; return this.update(true); }
     if (act === 'go') { this.hide(); return this.hooks.enter(w.byId[id]); }
     if (act === 'map') { this.hide(); return this.hooks.select(w.byId[id]); }
-    if (act === 'army') { const a = w.armies.find(o => o.id === +id && !o.gone); if (a) { this.hide(); this.hooks.select(a); } return; }
+    if (act === 'army') { const a = w.armies.find(o => o.id === +id && !o.gone); if (!a) return this.refuse('That army is no longer on the map.'); this.hide(); return this.hooks.select(a); }
     if (act === 'visit') { this.hide(); return this.hooks.visit?.(w.byId[id]); }
     if (act === 'house') { this.hide(); return this.hooks.select({ house: FACTIONS[+id] }); }
     if (act === 'pick') { this.pick = +id; this.tab = 'vassals'; this.confirm = null; return this.update(true); }
-    if (act === 'supply') { this.run.from = +id; this.run.to = x ? +x : this.run.to; this.tab = 'supplies'; return this.update(true); }
+    if (act === 'supply') {
+      // supply:from[:to[:what]]; with no sender (supply::to:what), the village best able to spare it.
+      const R = this.run;
+      if (y) R.what = y;
+      if (x) R.to = x;
+      R.from = id || this.giver(R.to, R.what)?.id || null;
+      this.tab = 'supplies';
+      return this.update(true);
+    }
     if (act === 'run') {
       // run:from:to[:what:families]; from the form when no places are given.
-      const R = this.run, from = w.byId[id ?? R.from], to = w.byId[x ?? R.to];
-      const r = sendRun(w, from, to, y ?? R.what, z !== undefined ? z === '1' : R.fam);
-      this.hooks.flash?.(r.ok ? `A wagon sets out from ${from.name} for ${to.name}: ${loadText(r.wagon.wagon)}.` : r.why, r.ok);
+      const R = this.run, from = w.byId[id || R.from], to = w.byId[x || R.to];
+      if (!from || !to) return this.refuse(`No such village: ${!from ? id || R.from : x || R.to}.`);
+      const r = sendRun(w, from, to, y || R.what, z !== undefined ? z === '1' : R.fam);
+      if (!r.ok) return this.refuse(r.why);
+      this.hooks.flash?.(`A wagon sets out from ${from.name} for ${to.name}: ${loadText(r.wagon.wagon)}.`, true);
       return this.update(true);
     }
     if (act === 'v') {
       // v:vassal:act[:arg]. Arrests and taking land back ask twice.
       const v = w.vassals.find(o => o.id === +id);
-      if (!v) return;
+      if (!v) return this.refuse(`No such vassal (${id}).`);
       const key = b.dataset.act;
       if ((x === 'arrest' || x === 'revoke') && this.confirm !== key) { this.confirm = key; return this.update(true); }
       this.confirm = null;
@@ -175,12 +218,13 @@ export class RealmScreen {
     const body = this[`tab_${this.tab}`]?.() ?? this.tab_realm();
     const html = `<header><h2>${ico('crown', '#e8c45a')} Your realm <small>${esc(w.rank)} · ${plural(w.pois.filter(p => p.owner === 0).length, 'place')} · ${num(FACTIONS[0].gold)} gold</small></h2>
       <nav>${tabs}</nav><button data-act="close" class="close" title="Close (Tab or Esc)">✕</button></header><div class="body">${body}</div>`;
-    if (html !== this.html) {
-      const scroll = this.el.querySelector('.body')?.scrollTop || 0;
-      this.html = html;
-      this.el.innerHTML = html;
-      this.el.querySelector('.body').scrollTop = scroll;
-    }
+    if (html === this.html) return;
+    this.html = html;
+    if (!this.el.firstChild) { this.el.innerHTML = html; return; }
+    // Only what changed is touched, so hover, focus, tooltips and scroll stay put.
+    const next = document.createElement('aside');
+    next.innerHTML = html;
+    patch(this.el, next);
   }
 
   // A count on a tab when something there needs you.
@@ -237,7 +281,7 @@ export class RealmScreen {
     const worst = [...rows].sort((a, b) => a.mood - b.mood).filter((r, i) => i === 0 || r.mood < 45).slice(0, 2), hungry = [...rows].sort((a, b) => a.food - b.food)[0];
     const vilbox = `<section class="box"><h4>${ico('village')} Villages</h4>${rows.length ? `<p>${num(rows.reduce((n, r) => n + r.pop, 0))} people in ${plural(rows.length, 'village')} you run, paying ${num(rows.reduce((n, r) => n + r.tax, 0))} gold a minute.</p>`
       + worst.map(r => `<div class="line"><span class="grow">Least content: <b>${esc(r.p.name)}</b></span><span class="${r.mood >= 45 ? 'good' : r.mood >= 30 ? 'warn' : 'bad'}">${townMood(r.mood)} (${Math.round(r.mood)})</span></div>`).join('')
-      + (hungry ? `<div class="line"><span class="grow">Shortest of food: <b>${esc(hungry.p.name)}</b></span><span class="${hungry.food < 3 ? 'bad' : ''}">${Math.round(hungry.food)} min</span><span class="acts"><button data-act="supply::${hungry.p.id}">Send food</button></span></div>` : '') : '<p class="note">You run no village yourself.</p>'}<p class="note"><button data-act="tab:villages">All villages</button></p></section>`;
+      + (hungry ? `<div class="line"><span class="grow">Shortest of food: <b>${esc(hungry.p.name)}</b></span><span class="${hungry.food < 3 ? 'bad' : ''}">${Math.round(hungry.food)} min</span><span class="acts"><button data-act="supply::${hungry.p.id}:food">Send food</button></span></div>` : '') : '<p class="note">You run no village yourself.</p>'}<p class="note"><button data-act="tab:villages">All villages</button></p></section>`;
 
     return tiles + `<div class="boxes">${needBox}${counsel}${vbox}${vilbox}${hbox}</div>`;
   }
@@ -265,15 +309,14 @@ export class RealmScreen {
       let text = null, btn = null;
       const short = rows.filter(r => r.food < 3 || r.t.hungry).sort((a, b) => a.food - b.food)[0];
       const cold = rows.filter(r => r.t.cold || r.wood < 10).sort((a, b) => a.wood - b.wood)[0];
-      const giver = (to, what, key) => rows.filter(r => r !== to && runCheck(w, r.p, to.p, what, false).ok).sort((a, b) => b[key] - a[key])[0];
       if (short) {
-        const g = giver(short, 'food', 'food');
-        text = `${short.p.name} has food for ${Math.round(short.food)} minutes${g ? `; ${g.p.name} can spare some.` : ', and no village can spare any. Build farms or buy grain.'}`;
-        if (g) btn = [`run:${g.p.id}:${short.p.id}:food:0`, `Send food from ${g.p.name}`];
+        const g = this.giver(short.p.id, 'food');
+        text = `${short.p.name} has food for ${Math.round(short.food)} minutes${g ? `; ${g.name} can spare some.` : ', and no village can spare any. Build farms or buy grain.'}`;
+        if (g) btn = [`run:${g.id}:${short.p.id}:food:0`, `Send food from ${g.name}`];
       } else if (cold) {
-        const g = giver(cold, 'build', 'wood');
-        text = `${cold.p.name} is short of wood${cold.t.cold ? ' and its hearths are cold' : ''}${g ? `; ${g.p.name} can spare some.` : '.'}`;
-        if (g) btn = [`run:${g.p.id}:${cold.p.id}:build:0`, `Send goods from ${g.p.name}`];
+        const g = this.giver(cold.p.id, 'build');
+        text = `${cold.p.name} is short of wood${cold.t.cold ? ' and its hearths are cold' : ''}${g ? `; ${g.name} can spare some.` : '.'}`;
+        if (g) btn = [`run:${g.id}:${cold.p.id}:build:0`, `Send goods from ${g.name}`];
       } else {
         const m = this.money();
         text = m.net >= 0 ? `The stores hold and the coffers fill: ${signed(m.net)} gold a minute.` : `We pay out more than we take in: ${signed(m.net)} gold a minute. Raise taxes, or let some knights or sellswords go.`;
@@ -356,7 +399,7 @@ export class RealmScreen {
     const runs = w.pois.filter(p => p.owner === 0 && p.town && !p.vassal);
     if (runs.length < 2) return '<p class="note">Supplies go between villages you run. Once you hold two, you can send a wagon of food, building goods and a few families from one to the other here.</p>';
     const R = this.run;
-    if (!runs.some(p => p.id === R.from)) R.from = (w.home?.town ? w.home : runs[0]).id;
+    if (!runs.some(p => p.id === R.from)) R.from = (w.home?.town && w.home.id !== R.to ? w.home : runs.find(p => p.id !== R.to)).id;
     if (!runs.some(p => p.id === R.to) || R.to === R.from) R.to = runs.find(p => p.id !== R.from).id;
     const from = w.byId[R.from], to = w.byId[R.to];
     const opts = (sel, skip) => runs.filter(p => p.id !== skip).map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
@@ -377,24 +420,23 @@ export class RealmScreen {
       if (r.wood < 20 || r.t.cold) short.push([r, 'build', r.t.cold ? 'Cold hearths' : `Only ${num(r.wood)} wood`]);
     }
     const shortBox = `<section class="box"><h4>${ico('warning')} Short of</h4>${short.length ? short.map(([r, what, why]) => {
-      const key = what === 'food' ? 'food' : 'wood';
-      const g = rows.filter(o => o !== r && runCheck(w, o.p, r.p, what, false).ok).sort((a, b) => b[key] - a[key])[0];
+      const g = this.giver(r.p.id, what);
       const coming = w.armies.some(a => a.wagon?.run && a.wagon.to === r.p && !a.gone);
-      return `<div class="line"><b>${esc(r.p.name)}</b><span class="grow warn">${why}${coming ? ' <small class="good">· a wagon is on its way</small>' : ''}</span><span class="acts">${g ? `<button data-act="run:${g.p.id}:${r.p.id}:${what}:0">Send ${what === 'food' ? 'food' : 'goods'} from ${esc(g.p.name)}</button>` : '<small>nobody can spare any</small>'}</span></div>`;
+      return `<div class="line"><b>${esc(r.p.name)}</b><span class="grow warn">${why}${coming ? ' <small class="good">· a wagon is on its way</small>' : ''}</span><span class="acts">${g ? `<button data-act="run:${g.id}:${r.p.id}:${what}:0">Send ${what === 'food' ? 'food' : 'goods'} from ${esc(g.name)}</button>` : '<small>nobody can spare any</small>'}</span></div>`;
     }).join('') : '<p class="ok">Every village has food and wood enough.</p>'}</section>`;
 
     const carts = w.armies.filter(a => a.wagon?.run && a.side === 0 && !a.gone);
     const road = `<section class="box"><h4>${ico('map')} On the road</h4>${carts.length ? carts.map(a => {
-      const W = a.wagon, left = Math.hypot(W.to.x - a.x, W.to.z - a.z) / (8 * 0.8 * (decreed(w, 'roads') ? 1.2 : 1));
+      const W = a.wagon, left = runTime(w, a, W.to);
       const guard = w.armies.find(o => o.escort === a.id && !o.gone);
       return `<div class="line"><span class="grow"><b>${esc(W.from.name)} → ${esc(W.to.name)}</b>: ${loadText(W)}<br><small>${W.bought ? 'Bought at market' : 'Supply run'} · ${clock(left)} to go${guard ? ` · guarded by ${esc(guard.name)}` : ' · unguarded'}</small></span><span class="acts"><button data-act="army:${a.id}">Find</button></span></div>`;
     }).join('') : '<p class="note">No wagons on the road.</p>'}</section>`;
 
     const spare = `<section class="box wide"><h4>What each village can spare</h4><table><thead><tr><th>Village</th><th>Food</th><th>Wood</th><th>Planks</th><th>Stone</th><th>Iron</th><th>Families</th><th></th></tr></thead><tbody>${runs.map(p => {
-      const s = p.town.stock, half = g => Math.floor((s[g] || 0) / 2), busy = w.armies.some(a => a.wagon?.run && a.wagon.from === p && !a.gone);
-      return `<tr><th><b>${esc(p.name)}</b></th><td>${half('food') + half('bread')}</td><td>${half('wood')}</td><td>${half('planks')}</td><td>${half('stone')}</td><td>${half('iron')}</td><td>${p.town.population > 20 ? 4 : '<small>none</small>'}</td>
+      const L = runLoad(p), n = g => L.goods[g] || 0, busy = w.armies.some(a => a.wagon?.run && a.wagon.from === p && !a.gone);
+      return `<tr><th><b>${esc(p.name)}</b></th><td>${n('food') + n('bread')}</td><td>${n('wood')}</td><td>${n('planks')}</td><td>${n('stone')}</td><td>${n('iron')}</td><td>${L.people || '<small>none</small>'}</td>
         <td class="acts">${busy ? '<small>wagon out</small>' : `<button data-act="supply:${p.id}">Send from here</button>`}</td></tr>`;
-    }).join('')}</tbody></table><p class="note">Half of what is in store; a wagon carries at most 120 food, 60 bread, 80 wood, 30 planks, 60 stone and 20 iron.</p></section>`;
+    }).join('')}</tbody></table><p class="note">What one wagon would carry: half of what is in store, and at most ${Object.entries(RUN_GOODS).map(([g, k]) => `${k} ${g}`).join(', ')}.</p></section>`;
     return `<div class="boxes">${form}${shortBox}${road}</div>${spare}`;
   }
 
@@ -434,7 +476,7 @@ export class RealmScreen {
     const grants = w.pois.filter(p => p.owner === 0 && p.town && p !== w.home && w.canGrant(p).ok);
     const land = `${held.map(p => `<div class="line"><span class="grow">${ico('village')} <b>${esc(p.name)}</b> <small>${Math.round(p.eco?.pop || 0)} people · ${headcount(p.garrison || [])} men</small></span><span class="acts">
         <button data-act="visit:${p.id}" title="Look round it: you can look, not build or give orders">Look round</button>
-        ${sure(`revoke:${p.id}`) ? `${btn(`revoke:${p.id}`, 'Yes, take it back', true, '', 'warn')}<button data-act="cancel">No</button>` : btn(`revoke:${p.id}`, 'Take it back', true, `You get ${p.name} back as it stands. ${v.name} and every other vassal will remember it (−30 and −12).`, 'warn')}</span></div>`).join('')}
+        ${sure(`revoke:${p.id}`) ? `${held.length > 1 ? '' : `<span class="warn">All they hold: ${esc(v.name)} leaves your service for good.</span> `}${btn(`revoke:${p.id}`, 'Yes, take it back', true, '', 'warn')}<button data-act="cancel">No</button>` : btn(`revoke:${p.id}`, 'Take it back', true, held.length > 1 ? `You get ${p.name} back as it stands. ${v.name} and every other vassal will remember it (−30 and −12).` : `You get ${p.name} back as it stands. It is all ${v.name} holds: they leave your service for good, and every other vassal minds it (−12).`, 'warn')}</span></div>`).join('')}
       ${grants.length ? `<div class="acts-row"><small>Grant them:</small> ${grants.map(p => btn(`grant:${p.id}`, `${ico('crown')} ${esc(p.name)}`, true, w.canGrant(p).warn || `${p.name} goes to ${v.name} to run for you`)).join('')}</div>` : ''}`;
 
     // Council.

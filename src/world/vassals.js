@@ -35,7 +35,7 @@ export const ULTIMATUM = 180;       // seconds a faction of two or more waits be
 export const REFUSE = -25;          // below this they pay nothing and send nobody
 export const HONOUR_EVERY = 600;    // a vassal can be honoured before your court this often
 export const DEMAND_MIN = 30;       // gold a vassal must hold before you can demand some
-const FAVOURS = 2;                  // a vassal owes you at most this many favours
+export const FAVOURS = 2;                  // a vassal owes you at most this many favours
 const WANT_KEPT = 900;              // a want met this long gives way to a new one
 const CALL_AGAIN = 600;             // called to arms again sooner than this, they grumble
 const PETITION_EVERY = [600, 900];  // seconds between petitions from your vassals
@@ -253,7 +253,7 @@ function newWant(w, v) {
 export function owe(w, v, why) {
   if ((v.favours || 0) >= FAVOURS) return;
   v.favours = (v.favours || 0) + 1;
-  remember(w, v, `Owes you a favour: ${why}`);
+  remember(w, v, `Owes you a favour for ${why}`);
 }
 
 const landed = w => living(w).filter(v => !v.landless && holdingsOf(w, v).length);
@@ -388,15 +388,15 @@ export function interact(w, v, act, arg) {
   }
   if (act === 'seat' || act === 'unseat') {
     if (act === 'unseat') {
-      if (!v.council) return { ok: false };
+      if (!v.council) return { ok: false, text: `${v.name} has no seat on your council` };
       v.council = false; v.seat = null;
       mark(w, v, -10, 'Put off your council', 1200);
       remember(w, v, 'Put off your council');
       return { ok: true, text: `${v.name} leaves your council.` };
     }
-    if (!SEATS[arg]) return { ok: false };
+    if (!SEATS[arg]) return { ok: false, text: `No such council seat: ${arg}` };
     const was = seatHolder(w, arg);
-    if (was === v) return { ok: false };
+    if (was === v) return { ok: false, text: `${v.name} is your ${SEATS[arg].name.toLowerCase()} already` };
     if (was) { was.council = false; was.seat = null; mark(w, was, -10, 'Put off your council', 1200); remember(w, was, `Put off your council for ${v.name}`); }
     const moved = v.council;
     v.council = true; v.seat = arg;
@@ -407,20 +407,22 @@ export function interact(w, v, act, arg) {
     const p = arg, c = w.canGrant(p);
     if (!c.ok) return { ok: false, text: c.why };
     w.grant(p, v);
-    owe(w, v, `given ${p.name}`);
+    owe(w, v, `the gift of ${p.name}`);
     return { ok: true, text: `${p.name} is held for you by ${v.name} now.` };
   }
   if (act === 'revoke') {
-    if (!arg || arg.vassal !== v.id || !w.revoke(arg)) return { ok: false };
+    if (!arg) return { ok: false, text: 'No such place' };
+    if (arg.vassal !== v.id) return { ok: false, text: `${v.name} does not hold ${arg.name}` };
+    if (!w.revoke(arg)) return { ok: false, text: `${arg.name} is not yours to take back` };
     return { ok: true, text: `You take ${arg.name} back from ${v.name}.` };
   }
   if (act === 'pardon') {
-    if (!w.pardon(v)) return { ok: false };
-    owe(w, v, 'pardoned');
+    if (!w.pardon(v)) return { ok: false, text: `${v.name} is not in your dungeon` };
+    owe(w, v, 'their pardon');
     return { ok: true, text: `${v.name} walks free, and waits at your court for land.` };
   }
   if (act === 'banish') {
-    if (!v.prison) return { ok: false };
+    if (!v.prison) return { ok: false, text: `${v.name} is not in your dungeon` };
     v.prison = false; v.gone = true; v.banished = true;
     remember(w, v, 'Banished from the realm');
     for (const o of living(w)) mark(w, o, -4, `You banished ${v.name}`, 1200);
@@ -463,7 +465,7 @@ const PETITIONS = {
       const n = 60;
       return { title: `${v.name} asks for help`, text: `A lean year at ${p.name}: the stores are low before the harvest. ${v.name} asks you for ${n} gold to buy grain.`,
         choices: [
-          { label: `Send ${n} gold`, ok: w.houses[0].gold >= n, run: () => { w.houses[0].gold -= n; v.gold += n; mark(w, v, 12, 'You helped them through a lean year', 1800); owe(w, v, 'helped through a lean year'); remember(w, v, 'Helped by you through a lean year'); return `${p.name} eats, and ${v.name} owes you for it.`; } },
+          { label: `Send ${n} gold`, ok: w.houses[0].gold >= n, need: () => w.houses[0].gold < n && `You no longer have ${n} gold to send`, run: () => { w.houses[0].gold -= n; v.gold += n; mark(w, v, 12, 'You helped them through a lean year', 1800); owe(w, v, 'your help in a lean year'); remember(w, v, 'Helped by you through a lean year'); return `${p.name} eats, and ${v.name} owes you for it.`; } },
           { label: 'They must manage', run: () => { mark(w, v, -8, 'You left them to go hungry', 1200); remember(w, v, 'Refused help in a lean year'); return `${v.name} goes home with nothing.`; } },
         ] };
     },
@@ -475,7 +477,7 @@ const PETITIONS = {
       const what = { chapel: 'a chapel', market: 'a market', well: 'a well', house: 'new houses' }[k];
       return { title: `${v.name} asks leave to build`, text: `${v.name} would raise ${what} at ${p.name} from their own purse, and asks your leave.`,
         choices: [
-          { label: 'Give your leave', run: () => { v.gold -= 60; if (p.eco?.buildings) p.eco.buildings[k] = (p.eco.buildings[k] || 0) + 1; mark(w, v, 6, 'You let them build', 1200); remember(w, v, `Built ${what} at ${p.name}`); return `${v.name} builds ${what} at ${p.name}.`; } },
+          { label: 'Give your leave', need: () => v.gold < 60 && `${v.name} no longer has the 60 gold to build with`, run: () => { v.gold -= 60; if (p.eco?.buildings) p.eco.buildings[k] = (p.eco.buildings[k] || 0) + 1; mark(w, v, 6, 'You let them build', 1200); remember(w, v, `Built ${what} at ${p.name}`); return `${v.name} builds ${what} at ${p.name}.`; } },
           { label: 'Forbid it', run: () => { mark(w, v, -6, 'You forbade them to build', 1200); return `${v.name} is told no.`; } },
         ] };
     },
@@ -494,7 +496,7 @@ const PETITIONS = {
       const n = Math.round(v.gold / 3 / 10) * 10;
       return { title: `A gift from ${v.name}`, text: `${v.name} has had a good year, and sends you ${n} gold with their thanks.`,
         choices: [
-          { label: `Take it gladly (+${n} gold)`, run: () => { v.gold -= n; w.houses[0].gold += n; mark(w, v, 3, 'You took their gift kindly', 900); return `${n} gold comes in from ${v.name}.`; } },
+          { label: `Take it gladly (+${n} gold)`, need: () => v.gold < n && `${v.name}'s purse no longer holds ${n} gold`, run: () => { v.gold -= n; w.houses[0].gold += n; mark(w, v, 3, 'You took their gift kindly', 900); return `${n} gold comes in from ${v.name}.`; } },
           { label: 'Send it back with your thanks', run: () => { mark(w, v, 10, 'You returned their gift', 1800); return `${v.name} is touched.`; } },
         ] };
     },
@@ -513,6 +515,11 @@ function tickPetitions(w) {
   const kinds = Object.entries(PETITIONS).filter(([, P]) => P.when(w, v));
   const [id, P] = kinds[Math.floor(w.rand() * kinds.length)];
   const ev = P.make(w, v, p);
-  const choices = ev.choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => { if (v.gone || v.prison || !(c.ok ?? true)) return null; const out = c.run(); w.log(out); return out; } }));
+  // Checked again when chosen: the purse or the vassal may have changed while it waited.
+  const choices = ev.choices.map(c => ({ label: c.label, ok: c.ok ?? true, run: () => {
+    const why = v.gone ? `${v.name} is no longer your vassal` : v.prison ? `${v.name} is in your dungeon` : c.need?.();
+    if (why) { console.warn(`[vassals] petition ${id} from ${v.name}: ${why}`); w.log(`${why}.`); return `${why}.`; }
+    const out = c.run(); w.log(out); return out;
+  } }));
   w.hooks.choice({ id: `petition-${id}`, image: PAINTED.has('petition') ? 'assets/art/events/petition.png' : null, at: seat, ...ev, choices });
 }
