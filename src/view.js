@@ -83,7 +83,7 @@ export function soldierClip(s, b, info, out) {
   if (b.winner === r.side) { s.animT += dt; return show('Cheer', s.animT % 2.6); }
   if (s.v >= 0.4 || s.climb > 0) {
     // (a climber keeps stepping up his ladder however slowly he rises)
-    return pace(footGaits(info), Math.max(s.v, 0.8));
+    return pace(footGaits(info), s.climb > 0 ? Math.max(s.v, 0.8) : s.v);
   }
   // standing: spears brace against what's coming, shields close up in a tight line
   const braced = T.braces && info.weapon === 'spear' && (r.formation === 'square' || r.hold || r.engaged > 0);

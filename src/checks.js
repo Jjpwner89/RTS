@@ -604,7 +604,7 @@ async function findAssets() {
       if (clipOf(rig, n) && !(gaitSpeed(rig, n) > 0)) noClip.add(`can't measure the ${rig} '${n}' stride: it plays at its own pace and its feet slide`);
     }
     // every pace a figure moves at has a gait that keeps up (pace.js): a man or dog on foot from a shuffle to a little
-    // past his top speed; a horse from its walk to a little past its run (not the charge's last burst); a villager
+    // past his top speed (shuffling into his place included); a horse from its walk to a little past its run (not the charge's last burst); a villager
     // from a stroll to running for shelter along a road, carrying or not
     const T = TYPES[key];
     const paces = (rig, gaits, lo, hi) => {
@@ -615,7 +615,7 @@ async function findAssets() {
       }
       if (slide.length) noClip.add(`${key}: from ${slide[0].toFixed(1)} to ${slide.at(-1).toFixed(1)} m/s no ${rig} gait keeps pace, so the feet slide`);
     };
-    if (T && !a.horse) paces(a.rig, footGaits(a), 0.8, T.speed * 1.25);
+    if (T && !a.horse) paces(a.rig, footGaits(a), 0.4, T.speed * 1.25);   // (from the 0.4 m/s a man is drawn moving at: view.js)
     if (T && a.horse) paces('horse', HORSE_GAITS, walkSpeed(T), T.speed * 1.2);
     if (key === 'villager') for (const g of [['Walk', 'Run'], ['CarryWalk', 'CarryRun']]) paces(a.rig, g, PACE.wander, PACE.foot * 1.6 * ROAD.speed);
   }

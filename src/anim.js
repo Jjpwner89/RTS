@@ -105,8 +105,9 @@ export function gaitSpeed(rig, name) {
 // How fast figures walk (pace B): the one table, kept three-free in pace.js for the game logic.
 export { PACE, walkSpeed } from './pace.js';
 // The range of paces a gait may play at before the next one takes over (and, past the fastest, the most it is
-// hurried before the feet slide).
-export const CADENCE = { lo: 0.6, hi: 1.6, max: 2.2 };
+// hurried before the feet slide). Only the slowest gait ever plays below about 0.7 (the next one takes over at
+// `hi` of the last), so `lo` is how slowly a man may shuffle into his place in slow steps rather than slide.
+export const CADENCE = { lo: 0.3, hi: 1.6, max: 2.2 };
 // Which of `gaits` (slowest first) to show at ground speed v, and how fast to play it so the feet keep pace: the
 // slowest that keeps up without hurrying past `hi`. { name, rate }, rate 1 being the clip's own pace.
 export function gaitFor(rig, gaits, v, hi = CADENCE.hi) {

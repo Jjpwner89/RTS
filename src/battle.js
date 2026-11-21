@@ -6,6 +6,7 @@ import { HALF, HOMES } from './terrain.js';
 import { audio } from './audio.js';
 import { Walls, toSegment } from './walls.js';
 import { Nav } from './nav.js';
+import { walkSpeed } from './pace.js';
 
 // role: what the unit is for, shown on its card. kit: goods each man needs to be raised
 // (the Realm side decides where they come from). gold: the price per man for hired and
@@ -2335,13 +2336,13 @@ export class Battle {
 
   // Walking pace B (the creator, 2026-11-21): a regiment walks unless it runs: charging,
   // routing, closing the last 30 m on a foe, or told to (the Run toggle, r.run, or a
-  // double-clicked order, r.runOnce). T.speed is the run; the walk is about 1.6 m/s on foot
-  // and 1.8 on horseback (or a type's own T.walk), never faster than its run.
+  // double-clicked order, r.runOnce). T.speed is the run; the walk is a type's own T.walk, or
+  // its kind's pace in pace.js (about 1.6 m/s on foot, 1.8 on horseback), never faster than its run.
   running(r) {
     const t = r.targetReg;
     return !!(r.run || r.runOnce || r.routing || this.time < r.chargeUntil || (t && !t.gone && Math.hypot(t.cx - r.cx, t.cz - r.cz) < 30));
   }
-  gaitPace(r) { const T = r.T; return this.running(r) ? T.speed : T.walk ?? Math.min(T.speed, T.mounted || T.dog ? 1.8 : 1.6); }
+  gaitPace(r) { const T = r.T; return this.running(r) ? T.speed : T.walk ?? walkSpeed(T); }
 
   // How much a regiment's tiredness and armour slow it.
   // (`hurry`: men running to catch up, as a village's militia following its soldiers in, economy.js)
