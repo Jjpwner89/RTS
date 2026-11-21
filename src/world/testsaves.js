@@ -14,6 +14,10 @@ export const TEST_RANKS = {
     blurb: 'Five places, at minute 24, one held by a vassal: the knights\' hall, and the great houses take notice.' },
   duke: { name: 'Duke', places: 11, minutes: 42, gold: 4000, people: 80, vassals: 3,
     blurb: 'Eleven places, at minute 42, three held by vassals: half the realm, the palace, and the crown within reach.' },
+  // The Duke save, crowned at Kingsbridge and carried into Part 2 (UI, 2026-11-21: royal
+  // decrees and the war in the north had no save to try them on).
+  king: { name: 'King', places: 11, minutes: 42, gold: 6000, people: 80, vassals: 3, crowned: true,
+    blurb: 'Crowned at minute 42 with eleven places: royal decrees, every house your vassal, and the wall fallen in the north.' },
 };
 const SEED = 7;
 const STOCK = { wood: 250, stone: 200, planks: 80, iron: 30, food: 400, flax: 20, string: 20 };
@@ -115,6 +119,12 @@ export async function makeTestCampaign(key, progress = () => {}) {
   for (const p of far.slice(0, T.vassals || 0)) {
     const v = w.grant(p, null);
     if (v && !w.vassals.some(o => o.council)) w.vassalAct(v, 'seat', 'steward');
+  }
+  if (T.crowned) {
+    if (w.crown.owner !== 0) take(w, w.crown);
+    Object.assign(w, { crowned: true, victory: 'sword' });
+    w.chron('Kingsbridge was yours and the realm knelt: you were crowned.');
+    w.beginPart2();
   }
   w.update(0.5);
   updateGoals(w, {});   // starts on the goal for its rank, the ones before ticked quietly

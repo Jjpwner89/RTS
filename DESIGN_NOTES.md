@@ -405,6 +405,7 @@ The creator tests by playing the campaign and wanted a save at each rank to try 
 
 - **Lord**: 2 places at minute 10, 800 gold, Ashford at 35 people. About 3 s to prepare.
 - **Count**: 5 places at minute 24, 2,000+ gold, Ashford at 60 (the 60-person templates open). About 13 s. In the check, every house was Contending and Varn at war with you.
+- **King** (?test=king): the Duke save, crowned at Kingsbridge and carried into Part 2 (decrees, every house a vassal, the wall fallen). checks(): 111 pass, 0 fail.
 - **Duke**: 11 places at minute 42, 4,000+ gold (about 20,000 with the coin of the places taken), Ashford at 80 (every template open). About 40 s. Every house was at war with you, for testing peace, dowries and buying off a coalition.
 - Ashford gets building stock for templates (250 wood, 200 stone, 80 planks, 30 iron) and finished houses to make room for the people.
 - Test campaigns save to their own slot (`rts.campaign.test`, chosen by `options.test`), so the real campaign is never overwritten; **Continue test** on the title page picks the test one up.

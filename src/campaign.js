@@ -51,8 +51,8 @@ import { unlocked } from './ui/unlocks.js';
 import * as news from './ui/news.js';
 
 const params = new URLSearchParams(location.search);
-// ?continue picks up the saved campaign (?continue=test the test one); ?test=lord, count or
-// duke makes a fresh test campaign at that rank; otherwise a new one, on ?seed= if given.
+// ?continue picks up the saved campaign (?continue=test the test one); ?test=lord, count,
+// duke or king makes a fresh test campaign at that rank; otherwise a new one, on ?seed= if given.
 const loaded = params.has('continue') ? readSave(params.get('continue') === 'test')
   : TEST_RANKS[params.get('test')] ? await testCampaign(params.get('test')) : null;
 async function testCampaign(key) {
