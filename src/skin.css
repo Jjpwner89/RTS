@@ -279,3 +279,10 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 
 /* A new-thing slip is narrower in a small window, so it fits beside a docked panel. */
 @media (max-width: 800px), (max-height: 600px) { #newslip { max-width: 280px; padding: 5px 6px 5px 10px; font-size: 13px; } }
+
+/* Stock strip: a good's change over the last minute (townhud.js trends()): green up, ink down, red when the food will not last. */
+#stock .goods span[data-cell] { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; min-width: 0; }
+#stock .goods .trend { font: 700 9px/1 var(--body-font); font-style: normal; white-space: nowrap; color: var(--dim); }
+#stock .goods .trend.up { color: var(--good); }
+#stock .goods .trend.down.low { color: var(--bad); }
+#stock .goods .trend:empty { display: none; }

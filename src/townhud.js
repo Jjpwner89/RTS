@@ -152,8 +152,10 @@ export class TownHud {
       <button data-act="standdown" class="wide muster" hidden><span>Stand the militia down</span><small>back to their work</small></button>
       ${GOOD_GROUPS.map(([label, goods]) => `
         <h4 data-grp="${label}">${label}</h4>
-        <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${gi(g)}<b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
+        <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${gi(g)}<b data-g="${g}">0</b><i class="trend" data-trend="${g}"></i></span>`).join('')}</div>`).join('')}`;
     this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
+    this.trendEls = new Map([...this.stockEl.querySelectorAll('[data-trend]')].map(e => [e.dataset.trend, e]));
+    this.hist = null;
     this.cellEls = [...this.stockEl.querySelectorAll('[data-cell]')];
     this.grpEls = [...this.stockEl.querySelectorAll('[data-grp]')];
     this.fold(pref('stock-folded', small()));
@@ -236,6 +238,32 @@ export class TownHud {
     for (const el of this.grpEls) el.hidden = !live.has(el.dataset.grp);
   }
 
+  // Each good's change over the last minute or so, a minute's worth, so a delivery doesn't flicker it:
+  // ▲3 or ▼3 beside the count. Food that is falling with under three minutes in store turns red.
+  trends() {
+    const t = this.town, s = t.stock, now = t.time;
+    if (!this.hist || this.hist.town !== t) this.hist = { town: t, at: -99, rows: [] };
+    const h = this.hist;
+    if (now < h.at) { h.rows = []; h.at = -99; }   // the clock went back: a new game
+    if (now - h.at >= 5) { h.at = now; h.rows.push({ now, v: { ...s } }); while (h.rows.length > 2 && now - h.rows[1].now >= 75) h.rows.shift(); }
+    const ref = h.rows[0], span = ref ? now - ref.now : 0;
+    for (const [g, el] of this.trendEls) {
+      let text = '', cls = '', per = 0;
+      if (span >= 30 && !el.parentElement.hidden) {
+        per = (s[g] - ref.v[g]) * 60 / span;
+        const n = Math.round(per);
+        if (Math.abs(per) >= 0.5 && n) {
+          text = `${n > 0 ? '▲' : '▼'}${Math.abs(n)}`;
+          cls = n > 0 ? 'up' : g === 'food' && s[g] / -per < 3 ? 'down low' : 'down';
+        }
+      }
+      if (el.textContent !== text) el.textContent = text;
+      if (el.className !== `trend ${cls}`) el.className = `trend ${cls}`;
+      const cell = el.parentElement, tip = text ? `${GOODS[g].name}: ${text.startsWith('▲') ? 'rising' : 'falling'} by about ${text.slice(1).split(' ')[0]} a minute over the last minute${cls.includes('low') ? `; at that rate the stores last about ${Math.max(1, Math.floor(s[g] / -per))} min` : ''}` : '';
+      if ((cell.dataset.tip || '') !== tip) { if (tip) cell.dataset.tip = tip; else delete cell.dataset.tip; }
+    }
+  }
+
   flash(text) {
     if (!text) { this.toastEl.classList.remove('show'); return; }
     this.toastEl.textContent = text;
@@ -250,6 +278,7 @@ export class TownHud {
     if (t.hostile) { this.updateStorm(); this.updateInfo(selected, regs); return; }
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
     this.showGoods();
+    this.trends();
     this.fitColumn();
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
     const armed = t.underArms;
