@@ -514,7 +514,7 @@ const PETITIONS = {
       const n = 60;
       return { title: `${v.name} asks for help`, text: `A lean year at ${p.name}: the stores are low before the harvest. ${v.name} asks you for ${n} gold to buy grain.`,
         choices: [
-          { label: `Send ${n} gold`, ok: w.houses[0].gold >= n, why: `you have ${Math.floor(w.houses[0].gold)}`, need: () => w.houses[0].gold < n && `You no longer have ${n} gold to send`, run: () => { w.houses[0].gold -= n; v.gold += n; mark(w, v, 12, 'You helped them through a lean year', 1800); owe(w, v, 'your help in a lean year'); remember(w, v, 'Helped by you through a lean year'); return `${p.name} eats, and ${v.name} owes you for it.`; } },
+          { label: `Send ${n} gold`, ok: () => w.houses[0].gold >= n, why: () => `you have ${Math.floor(w.houses[0].gold)}`, need: () => w.houses[0].gold < n && `You no longer have ${n} gold to send`, run: () => { w.houses[0].gold -= n; v.gold += n; mark(w, v, 12, 'You helped them through a lean year', 1800); owe(w, v, 'your help in a lean year'); remember(w, v, 'Helped by you through a lean year'); return `${p.name} eats, and ${v.name} owes you for it.`; } },
           { label: 'They must manage', run: () => { mark(w, v, -8, 'You left them to go hungry', 1200); remember(w, v, 'Refused help in a lean year'); return `${v.name} goes home with nothing.`; } },
         ] };
     },
@@ -564,12 +564,22 @@ function tickPetitions(w) {
   const kinds = Object.entries(PETITIONS).filter(([, P]) => P.when(w, v));
   const [id, P] = kinds[Math.floor(w.rand() * kinds.length)];
   const ev = P.make(w, v, p);
-  // Checked again when chosen: the purse or the vassal may have changed while it waited.
-  // A choice you can't take says why on its face.
-  const choices = ev.choices.map(c => ({ label: (c.ok ?? true) || !c.why ? c.label : `${c.label} (${c.why})`, ok: c.ok ?? true, why: c.ok ?? true ? null : c.why, run: () => {
-    const why = v.gone ? `${v.name} is no longer your vassal` : v.prison ? `${v.name} is in your dungeon` : c.need?.();
-    if (why) { console.warn(`[vassals] petition ${id} from ${v.name}: ${why}`); w.log(`${why}.`); return { ok: false, text: `${why}.` }; }   // campaign.js shows a refusal red
-    const out = c.run(); w.log(out); return out;
-  } }));
-  w.hooks.choice({ id: `petition-${id}`, image: PAINTED.has('petition') ? 'assets/art/events/petition.png' : null, at: seat, ...ev, choices });
+  w.hooks.choice({ id: `petition-${id}`, image: PAINTED.has('petition') ? 'assets/art/events/petition.png' : null, at: seat, ...ev, choices: petitionChoices(w, v, id, ev) });
+}
+
+// Checked again when chosen: the purse or the vassal may have changed while it waited.
+// A choice you can't take says why on its face; ok, why and label are read live, so taxes
+// that come in while you read light a greyed choice back up.
+export function petitionChoices(w, v, id, ev = PETITIONS[id].make(w, v, holdingsOf(w, v)[0])) {
+  const val = f => typeof f === 'function' ? f() : f;
+  return ev.choices.map(c => ({
+    get ok() { return val(c.ok) ?? true; },
+    get why() { return this.ok ? null : val(c.why) ?? null; },
+    get label() { return this.why ? `${c.label} (${this.why})` : c.label; },
+    run: () => {
+      const why = v.gone ? `${v.name} is no longer your vassal` : v.prison ? `${v.name} is in your dungeon` : c.need?.();
+      if (why) { console.warn(`[vassals] petition ${id} from ${v.name}: ${why}`); w.log(`${why}.`); return { ok: false, text: `${why}.` }; }   // campaign.js shows a refusal red
+      const out = c.run(); w.log(out); return out;
+    },
+  }));
 }

@@ -330,6 +330,20 @@ async function worldChecks(w) {
   await check('titles are real and named', () => kept.filter(v => !Number.isInteger(v.title ?? 0) || (v.title || 0) < 0 || (v.title || 0) >= V.TITLES.length || !v.name.startsWith(`${V.titleName(v)} `))
     .map(v => `${v.name}: title ${v.title}`));
   await check("no vassal's purse below nothing", () => kept.filter(v => bad(v.gold) || v.gold < -1e-6).map(v => `${v.name}: ${v.gold} gold`));
+  // A petition you can't afford lights up when the purse fills while it waits (QC, 2026-11-21).
+  // Nothing is chosen; the purse is put back.
+  await check("a petition's cost is read live", () => {
+    const v = kept.find(v => !v.prison && V.holdingsOf(w, v).length);
+    if (!v) return null;
+    const purse = w.houses[0].gold, [send] = V.petitionChoices(w, v, 'relief'), out = [];
+    try {
+      w.houses[0].gold = 10;
+      if (send.ok || !send.label.includes('you have 10')) out.push(`at 10 gold: ok ${send.ok}, "${send.label}"`);
+      w.houses[0].gold = 200;
+      if (!send.ok || send.label.includes('you have')) out.push(`at 200 gold: ok ${send.ok}, "${send.label}"`);
+    } finally { w.houses[0].gold = purse; }
+    return out;
+  });
   // The supply form sends from and to what it shows. Drives the Realm screen's own form, then
   // puts it back as it was; nothing is sent.
   const R = (await import('./realmscreen.js')).RealmScreen.shown;
