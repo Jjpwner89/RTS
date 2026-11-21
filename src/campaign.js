@@ -780,7 +780,15 @@ function showResult(title, text, button, fn, book = false) {
 // Call the banners shows who would come before anyone moves (ruling, 2026-11-21).
 function askBanners(dest) {
   const plan = world.bannerPlan(dest), list = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
-  const lines = plan.villages.map(v => `${v.p.name}${v.raised ? ` raises ${v.raised} fresh levies and` : ''}${v.men ? ` sends ${v.men}, keeping ${v.keep} on guard` : ` keeps ${v.keep} at home`}.`);
+  // Who stays and why, so a call never comes back empty in silence (Manager, 2026-11-21).
+  const guard = v => { const regs = v.keep - v.keptLevies; return list([v.keptLevies && `its ${v.keptLevies} levies`, regs && `${regs} of its garrison`].filter(Boolean)); };
+  const said = v => {
+    if (v.p === dest) return `${v.p.name} raises ${v.raised} fresh levies there.`;
+    const sends = v.men ? `sends ${v.men}${v.retinue ? ` (${v.retinue === v.men ? 'your retinue' : `your retinue of ${v.retinue} among them`})` : ''}` : 'sends nobody';
+    return `${v.p.name}${v.raised ? ` raises ${v.raised} fresh levies and` : ''} ${sends}${v.keep ? `${v.men ? ';' : ':'} it keeps ${guard(v)} as its guard` : ''}.`;
+  };
+  const lines = plan.villages.map(said);
+  if (plan.villages.some(v => v.keep && v.p !== dest)) lines.push(`Each village keeps ${plan.guard} men home against raids, in whole regiments, or all it has if fewer; your retinue always comes.`);
   const sent = plan.vassals.filter(x => x.men).map(x => `${x.v.name} sends ${x.men} from ${x.p.name}`);
   if (sent.length) lines.push(`Of your vassals, ${list(sent)}.`);
   const no = [...new Set(plan.vassals.filter(x => x.refusing).map(x => x.v.name))];
@@ -942,7 +950,10 @@ function worldPanel() {
     if (own) {
       const w = fedAt(world, it) ? null : wagonFrom(world, it), btn = el.querySelector('[data-f="wagon"]');
       const coming = world.armies.some(o => o.wagon?.to === it);
-      set('wagon', coming ? `${ico('food')} A wagon is on its way` : w ? `${ico('food')} Send ${w.load} food from ${w.p.name}` : `${ico('food')} No village has food to send`);
+      // No wagon to send is no matter in your own lands (Manager, 2026-11-21: 147 mustered men
+      // read "No village has food to send" at home): say how they will eat instead.
+      const land = !w && homeland(world, it);
+      set('wagon', coming ? `${ico('food')} A wagon is on its way` : w ? `${ico('food')} Send ${w.load} food from ${w.p.name}` : land ? `${ico('food')} No village has food to spare for a wagon; in your own lands the farms round ${land.name} will feed them` : `${ico('food')} No village has food to send`);
       if (btn) btn.disabled = coming || !w || !!fedAt(world, it);
       if (btn) btn.hidden = !!fedAt(world, it);
     }

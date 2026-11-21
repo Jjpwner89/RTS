@@ -6,11 +6,15 @@ const mine = w => w.pois.filter(p => p.owner === 0);
 const towns = w => mine(w).filter(p => p.town).map(p => p.town);
 const has = (w, kind) => towns(w).some(t => t.buildings.some(b => b.kind === kind && b.state === 'active'));
 // The opening tells you when you are safe (creator, 2026-11-20): while every great house is
-// still settling its own lands, nobody will march on you.
+// still settling its own lands, none of them will march on you. The outlaw bands will
+// (QC, 2026-11-21: the tips said nobody would), so while one is still to come, say so and
+// say what to do.
 import { FACTIONS } from './world.js';
-import { stageOf } from './rivals.js';
-const calm = w => FACTIONS.filter(h => h.index && h.alive && !h.bandit && !h.invader).every(h => stageOf(h) === 0)
-  ? ' The great houses are all still settling their own lands: nobody will march on you yet.' : ' Some great house is reaching beyond its own lands now: keep men at home.';
+import { stageOf, OUTLAWS } from './rivals.js';
+const bands = w => w.options?.aggression !== 'gentle' && (w.outlaws?.wave ?? 0) < OUTLAWS.length
+  ? ' Outlaw bands will come for your stores, though: keep your retinue at home, and when a band reaches the village, select the retinue and right-click the outlaws.' : '';
+const calm = w => (FACTIONS.filter(h => h.index && h.alive && !h.bandit && !h.invader).every(h => stageOf(h) === 0)
+  ? ' The great houses are all still settling their own lands: none will march on you yet.' : ' Some great house is reaching beyond its own lands now: keep men at home.') + bands(w);
 
 export const GOALS = [
   { text: 'Go to Ashford: double-click it on the map.', tip: 'M brings you back here.', done: (w, s) => s.visited },
@@ -22,17 +26,17 @@ export const GOALS = [
   { text: 'Take the crown: hold Kingsbridge and half the realm, or win every house to your claim.', tip: '', done: w => !!w.crowned },
 ];
 
-// Ticks off what is done; returns the goals finished just now.
+// Ticks off what is done; returns the goal to announce, if any (at most one).
+// The goal shown is always the first one not passed: past the furthest one done, so a
+// lord who took a village before raising a levy skips "Arm them" (Manager, 2026-11-21:
+// the Count test save toasted "Feed your people" twice, with two different next goals).
+// Only the furthest goal finished is told; the ones it passes are ticked quietly. A world
+// with no goals counted yet (a new or test campaign, an old save) is set quietly, without
+// a toast for everything it already holds.
 export function updateGoals(w, seen) {
-  w.goals = w.goals ?? 0;
-  const now = [];
-  while (w.goals < GOALS.length) {
-    if (GOALS[w.goals].done(w, seen)) { now.push(GOALS[w.goals++]); continue; }
-    // Already past it: a later goal is done (a test campaign, or a lord who took a village
-    // before raising a levy). The ones skipped are ticked quietly; the later one is told.
-    const later = GOALS.findIndex((g, i) => i > w.goals && g.done(w, seen));
-    if (later < 0) break;
-    w.goals = later;
-  }
-  return now;
+  const quiet = w.goals === undefined, from = w.goals ?? 0;
+  let last = -1;
+  for (let i = from; i < GOALS.length; i++) if (GOALS[i].done(w, seen)) last = i;
+  w.goals = Math.max(from, last + 1);
+  return last >= from && !quiet ? [GOALS[last]] : [];
 }

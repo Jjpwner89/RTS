@@ -405,9 +405,10 @@ function outlawMind(w, h) {
   const d = dist(home, from), k = Math.min(1, 300 / Math.max(1, d));
   Object.assign(a, { x: home.x + (from.x - home.x) * k, z: home.z + (from.z - home.z) * k, at: null, last: from, path: [home], target: home, outlaws: true });
   const first = o.wave === 1;
-  w.log(`Outlaws out of the greenwood are on the road to ${home.name}: about ${roughly(n)} men, come for your stores.${armed ? '' : ' Nobody in the village is under arms.'}`, 1);
+  // a band is small enough to count: its true size (QC, 2026-11-21: "about 20" for 15)
+  w.log(`Outlaws out of the greenwood are on the road to ${home.name}: ${n} men, come for your stores.${armed ? ' Order your retinue at them when they reach the village.' : ' Nobody in the village is under arms.'}`, 1);
   w.hooks.sound?.('warcry'); // audio: outlaws on the road
-  if (first) w.hooks.herald?.({ house: h, title: 'Outlaws on the road', text: `A band of about ${roughly(n)} outlaws is coming for ${home.name}'s stores. Keep the retinue home and armed, or call your people out to meet them.` });
+  if (first) w.hooks.herald?.({ house: h, title: 'Outlaws on the road', text: `A band of ${n} outlaws is coming for ${home.name}'s stores. Keep your retinue at home: when the band reaches the village, select the retinue and right-click the outlaws to fight them, or call your people out to meet them. Beaten off, they take nothing; let them be, and they leave with a share of the stores and the purse.` });
 }
 
 // Outlaws in their camps raid whatever is near, yours included once you are settled.

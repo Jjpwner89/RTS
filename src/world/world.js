@@ -5,7 +5,7 @@
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
-import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
+import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, ELITE, HALL, gearOf, carry, armourWeight, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
@@ -146,7 +146,7 @@ export class World {
     startDiplomacy(this);
     this.updateVision();
     // The opening says you are safe for now (creator, 2026-11-20).
-    this.log('The great houses are all still settling their own lands: nobody will march on you for a while. But outlaws haunt the woods and know what a new village keeps: keep your retinue close while you see to food, wood and homes.');
+    this.log(`The great houses are all still settling their own lands: none will march on you for a while. But outlaws haunt the woods and know what a new village keeps${this.options?.aggression === 'gentle' ? '' : ', and a band will come for your stores within the first quarter hour'}. Keep your retinue at home while you see to food, wood and homes, and when the outlaws come, select it and right-click them.`);
   }
 
   log(text, side = 0) { this.events.push({ time: this.time, side, text }); }
@@ -543,7 +543,7 @@ export class World {
     const BEST = ['knight', 'cav', 'maa', 'crossbow', 'lightcav', 'sword', 'spear', 'archer'];
     const KEEP = ['crossbow', 'archer', 'spear', 'sword', 'maa', 'lightcav', 'cav', 'knight'];
     const rankOf = c => c.stays ? -1 : c.retinue ? 99 : KEEP.includes(c.key) ? KEEP.indexOf(c.key) : 50;
-    const plan = { dest, villages: [], vassals: [], men: 0, raised: 0, from: 0 };
+    const plan = { dest, villages: [], vassals: [], men: 0, raised: 0, from: 0, guard: BANNER_GUARD };
     for (const p of this.pois) {
       const t = p.town;
       if (p.owner !== 0 || !t || t.hostile || t.underAttack) continue;
@@ -567,9 +567,16 @@ export class World {
         ...t.garrison().map(r => ({ reg: r, key: r.T.key, men: men(r), retinue: !!r.retinue, stays: !!(r.posts || r.T.militia || r.routing || r.regrouping) })),
         ...raise.map(l => ({ levy: l, key: l.key, men: l.n })),
       ].filter(c => c.men > 0).sort((x, y) => rankOf(x) - rankOf(y));
-      const v = { p, raise, raised: raise.reduce((n, l) => n + l.n, 0), keep: 0, send: [], men: 0 };
-      const home = p === dest ? new Set(all) : guardOf(all, BANNER_GUARD);
-      for (const c of all) if (home.has(c)) v.keep += c.men; else { v.send.push(c); v.men += c.men; }
+      const v = { p, raise, raised: raise.reduce((n, l) => n + l.n, 0), keep: 0, keptLevies: 0, send: [], men: 0, retinue: 0 };
+      // The retinue is the lord's own household, not the village's guard: it always answers
+      // (Manager, 2026-11-21: on the Lord test the guard of 20 kept it home, and the call
+      // came back empty). The guard is made of the village's levies and garrison.
+      const home = p === dest ? new Set(all) : guardOf(all.filter(c => !c.retinue), BANNER_GUARD);
+      for (const c of all) {
+        if (home.has(c)) { v.keep += c.men; if (c.levy) v.keptLevies += c.men; continue; }
+        v.send.push(c); v.men += c.men;
+        if (c.retinue) v.retinue += c.men;
+      }
       if (!v.raised && !v.men) continue;
       plan.villages.push(v);
       plan.raised += v.raised;
@@ -958,7 +965,9 @@ export class World {
       this.chron(won ? `${cap ? `Captain ${cap.name}` : 'Your army'} beat ${them} near ${field}.` : `${e.name} beat ${cap ? `Captain ${cap.name}` : 'your army'} near ${field}.`);
       this.remember(a, won ? e.name : 'your army', field);
       if (won) {
-        this.log(`${e.name} was beaten at ${was}.`);
+        // An outlaw band met in the open gets the same word as one beaten off a village.
+        const dead = headcount(theirsBefore) - headcount(theirs), lost = headcount(before) - headcount(mine);
+        this.log(e.outlaws ? `The outlaws are beaten off at ${was}: ${dead} dead, ${lost ? `${lost} of ours` : 'none of ours'}.` : `${e.name} was beaten at ${was}.`);
         this.retreat(e);
         if (!a.units.length) this.removeArmy(a);
       } else {
@@ -1222,15 +1231,21 @@ export class World {
     this.allowYield(p);
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,
-      onLeave: (survivors, gotAway) => {
+      onLeave: (survivors, gotAway, dead = {}) => {
         if (t.fallenSaid && this.hooks.watching() !== p) this.log(`${p.name}: ${t.fallenSaid}`, 1);
+        // How a band's raid ended, said where you are: in the village if you are watching it
+        // (QC, 2026-11-21: a band beaten off left only "1 battle" on the card).
+        const say = (text, bad) => { if (this.hooks.watching() === p) t.event(text, bad ? 1 : 0); else this.log(text, bad ? 1 : 0); };
+        const ours = dead.ours ? `${dead.ours} of ours` : 'none of ours';
+        if (H.bandit && p.owner === 0 && !t.lost && !gotAway) say(`The outlaws are beaten off at ${p.name}: ${dead.theirs || 0} dead, ${ours}.`);
         if (t.lost || !survivors.length) return;
         // Outlaws who get away take a share of the stores and the purse with them.
         if (gotAway && H.bandit && p.owner === 0) {
           const took = t.rob(OUTLAW_TAKE.share), gold = Math.min(OUTLAW_TAKE.gold, Math.floor((FACTIONS[0].gold || 0) * OUTLAW_TAKE.share));
           FACTIONS[0].gold -= gold;
           const list = [...Object.entries(took).filter(([, n]) => n > 0).map(([g, n]) => `${n} ${g}`), gold ? `${gold} gold` : null].filter(Boolean);
-          if (list.length) this.log(`The outlaws got away from ${p.name} with ${list.join(', ')}.`, 1);
+          const and = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
+          if (list.length) say(`The outlaws got away from ${p.name} with ${and(list)} (${dead.theirs || 0} of them dead, ${ours}).`, true);
         }
         const back = this.spawnArmy(a.side, survivors, p, a.name);
         this.retreat(back);
@@ -1474,7 +1489,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickHousehold(this); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);

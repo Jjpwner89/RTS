@@ -155,6 +155,37 @@ function askWeak(w, c) {
     choices: choices.map(o => live(w, o)) });
 }
 
+// Your household guard worn down (Manager, 2026-11-21: the playtester's stood at 2 men):
+// below a quarter of its strength in one of your villages, the same choice as a company.
+// Filling hires the missing men at the keep's price, the survivors among them; letting
+// them go sends them to work as villagers, their swords racked.
+export function tickHousehold(w) {
+  const T = TYPES.household;
+  for (const p of w.pois) {
+    const t = p.town;
+    if (p.owner !== 0 || !t || t.underAttack || t.hostile || !w.hooks.choice) continue;
+    for (const r of t.battle.regs) {
+      if (r.side !== 0 || r.T.key !== 'household' || r.gone || r.routing || r.askedWeak || r.alive < 1 || r.alive >= T.count * WEAK) continue;
+      r.askedWeak = true;
+      const price = () => (T.count - r.alive) * T.gold;
+      w.hooks.choice({ id: `household-${p.id}-${r.id}`, image: null, at: p, title: `${r.name} at ${p.name}: ${r.alive} men left`,
+        text: `Your ${r.name.toLowerCase()} at ${p.name} is down to ${r.alive} of its ${T.count}. Fill its ranks again, send the last of them to work, or keep them as they are?`,
+        choices: [
+          { label: `Fill the ranks (${price()} gold)`, ok: () => FACTIONS[0].gold >= price() && !r.gone, why: () => r.gone ? 'They are gone' : `Needs ${price()} gold`, run: () => {
+            const cost = price(), n = T.count - r.alive;
+            FACTIONS[0].gold -= cost;
+            const fresh = t.battle.addRegiment(0, 'household', r.cx, r.cz, r.angle || 0, { count: T.count, name: r.name, xp: r.xp || 0, battles: r.battles || 0 });
+            fresh.retinue = true;
+            t.battle.disband(r);   // the survivors are among the new ranks
+            return `${n} new men fill the ${r.name.toLowerCase()} at ${p.name}.`;
+          } },
+          { label: 'Send them to work', ok: () => !r.gone, why: () => 'They are gone', run: () => { const n = r.alive; t.disband(r); return `${n} of the ${r.name.toLowerCase()} become villagers of ${p.name}.`; } },
+          { label: 'Keep them as they are', run: () => `The ${r.name.toLowerCase()} serve on, ${r.alive} strong.` },
+        ].map(o => live(w, o)) });
+    }
+  }
+}
+
 // Every few seconds: wages, grumbling, desertion, and companies cut to nothing.
 export function tickCompanies(w, dt) {
   w.companies ??= makeCompanies(w);

@@ -894,7 +894,7 @@ export class Town {
         n++;
       }
       this.battle.disband(r);
-      this.event(`The lord's retinue hung up their swords: ${n} new villagers.`);
+      this.event(`The ${r.name.replace(/^Lord/, 'lord').replace(/^Household/, 'household')} hung up their swords: ${n} new villagers.`);
       return true;
     }
     if (!r.levy) return false;
@@ -2090,7 +2090,7 @@ export class Town {
     // village's own land: its people see them burn it, and you must be able to order men at
     // them (a band in the trees by the village could not be clicked, nor answered).
     if (!this.hostile) b.openGround = { x: this.keep.x, z: this.keep.z, r: HOME_LAND };
-    this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
+    this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0, losses: [...b.losses] });
     this.lastRaid = this.time;
     this.lastRegs = regs;
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
@@ -2160,7 +2160,9 @@ export class Town {
       this.fallenSaid = word;   // for the world's log, when nobody is watching (world.attackTown)
       this.fallen = {};
     }
-    g.onLeave?.(survivors, g.leaving);   // (leaving: they got away with their plunder)
+    // (leaving: they got away with their plunder; dead: who fell on each side in this attack)
+    const dead = this.battle.losses.map((n, i) => n - (g.losses?.[i] ?? n));
+    g.onLeave?.(survivors, g.leaving, { ours: dead[0], theirs: dead[1] });
   }
 
   // Raiders who get away carry off a share of what the stores hold. Returns what they took.
