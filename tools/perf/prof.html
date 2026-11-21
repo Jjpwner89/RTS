@@ -7,12 +7,12 @@
 // prof.html?q=medium&exp=a,b,c&secs=6 : loads battle.html, begins the battle, then for each
 // experiment measures fps, the CPU time of each part of the frame and the GPU time of the draw.
 // Results POST to the sink on 8733 as prof.json (resultsink.py); shots=1 PUTs jpgs to 8732 (shotsink.py).
-// runprof.sh passes sink=/shots= when it runs on other ports (PERF_PORT).
+// runprof.sh passes sink=/shotport= when it runs on other ports (PERF_PORT).
 // Run it with runprof.sh. Experiments: see EX below (mN keeps N men, old = before the far level, ...).
 const P = new URLSearchParams(location.search);
 const Q = P.get('q') || 'medium', SECS = +(P.get('secs') || 6), ROUNDS = +(P.get('rounds') || 1);
 const EXPS = (P.get('exp') || 'base').split(',');
-const SINK = P.get('sink') || 8733, SHOTS = P.get('shots') || 8732;
+const SINK = P.get('sink') || 8733, SHOTS = P.get('shotport') || 8732;
 const post = o => fetch(`http://127.0.0.1:${SINK}/prof.json`, { method: 'POST', body: JSON.stringify(o) });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const f = document.getElementById('f');
@@ -123,11 +123,7 @@ f.onload = async () => {
         const cam = G.controls.cam, keep = { ...cam }; if (c) Object.assign(cam, c); G.controls.update(0.016); await sleep(300);
         r.render(st.current(), st.camera); const cv = r.domElement, c2 = document.createElement('canvas'); c2.width = 1024; c2.height = Math.round(1024 * cv.height / cv.width);
         c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height); const blob = await new Promise(res => c2.toBlob(res, 'image/jpeg', 0.88));
-<<<<<<< HEAD
-        await fetch(`http://127.0.0.1:8732/prof-${e.replace(/[^\w.-]/g, '_')}-${nm}.jpg`, { method: 'PUT', body: blob }); Object.assign(cam, keep); G.controls.update(0.016);
-=======
-        await fetch(`http://127.0.0.1:${SHOTS}/prof-${e}-${nm}.jpg`, { method: 'PUT', body: blob }); Object.assign(cam, keep); G.controls.update(0.016);
->>>>>>> 264e504 (Profiler: returns when done instead of at its timeout, and runs apart on PERF_PORT)
+        await fetch(`http://127.0.0.1:${SHOTS}/prof-${e.replace(/[^\w.-]/g, '_')}-${nm}.jpg`, { method: 'PUT', body: blob }); Object.assign(cam, keep); G.controls.update(0.016);
       }
       if (P.get('verbose')) await post({ e, round: k, fps: +(n / (times.reduce((a, b) => a + b, 0) / 1000)).toFixed(1), cpuMsPerFrame: per, gpuMs: s.length ? +s[s.length >> 1].toFixed(2) : null, gpuN: s.length, calls: r.info.render.calls, ktris: Math.round(r.info.render.triangles / 1000), men: men() });
       undo();
