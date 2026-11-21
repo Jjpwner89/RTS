@@ -1022,7 +1022,7 @@ function worldPanel() {
         mb.classList.toggle('warn', !m || !!over);
       }
     } else {
-      set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
+      set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known?.men ?? '?'} men in the garrison`);
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
       set('intel', intelText(it));
       if (lord) {

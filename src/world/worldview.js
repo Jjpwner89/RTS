@@ -418,7 +418,7 @@ export class WorldView {
     for (const [p, o] of this.places) {
       if (o.look !== this.lookKey(p) && (relay-- > 0 || !o.parts)) { this.dress(p, o); this.lightsDirty = true; }
       // Fog of war: places you have never seen are unknown; others show what you last saw.
-      const shown = p.visible ? p.owner : p.seen ? p.known.owner : undefined;
+      const shown = p.visible ? p.owner : p.seen ? p.known?.owner : undefined;
       const own = shown === undefined ? { name: 'Unknown', color: '#8a8478' } : shown === null ? NEUTRAL : FACTIONS[shown];
       if (o.owner !== shown) { o.owner = shown; o.flag.material.color.set(own.color); }
       if (!o.label) o.label = this.label('place');
