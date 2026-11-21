@@ -58,6 +58,7 @@ export class TownLabels {
       if (!tag) { tag = document.createElement('div'); this.el.appendChild(tag); this.tags.set(key, tag); }
       if (tag.className !== cls) tag.className = cls;
       if (tag.textContent !== text) tag.textContent = text;
+      if (key === SUMMARY) return this.sit(tag, p, W, H, seen, key);
       tag.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
       seen.add(key);
     };
@@ -72,6 +73,23 @@ export class TownLabels {
     }
     for (const [b, tag] of this.tags) if (!seen.has(b)) { tag.remove(); this.tags.delete(b); }
     this.showTip(town, hoverAt, placing, screen, roadFrom);
+  }
+
+  // The one-line summary sits just under the keep, kept inside the view and clear of the top bar,
+  // the stock panel, the info card and the news lines, so the whole line reads.
+  sit(tag, p, W, H, seen, key) {
+    const o = this.el.getBoundingClientRect(), pad = 8, w = tag.offsetWidth, h = tag.offsetHeight;
+    const boxes = [...document.querySelectorAll('#top, #stock, #info, #build, #log > div, #toast.show')].filter(b => b.getClientRects().length)
+      .map(b => { const r = b.getBoundingClientRect(); return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top }; });
+    let x = Math.max(pad, Math.min(W - w - pad, p.x - w / 2)), y = Math.max(pad, p.y + 36);
+    for (let i = 0; i < 4; i++) {
+      const hit = boxes.find(b => x < b.r && x + w > b.l && y < b.b && y + h > b.t);
+      if (!hit) break;
+      y = hit.b + 6;   // step under it
+    }
+    y = Math.min(y, H - h - pad);
+    tag.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    seen.add(key);
   }
 
   // What is left in the deposit under the cursor, or in reach of a quarry or mine being placed.
