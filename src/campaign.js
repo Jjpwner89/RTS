@@ -19,7 +19,7 @@ import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js'
 import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
-import { World, headcount, ownerOf, FACTIONS, walledPlace } from './world/world.js';
+import { World, headcount, ownerOf, FACTIONS, walledPlace, capWhy } from './world/world.js';
 import { why } from './ui/why.js';
 import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
@@ -868,7 +868,7 @@ function worldPanel() {
       + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the cart until it arrives. A raider must beat it first.">${ico('caravan', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
-      + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide">Join with ${o.name} (${headcount(o.units)})</button>`).join('') : '')
+      + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide" title="${capWhy(world.rank)}">Join with ${o.name} (${Math.min(headcount(o.units), Math.max(0, world.armyCap - headcount(it.units)))} of ${headcount(o.units)} fit)</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
@@ -947,7 +947,8 @@ function worldPanel() {
     const know = it.side === 0 ? 3 : it.know ?? 3, men = headcount(it.units);
     set('name', know >= 2 ? it.name : 'An army in the distance');
     set('men', know < 2 ? 'Too far off to count' : know < 3 ? `About ${men < 100 ? Math.max(10, Math.round(men / 10) * 10) : Math.round(men / 50) * 50} men`
-      : `${men} men${hurt ? ` · ${hurt} wounded` : ''}`);
+      : `${men}${it.side === 0 ? ` of ${world.armyCap}` : ''} men${hurt ? ` · ${hurt} wounded` : ''}`);
+    if (it.side === 0) { const e = el.querySelector('[data-f="men"]'); if (e && e.title !== capWhy(world.rank)) e.title = capWhy(world.rank); }
     if (it.side === 0 || it.visible) {
       const home = fedAt(world, it), left = foodLeft(world, it);
       set('food', `${ico('food', it.food > 0 ? '#c9b26a' : '#ff8a5a')} ` + (home ? `Fed from ${home.name}${hurt ? '; the wounded are mending' : ''}`
@@ -986,7 +987,13 @@ function worldPanel() {
       set('men', `${it.town.atWork} at work · ${it.town.garrison().reduce((n, r) => n + r.alive, 0)} soldiers${it.town.underArms ? `, ${it.town.underArms} of them levies` : ''}`);
       set('status', it.town.underAttack ? `${ico('battle', '#ff8a5a')} Under attack!` : '');
       const mb = el.querySelector('[data-act="muster"]'), men = it.town.garrison().reduce((n, r) => n + r.alive, 0);
-      if (mb && men) { const m = Math.floor(Math.min(spareFood(it.town), men * CARRY) / men * 2); mb.title = m ? `${men} men march out with food for ${m} minute${m > 1 ? 's' : ''}` : `${men} men, and no spare food for their carts: they will desert away from home`; mb.classList.toggle('warn', !m); }
+      if (mb && men) {
+        // As many as one army may hold march (world.js ARMY_CAP); the tooltip says so when some stay.
+        const go = Math.min(men, world.armyCap), m = Math.floor(Math.min(spareFood(it.town), go * CARRY) / go * 2);
+        const over = men > go ? ` ${men - go} stay: ${capWhy(world.rank)}` : '';
+        mb.title = (m ? `${go} men march out with food for ${m} minute${m > 1 ? 's' : ''}.` : `${go} men, and no spare food for their carts: they will desert away from home.`) + over;
+        mb.classList.toggle('warn', !m || !!over);
+      }
     } else {
       set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison`);
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
@@ -1236,6 +1243,7 @@ function topBar() {
   const n = mode === 'town' ? current.controls.selection.size : 0;
   $('march').hidden = !n;
   $('march').innerHTML = `March out <span class="long">with ${n} regiment${n === 1 ? '' : 's'}</span><span class="short">(${n})</span>`;
+  if (n) { const men = [...current.controls.selection].reduce((k, r) => k + (r.alive ?? 0), 0); $('march').title = `${men} men chosen. ${capWhy(world.rank)}${men > world.armyCap ? ' The regiments beyond it stay.' : ''}`; $('march').classList.toggle('warn', men > world.armyCap); }
 }
 
 // ---- the loop ----

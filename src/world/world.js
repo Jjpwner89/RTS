@@ -69,6 +69,17 @@ const OUTLAW_TAKE = { share: 0.35, gold: 120 };
 // and "nobody fell" when it cost nothing.
 const toll = (theirs, ours) => !theirs && !ours ? 'nobody fell'
   : `${theirs ? `${theirs} of them fell` : 'none of them fell'}, ${ours ? `${ours} of ours` : 'none of ours'}`;
+// How many men one army of yours may hold, by rank (ROADMAP "Caps that grow toward it"). The
+// battle bench holds 1,276 men at 11 ms on Medium (fidelity 2730ca4), so a field of about 1,200
+// is the target: a duke's 1,000 leaves room for the host he meets, and a king fields it all.
+// One table: mustering, joining armies and the muster buttons all read it.
+export const ARMY_CAP = { Reeve: 150, Lord: 300, Count: 600, Duke: 1000, King: 1200 };
+const NEXT_RANK = { Reeve: 'Lord', Lord: 'Count', Count: 'Duke', Duke: 'King' };
+// Why the cap is what it is, for a tooltip: "An army of a count holds at most 600 men (1,000 as a duke)."
+export function capWhy(rank) {
+  const n = NEXT_RANK[rank], f = x => x.toLocaleString('en-GB');
+  return `An army of a ${rank.toLowerCase()} holds at most ${f(ARMY_CAP[rank])} men${n ? ` (${f(ARMY_CAP[n])} as a ${n.toLowerCase()})` : ''}.`;
+}
 export const TREAT = { folk: 6, man: 10, rich: ['market', 'monastery', 'castle'], richer: 1.5, duke: 1.6 };   // a duke's name raises the price
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -680,12 +691,28 @@ export class World {
     return { ok: true, men, to: dest };
   }
 
-  // Two armies of yours waiting at the same place become one.
+  // Two armies of yours waiting at the same place become one, up to the cap: men beyond it
+  // stay in b, which stays an army of its own. Returns how many moved.
   join(a, b) {
-    for (const u of b.units) {
+    const add = u => {
       const same = a.units.find(o => o.key === u.key && o.name === u.name && sameGear(o, u));
       if (same) { same.xp = Math.round(((same.xp || 0) * same.count + (u.xp || 0) * u.count) / Math.max(1, same.count + u.count) * 10) / 10; same.count += u.count; same.battles = Math.max(same.battles || 0, u.battles || 0); } else a.units.push({ ...u });
+    };
+    const room = this.armyCap - headcount(a.units), all = headcount(b.units);
+    if (room <= 0) { this.log(`${a.name} is full. ${capWhy(this.rank)}`, 1); return 0; }
+    if (all > room) {
+      const moved = [];
+      let k = room;
+      for (const u of b.units) { const m = Math.min(u.count, k); if (!m) continue; u.count -= m; k -= m; moved.push({ ...u, count: m }); }
+      b.units = b.units.filter(u => u.count > 0);
+      const food = (b.food || 0) * room / all;
+      b.food = (b.food || 0) - food;
+      a.food = (a.food || 0) + food;
+      for (const u of moved) add(u);
+      this.log(`${room} of ${b.name} join ${a.name}: ${headcount(a.units)} men, the most it may hold. ${all - room} stay with ${b.name}.`);
+      return room;
     }
+    for (const u of b.units) add(u);
     a.wounded = [...(a.wounded || []), ...(b.wounded || [])];
     a.food = (a.food || 0) + (b.food || 0);
     // A lord rides on with the joined army; the better captain commands it.
@@ -695,6 +722,7 @@ export class World {
     else if (!ca) assignCaptain(this, a);
     this.log(`${b.name} joins ${a.name}: ${headcount(a.units)} men.`);
     this.removeArmy(b);
+    return all;
   }
 
   // A duke plans campaigns from the map: every free army of yours marches to one place of
@@ -710,8 +738,17 @@ export class World {
     return n;
   }
 
-  // Regiments leave a village of yours and become an army on the map.
+  get armyCap() { return ARMY_CAP[this.rank]; }
+
+  // Regiments leave a village of yours and become an army on the map, as many as one army of
+  // your rank may hold (ARMY_CAP); the rest stay in the village.
   muster(p, regs) {
+    const cap = this.armyCap, size = r => r.alive ?? 0;
+    let n = 0;
+    const go = regs.filter(r => { if (n && n + size(r) > cap) return false; n += size(r); return true; });
+    const left = regs.filter(r => !go.includes(r)).reduce((k, r) => k + size(r), 0);
+    regs = go;
+    if (left) this.log(`${left} men stay at ${p.name}. ${capWhy(this.rank)}`, 1);
     const units = p.town.takeTroops(regs);
     if (!units.length) return null;
     const a = this.spawnArmy(0, units, p, `Army of ${p.name}`);

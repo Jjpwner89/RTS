@@ -626,3 +626,16 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
   - A free place's fealty costs 1.6 times as much from a duke as from a count (TREAT.duke): Elmmere 1,280, Keldale Abbey 1,730.
   - The palace at Kingsbridge costs 4,000 instead of 900.
 - **Goals for Count and Duke** (goals.js): "Become a duke: hold eleven places" (its tip names treating, the banners and siege engines), then "Take Kingsbridge" (its tip warns of the league's host), then the crown.
+
+### Army caps by rank (2026-11-21, ROADMAP "Caps that grow toward it")
+
+- One army of yours holds at most **Reeve 150, Lord 300, Count 600, Duke 1,000, King 1,200** men (world.js `ARMY_CAP`). The battle bench holds 1,276 men at 11 ms on Medium (fidelity 2730ca4). A duke's 1,000 leaves room on the field for the host he meets, and a king fields it all.
+- Mustering takes regiments in order until the next would pass the cap. The rest stay, and the log says how many and why.
+- Joining two armies moves men up to the cap. The rest stay an army of their own, with their share of the food.
+- The army card reads "240 of 600 men", with the reason in its tooltip. The muster button's tooltip says how many march and how many stay. The join buttons say how many fit. The March out button turns amber when the chosen regiments pass the cap.
+- Not capped: two of your armies storming the same place, and your village's own defenders.
+- **The economy can't fill the cap yet.** On the Duke test save (11 places, about 400 people in your villages), a duke can raise about 400 men at most:
+  - the banners: 147, plus 22 already at the muster place;
+  - three vassals: 48;
+  - every sellsword company in the realm together: about 180.
+  So the rank caps are headroom until a bigger source of men lands. The proposed source, rural levies, is with the orchestrator.
