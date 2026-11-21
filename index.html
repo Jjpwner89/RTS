@@ -5,33 +5,15 @@
 <link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RTS Prototypes</title>
-<style>
-  :root { --ink: #efe6d2; --dim: #b8ab90; --gold: #ffd970; --edge: rgba(224, 194, 122, 0.35); }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #1a1612; color: var(--ink); font: 16px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
-  main { width: min(560px, calc(100vw - 32px)); }
-  h1 { font-size: 26px; margin: 0 0 4px; }
-  p { color: var(--dim); margin: 0 0 20px; }
-  a { display: block; padding: 14px 18px; margin-bottom: 10px; border: 1px solid var(--edge); border-radius: 10px; color: var(--ink); text-decoration: none; background: rgba(255,255,255,0.04); }
-  a:hover { border-color: var(--gold); background: rgba(255, 217, 112, 0.08); }
-  a b, .new b { display: block; font-size: 18px; color: var(--gold); }
-  .new { padding: 14px 18px; margin-bottom: 10px; border: 1px solid var(--edge); border-radius: 10px; background: rgba(255,255,255,0.04); }
-  .new .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 12px; margin: 10px 0 12px; }
-  .new label { display: grid; gap: 3px; font-size: 13px; color: var(--dim); }
-  .new select { font: inherit; color: var(--ink); background: #2a241d; border: 1px solid var(--edge); border-radius: 6px; padding: 5px 6px; }
-  .new .iron { display: flex; align-items: center; gap: 6px; }
-  .new button { font: inherit; font-weight: 600; color: #1a1612; background: var(--gold); border: 0; border-radius: 8px; padding: 8px 18px; cursor: pointer; }
-  .new small { display: block; color: var(--dim); margin-top: 8px; }
-  .tests .opts { margin-bottom: 0; }
-  .tests a.btn { display: inline-block; text-align: center; margin: 0; padding: 8px 18px; border: 0; border-radius: 8px; background: var(--gold); color: #1a1612; font-weight: 600; text-decoration: none; }
-  .tests a.btn.quiet { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
-</style>
+<link rel="stylesheet" href="src/skin.css">
+<link rel="stylesheet" href="src/pages.css">
 </head>
 <body>
-<main>
+<main class="sheet">
   <h1>RTS prototypes</h1>
   <p>A medieval strategy game in progress: build and fight on one map, rising from a keep to a realm.</p>
-  <a href="world.html?continue" id="continue" hidden><b>Continue</b><span></span></a>
-  <form class="new" action="world.html">
+  <a class="entry" href="world.html?continue" id="continue" hidden><b>Continue</b><span></span></a>
+  <form class="box" action="world.html">
     <b>New campaign</b>Rise from one village to the crown: rival houses, sieges, diplomacy and Kingsbridge, and then the north.
     <div class="opts">
       <label>Realm<select name="size"><option value="small">Small: three houses</option><option value="normal" selected>Normal: five houses</option><option value="large">Large: all six houses</option></select></label>
@@ -41,7 +23,7 @@
     <button type="submit">Begin</button>
     <small>Ironman: no Save button. The campaign saves itself every few minutes, and a defeat ends it for good.</small>
   </form>
-  <div class="new tests">
+  <div class="box tests">
     <b>Test campaigns</b>Jump in at a rank to try templates, vassals and diplomacy: a seed-7 campaign played forward to that point, with gold and building stock to spare. It takes a few seconds to prepare. Test campaigns save to their own slot and never replace your real campaign.
     <div class="opts">
       <a class="btn" href="world.html?test=lord" title="Two places, at minute 10: vassals, town templates and calling the banners.">Lord</a>
@@ -50,12 +32,13 @@
       <a class="btn quiet" href="world.html?continue=test" id="continue-test" hidden>Continue test</a>
     </div>
   </div>
-  <a href="town.html"><b>Village</b>Build a village, arm levies from your own villagers, and hold off bandit raids.</a>
-  <a href="battle.html"><b>Battle test</b>A field battle of about 1,200 soldiers: regiments, morale and routs.</a>
-  <a href="fronts/"><b>Marchfront</b>The side project: armies, fronts and supply on one map.</a>
-  <a href="muster.html"><b>Muster</b>Every soldier in the game on parade: look them over up close or march along beside them.</a>
-  <a href="credits.html"><b>Credits</b>The free music, sound and models this game is built with, and their licences.</a>
+  <a class="entry" href="town.html"><b>Village</b>Build a village, arm levies from your own villagers, and hold off bandit raids.</a>
+  <a class="entry" href="battle.html"><b>Battle test</b>A field battle of about 1,200 soldiers: regiments, morale and routs.</a>
+  <a class="entry" href="fronts/"><b>Marchfront</b>The side project: armies, fronts and supply on one map.</a>
+  <a class="entry" href="muster.html"><b>Muster</b>Every soldier in the game on parade: look them over up close or march along beside them.</a>
+  <a class="entry" href="credits.html"><b>Credits</b>The free music, sound and models this game is built with, and their licences.</a>
 </main>
+<script type="module" src="src/ui/tooltip.js"></script>
 <script>
   // The saved campaign, if there is one: when it was saved and how far in.
   try {

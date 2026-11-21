@@ -1,0 +1,38 @@
+/* The menu, the credits and the muster in the game's own parchment and ink (UI session, 2026-11-22).
+   Loaded after skin.css, which holds the tokens (--surface, --btn, --ink ...) and the tooltip slip. */
+* { box-sizing: border-box; }
+html { background: #241810 var(--grain); }
+body { display: flow-root; margin: 0; min-height: 100vh; font: 16px/1.45 var(--body-font); color: var(--ink); background: radial-gradient(ellipse at 50% 0%, #4a3220 0%, #241810 70%); }
+h1, h2, h3 { font-family: var(--head-font); font-weight: 400; letter-spacing: .02em; }
+a { color: var(--gold); }
+.sheet { width: min(620px, calc(100vw - 24px)); margin: 28px auto 40px; padding: 22px 26px 26px; background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: var(--surface-shadow); }
+.sheet.wide { width: min(1000px, calc(100vw - 24px)); }
+.sheet h1 { font-size: 32px; margin: 0 0 2px; color: var(--gold); }
+.sheet > p { color: var(--dim); margin: 0 0 18px; }
+.sheet h2 { font-size: 20px; color: var(--gold); margin: 26px 0 8px; }
+.sheet h3 { font-size: 16px; margin: 18px 0 6px; }
+.sheet p { margin: 0 0 10px; }
+/* Menu entries are ribbons: parchment strips with a bronze rim, blue cloth when pointed at. */
+.sheet a.entry { display: block; padding: 12px 16px; margin-bottom: 9px; color: var(--ink); text-decoration: none; background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); }
+.sheet a.entry:hover { background: var(--btn-hover); border-color: var(--gold); }
+.sheet a.entry b, .sheet .box > b { display: block; font: 400 19px var(--head-font); letter-spacing: .02em; color: var(--gold); }
+.sheet a.entry span { color: var(--dim); }
+.sheet .box { padding: 12px 16px 14px; margin-bottom: 9px; background: rgba(255, 250, 235, .35); border: 1px solid var(--rule); border-radius: var(--btn-radius); }
+.sheet .box .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; margin: 10px 0 12px; }
+.sheet .box label { display: grid; gap: 3px; font-size: 13px; color: var(--dim); }
+.sheet .box select { font: inherit; color: var(--ink); background: #fbf3dc; border: 1px solid #7a5a2e; border-radius: 2px; padding: 5px 6px; }
+.sheet .box .iron { display: flex; align-items: center; gap: 6px; }
+.sheet .box small { display: block; color: var(--dim); margin-top: 8px; }
+.sheet .box.tests .opts { margin-bottom: 0; }
+/* The one thing to press: dyed-blue cloth. */
+.sheet .box button, .sheet a.btn { display: inline-block; font: 700 15px var(--body-font); text-align: center; text-decoration: none; padding: 7px 20px; cursor: pointer; color: var(--btn-on-ink); background: var(--btn-on); border: var(--btn-on-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); }
+.sheet .box button:hover, .sheet a.btn:hover { filter: brightness(1.12); }
+.sheet a.btn.quiet { color: var(--btn-ink); background: var(--btn); border: var(--btn-border); }
+.sheet a.btn.quiet:hover { filter: none; background: var(--btn-hover); }
+.sheet .back { display: inline-block; margin-bottom: 14px; }
+.sheet .wrap { overflow-x: auto; }
+.sheet table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.sheet th, .sheet td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.sheet th { color: var(--dim); font-weight: 700; }
+.sheet code { font-size: 12.5px; color: var(--dim); }
+[hidden] { display: none !important; }
