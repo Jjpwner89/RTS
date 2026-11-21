@@ -26,9 +26,11 @@ addEventListener('unhandledrejection', e => keep(`unhandled: ${e.reason?.stack |
 // measured in game time (a paused game is nobody's fault).
 const STUCK = 60, SAMPLE = 2000, MOVED = 3;
 const stand = new WeakMap();   // villager or regiment → { x, z, since }
+const watchedFrom = new WeakMap();   // battle → game time it was first sampled
 function sampleStuck() {
   for (const { battle, town } of scenes()) {
     const now = battle.time;
+    if (!watchedFrom.has(battle) || now < watchedFrom.get(battle)) watchedFrom.set(battle, now);
     const note = (o, x, z, busy) => {
       const k = stand.get(o);
       if (!busy || !k || Math.hypot(x - k.x, z - k.z) > MOVED || now < k.since) stand.set(o, { x, z, since: now, busy });
@@ -137,8 +139,8 @@ async function battleChecks({ battle, town, label }) {
     const out = [];
     for (const r of regs) { const t = stuckFor(r, battle); if (t > STUCK) out.push(`${r.name} has had an order for ${Math.round(t)}s and not moved, at ${at({ x: r.cx, z: r.cz })}`); }
     for (const v of town?.villagers || []) { const t = stuckFor(v, battle); if (t > STUCK) out.push(`villager ${v.id} (${v.state}${v.task?.kind ? ', ' + v.task.kind : ''}${v.job ? ' at the ' + v.job.B.name : ''}) walking on the spot for ${Math.round(t)}s at ${at(v)}`); }
-    const ran = (performance.now() / 1000) | 0;
-    return out.length ? sample(out) : ran < STUCK ? { warn: [`the page has only been open ${ran}s, so this can't see a minute's sticking yet`] } : [];
+    const ran = Math.round(battle.time - (watchedFrom.get(battle) ?? battle.time));
+    return out.length ? sample(out) : ran < STUCK ? { warn: [`watched for only ${ran}s of game time, so this can't see a minute's sticking yet`] } : [];
   });
 
   if (battle.river) await check(`${label}: nobody standing in deep water`, () => {
