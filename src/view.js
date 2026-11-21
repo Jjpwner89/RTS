@@ -139,9 +139,9 @@ function pickClip(s, b, info, out) {
 
   // a man dies falling back or pitching forward on his face, each his own way
   if (!s.alive) { s.death ??= Math.random() < 0.5 && clipOf(rig, 'Death_Fwd') ? 'Death_Fwd' : 'Death'; return show(s.death, now - (s.diedAt ?? now)); }
-  // a blow, or the wind-up to one
+  // a blow, or the wind-up to one (only standing: a man still closing in strides on, and his blow comes as it lands)
   const strike = rig === 'wolf' ? ['Bite', 'bite'] : info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
-  let k = timed(...strike, now - (s.struckAt ?? -99), close ? s.cd : null);
+  let k = timed(...strike, now - (s.struckAt ?? -99), close && s.v < 0.4 ? s.cd : null);
   if (k) return k;
   // a blow taken standing: he flinches (on the move he keeps his stride, and only flashes: fx.js)
   const flinch = (s.hurtAt * 7 | 0) % 2 ? 'Hit_2' : 'Hit';
