@@ -516,7 +516,8 @@ async function worldChecks(w) {
   await check("a building the game doesn't have can't stop the map", async () => {
     const view = window.game.worldView, p = w.pois.find(q => q.seen && q.eco?.buildings && !q.town);
     if (!view?.dress || !p) return null;
-    const copy = { ...p, eco: { ...p.eco, buildings: { ...p.eco.buildings, 'no such building': 1 } } };
+    // (named as a copy so the one console warning it earns reads as this check's, not a real place's)
+    const copy = { ...p, name: `${p.name} (checks() test copy)`, eco: { ...p.eco, buildings: { ...p.eco.buildings, 'no such building': 1 } } };
     const { Group } = await import('three'), o = { group: new Group(), flag: new Group() };   // (drawn off the map, not added to it)
     try { view.dress(copy, o); } catch (e) { return [`${p.name} with a bogus building: the map threw ${e.message}`]; }
     return o.parts?.children.length ? [] : [`${p.name} with a bogus building: nothing drawn`];
