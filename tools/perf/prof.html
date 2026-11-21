@@ -66,6 +66,8 @@ f.onload = async () => {
       // every tree in its light model, or in its detailed one
       treesFar: () => { const T = w.__TREE, was = T.near; T.near = 0.01; return () => T.near = was; },
       treesNear: () => { const T = w.__TREE, was = T.near; T.near = 1e6; return () => T.near = was; },
+      realShadow: () => { const u = [EX.noBlobs(), EX.farShadow()]; return () => u.forEach(f => f()); },
+      noBlobs: () => { G.view.blobs.visible = false; return () => G.view.blobs.visible = true; },
       farShadow: () => { const l = Object.values(G.view.meshes).filter(m => m.far).flatMap(m => [m.far.gear, m.far.cloth]); l.forEach(m => m.castShadow = true); return () => l.forEach(m => m.castShadow = false); },
       noshadow: () => set('shadow', 0),
       nopost: () => set('post', false),
@@ -99,7 +101,7 @@ f.onload = async () => {
     w.__TREE = (await w.eval("import(new URL('src/nature.js', document.baseURI).href)")).TREE_LOD;
     const menCensus = () => Object.entries(G.view.meshes).map(([k, m]) => `${k.split('|')[0]}: full ${m.gear.count}x${Math.round(tri(m.gear.geometry) + tri(m.cloth.geometry))}` + (m.light ? ` light ${m.light.gear.count}x${Math.round(tri(m.light.gear.geometry) + tri(m.light.cloth.geometry))}` : '') + (m.far ? ` far ${m.far.gear.count}` : '') + (m.anim ? ' anim' : '')).join('; ');
     const men = () => G.battle.soldiers.filter(s => s.alive && !s.gone).length;
-    await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
+    await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, blobs: G.view.blobs?.count, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
     const SUM = {};
     for (let k = 0; k < ROUNDS; k++) for (const e of EXPS) {
       const kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed await sleep(1200);

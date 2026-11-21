@@ -8,6 +8,7 @@ import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor, gaitSpeed, CADENCE } from './anim.js';
 import { fxFor } from './fx.js';
+import { SUN_DIR } from './look.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -19,6 +20,27 @@ const BUILT_IN = ['spear', 'sword', 'archer', 'cav', 'militia', 'bandit'];
 
 export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
 const WHITE = new THREE.Color('#ffffff');
+const UP = new THREE.Vector3(0, 1, 0);
+
+// Men in the far pair cast no shadow (models.js LOD.far); each gets a soft dark streak on the ground instead, so a
+// line doesn't look pasted on the field: an oval reaching away from the sun about as far as his shadow would (a
+// disc right under him would hide behind his own legs). One instanced flat square with a round fading alpha,
+// drawn without writing depth.
+const SHADE = new THREE.Vector3(-SUN_DIR.x, 0, -SUN_DIR.z).normalize();
+const SHADE_LEN = 1 / Math.tan(Math.asin(SUN_DIR.y));   // metres of shadow for each metre of height
+function blobMesh(capacity) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d'), grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, '#fff'); grad.addColorStop(0.45, '#bbb'); grad.addColorStop(1, '#000');
+  g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+  const mat = new THREE.MeshBasicMaterial({ color: '#000', alphaMap: new THREE.CanvasTexture(c), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mat, capacity);
+  mesh.count = 0;
+  mesh.frustumCulled = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  return mesh;
+}
 
 // ---- what an animated soldier is doing ----
 
@@ -500,6 +522,9 @@ export class BattleView {
     this.base = SIDE_COLORS.map(c => new THREE.Color(c));
     this.capacity = capacity;
     this.meshes = {};
+    this.blobs = blobMesh(Math.max(capacity, battle.soldiers.length) + 256);
+    this.blobQ = new THREE.Quaternion(); this.blobS = new THREE.Vector3(); this.blobP = new THREE.Vector3(); this.blobM = new THREE.Matrix4();
+    scene.add(this.blobs);
     this.seenSoldiers = 0;
     this.version = battle.version;
     this.banners = [];
@@ -579,6 +604,13 @@ export class BattleView {
   drawDetailed(m, s, counts, cam) {
     const d2 = cam ? this.dummy.position.distanceToSquared(cam) : 0;
     const pair = d2 < LOD.near * LOD.near ? m : d2 < LOD.far * LOD.far ? m.light : m.far;
+    if (pair === m.far && !s.gone && !s.reg.unseen && this.blobs.count < this.blobs.instanceMatrix.count) {
+      // a man standing 1.8 m, a rider 2.6 m, both lower once fallen
+      const len = (s.reg.T.mounted ? 2.6 : 1.8) * (s.alive ? 1 : 0.3) * SHADE_LEN, out = len * 0.45;
+      this.blobQ.setFromAxisAngle(UP, Math.atan2(SHADE.x, SHADE.z));
+      this.blobS.set(s.reg.T.mounted ? 1.5 : 0.9, 1, len + 0.6);
+      this.blobs.setMatrixAt(this.blobs.count++, this.blobM.compose(this.blobP.set(s.x + SHADE.x * out, s.y + 0.05, s.z + SHADE.z * out), this.blobQ, this.blobS));
+    }
     const i = pair === m ? counts.full++ : pair === m.light ? counts.light++ : counts.far++;
     const dead = !s.alive && s.fall >= 1;
     pair.gear.setMatrixAt(i, this.dummy.matrix);
@@ -680,6 +712,7 @@ export class BattleView {
     this.syncSoldiers();
     this.syncBanners();
     const cam = LOD.camera?.position;
+    this.blobs.count = 0;
     for (const key in this.meshes) {
       const m = this.meshes[key], { gear, cloth, list, darkened } = m;
       const counts = { full: 0, light: 0, far: 0 };
@@ -723,6 +756,7 @@ export class BattleView {
       } else gear.instanceMatrix.needsUpdate = cloth.instanceMatrix.needsUpdate = true;
     }
 
+    this.blobs.instanceMatrix.needsUpdate = true;
     // Arrows fly a simple arc from bow to landing point.
     const q = new THREE.Quaternion(), z = new THREE.Vector3(0, 0, 1), dir = new THREE.Vector3();
     let n = 0, nj = 0;
