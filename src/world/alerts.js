@@ -11,16 +11,6 @@ import { living, opinion } from './vassals.js';
 
 const SPEED = 6;   // world.js: road speed
 
-// Why a village is short of food, in a few words: mouths against what feeds them.
-function hungerWhy(t) {
-  const makers = t.buildings.filter(b => b.state === 'active' && (b.B.gather?.out?.food || b.B.recipes?.some(r => r.out.bread)));
-  if (!makers.length) return `${t.population} people and nothing growing or hunting food`;
-  const working = makers.filter(b => b.workers.length && !b.dry && !b.paused);
-  const dry = makers.filter(b => b.dry).length, idle = makers.length - working.length - dry;
-  return `${t.population} people, ${working.length} of ${makers.length} food workplaces working` +
-    (dry ? `, ${dry} worked out` : '') + (idle ? `, ${idle} with nobody at them` : '');
-}
-
 const mins = s => s < 60 ? 'under a minute' : `${Math.round(s / 60)} min`;
 
 // Road distance still to go for an army.
@@ -43,12 +33,14 @@ export function alerts(w) {
     }
     if (t.revolt) add(4, `${p.name} is in revolt`, p, 'warning');
     else if (t.misery > 30) add(3, `${p.name} is close to revolt (mood ${Math.round(t.mood)})`, p, 'people');
-    if (t.hungry) add(5, `${p.name} is going hungry: ${hungerWhy(t)}`, p, 'food');
+    if (t.hungry) { const h = t.hungerWhy(); add(5, `${p.name} is going hungry: ${h.why}. ${h.fix[0].toUpperCase()}${h.fix.slice(1)}`, p, 'food'); }
     else {
       // Food seen coming up short, early, with the cause and the fix (playtest round 3).
       const fo = t.foodOutlook();
       if (fo) add(fo.level, `${p.name}: ${fo.text}. ${fo.fix[0].toUpperCase()}${fo.fix.slice(1)}`, p, 'food');
     }
+    const wo = t.woodOutlook();
+    if (wo) add(3, `${p.name}: ${wo.text}. ${wo.fix[0].toUpperCase()}${wo.fix.slice(1)}`, p, 'warning');
     const jo = !t.underAttack && !t.hostile && t.jobsOutlook();
     if (jo) add(2, `${p.name}: ${jo.text}`, p, 'people');
     const dry = t.buildings.filter(b => b.dry && b.state === 'active');

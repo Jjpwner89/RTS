@@ -591,6 +591,44 @@ async function worldChecks(w) {
   await check('no building site has waited long for builders while a hand could be spared', () =>
     w.pois.flatMap(p => (p.town?.buildings || []).filter(b => b.state === 'site' && !b.builders.length && b.lacked > 90 && !p.town.underAttack && p.town.leastNeeded(b))
       .map(b => `${p.name}: the ${b.kind} site has waited ${Math.round(b.lacked)} s`)));
+  // A village with few people and little food puts them on the farms first and feeds itself within a
+  // few minutes (playtest round 4: a taken village's hands all took the haulers' places, nobody worked
+  // the farms, and it starved for half an hour). A throwaway village laid out so the nearest jobs are
+  // not the farms; it is stepped here, never shown.
+  await check('a hungry village with few hands works its farms first and is fed within five minutes', async () => {
+    // (makeTown puts the town on the place it is given, so it gets a copy: the real village is left alone)
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const t = w.makeTown({ ...p, name: `${p.name} (checks() test copy)` }, { villagers: 6, retinue: false, stock: { wood: 80, stone: 20, iron: 10, food: 8 } }), out = [];
+    const put = (kind, r0, n) => {
+      for (let k = 0, a = 0.3; k < n && a < 60; a += 0.45) {
+        for (let r = r0; r < r0 + 30; r += 5) { const x = Math.cos(a) * r, z = Math.sin(a) * r; if (t.canPlace(kind, x, z, { free: true }).ok && t.place(kind, x, z, { ready: true }).ok) { k++; break; } }
+      }
+    };
+    put('house', 20, 2); put('storehouse', 22, 1); put('carpenter', 20, 1); put('tanner', 24, 1); put('weaponsmith', 24, 1); put('smelter', 26, 1); put('farm', 55, 3);
+    try {
+      let hungryAt = null;
+      for (let s = 0; s < 600; s++) { t.battle.step(0.5); t.update(0.5); if (t.hungry && hungryAt === null) hungryAt = s / 2; }
+      const farms = t.buildings.filter(b => b.kind === 'farm' && b.state === 'active');
+      if (t.hungry) out.push(`still hungry after five minutes: ${t.hungerWhy().why}`);
+      if (farms.length && !farms.some(b => b.workers.length)) out.push(`nobody works any of its ${farms.length} farms after five minutes`);
+      if (t.openFood() > 1 && t.idle === 0 && t.population > 6) out.push(`${t.openFood()} food places stand open while every hand works elsewhere`);
+    } finally { t.lost = true; }
+    return out;
+  });
+  // The carpenter makes planks until you switch shields on (round 4), for you only: stewards' places
+  // keep the shields they always made.
+  await check('a new carpenter makes planks only; shields start switched off in your villages, not in stewards\'', async () => {
+    const E = await import('./economy.js'), out = [];
+    const rs = E.BUILDINGS.carpenter.recipes, sh = rs.findIndex(r => 'shields' in r.out);
+    if (sh < 0 || rs[sh].start !== 'off') out.push('the shield recipe does not start switched off');
+    if (rs[sh]?.off) out.push('the shield recipe is off for stewards too');
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home, t = w.makeTown({ ...p, name: `${p.name} (checks() test copy)` }, { villagers: 1, retinue: false });
+    try {
+      const made = t.place('carpenter', 25, 5, { ready: true }).building;
+      if (!made.off.has(sh) || made.off.has(1 - sh)) out.push('a new carpenter does not start on planks only');
+    } finally { t.lost = true; }
+    return out;
+  });
   // A match is real (marriages as ambitions, 2026-11-21): a wed vassal's house is a great house, only
   // someone who can still be wed wants one, and the price is half the dowry, to the nearest 25.
   await check('a vassal is wed only into a real great house, and the match is priced', async () => {

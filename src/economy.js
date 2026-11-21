@@ -49,7 +49,9 @@ export const GOOD_GROUPS = [
 // at 1.6 m/s, not 3.4, so each trip brings back more (and hunts take more game) to keep a worker's
 // output a minute where it was. Stewards' places (world/holdings.js) keep the old yields.
 // recipes: villagers work at the building, turning stock into stock. Each workshop can
-// switch any of its recipes off; it takes turns between those left on. `keep` stops a
+// switch any of its recipes off; it takes turns between those left on. A recipe marked
+// `off` is off for stewards too; one marked `start: 'off'` starts off only in your villages
+// (round 4: the carpenter's shields ate planks, and so wood, unseen). `keep` stops a
 // recipe once that much of its output is stored. Arms have no limit (switch a recipe off to
 // stop it), save shields and leather armour, which stop at sixty so the planks and leather aren't all made into them.
 // Workshops stop asking for wood once the village is down to its last, so construction can go on.
@@ -61,6 +63,9 @@ export const RESERVE = { wood: 20, planks: 25 };
 // waits until a house or two and a workshop are covered.
 export const WOOD_FIRST = 36;
 const CLEAR_TIME = 25;
+// A village with less than this many minutes of food in its stores puts its hands on the food first (round 4).
+const FOOD_FIRST = 3;
+const FOOD_HANDS_EVERY = 6;
 const CRAFT_SOUND = { carpenter: 'saw', bowyer: 'saw', smelter: 'smith', weaponsmith: 'smith', armourer: 'smith' };   // audio: the rest hammer
 // A site nobody comes to build for this long takes a hand from the job the village misses least.
 const BUILDER_WAIT = 30;
@@ -87,8 +92,8 @@ export const BUILDINGS = {
   flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
     gather: { node: 'field', time: 8, out: { flax: 3 }, ripen: 120 }, desc: 'Grows flax for bowstring. The first crop takes a while to come in.' },
   carpenter: { name: 'Carpenter', icon: 'carpenter', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
-    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 60 }],
-    desc: 'Saws wood into planks, and planks into shields.' },
+    recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 60, start: 'off' }],
+    desc: 'Saws wood into planks. Switch shields on in its panel when the barracks needs them: they take planks, and so wood.' },
   ropemaker: { name: 'Ropemaker', icon: 'ropemaker', group: 'Craft', cost: { wood: 15 }, radius: 4, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { flax: 2 }, out: { string: 1 }, time: 7, keep: 20 }], desc: 'Twists flax into bowstring.' },
   smelter: { name: 'Smelter', icon: 'smelter', group: 'Craft', cost: { wood: 10, stone: 15 }, radius: 3.5, build: 15, jobs: 1, hp: 150,
@@ -723,7 +728,7 @@ export class Town {
     for (const t of this.nodes.tree) if (t.standing && Math.hypot(t.x - x, t.z - z) < B.radius + 2) this.trees.fell(t);
     const b = { id: this.buildings.length + 1, kind, B, x, z, angle: Math.atan2(-x, -z), state: 'site', progress: 0,
       hp: B.hp, workers: [], builders: [], paused: false, recipe: null, timer: 0, status: 'Waiting for builders',
-      off: new Set((B.recipes || []).flatMap((r, i) => r.off ? [i] : [])), turn: 0, store: {}, incoming: {}, reserved: {} };
+      off: new Set((B.recipes || []).flatMap((r, i) => r.off || r.start === 'off' ? [i] : [])), turn: 0, store: {}, incoming: {}, reserved: {} };
     if (ready) Object.assign(b, { state: 'active', progress: 1, status: B.jobs ? 'Waiting for workers' : '' });
     this.buildings.push(b);
     this.stockCache = null;
@@ -1540,6 +1545,7 @@ export class Town {
     for (const v of this.villagers) this.updateVillager(v, dt);
     for (const b of this.buildings) if (b.state === 'active') this.updateBuilding(b, dt);
     this.lendBuilders(dt);
+    this.updateFoodHands(dt);
     if ((this.prioClock = (this.prioClock || 0) - dt) <= 0) { this.prioClock = 1; this.prioText = this.prioNote(); }
     this.updatePeople(dt);
     this.updateAttacks(dt);
@@ -1747,14 +1753,67 @@ export class Town {
       if (d < bd) { bd = d; best = b; }
     }
     if (best) { best.builders.push(v); v.state = 'build'; v.job = null; v.site = best; return; }
+    // A village short of food fills the farms and lodges first, and only as many haulers as there is
+    // food to carry; otherwise the nearest open place gets the hand (round 4: a taken village's few
+    // people all took the haulers' places at the keep and nobody worked the farms for half an hour).
+    const short = this.foodShort(), food = short ? this.foodHands() : null;
     for (const b of [this.keep, ...this.buildings]) {
       if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= this.staffed(b)) continue;
       if (b.dry && this.time - b.dry > 30) b.dry = this.pickSpot(b) ? null : this.time;   // game breeds back
       if (b.dry) continue;
-      const d = dist(v, b);
+      const d = dist(v, b) + (short ? this.foodRank(b, food) * 1e4 : 0);
       if (d < bd) { bd = d; best = b; }
     }
     if (best) { best.workers.push(v); v.job = best; v.state = 'work'; v.task = null; v.jobEta = this.time + dist(v, best) / WALK + 2; }
+  }
+
+  // ---- food first ----
+  // Under FOOD_FIRST minutes of food in the stores, or hungry.
+  foodShort() { return this.hungry || this.larder < FOOD_FIRST; }
+  // Meals lying outside the stores: at the farms, waiting for a hauler.
+  yardMeals() { return Math.max(0, Math.floor(this.stock.food + this.stock.bread - this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0))); }
+  // Food workplaces with a place for another hand (not worked out, not paused).
+  openFood() {
+    return this.buildings.reduce((n, b) => n + (b.state === 'active' && !b.paused && !b.dry && b.B.gather?.out?.food ? Math.max(0, this.staffed(b) - b.workers.length) : 0), 0);
+  }
+  // The yard to clear and the hands already on food: how many haulers the meals lying about call for
+  // (one at least while anything lies there, and more as the farms get hands to fill it).
+  foodHands() {
+    const tillers = this.buildings.reduce((n, b) => n + (b.B.gather?.out?.food ? b.workers.length : 0), 0), yard = this.yardMeals();
+    return { yard, tillers, haulers: yard < 1 ? 0 : Math.min(Math.ceil(yard / 15), 1 + Math.floor(tillers / 2)) };
+  }
+  // 0 for the places a starving village fills first, 1 for the rest, 2 for haulers it has no food to carry for.
+  foodRank(b, f) {
+    if (b.B.gather?.out?.food) return 0;
+    if (b.B.haul) return b.workers.length < f.haulers ? 0 : 2;
+    return 1;
+  }
+  // Every few seconds a village short of food, with a farm or lodge going empty, takes a hand off
+  // the job it misses least and sends them to the food: haulers beyond the yard first, then
+  // workshops standing idle, then the rest. Said once, with what moved.
+  updateFoodHands(dt) {
+    this.foodHandCd = (this.foodHandCd || 0) - dt;
+    if (this.foodHandCd > 0) return;
+    this.foodHandCd = FOOD_HANDS_EVERY;
+    if (!this.foodShort() || this.underAttack || this.hostile || !this.openFood()) { if (!this.foodShort()) this.foodHandsTold = false; return; }
+    if (this.villagers.some(v => v.state === 'idle')) return;   // idle hands are on their way already
+    const f = this.foodHands(), jobs = [this.keep, ...this.buildings].filter(b => b.state === 'active' && b.B.jobs && b.workers.length && !b.B.gather?.out?.food && b !== this.priority);
+    const wood = jobs.reduce((n, b) => n + (b.B.gather?.out?.wood ? b.workers.length : 0), 0), haul = jobs.reduce((n, b) => n + (b.B.haul ? b.workers.length : 0), 0);
+    let best = null, bs = Infinity;
+    for (const b of jobs) {
+      let score;
+      if (b.B.haul) { if (b.workers.length <= f.haulers || haul <= 1) continue; score = 0; }
+      else if (b.B.gather?.out?.wood) { if (wood <= 1) continue; score = 3; }
+      else score = !b.B.gather && /^(Waiting|Village has enough|Saving|Store full|Nothing)/.test(b.status || '') ? 1 : 2;
+      score += -b.workers.length * 0.1;
+      if (score < bs) { bs = score; best = b; }
+    }
+    if (!best) return;
+    this.release(best.workers[best.workers.length - 1]);
+    if (!this.foodHandsTold) {
+      this.foodHandsTold = true;
+      this.event(`Food is short: hands are taken off the ${best.B.name.toLowerCase()} to work the farms.`, 1);
+    }
   }
 
   // One priority per village: a site or a workplace. Setting a new one clears the old; setting the same one clears it.
@@ -2173,32 +2232,68 @@ export class Town {
   // the work time plus 12 s of walking), at a meal a head a minute.
   feeds(B) { const g = B.gather; return Math.floor((B.jobs || 1) * (g.out.food || 0) * 60 / (g.time + 12)); }
 
+  // What is wrong with the food, in a few words, and what to do: nothing growing, nobody at the farms,
+  // meals piling at the farms, a first crop still coming, or too few farms for the mouths. (Round 4:
+  // a taken village starved for half an hour and said only "hungry".)
+  foodCause() {
+    const pop = this.population;
+    const makers = this.buildings.filter(b => b.state === 'active' && b.B.gather?.out?.food && !b.paused);
+    const working = makers.filter(b => b.workers.length && !b.dry);
+    const ripening = working.filter(b => b.ripeAt > this.time);
+    const yard = this.yardMeals(), open = this.openFood();
+    const farm = BUILDINGS.farm, perFarm = this.feeds(farm);
+    if (!makers.length) return { why: 'nothing is growing or hunting food', fix: `build a farm (it feeds about ${perFarm}; its first crop takes ${Math.round(farm.gather.ripen / 30) / 2} min)` };
+    if (!working.length) {
+      const hands = this.villagers.filter(v => v.state !== 'soldier').length;
+      return { why: `nobody is working the ${makers.length} farm${makers.length > 1 ? 's' : ''} (${hands} hands, all at other jobs)`, fix: 'hands are taken off other work for the farms; if there are none to spare, build houses once it is fed' };
+    }
+    if (yard >= Math.max(10, pop / 2)) return { why: `${yard} meals are piling up at the farms, not reaching the stores`, fix: 'add haulers (a second hauler at the keep, or a storehouse near the farms)' };
+    if (ripening.length) {
+      const soonest = Math.min(...ripening.map(b => b.ripeAt - this.time));
+      return { why: `${ripening.length > 1 ? `${ripening.length} farms are` : 'a farm is'} still ripening`, fix: `the first crop comes in ${Math.ceil(soonest / 30) / 2} min; a hunter's lodge feeds sooner, and no new houses until then` };
+    }
+    const fed = working.reduce((n, b) => n + this.feeds(b.B), 0);
+    if (open) return { why: `${pop} people, but only ${working.length} of ${makers.length} food workplaces have hands (about ${fed} fed)`, fix: `${open} places are open: hands come off other work for them, and nothing new settles until the stores fill` };
+    return { why: `${pop} people, but ${working.length} working food place${working.length > 1 ? 's' : ''} feed${working.length > 1 ? '' : 's'} about ${fed}`, fix: `build ${Math.max(1, Math.ceil((pop - fed) / perFarm))} more farm${pop - fed > perFarm ? 's' : ''}, and no new houses until they are growing` };
+  }
+
   // Food seen coming, before the village goes hungry (which only shows at under half a minute of meals):
   // minutes in the stores, the trend, and what is to blame, with a fix. Null when all is well.
   foodOutlook() {
     const pop = this.population;
     if (!pop || this.hungry) return null;
     const mins = this.larder, trend = this.foodTrend ?? null;
-    const makers = this.buildings.filter(b => b.state === 'active' && b.B.gather?.out?.food && !b.paused);
-    const working = makers.filter(b => b.workers.length && !b.dry);
-    const ripening = working.filter(b => b.ripeAt > this.time);
-    const yard = Math.floor(this.stock.food + this.stock.bread - mins * pop);   // food not yet in a store
     if (mins >= 3 || (trend !== null && trend >= 0 && mins >= 1.5)) return null;
     const left = `${mins < 1 ? 'under a minute' : `about ${Math.round(mins * 10) / 10} min`} of food for ${pop}`;
-    let why, fix;
-    const farm = BUILDINGS.farm, perFarm = this.feeds(farm);
-    if (!makers.length) { why = 'nothing is growing or hunting food'; fix = `build a farm (it feeds about ${perFarm}; its first crop takes ${Math.round(farm.gather.ripen / 30) / 2} min)`; }
-    else if (!working.length) { why = 'nobody is working the farms'; fix = 'put villagers on a farm (the workplace needs workers)'; }
-    else if (yard >= pop) { why = `${yard} meals are piling up at the farms, not reaching the stores`; fix = 'add haulers (a second hauler at the keep, or a storehouse near the farms)'; }
-    else if (ripening.length) {
-      const soonest = Math.min(...ripening.map(b => b.ripeAt - this.time));
-      why = `${ripening.length > 1 ? `${ripening.length} farms are` : 'a farm is'} still ripening`; fix = `the first crop comes in ${Math.ceil(soonest / 30) / 2} min; a hunter's lodge feeds sooner, and no new houses until then`;
-    } else {
-      const fed = working.reduce((n, b) => n + this.feeds(b.B), 0);
-      why = `${pop} people, but ${working.length} working food place${working.length > 1 ? 's' : ''} feed${working.length > 1 ? '' : 's'} about ${fed}`;
-      fix = `build ${Math.max(1, Math.ceil((pop - fed) / perFarm))} more farm${pop - fed > perFarm ? 's' : ''}, and no new houses until they are growing`;
-    }
+    const { why, fix } = this.foodCause();
     return { mins, level: mins < 1.5 ? 4 : 3, text: `${left}: ${why}`, fix, why };
+  }
+
+  // Why the village has gone hungry (the alert, the panel and the realm screen say it).
+  hungerWhy() {
+    const { why, fix } = this.foodCause();
+    return { why: `${this.population} people: ${why}`, fix };
+  }
+
+  // Building sites held up for wood or planks, and who is to blame: no woodcutter, a woodcutter with
+  // nobody at it, or a workshop turning the wood into something else (round 4: two carpenters sawed
+  // shields for fourteen minutes while the houses waited, and nothing said so). Null when no site waits.
+  woodOutlook() {
+    if (this.underAttack || this.hostile || !(this.woodWait >= 2)) return null;
+    const sites = this.buildings.filter(b => b.state === 'site' && !b.removed && /^Waiting for.*(wood|planks)/.test(b.status || ''));
+    if (!sites.length) return null;
+    const goods = [...new Set(sites.flatMap(b => ['wood', 'planks'].filter(g => (b.status || '').includes(g))))];
+    const cutters = this.buildings.filter(b => b.state === 'active' && b.B.gather?.out?.wood && !b.paused);
+    const eaters = this.buildings.filter(b => b.state === 'active' && b.B.recipes && b.recipe && ('wood' in b.recipe.in || 'planks' in b.recipe.in));
+    let why, fix;
+    if (!cutters.length) { why = 'no woodcutter stands'; fix = 'build a woodcutter by the trees'; }
+    else if (!cutters.some(b => b.workers.length)) { why = 'the woodcutters have nobody at them'; fix = 'hands come off other work for them once the village is fed'; }
+    else if (eaters.length) {
+      const what = [...new Set(eaters.map(b => `${b.B.name.toLowerCase()} making ${Object.keys(b.recipe.out).map(g => GOODS[g].name.toLowerCase()).join(' and ')}`))];
+      why = `the ${what.join(' and the ')} ${what.length > 1 ? 'are' : 'is'} using it`; fix = 'switch that recipe off in its panel, or build more woodcutters';
+    } else { why = 'the woodcutters are not keeping up'; fix = 'build another woodcutter, or find trees nearer'; }
+    const n = sites.length, names = [...new Set(sites.map(b => b.B.name.toLowerCase()))].slice(0, 2).join(' and ');
+    return { text: `${n > 1 ? `${n} sites (${names}) wait` : `the ${names} waits`} for ${goods.join(' and ')}: ${why}`, fix, why };
   }
 
   // Hands without a job while the village has none to give: what to build, or why they stand.
@@ -2259,6 +2354,10 @@ export class Town {
       if (this.foodSamples.length > 6) this.foodSamples.shift();
       const f0 = this.foodSamples[0], f1 = this.foodSamples.at(-1);
       this.foodTrend = f1.t - f0.t >= 60 ? (f1.meals - f0.meals) / ((f1.t - f0.t) / 60) : null;
+      // Sites kept waiting for wood or planks (two ticks running, a minute): said once in five minutes.
+      this.woodWait = this.buildings.some(b => b.state === 'site' && !b.removed && /^Waiting for.*(wood|planks)/.test(b.status || '')) ? (this.woodWait || 0) + 1 : 0;
+      const wo = this.woodOutlook();
+      if (wo && this.time - (this.woodSaid ?? -1e9) > 300) { this.woodSaid = this.time; this.event(`Building is held up: ${wo.text}. ${wo.fix[0].toUpperCase()}${wo.fix.slice(1)}.`, 1); }
       const out = this.foodOutlook();
       if (out && !this.foodWarned) { this.foodWarned = true; this.event(`Food is running short: ${out.text}. ${out.fix[0].toUpperCase()}${out.fix.slice(1)}.`, 1); }
       else if (!out && this.foodWarned && this.larder >= 4) this.foodWarned = false;

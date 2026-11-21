@@ -28,7 +28,17 @@ function desperate(t) {
 function wanted(t) {
   const s = t.stock, n = k => t.buildings.filter(b => b.kind === k && b.state !== 'ruined').length;
   const meals = s.food + s.bread;
-  if (t.hungry || meals < t.population) return n('farm') <= n('hunter') * 2 ? 'farm' : 'hunter';
+  if (t.hungry || meals < t.population) {
+    // A farm nobody can work feeds no one (playtest round 4: Pellley kept getting farms while six stood empty):
+    // while places stand open the village needs hands on them, not more fields.
+    const open = t.openFood();
+    if (open) {
+      if (!t.govHeld) { t.govHeld = true; t.event(`The governor is building no more farms: ${open} food place${open > 1 ? 's stand' : ' stands'} open with nobody to work ${open > 1 ? 'them' : 'it'}.`, 1); }
+      return null;
+    }
+    t.govHeld = false;
+    return n('farm') <= n('hunter') * 2 ? 'farm' : 'hunter';
+  }
   if (t.population >= t.housing - 2) return 'house';
   if (s.wood < 40 && n('woodcutter') < 2) return 'woodcutter';
   if (!n('storehouse') && t.buildings.length >= 6) return 'storehouse';
