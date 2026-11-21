@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, ELITE, HALL, gearOf, carry, armourWeight, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -29,10 +29,7 @@ export const FACTIONS = [];
 export const NEUTRAL = { name: 'Free folk', short: 'Free', color: '#b8ab90' };
 export const ownerOf = p => (p.owner === null ? NEUTRAL : FACTIONS[p.owner]);
 
-const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, bandit: 0.7,
-  crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
-const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
-export const power = units => units.reduce((n, u) => n + u.count * value(u.key) * armourWeight(u), 0);
+export { power };   // (economy.js: the village's own defence reckons with it too)
 export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
 const SPEED = 6;        // world units a second along a road
@@ -385,6 +382,9 @@ export class World {
     const town = new Town(battle, heightAt, trees, rng(p.seed + 7), { kind: p.kind, ...opts });
     town.purse = FACTIONS[0];
     town.onFall = () => { p.falling = true; };
+    town.placeName = p.name;
+    // What the village's defence says reaches the world's log when you are not there to see it.
+    town.onNote = (text, side) => { if (this.hooks.watching() !== p) this.log(`${p.name}: ${text}`, side); };
     town.rebelHouse = this.bandits;
     // A knights' hall wants the rank of Count, and its finishing is a moment.
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
@@ -1827,8 +1827,10 @@ export class World {
       // With nobody watching, the garrison turns out against attackers by itself.
       if (t.underAttack && this.hooks.watching() !== p) {
         if (t.hostile && b.walls.structures().some(s => s.side === 1 && s.state === 'up')) thinkSiegeAttack(b, 0);
-        // (not the militia: they keep their own rules, economy.js thinkMilitia)
-        else thinkAI(b, 0, { start: 0, regs: b.regs.filter(r => !r.T.militia) });
+        // (not the militia, and not the village's own foot soldiers: their sorties, falling back and
+        // return are the village's own rules, economy.js thinkDefenders. The AI's regiments run
+        // ahead of the militia they should lead, and a retinue sent out so died to a man.)
+        else thinkAI(b, 0, { start: 0, regs: b.regs.filter(r => !r.T.militia && (b.shoots(r) || r.T.engine || t.hostile)) });
       }
     }
     p.pruneClock -= dt;

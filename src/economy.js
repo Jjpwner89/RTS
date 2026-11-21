@@ -225,7 +225,12 @@ export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key),
 // What a regiment carries between the map and the field: its armour and its battle count
 // (r.battles, the short service record on its card).
 export const carry = u => ({ ...gearOf(u), battles: u.battles || 0 });
+const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, bandit: 0.7,
+  crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
+export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
 export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
+// A band's or a garrison's strength, the sum auto-resolve and the attack ask reckon with (world.js).
+export const power = units => units.reduce((n, u) => n + u.count * value(u.key) * armourWeight(u), 0);
 // A barracks' rule for its racks. Raising picks the armour for the whole regiment from it.
 export const POLICIES = {
   best: { name: 'Best available', about: 'Each levy wears the best armour the racks hold enough of for every man, with shields if there are enough.' },
@@ -1018,6 +1023,36 @@ export class Town {
     const b = this.battle, foes = this.attackers.filter(g => !g.leaving && g.mode !== 'hold').flatMap(g => g.regs).filter(r => !r.gone && !r.routing && !r.regrouping);
     if (!foes.length) return;
     const d = (a, o) => Math.hypot(a.cx - o.x, a.cz - o.z);
+    const mine = b.regs.filter(r => r.side === 0 && !r.gone && r.alive > 0 && !r.T.engine);
+
+    // Outnumbered: if the soldiers alone are weaker than the band (the sum auto-resolve reckons
+    // with), the people are called out at once, so soldiers and people go out together instead of
+    // the soldiers dying alone (seed 7: 38 raiders killed a retinue of 20 to a man). If even the
+    // two together are clearly weaker, they keep to the keep and meet it there, not in the open;
+    // they go out when they are on the stronger side again.
+    const theirs = this.strength(foes), stand = this.strength(mine.filter(r => !r.T.militia)), total = stand + this.strength(mine.filter(r => r.T.militia));
+    if (!this.calledOut && stand < theirs * 1.1 && !this.militia.length && this.musterCheck().ok) {
+      this.calledOut = true;
+      this.say('Outnumbered: the whole village is called out.', 1);
+      this.muster();
+    }
+    if (!this.fallingBack && total < theirs * 0.8) this.fallingBack = true;
+    else if (this.fallingBack && total > theirs * 1.0) this.fallingBack = false;
+    for (const r of mine) if (!r.T.militia) r.fallBack = this.fallingBack;
+    if (this.fallingBack) {
+      if (!this.fellBackSaid) {
+        this.fellBackSaid = true;
+        const place = this.placeName || 'the village';
+        this.say(`Too many to meet in the open: falling back to ${place}'s ${b.walls.any ? 'walls' : 'keep'}.`, 1);
+      }
+      // those already out come back to where they stood
+      for (const r of mine) if (!r.T.militia && r.homeSpot && !r.hold) {
+        const h = r.homeSpot;
+        r.homeSpot = r.homeTarget = null;
+        b.orderMove([r], h.x, h.z, h.angle);
+      }
+    }
+
     // (at the village itself, not out on its land: met in the open, the retinue and the militia behind it
     // fared worse than fighting where the whole village stands)
     // A band is also met on its way to a building it has picked, wherever that stands: the
@@ -1029,7 +1064,7 @@ export class Town {
     const raiders = foes.filter(onLand);
     if (!raiders.length) return;
     let sent = 0;
-    for (const r of b.regs) {
+    if (!this.fallingBack) for (const r of b.regs) {
       if (r.side !== 0 || !b.usable(r) || r.T.militia || r.T.engine || b.shoots(r) || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.after || r.ai === 'siege') continue;
       const t = raiders.sort((p, q) => d(p, r) - d(q, r))[0];
       r.homeSpot ??= { x: r.cx, z: r.cz, angle: r.angle };   // where it stood: it comes back there (endAttack)
@@ -1039,20 +1074,27 @@ export class Town {
     }
     if (sent && !this.droveSaid) {
       this.droveSaid = true;
-      this.event('Your soldiers go out to drive the raiders from the village. (Hold keeps them at the keep.)', 0);
+      this.say('Your soldiers go out to drive the raiders from the village. (Hold keeps them at the keep.)', 0);
     }
-    // Soldiers you ordered to Hold stand and watch it burn: say so once, so it reads as the
-    // order it is and not a fault (QC, 2026-11-21: a retinue on Hold, a house burned, no word).
+    // Soldiers kept at the keep, by your Hold or because the band is too many, watch it burn:
+    // say so once, so it reads as what it is and not a fault (QC, 2026-11-21: a retinue on
+    // Hold, a house burned, no word).
     if (!this.holdSaid) {
-      const held = b.regs.find(r => r.side === 0 && b.usable(r) && r.hold && !r.T.militia && !r.T.engine && !b.shoots(r));
+      const held = b.regs.find(r => r.side === 0 && b.usable(r) && !r.T.militia && !r.T.engine && !b.shoots(r) && (r.hold || r.fallBack));
       const burning = held && raiders.find(f => f.raidTarget && f.raidTarget.state !== 'ruined' && !f.raidTarget.removed && d(f, f.raidTarget) < f.raidTarget.B.radius + 9);
       if (burning) {
         this.holdSaid = true;
-        const t = burning.raidTarget;
-        this.event(`${held.retinue ? 'Your retinue holds' : `${held.name} hold`} its ground (Hold) while raiders burn the ${t === this.keep ? 'keep' : t.B.name.toLowerCase()} to the ${compass(t)}.`, 1);
+        const t = burning.raidTarget, who = held.retinue ? 'Your retinue' : held.name;
+        this.say(`${who} ${held.retinue ? 'holds' : 'hold'} its ground (${held.hold ? 'Hold' : 'too many to meet in the open'}) while raiders burn the ${t === this.keep ? 'keep' : t.B.name.toLowerCase()} to the ${compass(t)}.`, 1);
       }
     }
   }
+
+  // A side's strength in the field, reckoned as auto-resolve reckons it (world.js resolve).
+  strength(regs) { return power(regs.filter(r => !r.gone && r.alive > 0).map(r => ({ key: r.T.key, count: r.alive, armour: r.armour, shield: r.shield }))); }
+
+  // What the village's defence says: here, and in the world's log if you are not watching.
+  say(text, side = 0) { this.event(text, side); this.onNote?.(text, side); }
 
   // The militia hold by the keep. When your soldiers go for the attackers they follow a
   // little way behind, and once those soldiers are locked in a fight they pile into it,
@@ -2186,7 +2228,7 @@ export class Town {
       const off = (i - (specs.length - 1) / 2) * 30;
       return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
-    if (!this.underAttack) { this.fallen = {}; this.droveSaid = false; this.holdSaid = false; }
+    if (!this.underAttack) { this.fallen = {}; this.droveSaid = this.holdSaid = this.fellBackSaid = this.fallingBack = this.calledOut = false; }
     // Raiders in the woods are hidden from an enemy's eyes (battle.updateSight), but not on a
     // village's own land: its people see them burn it, and you must be able to order men at
     // them (a band in the trees by the village could not be clicked, nor answered).
@@ -2256,6 +2298,7 @@ export class Town {
     if (!this.underAttack) for (const r of this.battle.regs) {
       const h = r.homeSpot, last = r.homeTarget;
       r.homeSpot = r.homeTarget = null;
+      r.fallBack = false;
       // (a chase leaves its last waypoint behind as a dest, where the foe was; an order of yours is somewhere else)
       const theirs = r.targetReg ? r.targetReg.gone : !r.dest || (last && Math.hypot(r.dest.x - last.cx, r.dest.z - last.cz) < 30);
       if (h && r.side === 0 && this.battle.usable(r) && theirs && !r.targetWall && !r.posts && Math.hypot(r.cx - h.x, r.cz - h.z) > 12) this.battle.orderMove([r], h.x, h.z, h.angle);
