@@ -20,7 +20,7 @@
 }
 
 body { font-family: var(--body-font); color: var(--ink); }
-:is(#stock, #build, #info, #help, #wpanel, #goals, #alerts, #defences, .modal, #herald, #deploy, #terms, #duel, #paused-tag, #log div, #toast, #end, #orders .group, .wlabel, .card) {
+:is(#stock, #build, #info, #help, #wpanel, #goals, #alerts, #defences, .modal, #herald, #deploy, #terms, #duel, #paused-tag, #log div, #toast, #end, #orders .group, .wlabel, .card, #realm) {
   background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius);
   box-shadow: var(--surface-shadow); outline: var(--surface-outline, none); outline-offset: var(--surface-outline-offset, 0);
   color: var(--ink);
@@ -56,6 +56,16 @@ button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #res
 .card .morale i { background: #3f7d34; }
 #stock .goods .ico, #info p .ico, .wlabel .ico, #alerts .ico { filter: brightness(.5) saturate(1.6); }
 .wlabel b { filter: brightness(.55) saturate(1.4); }
+/* The realm screen: parchment, ink tables, badges dyed rather than glowing. */
+#realm h2 { color: var(--gold); }
+#realm thead th { background: #eadbb4; color: var(--dim); }
+#realm :is(th, td) { border-bottom-color: var(--rule); }
+#realm .warn { color: #8a5a0c; }
+#realm .trouble span { background: rgba(80, 50, 20, .1); }
+#realm .trouble :is(.l5, .l4) { background: rgba(163, 39, 26, .16); color: var(--bad); }
+#realm .trouble .l3 { background: rgba(176, 96, 20, .16); color: #8a4a10; }
+#realm .trouble .l2 { background: rgba(160, 120, 20, .14); color: #7a5a0c; }
+#realm nav button.on { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
 #herald { border-left: 6px solid var(--hc, var(--gold)); }
 /* A routing regiment's card flushes red parchment rather than the dark red. */
 @keyframes blink { to { background: var(--grain), linear-gradient(#efc3a4, #d58f70); } }

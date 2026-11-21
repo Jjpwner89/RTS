@@ -374,3 +374,14 @@ The creator tests by playing the campaign and wanted a save at each rank to try 
 - **Duke**: 11 places at minute 42, 4,000+ gold (about 20,000 with the coin of the places taken), Ashford at 80 (every template open). About 40 s. Every house was at war with you, for testing peace, dowries and buying off a coalition.
 - Ashford gets building stock for templates (250 wood, 200 stone, 80 planks, 30 iron) and finished houses to make room for the people.
 - Test campaigns save to their own slot (`rts.campaign.test`, chosen by `options.test`), so the real campaign is never overwritten; **Continue test** on the title page picks the test one up.
+
+## The Realm screen (built 2026-11-20)
+
+The creator, on growing past a lord: "somewhere to manage the realm as a count / duke… where do i go for vassal management… maybe centralized econ panel too so i can see how my villages are performing." The **Realm** button on the top bar (or Tab, on the map and in a village) opens one screen over everything (realmscreen.js), redrawn once a second:
+
+- **Villages**: every place you hold, one row each: people / room and newcomers a minute, mood, food as meals a head, wood, stone, iron, arms, soldiers, tax a minute, and what needs you. Needs flags the trouble worst first (under attack, revolt, hunger, cold hearths, low mood, buildings stuck and why, no room); a vassal's place shows who runs it. **Go** enters the village, **Map** shows it on the map with its panel open. A totals row sums the realm.
+- **Vassals**: each lord, their opinion (hover for the reasons), holdings, men, dues and levies, what they have paid, and flags (council, refusing, feud, landless). **Deal** opens their holding's panel, where dues, gifts and the council are set as before.
+- **Houses**: each great house, your tie (war, peace, truce, alliance, marriage), their feeling, places, strength and gold. **Deal** opens their diplomacy panel.
+- **Treasury**: taxes in, knights' and sellswords' pay out, the net a minute, vassal dues so far, and the purse.
+
+The screen reports and points; the deciding still happens in the panels it opens, so there is one place for each choice.

@@ -36,6 +36,7 @@ import { GOALS, updateGoals } from './world/goals.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
+import { RealmScreen } from './realmscreen.js';
 import { actions as dipActions, act as dipAct, mood, grudgeLines } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
@@ -1001,6 +1002,17 @@ $('wpanel').onclick = e => {
 $('pause').onclick = () => { paused = !paused; };
 for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => { speed = +b.dataset.speed; paused = false; };
 $('help-toggle').onclick = () => $('help').classList.toggle('open');
+// The realm at a glance: villages side by side, vassals, houses and the purse.
+const realm = new RealmScreen(world, {
+  enter: p => enterTown(p),
+  select: it => { if (mode === 'field') return; showWorld(); selected = it; if (!it.house) worldControls.lookAt(it); },
+});
+$('realm-toggle').onclick = () => realm.toggle();
+addEventListener('keydown', e => {
+  if (e.target.closest?.('input, select, textarea')) return;
+  if (e.key === 'Tab') { e.preventDefault(); realm.toggle(); }
+  else if (e.key === 'Escape' && realm.open) { e.stopImmediatePropagation(); realm.hide(); }
+}, true);
 $('help-close').onclick = () => { $('help').classList.remove('open'); paused = false; };
 $('to-world').onclick = () => showWorld();
 $('march').onclick = () => {
@@ -1088,6 +1100,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  realm.update();
   nextAsk();
   if (!paused && !blocked()) {
     let left = dt * speed;
