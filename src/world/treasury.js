@@ -10,9 +10,9 @@
 // hauls the goods to your nearest village and can be robbed on the way. Rival houses buy
 // there too for their own stores, at the going price.
 import { FACTIONS } from './world.js';
-import { ELITE } from '../economy.js';
+import { ELITE, HOUSEHOLD_PAY } from '../economy.js';
 
-const payOf = key => (ELITE[key] ?? ELITE.maa).pay;      // gold per man per minute
+const payOf = key => key === 'household' ? HOUSEHOLD_PAY : (ELITE[key] ?? ELITE.maa).pay;      // gold per man per minute
 const UNPAID_GRUMBLE = 45, UNPAID_STAND_DOWN = 150, STAND_DOWN_EVERY = 30;
 
 // Every elite soldier of `side`, as [holder, count, key, standDown()] rows.
@@ -21,15 +21,15 @@ function elitesOf(w, side) {
   for (const p of w.pois) {
     if (p.owner !== side) continue;
     if (p.town && !p.town.hostile) {
-      for (const r of p.town.battle.regs) if (r.side === 0 && r.elite && !r.gone && r.alive > 0)
+      for (const r of p.town.battle.regs) if (r.side === 0 && (r.elite || r.T.key === 'household') && !r.gone && r.alive > 0)
         out.push({ n: r.alive, key: r.T.key, off: () => p.town.disband(r), where: p.name });
     } else {
-      for (const u of p.garrison) if (u.elite) out.push({ n: u.count, key: u.key, off: () => { p.garrison = p.garrison.filter(o => o !== u); }, where: p.name });
+      for (const u of p.garrison) if (u.elite || u.key === 'household') out.push({ n: u.count, key: u.key, off: () => { p.garrison = p.garrison.filter(o => o !== u); }, where: p.name });
     }
   }
   for (const a of w.armies) {
     if (a.side !== side || a.gone) continue;
-    for (const u of a.units) if (u.elite) out.push({ n: u.count, key: u.key, off: () => { a.units = a.units.filter(o => o !== u); }, where: a.name });
+    for (const u of a.units) if (u.elite || u.key === 'household') out.push({ n: u.count, key: u.key, off: () => { a.units = a.units.filter(o => o !== u); }, where: a.name });
   }
   return out;
 }
@@ -50,7 +50,7 @@ export function payElites(w, dt) {
     S.unpaid += dt;
     if (H.index === 0 && S.unpaid >= UNPAID_GRUMBLE && !S.grumbled) {
       S.grumbled = true;
-      w.log('Your knights and men-at-arms want their pay. Unpaid much longer, they will stand down.', 1);
+      w.log('Your knights, men-at-arms and household guard want their pay. Unpaid much longer, they will stand down.', 1);
     }
     if (S.unpaid < UNPAID_STAND_DOWN || w.time < S.next) continue;
     S.next = w.time + STAND_DOWN_EVERY;

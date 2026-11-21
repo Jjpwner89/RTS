@@ -175,7 +175,9 @@ export const TAXES = [
   { name: 'No taxes', gold: 0, mood: 12 }, { name: 'Low taxes', gold: 0.5, mood: 6 }, { name: 'Fair taxes', gold: 1, mood: 0 },
   { name: 'High taxes', gold: 1.6, mood: -12 }, { name: 'Cruel taxes', gold: 2.3, mood: -26 },
 ];
-// Hired men, paid in gold at the keep. They cost no villagers.
+// Hired men, paid in gold at the keep. They cost no villagers. The household guard also draws a wage, a little under
+// a sellsword's (creator, 2026-11-21): 30 men cost 12 gold a minute from the treasury (world/treasury.js).
+export const HOUSEHOLD_PAY = 0.4;
 export const HIRES = ['sellsword', 'hiredxbow', 'household'].map(k => ({ key: k, name: TYPES[k].name, count: TYPES[k].count, gold: TYPES[k].gold * TYPES[k].count }));
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
 // Town templates, from the rank of Lord: a block of buildings laid out at once round the
@@ -915,35 +917,37 @@ export class Town {
     return { ok: true, reg: r };
   }
 
-  // Survivors hand back their kit at the nearest barracks and go home to work. The
-  // lord's retinue can be sent to work too: each man becomes a villager and racks a
-  // sword and a shield, so the barracks can arm them again later.
+  // What one man of a regiment hands back when it is stood down: his weapons, his armour, his shield
+  // (and his horse): the same function for every disband, so kit out always matches kit in.
+  rackKit(r) { return outfitKit(r.levy || r.T.key, 1, gearOf(r)); }
+
+  // Survivors hand back their kit at the nearest barracks and go home to work. The lord's own
+  // retinue can be sent to work too (each man becomes a villager and racks what he wore). The household
+  // guard can't: they are paid men, who take their leave like a dismissed company (creator, 2026-11-21).
   disband(r, quiet = false) {
     if (r.gone || r.routing) return false;
-    const rack = this.armoury({ x: r.cx, z: r.cz });
-    if (r.retinue) {
-      let n = 0;
-      for (const s of r.soldiers) {
-        if (!s.alive || s.gone) continue;
-        this.addVillager(s.x, s.z);
-        for (const [g, k] of Object.entries(KITS.sword.kit)) this.put(rack, g, k);
-        n++;
-      }
+    if (r.T.key === 'household') {
+      const n = r.alive;
       this.battle.disband(r);
-      this.event(`The ${r.name.replace(/^Lord/, 'lord').replace(/^Household/, 'household')} hung up their swords: ${n} new villagers.`);
+      if (!quiet) this.event(`The ${r.name.replace(/^Lord/, 'lord').replace(/^Household/, 'household')} take their leave: ${n} men, and nobody joins the village.`);
       return true;
     }
-    if (!r.levy) return false;
+    if (!r.levy && !r.retinue) return false;
+    const rack = this.armoury({ x: r.cx, z: r.cz }), kit = Object.entries(this.rackKit(r));
+    let n = 0;
     for (const s of r.soldiers) {
-      if (!s.alive || s.gone || !s.villager) continue;
+      if (!s.alive || s.gone) continue;
+      for (const [g, k] of kit) this.put(rack, g, k);
+      n++;
       const v = s.villager;
-      // The militia go back to the work they dropped, and learn nothing a hall would train.
-      Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null, xp: r.T.militia ? v.xp || 0 : Math.max(v.xp || 0, r.xp || 0) });
-      if (r.T.militia) this.backToWork(v);
-      if (KITS[r.levy]) for (const [g, n] of Object.entries(outfitKit(r.levy, 1, gearOf(r)))) this.put(rack, g, n);
+      if (v) {
+        // The militia go back to the work they dropped, and learn nothing a hall would train.
+        Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null, xp: r.T.militia ? v.xp || 0 : Math.max(v.xp || 0, r.xp || 0) });
+        if (r.T.militia) this.backToWork(v);
+      } else if (r.retinue && !r.levy) this.addVillager(s.x, s.z);
     }
     this.battle.disband(r);
-    if (!quiet) this.event(`${r.name} went home to work.`);
+    if (!quiet) this.event(r.retinue && !r.levy ? `The ${r.name.replace(/^Lord/, 'lord')} hung up their swords: ${n} new villagers.` : `${r.name} went home to work.`);
     return true;
   }
 
@@ -1374,6 +1378,8 @@ export class Town {
 
   hireCheck(key) {
     const H = HIRES.find(h => h.key === key);
+    const rule = key === 'household' && this.householdRule?.();
+    if (rule) return { ok: false, reason: rule };
     return this.purse.gold >= H.gold ? { ok: true } : { ok: false, reason: `Needs ${H.gold} gold (have ${Math.floor(this.purse.gold)})` };
   }
 

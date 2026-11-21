@@ -49,7 +49,7 @@ export const TYPES = {
     kit: { javelins: 4, spears: 1 } },
   wardog: { key: 'wardog', armour: 'none', name: 'War dogs', role: 'Fast and savage: unsettle men, run down the broken', count: 24, files: 12, spacing: 1.5, depth: 1.6, speed: 8, hp: 8, atk: 5, def: 1, dmg: 3, reach: 1.4, cooldown: 0.9, morale: 50, dog: true, norrhold: true, look: 'bandit',
     kit: { dogs: 1 } },
-  household: { key: 'household', armour: 'mail', name: 'Household guard', role: "The lord's own men: steady and well armed", count: 30, files: 15, spacing: 1.5, speed: 3.2, hp: 16, atk: 7, def: 5, dmg: 6, reach: 1.9, cooldown: 1.1, morale: 95, shield: true, retinue: true, gold: 5, look: 'maa' },
+  household: { key: 'household', armour: 'mail', name: 'Household guard', role: "The lord's own men: steady and well armed", count: 30, files: 15, spacing: 1.5, speed: 3.2, hp: 16, atk: 7, def: 5, dmg: 6, reach: 1.9, cooldown: 1.1, morale: 95, shield: true, retinue: true, gold: 10, look: 'maa' },
   // Siege engines: the regiment is its crew; the engine goes where they push it.
   ladder: { key: 'ladder', armour: 'none', name: 'Ladder men', role: 'Raise ladders against a wall, then climb', count: 12, files: 6, spacing: 1.7, speed: 2.9, hp: 9, atk: 3, def: 1, dmg: 3, reach: 1.8, cooldown: 1.3, morale: 45, look: 'militia',
     engine: { kind: 'ladder', per: 4, raise: 4 }, cost: { planks: 3 } },

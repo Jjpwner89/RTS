@@ -1,7 +1,7 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ROAD, ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, gearOf, FEAST, KEEP_RAISE } from './economy.js';
+import { ROAD, ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
@@ -395,7 +395,7 @@ export class TownHud {
         `<button data-act="feast" class="wide"><span>Hold a feast</span><small></small></button>`,
         ...(this.can('greatkeep') ? [`<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`] : []),
         `<h4>Hire men</h4><p class="note">Paid in gold from your treasury. They cost no villagers.</p>`,
-        ...HIRES.filter(h => !this.hooks.companies || h.key === 'household').map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}</span><small></small></button>`));
+        ...HIRES.filter(h => !this.hooks.companies || h.key === 'household').map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}${h.key === 'household' ? ` + ${Math.round(h.count * HOUSEHOLD_PAY * 10) / 10} a minute` : ''}</span><small></small></button>`));
       // Mercenary companies (on the campaign map): a price to hire, then wages every minute.
       if (this.hooks.companies && this.can('companies') && this.hooks.companies().length) rows.push(`<h4>Mercenary companies</h4><p class="note">A price to hire, then wages every minute. Unpaid, they desert. They never work, and a company in the village sours its mood.</p>`,
         ...this.hooks.companies().map(c => `<button data-act="co:${c.id}" class="wide"><span>${c.name[0].toUpperCase() + c.name.slice(1)}: ${c.size} ${c.unit}</span><small></small></button>`));
@@ -457,6 +457,8 @@ export class TownHud {
     else if (r.elite) rows.push(`<p class="note">Trained in your knights' hall from veterans. Slow to replace: losing them hurts.${this.hooks.companies ? ` Pay: ${Math.round(r.alive * (ELITE[r.T.key]?.pay ?? ELITE.maa.pay) * 10) / 10} gold a minute.` : ''}</p>`,
       `<button data-act="disband" class="wide"><span>Stand them down</span><small>they go home to work; their kit goes back to the racks</small></button>`);
     else if (r.levy) rows.push(`<button data-act="disband" class="wide"><span>Disband</span><small>send them home to work</small></button>`);
+    else if (r.T.key === 'household') rows.push(`<p class="note">Your household guard: paid men, ${Math.round(r.alive * HOUSEHOLD_PAY * 10) / 10} gold a minute from your treasury. Dismissed, they leave, and nobody joins the village.</p>`,
+      `<button data-act="disband" class="wide"><span>Dismiss them</span><small>they leave your service; no refund</small></button>`);
     else if (r.retinue) rows.push(`<p class="note">Your own household troops. They cost no villagers.</p>`,
       `<button data-act="disband" class="wide"><span>Send them to work</span><small>kit goes to the stores</small></button>`);
     return rows.join('');

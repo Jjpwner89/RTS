@@ -158,7 +158,7 @@ function askWeak(w, c) {
 // Your household guard worn down (Manager, 2026-11-21: the playtester's stood at 2 men):
 // below a quarter of its strength in one of your villages, the same choice as a company.
 // Filling hires the missing men at the keep's price, the survivors among them; letting
-// them go sends them to work as villagers, their swords racked.
+// them go sends them away: paid men, they do not become villagers.
 export function tickHousehold(w) {
   const T = TYPES.household;
   for (const p of w.pois) {
@@ -169,7 +169,7 @@ export function tickHousehold(w) {
       r.askedWeak = true;
       const price = () => (T.count - r.alive) * T.gold;
       w.hooks.choice({ id: `household-${p.id}-${r.id}`, image: null, at: p, title: `${r.name} at ${p.name}: ${r.alive} men left`,
-        text: `Your ${r.name.toLowerCase()} at ${p.name} is down to ${r.alive} of its ${T.count}. Fill its ranks again, send the last of them to work, or keep them as they are?`,
+        text: `Your ${r.name.toLowerCase()} at ${p.name} is down to ${r.alive} of its ${T.count}. Fill its ranks again, let the last of them go, or keep them as they are?`,
         choices: [
           { label: `Fill the ranks (${price()} gold)`, ok: () => FACTIONS[0].gold >= price() && !r.gone, why: () => r.gone ? 'They are gone' : `Needs ${price()} gold`, run: () => {
             const cost = price(), n = T.count - r.alive;
@@ -179,7 +179,7 @@ export function tickHousehold(w) {
             t.battle.disband(r);   // the survivors are among the new ranks
             return `${n} new men fill the ${r.name.toLowerCase()} at ${p.name}.`;
           } },
-          { label: 'Send them to work', ok: () => !r.gone, why: () => 'They are gone', run: () => { const n = r.alive; t.disband(r); return `${n} of the ${r.name.toLowerCase()} become villagers of ${p.name}.`; } },
+          { label: 'Let them go', ok: () => !r.gone, why: () => 'They are gone', run: () => { const n = r.alive; t.disband(r); return `${n} of the ${r.name.toLowerCase()} take their leave of ${p.name}.`; } },
           { label: 'Keep them as they are', run: () => `The ${r.name.toLowerCase()} serve on, ${r.alive} strong.` },
         ].map(o => live(w, o)) });
     }

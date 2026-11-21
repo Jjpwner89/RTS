@@ -407,6 +407,8 @@ export class World {
     town.onNote = (text, side) => { if (this.hooks.watching() !== p) this.log(`${p.name}: ${text}`, side); };
     town.rebelHouse = this.bandits;
     // A knights' hall wants the rank of Count, and its finishing is a moment.
+    // The household guard is a lord's: from the rank of Lord (creator, 2026-11-21: the first conquest is all home-grown troops).
+    town.householdRule = () => ['Lord', 'Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Lord';
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
     town.greatRule = () => cathedralRule(this);
     // Finished buildings go on the Needs you list for a while (alerts.js).

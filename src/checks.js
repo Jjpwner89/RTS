@@ -535,6 +535,39 @@ async function worldChecks(w) {
     }
     return out;
   });
+  // Household guard (creator, 2026-11-21): from Lord, a wage, and no villagers when it leaves. Disbanding gives back
+  // all the kit it took (shields, armour, weapons, horses), by one shared path.
+  await check('the household guard needs a Lord, draws a wage and joins no village; a disband gives back all its kit', async () => {
+    const E = await import('./economy.js'), TR = await import('./world/treasury.js'), B = await import('./battle.js'), out = [];
+    const p = w.pois.find(q => q.owner === 0 && q.town && !q.town.hostile), t = p?.town;
+    if (!t) return null;
+    if (B.TYPES.household.gold * B.TYPES.household.count < 300) out.push(`the household costs only ${B.TYPES.household.gold * B.TYPES.household.count}`);
+    // (rank is read-only: the rule must agree with the rank this save holds)
+    const lordly = ['Lord', 'Count', 'Duke', 'King'].includes(w.rank), refused = t.hireCheck('household').reason === 'From the rank of Lord';
+    if (lordly === refused) out.push(`at the rank of ${w.rank} the household guard is ${refused ? 'refused' : 'allowed'}`);
+    // the wage, and no villagers
+    const before = TR.elitePay(w, 0), pop = t.population, r = t.battle.addRegiment(0, 'household', 0, 0, 0, { count: 6, name: 'Household guard (checks() test)' });
+    try {
+      const after = TR.elitePay(w, 0);
+      if (Math.abs(after - before - 6 * E.HOUSEHOLD_PAY) > 0.01) out.push(`six household men add ${(after - before).toFixed(2)} gold a minute, not ${6 * E.HOUSEHOLD_PAY}`);
+      if (!t.disband(r, true) || t.population !== pop) out.push(`a disbanded household changed the village from ${pop} to ${t.population} people`);
+    } finally { if (!r.gone) t.battle.disband(r); }
+    // kit in = kit out, for every levy type, with and without armour and a shield
+    const rack = t.armoury({ x: 0, z: 0 }), was = { ...rack.store };
+    try {
+      for (const key of Object.keys(E.KITS)) for (const armour of ['none', 'leather', 'mail', 'plate']) for (const shield of [false, true]) {
+        const fit = { armour, shield: shield && E.canShield(key) }, n = 3;
+        rack.store = {};
+        const q = t.battle.addRegiment(0, key, 0, 0, 0, { count: n, name: 'checks() test levy', ...fit });
+        Object.assign(q, fit); q.levy = key;
+        t.disband(q, true);
+        const want = E.outfitKit(key, n, fit), got = rack.store;
+        for (const g of new Set([...Object.keys(want), ...Object.keys(got)])) if (Math.abs((got[g] || 0) - (want[g] || 0)) > 1e-6) out.push(`${key} in ${armour}${fit.shield ? ' with shields' : ''}: took ${want[g] || 0} ${g}, gave back ${got[g] || 0}`);
+        if (!q.gone) t.battle.disband(q);
+      }
+    } finally { rack.store = was; }
+    return out.slice(0, 8);
+  });
   // Priority is one place at a time, and always a standing site or workplace (creator, 2026-11-21).
   await check('a village has at most one priority, and it is a site or a workplace', () => {
     const out = [], towns = [...w.pois.filter(p => p.town).map(p => [p.name, p.town]), ...(window.game.town ? [['this village', window.game.town]] : [])];

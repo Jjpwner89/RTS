@@ -108,7 +108,7 @@ export function tickArriere(w) {
     if (p.garrison?.some(gone)) { if (p.owner === 0) n += headcount(p.garrison.filter(gone)); p.garrison = p.garrison.filter(u => !gone(u)); }
     const t = p.town;
     if (!t || t.underAttack || t.hostile) continue;
-    for (const r of t.garrison()) if (gone(r)) { n += r.alive ?? 0; t.battle.disband(r); }
+    for (const r of t.garrison()) if (gone(r)) { n += r.alive ?? 0; if (!t.disband(r, true)) t.battle.disband(r); }   // (kit back to the racks)
     // Levies in a village eat from its stores, as they would from their carts (a village feeds
     // only its own people). With nothing to spare, a regiment of them goes home hungry.
     const ls = t.garrison().filter(r => r.until);
@@ -118,7 +118,7 @@ export function tickArriere(w) {
     if (t.levyMeal > 10) {
       const r = ls.sort((a, b) => a.alive - b.alive)[0];
       w.log(`${p.name} has no food to spare for the arrière-ban: ${r.alive} men go home hungry.`, 1);
-      t.battle.disband(r);
+      if (!t.disband(r, true)) t.battle.disband(r);
       t.levyMeal = 0;
     }
   }
