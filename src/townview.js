@@ -19,15 +19,21 @@ const WORK_CLIP = { tree: 'Chop', rock: 'Pickaxe', ore: 'Pickaxe', field: 'Hoe' 
 const CRAFT_CLIP = { weaponsmith: 'Hammer', armourer: 'Hammer', smelter: 'Hammer', carpenter: 'Saw', bowyer: 'Saw' };
 // Going from one clip to the next he eases out of the last over FADE seconds (anim.js setBlend).
 const FADE = 0.3;
-// Where Hammer's blow lands, in front of a smith at the door (lineup/skin.js: bent 35 degrees), and Hammer_Low's
-// reach, a builder's (bent 55: he steps in until it lands on the site's wall, at 0.75 m or above).
-const BLOW = { ahead: 0.8, right: 0.08, y: 0.87 }, LOW_REACH = 0.74, LOW_Y = 0.8;
+// Where Hammer's blow lands in front of him (lineup/skin.js: bent 35 degrees), on a smith's anvil or a builder's trestle,
+// and how far a builder stands from his site: his arms come up 0.8 m ahead as he swings, so he keeps half a metre clear.
+const BLOW = { ahead: 0.8, right: 0.08, y: 0.87 }, CLEAR = 1.3;
 // An anvil on a block of oak, its face just under where the blow lands (BLOW), its horn to the smith's left.
 function anvil() {
   const top = BLOW.y - 0.03, block = top - 0.2;
   return mergeGeometries([part(cyl(0.21, 0.25, block, 8), WOOD, { y: block / 2 }), part(box(0.24, 0.05, 0.18), DARK, { y: block + 0.025 }),
     part(box(0.16, 0.08, 0.11), DARK, { y: block + 0.09 }), part(box(0.44, 0.07, 0.18), METAL, { y: top - 0.035 }),
     part(cyl(0.004, 0.065, 0.22, 6), METAL, { x: 0.32, y: top - 0.04, rz: -Math.PI / 2 })]);
+}
+// A trestle with a beam laid across it in front of a builder, its top just under where his blow lands.
+function trestle() {
+  const top = BLOW.y - 0.03, legs = [];
+  for (const x of [-0.45, 0.45]) for (const s of [-1, 1]) legs.push(part(box(0.05, top - 0.04, 0.05), WOOD, { x, y: (top - 0.04) / 2, z: s * 0.09, rx: -s * 0.2 }));
+  return mergeGeometries([...legs, part(box(1.2, 0.04, 0.12), WOOD, { y: top - 0.1 }), part(box(1.5, 0.1, 0.12), THATCH, { y: top - 0.05 })]);
 }
 // A walker's gait and its pace follow how fast he really covers the ground (faster on a road: economy.js walk),
 // measured from where he has got to, so his feet keep pace (anim.js gaitFor).
@@ -41,7 +47,7 @@ function villagerClip(v, dt, town) {
   const craft = v.state === 'work' && !v.v && v.atDoor && v.job?.recipe && (CRAFT_CLIP[v.job.kind] || 'Work');
   const site = v.site, building = v.state === 'build' && site && (site.state === 'ruined' || site.progress < town.delivered(site) - 1e-6);
   const g = v.v ? gaitFor('male', v.carry ? ['CarryWalk', 'CarryRun'] : ['Walk', 'Run'], Math.max(0.5, v.animV || v.v))
-    : { name: work ? WORK_CLIP[work.node] || 'Idle' : craft || (building ? 'Hammer_Low' : 'Idle'), rate: 1 };
+    : { name: work ? WORK_CLIP[work.node] || 'Idle' : craft || (building ? 'Hammer' : 'Idle'), rate: 1 };
   if (g.name !== v.animName) {
     if (v.animName) { v.fromName = v.animName; v.fromT = v.animT; v.fade = 0; }
     v.animName = g.name;
@@ -239,7 +245,12 @@ export class TownView {
     this.piles.frustumCulled = false;
     this.piles.castShadow = this.piles.receiveShadow = true;
     this.piles.count = 0;
-    scene.add(this.piles);
+    // A trestle in front of each builder at his site.
+    this.trestles = new THREE.InstancedMesh(trestle(), this.mat, 200);
+    this.trestles.frustumCulled = false;
+    this.trestles.castShadow = this.trestles.receiveShadow = true;
+    this.trestles.count = 0;
+    scene.add(this.piles, this.trestles);
     const c = new THREE.Color();
     for (let i = 0; i < 600; i++) {
       this.people.cloth.setColorAt(i, this.dyes[i]);
@@ -288,14 +299,8 @@ export class TownView {
   }
   cached(key, make) { return this.geos[key] || (this.geos[key] = make()); }
 
-  // How tall a building's model stands (its geometry's top).
-  topOf(mesh) {
-    const g = mesh.geometry;
-    if (!g.boundingBox) g.computeBoundingBox();
-    return Math.max(0.5, g.boundingBox.max.y);
-  }
-  // How far a builder at the site steps in toward its middle for his blow (LOW_REACH ahead) to land on its wall: where
-  // the line from him to the middle meets the model's footprint.
+  // How far a builder at the site steps in toward its middle (or back, below 0) to stand CLEAR of it: where the line
+  // from him to the middle meets the model's footprint or its scaffold (fx.js), whichever reaches further out.
   stepIn(v, site) {
     const o = this.meshes.get(site);
     if (!o) return 0;
@@ -305,7 +310,8 @@ export class TownView {
     if (d < 1e-6) return 0;
     const c = Math.cos(site.angle), sn = Math.sin(site.angle), lx = (dx * c - dz * sn) / d, lz = (dx * sn + dz * c) / d;   // (into the model's own frame)
     const edge = Math.min(Math.abs(lx) > 1e-6 ? (lx > 0 ? B.max.x : -B.min.x) / Math.abs(lx) : Infinity, Math.abs(lz) > 1e-6 ? (lz > 0 ? B.max.z : -B.min.z) / Math.abs(lz) : Infinity);
-    return Math.max(0, d - edge - LOW_REACH);
+    const scaffold = ((site.B.radius || 4) * 0.72 + 0.08) / Math.max(Math.abs(lx), Math.abs(lz));
+    return Math.max(-1, Math.min(1, d - Math.max(edge, scaffold) - CLEAR));
   }
   icon(b, warn) {
     const key = b.kind + (warn ? '!' : '');
@@ -415,8 +421,7 @@ export class TownView {
         this.cover?.clear(door.x, door.z, 1.3);
       }
       if ((b.level || 1) !== o.level) { o.level = b.level || 1; o.mesh.geometry = this.geo(b.kind, b.style, o.level); }
-      // (once building has begun its walls stand at least as high as a builder's blow: LOW_Y)
-      if (b.state === 'site') o.mesh.scale.y = Math.max(0.08, b.progress, b.progress > 0 ? LOW_Y / this.topOf(o.mesh) : 0);
+      if (b.state === 'site') o.mesh.scale.y = Math.max(0.08, b.progress);
       if (o.anvil) o.anvil.visible = b.state === 'active';
       if (o.state !== b.state) {
         o.state = b.state;
@@ -458,7 +463,7 @@ export class TownView {
     // Villagers: a gentle bob when walking, a working rhythm when at a task. Rebels wear red.
     const d = this.dummy, P = this.people, c = this.color || (this.color = new THREE.Color());
     const cam = LOD.camera?.position, near2 = LOD.near * LOD.near;
-    let n = 0, nl = 0, k = 0;
+    let n = 0, nl = 0, k = 0, t = 0;
     const dt = Math.min(0.5, Math.max(0, town.time - (this.animAt ?? town.time)));   // anim (a frame at 4x is up to 0.4 s: town.js)
     this.animAt = town.time;
     for (const v of town.villagers) {
@@ -466,12 +471,20 @@ export class TownView {
       const bob = this.anim ? 0 : Math.abs(Math.sin(v.phase)) * 0.1;
       const clip = this.anim && villagerClip(v, dt, town);   // anim
       const was = clip && fadeOf(v) > 0 ? clipOf('male', v.fromName) : null;   // anim
-      // a builder hammering steps in from where he stands (economy.js doBuild) until his blow lands on the site's wall
-      const stepTo = clip && v.animName === 'Hammer_Low' && v.site ? this.stepIn(v, v.site) : 0;
+      // a builder at his site steps in or back from where he stands (economy.js doBuild) to stand CLEAR of it, his
+      // trestle in front of him where the blow lands
+      const atSite = clip && v.state === 'build' && !v.v && v.site?.state === 'site', stepTo = atSite ? this.stepIn(v, v.site) : 0;
       v.stepIn = (v.stepIn || 0) + (stepTo - (v.stepIn || 0)) * Math.min(1, dt * 4);
       d.position.set(v.x + Math.sin(v.yaw) * v.stepIn, v.y + bob, v.z + Math.cos(v.yaw) * v.stepIn);
       d.rotation.set(0, v.yaw, 0);
       d.scale.setScalar(1);
+      if (atSite && t < 200) {
+        const s = stepTo + BLOW.ahead, x = v.x + Math.sin(v.yaw) * s - Math.cos(v.yaw) * BLOW.right, z = v.z + Math.cos(v.yaw) * s + Math.sin(v.yaw) * BLOW.right;
+        d.position.set(x, this.heightAt(x, z), z);
+        d.updateMatrix();
+        this.trestles.setMatrixAt(t++, d.matrix);
+        d.position.set(v.x + Math.sin(v.yaw) * v.stepIn, v.y + bob, v.z + Math.cos(v.yaw) * v.stepIn);
+      }
       d.updateMatrix();
       if (P.gearLight && cam && d.position.distanceToSquared(cam) > near2) {
         const i = v.id % 600;
@@ -506,6 +519,7 @@ export class TownView {
     P.gear.count = P.cloth.count = n;
     if (P.gearLight) P.gearLight.count = P.clothLight.count = nl;
     P.crate.count = P.carry.count = k;
+    this.trestles.count = t;
     if (this.placeLightsSoon) { this.placeLightsSoon = false; this.placeLights(); }
     this.updatePiles();
     fxFor(this.scene, this.heightAt).town(town, this.meshes);   // fx: scaffolds, dust, fire and smoke, chimneys

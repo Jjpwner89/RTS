@@ -37,7 +37,7 @@ const GRIP = new THREE.Vector3(0, 0.135, -0.035);
 const SHIELD_IN_HAND = new Set(['Shield_Block', 'Shield_Wall', 'Cheer']);
 // How far a spearman's shield's middle keeps from the shaft (the round shield is 0.31 m across to its rim).
 const SHIELD_CLEAR = 0.34;
-const TOOLS = { Chop: 'AXE', Hoe: 'HOE', Hammer: 'HAMMER', Hammer_Low: 'HAMMER', Saw: 'SAW', Pickaxe: 'PICK' };
+const TOOLS = { Chop: 'AXE', Hoe: 'HOE', Hammer: 'HAMMER', Saw: 'SAW', Pickaxe: 'PICK' };
 const TOOL_SLOTS = ['AXE', 'PICK', 'HOE', 'HAMMER', 'SAW'];
 
 // The clips each skeleton gets. `src` names the source clip; `arm` takes the right arm from March_Upright at that
@@ -62,9 +62,9 @@ const HUMAN_CLIPS = {
   Death_Fwd: { src: 'Death', rig: 'knight', hold: true, weapon: 'Death' }, Hit: { src: 'HitRecieve', weapon: 'Death' }, Hit_2: { src: 'HitRecieve_2', weapon: 'Death' },
   // the villagers' work at a building site, a workshop door, a quarry or a mine (KAYKIT), each with its tool (KayKit's
   // Digging is left out: a spade at the foot of an ore rock is lost in the rock, where a pick swung at its face reads)
-  // (KayKit's blow lands level, ahead at the chest: bent 35 degrees it comes down at 0.87 m, on an anvil at the
-  // smithy's door (townview.js ANVIL), bent 55 at 0.75 m, on the walls of a building site)
-  Hammer: { src: 'Hammering', rig: 'kaykit', loop: true, stoop: 35 }, Hammer_Low: { src: 'Hammering', rig: 'kaykit', loop: true, stoop: 55 },
+  // (KayKit's blow lands level, ahead at the chest: bent 35 degrees it comes down at 0.87 m, on an anvil at a
+  // smithy's door or a trestle at a building site: townview.js BLOW)
+  Hammer: { src: 'Hammering', rig: 'kaykit', loop: true, stoop: 35 },
   Saw: { src: 'Sawing', rig: 'kaykit', loop: true },
   // (Pickaxing's first blow lands at 0.3 s and holds there a second)
   Pickaxe: { src: 'Pickaxing', rig: 'kaykit', loop: true, events: { 'pick-contact': 0.3 } }, Work: { src: 'Working_A', rig: 'kaykit', loop: true },
@@ -410,7 +410,7 @@ function hand(r, side, axis) {
 // frame's -y); a pick's haft runs from the left grip, at its foot, on through the right, the head beyond it; a saw's
 // blade points from the right grip ahead of him and down, along the stroke, its teeth below.
 const SLOT_TOOL = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1)));
-const HELD_AS = { Hammer: 'slot', Hammer_Low: 'slot', Saw: 'ahead', Pickaxe: 'hands' };
+const HELD_AS = { Hammer: 'slot', Saw: 'ahead', Pickaxe: 'hands' };
 function kayTool(r, name) {
   const how = HELD_AS[name], grip = side => new THREE.Vector3().setFromMatrixPosition(hand(r, side, null));
   const at = grip(how === 'hands' ? 'L' : 'R');
