@@ -271,3 +271,8 @@ body:has(#realm:not([hidden])) :is(#wpanel, #goals, #alerts, #paused-tag) { visi
 /* The paused hint on the world map sat clipped between the panels; the Pause button already says it (its tooltip has the hint), so the button turns to blue cloth while paused. */
 body.mode-world #paused-tag { display: none !important; }
 body.paused.mode-world #pause { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
+
+/* In a battle the news lines wait under the deploy bar, the terms and the duel offer, never over them. */
+body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud)); }
+/* In a village the garrison count rides on one line too, while there is room for it (1024: it was three lines tall). */
+@media (min-width: 801px) and (min-height: 601px) { body:is(.mode-town, .town) #top #strength { white-space: nowrap; max-width: none; font-size: inherit; line-height: inherit; text-align: left; } }
