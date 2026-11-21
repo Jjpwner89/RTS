@@ -645,6 +645,25 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
     - On seed 7 at minute 80, places with no threat near ran at 40–60% (a few at 14–21% where a muster that could not fill drew on them). Places on a front ran at 8–46%. On a crowded map most houses have several places within 400 of an enemy's.
     - The house figures also count places newly taken, whose people are few.
 - checks(): Lord 71/0, Count 90/0, King 126/0.
+- **Only a host is a threat** (Orchestrator, the last drafting step). An enemy place within 400 no longer counts; only an enemy host does, outlaws aside. A border alone isn't danger until an army shows up, as a player reads it. So a front sits half full and must surge when a host appears. A short muster still drafts deep as before.
+  - Passive seed 91 is accepted as losing: 1 place against Penhallow's 10 by minute 120 can't be caught up.
+
+  | Run | First war on you | Banked 60 / 90 / 120 | Wage share to 120 | Fell |
+  |---|---|---|---|---|
+  | Engaged 7 | none | 662 / 876 / 0 | 102% | alive |
+  | Engaged 21 | Penhallow 117 | 499 / 3,407 / 5,747 | 74% | alive |
+  | Engaged 91 | Varn 99, Penhallow 118 | 482 / 1,219 / 1,266 | 94% | alive |
+  | Passive 7 | Varn 13, Wyndham 24 | 512 at 60 | n/a | 60 |
+  | Passive 21 | Varn 26, Wyndham 44 | 1,347 at 60 | n/a | 60 |
+  | Passive 91 | Varn 61 | 1,659 / 3,168 / 4,924 | 8% | alive |
+
+  - **House fullness at minute 80** (homes %):
+    - Engaged 7: 38, 32, 34, 44, 49.
+    - Engaged 21: 30, 44, 25, 40, 27.
+    - Engaged 91: 44, 38, 38, 22, 48.
+    - Passive 91: 47, 39, 15, 39, 50.
+    - Mostly 30–49%, up from 14–55% (mostly about 30%).
+  - checks(): Lord 71/0, Count 90/0, King 126/0.
 
 ## Test campaigns (built 2026-11-20)
 

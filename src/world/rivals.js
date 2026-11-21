@@ -172,12 +172,13 @@ function houseMind(w, h) {
   // while the people can spare them; building, it keeps a modest field reserve and sends men
   // beyond it home to work, with their weapons back in the stores.
   ai.stance = chooseStance(w, h, B, stage, mine);
-  // How deep it drafts (holdings.js keepAtWork): its places with an enemy host or place,
-  // outlaws aside, within 400; and a muster still short of what its target needs, which draws
+  // How deep it drafts (holdings.js keepAtWork): its places with an enemy host, outlaws aside,
+  // within 400 (a border alone is no danger until an army shows up, as you would read it:
+  // Orchestrator, 2026-11-21); and a muster still short of what its target needs, which draws
   // deeper from the places nearest the target, as many as it is short.
   const foe = s => s != null && s !== h.index && s !== w.bandits && w.atWar(h.index, s);
-  const foeHosts = w.armies.filter(a => !a.gone && !a.wagon && foe(a.side)), foePlaces = w.pois.filter(q => foe(q.owner) && q.kind !== 'camp');
-  ai.pressed = mine.filter(p => foeHosts.some(a => dist(p, a) < 400) || foePlaces.some(q => dist(p, q) < 400)).map(p => p.id);
+  const foeHosts = w.armies.filter(a => !a.gone && !a.wagon && foe(a.side));
+  ai.pressed = mine.filter(p => foeHosts.some(a => dist(p, a) < 400)).map(p => p.id);
   ai.muster = plan?.phase === 'muster' && plan.staging?.owner === h.index
     ? { at: plan.target.id, from: plan.staging.id, short: Math.max(0, Math.ceil(w.defence(plan.target) * B.need + 20 - spareAt(w, plan.staging))) } : null;
   // Its rear: places with no enemy place or army within a short march (World.keepHome).
