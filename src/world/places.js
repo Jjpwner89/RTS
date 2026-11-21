@@ -159,18 +159,24 @@ export function rebuild(town, mem, side, mended) {
 // ---- planning ----
 
 // Streets: polylines with a half-width and a cost (main streets cheapest, so they fill first).
-function makeStreets(t, roads, sq, inner, rand) {
+function makeStreets(t, roads, sq, inner, rand, extra = []) {
   const out = [];
   const line = (a, r0, r1) => [{ x: Math.sin(a) * r0, z: Math.cos(a) * r0 }, { x: Math.sin(a) * r1, z: Math.cos(a) * r1 }];
   for (const a of roads) out.push({ pts: line(a, inner, 165), half: STREET, cost: 0, main: true });
   // With one road in, the street runs on through the village the other way a little.
   if (roads.length === 1) out.push({ pts: line(roads[0] + Math.PI, inner, 85), half: LANE, cost: 6 });
   // The square's edge is a street too: houses and shops face onto it.
-  if (sq) {
+  if (sq?.court) {
+    // an abbey's cloister: a square court, its ranges built tight round all four sides
+    const ux = Math.sin(sq.a), uz = Math.cos(sq.a), vx = uz, vz = -ux, pts = [];
+    for (const [u, v] of [[-1, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]]) pts.push({ x: sq.x + (ux * u + vx * v) * sq.r, z: sq.z + (uz * u + vz * v) * sq.r });
+    out.push({ pts, half: 0, cost: -12, square: true, court: true });
+  } else if (sq) {
     const pts = [];
     for (let i = 0; i <= 24; i++) { const a = i / 24 * TAU; pts.push({ x: sq.x + Math.sin(a) * sq.r, z: sq.z + Math.cos(a) * sq.r }); }
     out.push({ pts, half: 0, cost: -2, square: true });
   }
+  out.push(...extra);
   // Lanes off the main streets, either side, every forty metres or so.
   const mains = out.filter(s => s.main);
   for (const s of mains) {
@@ -222,7 +228,8 @@ function frontage(streets, r, step = 2.5) {
         for (const side of s.square ? [1] : [-1, 1]) {
           // round the square they stand outside it, facing in
           let nx = uz * side, nz = -ux * side;
-          if (s.square) { const k = hyp(cx - s.c.x, cz - s.c.z) || 1; nx = (cx - s.c.x) / k; nz = (cz - s.c.z) / k; }
+          if (s.court) { if (nx * (cx - s.c.x) + nz * (cz - s.c.z) < 0) { nx = -nx; nz = -nz; } }
+          else if (s.square) { const k = hyp(cx - s.c.x, cz - s.c.z) || 1; nx = (cx - s.c.x) / k; nz = (cz - s.c.z) / k; }
           const off = s.half + 1.2 + r, x = cx + nx * off, z = cz + nz * off;
           out.push({ x, z, angle: Math.atan2(-nx, -nz), rank: hyp(x, z) + s.cost, street: s });
         }
@@ -311,10 +318,16 @@ function plan(p) {
       a = gapA;
     }
     const d = inner + sr + (kind === 'monastery' ? 2 : 0);
-    sq = { x: Math.sin(a) * d, z: Math.cos(a) * d, r: sr, a };
+    sq = { x: Math.sin(a) * d, z: Math.cos(a) * d, r: sr, a, court: kind === 'monastery' };
     zones.push(sq);
   }
-  streets = makeStreets(t, roads, sq, inner, rand);
+  // A mining village has a street of its own out to the nearest ore, and lives along it.
+  const extra = [], lode = kind === 'mine' && !kept ? [...t.nodes.ore].sort((a, b) => hyp(a.x, a.z) - hyp(b.x, b.z))[0] : null;
+  if (lode) {
+    const a = Math.atan2(lode.x, lode.z), d = hyp(lode.x, lode.z) - 16;
+    if (d > inner + 12) extra.push({ pts: [{ x: Math.sin(a) * inner, z: Math.cos(a) * inner }, { x: Math.sin(a) * d, z: Math.cos(a) * d }], half: STREET, cost: -4, main: true, ore: true });
+  }
+  streets = makeStreets(t, roads, sq, inner, rand, extra);
   for (const s of streets) if (s.square) s.c = sq;
 
   // ---- round the square: well, market, chapel, cathedral, a store ----
@@ -353,7 +366,7 @@ function plan(p) {
   // ---- along the streets: houses, workshops among them, the smelly ones at the edge ----
   // A mining village hugs its ore.
   const ore = kind === 'mine' ? t.nodes.ore : [];
-  const pull = s => (ore.length ? -0.6 * Math.max(0, 70 - Math.min(...ore.map(o => hyp(o.x - s.x, o.z - s.z)))) : 0);
+  const pull = s => (ore.length ? -1.2 * Math.max(0, 90 - Math.min(...ore.map(o => hyp(o.x - s.x, o.z - s.z)))) : 0);
   const spotsFor = new Map();
   const front = r => spotsFor.get(r) || spotsFor.set(r, ore.length ? frontage(streets, r).sort((a, b) => a.rank + pull(a) - b.rank - pull(b)) : frontage(streets, r)).get(r);
   // (placing only ever adds obstacles, so a spot that once failed for a street building never fits again)
@@ -402,6 +415,17 @@ function plan(p) {
   }
   const far = t.buildings.filter(b => !GATHER.has(b.kind) && !FIELDS.has(b.kind)).map(b => hyp(b.x, b.z)).sort((a, b) => a - b);
   reach = (far[Math.floor(far.length * 0.85)] ?? inner + 20) + 6;
+  // a mining village smelts at the pithead
+  if (kind === 'mine') for (const m of t.buildings.filter(b => b.kind === 'mine')) {
+    if (!count('smelter')) break;
+    const spots = [];
+    for (let d = m.B.radius + BUILDINGS.smelter.radius + 3; d < 30; d += 3) for (let i = 0; i < 16; i++) {
+      const a = i / 16 * TAU, x = m.x + Math.sin(a) * d, z = m.z + Math.cos(a) * d;
+      spots.push({ x, z, angle: Math.atan2(m.x - x, m.z - z), rank: d + hyp(x, z) * 0.1 });
+    }
+    const sp = first('smelter', spots.sort((a, b) => a.rank - b.rank));
+    if (sp) { put('smelter', sp.x, sp.z, sp.angle); take('smelter'); }
+  }
   for (const k of ['tanner', 'smelter', 'mill', 'watchtower']) for (let n = count(k); n > 0; n--) if (onStreet(k, true)) take(k); else break;
 
   // ---- walls round the town ----
@@ -463,7 +487,10 @@ function plan(p) {
     }
   }
   // The lanes as far as anything stands on them (an empty lane is no lane).
-  if (!kept) t.lanes = streets.filter(s => !s.main && !s.square).map(s => lanePart(s, t.buildings)).filter(Boolean);
+  if (!kept) t.lanes = streets.filter(s => (!s.main || s.ore) && !s.square).map(s => lanePart(s, t.buildings)).filter(Boolean);
+  // ... and an abbey's cloister walk round its court
+  const court = streets.find(s => s.court);
+  if (court && !kept) t.lanes.push({ pts: court.pts.map(q => [Math.round(q.x * 10) / 10, Math.round(q.z * 10) / 10]), width: 3 });
   const mem = remember(t, 1, 0);
   // the keep is the place's own, not the planning copy's
   Object.assign(mem, { keepLevel: p.mem?.keepLevel, keepPeak: p.mem?.keepPeak, keepBought: p.mem?.keepBought, keepShown: keepLevelFor(p) });
