@@ -1,0 +1,344 @@
+// RTS viewer: what the game draws, outside the game. It imports the game's own code (models.js unitLook, the clips
+// in anim.js and the battle view's soldierClip, TownView's and SiegeView's building drawing), so it shows exactly what
+// a battle or a village shows. Read-only: it changes no game code and never writes saves or settings (audio.js,
+// pulled in through the economy, reads its sound settings once and plays nothing here).
+//   ?tab=clips|buildings &unit=spear &armour=plate &shield=0 &clip=Walk &move=1.6 &dark=1
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { unitLook, unitModel, hasLevels, buildingModel, ARMOUR_LEVELS, HAS_SHIELD, HOUSE_STYLES } from '../src/models.js';
+import { keepModel, castleModel, fortModel, SIDE_COLORS } from '../src/view.js';
+import { TownView } from '../src/townview.js';
+import { SiegeView } from '../src/siegeview.js';
+import { BUILDINGS, UPGRADES } from '../src/economy.js';
+
+const $ = id => document.getElementById(id), q = new URLSearchParams(location.search);
+const note = text => { $('note').textContent = text; };
+
+// ============================================================ the stage
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+$('stage').appendChild(renderer.domElement);
+const labels = new CSS2DRenderer();
+Object.assign(labels.domElement.style, { position: 'absolute', top: '0', left: '0', pointerEvents: 'none' });
+$('stage').appendChild(labels.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = 1.52;
+scene.add(new THREE.HemisphereLight('#fff8e8', '#6b6250', 1.5));
+const sun = new THREE.DirectionalLight('#fff3dc', 2.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0005;
+scene.add(sun, sun.target);
+// keep the sun's shadow box on what the tab shows
+function aimSun(centre, span) {
+  sun.target.position.copy(centre);
+  sun.position.copy(centre).add(new THREE.Vector3(-0.5, 1, 0.6).multiplyScalar(span * 1.5));
+  Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.5, far: span * 4 });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+
+// The ground: a plane with a metre grid (lines every 1 m, stronger every 5 m) that can scroll under a walking figure,
+// so a foot that slides against it shows.
+const GROUND = { light: { sky: '#cdd8de', ground: '#cfc8b2', fine: '#bdb49a', bold: '#9f9578' }, dark: { sky: '#20242a', ground: '#3a3d36', fine: '#5c6157', bold: '#828878' } };
+const groundMat = new THREE.ShaderMaterial({
+  uniforms: { base: { value: new THREE.Color() }, fine: { value: new THREE.Color() }, bold: { value: new THREE.Color() }, shift: { value: new THREE.Vector2() } },
+  vertexShader: 'varying vec2 vXZ; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vXZ = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }',
+  fragmentShader: `uniform vec3 base, fine, bold; uniform vec2 shift; varying vec2 vXZ;
+    float line(vec2 p, float k){ vec2 g = abs(fract(p / k - 0.5) - 0.5) / fwidth(p / k); return 1.0 - min(min(g.x, g.y), 1.0); }
+    // (each grid fades out where its lines would crowd closer than a few pixels, so the far ground doesn't shimmer)
+    float fade(vec2 p, float k){ vec2 w = fwidth(p / k); return 1.0 - smoothstep(0.08, 0.3, max(w.x, w.y)); }
+    void main(){ vec2 p = vXZ + shift; vec3 c = mix(base, fine, line(p, 1.0) * 0.8 * fade(p, 1.0)); c = mix(c, bold, line(p, 5.0) * fade(p, 5.0)); gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), groundMat);
+scene.add(ground);
+// the shadows fall on a second, see-through plane just over the grid
+const shade = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ opacity: 0.28 }));
+shade.position.y = 0.002; shade.receiveShadow = true;
+scene.add(shade);
+function setGround(dark) {
+  const G = GROUND[dark ? 'dark' : 'light'];
+  scene.background = new THREE.Color(G.sky);
+  groundMat.uniforms.base.value.set(G.ground); groundMat.uniforms.fine.value.set(G.fine); groundMat.uniforms.bold.value.set(G.bold);
+  document.querySelectorAll('.lab').forEach(l => l.style.opacity = dark ? 0.92 : 1);
+}
+function sizeGround(centre, size) {
+  for (const m of [ground, shade]) { m.scale.set(size, 1, size); m.position.x = centre.x; m.position.z = centre.z; }
+}
+$('dark').checked = q.get('dark') === '1';
+$('dark').onchange = () => setGround($('dark').checked);
+setGround($('dark').checked);
+
+const label = (text, cls = '') => { const d = document.createElement('div'); d.className = 'lab ' + cls; d.textContent = text; return new CSS2DObject(d); };
+
+// ============================================================ tabs
+
+const TABS = {};
+let current = null;
+async function show(name) {
+  if (current) { TABS[current].root.visible = false; TABS[current].leave?.(); }
+  current = name;
+  for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', b.dataset.tab === name);
+  for (const k of Object.keys(TABS)) $('bar-' + k).hidden = k !== name;
+  const T = TABS[name];
+  if (!T.built) { note('Building…'); await T.build(); T.built = true; }
+  T.root.visible = true;
+  T.enter();
+}
+for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => !b.disabled && show(b.dataset.tab);
+
+// ============================================================ clips on units
+
+// The clips come from anim.js; until that lands, the tab says so rather than drawing nothing.
+let A = null, gaitOf = null, table = null;
+try {
+  A = await import('../src/anim.js');
+  if (!A.animReady()) throw new Error('assets/anim.json or anim.bin did not load');
+  table = await (await fetch(new URL('../assets/anim.json', import.meta.url))).json();
+} catch (e) {
+  console.warn('Viewer: no soldier clips (src/anim.js and assets/anim.*); the Clips tab shows the units standing.', e);
+  A = null;
+}
+try { gaitOf = (await import('../src/view.js')).soldierClip || null; } catch { gaitOf = null; }
+if (A && !gaitOf) console.warn('Viewer: src/view.js does not export soldierClip, so the game-gait choice is off; pick clips by name.');
+
+const UNITS = ['spear', 'sword', 'archer', 'crossbow', 'cav', 'lightcav', 'maa', 'knight', 'captain', 'militia', 'javelin', 'axeman', 'bandit', 'villager', 'lord', 'lady'];
+const clips = { root: new THREE.Group(), mesh: [], t: 0, playing: true, last: performance.now() };
+TABS.clips = clips;
+scene.add(clips.root);
+
+clips.build = async () => {
+  for (const k of UNITS) if (unitModel(k)) $('unit').add(new Option(k, k));
+  for (const l of ARMOUR_LEVELS) $('armour').add(new Option(l, l));
+  $('unit').value = q.get('unit') || 'spear';
+  $('armour').value = q.get('armour') || 'plate';
+  $('shield').checked = q.get('shield') !== '0';
+  $('move').value = q.get('move') || 0;
+  for (const id of ['unit', 'armour', 'shield', 'light']) $(id).onchange = () => { clips.figure(); };
+  $('clip').onchange = () => { clips.t = 0; clips.sync(); };
+  $('play').onclick = () => { clips.playing = !clips.playing; $('play').textContent = clips.playing ? 'Pause' : 'Play'; };
+  $('scrub').oninput = () => { clips.playing = false; $('play').textContent = 'Play'; clips.t = +$('scrub').value * (clips.clip()?.duration || 1); };
+  for (const id of ['rate', 'move']) $(id).oninput = () => clips.sync();
+  clips.figure();
+};
+
+// The look the game puts together for this unit, armour and shield.
+clips.look = () => {
+  const key = $('unit').value, levels = hasLevels(key);
+  $('armour').disabled = !levels; $('shield').disabled = !levels || !HAS_SHIELD[key];
+  return levels ? unitLook(key, { armour: $('armour').value, shield: $('shield').checked }) : unitModel(key);
+};
+clips.figure = () => {
+  for (const m of clips.mesh) clips.root.remove(m);
+  clips.mesh = [];
+  const look = clips.look(), light = $('light').checked;
+  clips.info = look?.anim || null;
+  if (!look) { note(`${$('unit').value}: no baked model (the game draws a code shape)`); return; }
+  const base = { gear: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), cloth: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: SIDE_COLORS[0] }) };
+  for (const part of ['gear', 'cloth']) {
+    const geo = look[light ? part + 'Light' : part];
+    if (!geo) continue;
+    // one instance of the game's animated mesh, or the posed model when there are no clips
+    const animated = A && clips.info && geo.attributes.bind;
+    const m = animated ? new THREE.InstancedMesh(A.animGeometry(geo, 1), A.animMaterial(base[part], { light }), 1) : new THREE.Mesh(geo, base[part]);
+    if (animated) { m.setMatrixAt(0, new THREE.Matrix4()); m.customDepthMaterial = A.animDepthMaterial(light); m.frustumCulled = false; }
+    m.castShadow = true;
+    clips.root.add(m); clips.mesh.push(m);
+  }
+  // the clip list: the game's own choice first, then every clip of this skeleton
+  const was = $('clip').value || q.get('clip'), sel = $('clip');
+  sel.innerHTML = '';
+  if (A && clips.info) {
+    if (gaitOf) sel.add(new Option('Game gait (from move speed)', ''));
+    for (const n of Object.keys(table.clips[clips.info.rig] || {}).sort()) sel.add(new Option(n, n));
+    sel.value = [...sel.options].some(o => o.value === was) ? was : sel.options[0].value;
+  } else sel.add(new Option(A ? 'posed (this model has no skeleton)' : 'posed (no clips loaded)', ''));
+  sel.disabled = !A || !clips.info;
+  clips.sync();
+  const mounted = !!clips.info?.horse || /cav|knight|captain|lord|lady/.test($('unit').value);
+  clips.frame(mounted);
+};
+clips.frame = mounted => {
+  const target = new THREE.Vector3(0, mounted ? 1.7 : 1, mounted ? 0.3 : 0);
+  controls.target.copy(target);
+  camera.position.copy(target).add(new THREE.Vector3(-2.6, 1, 3.4).multiplyScalar(mounted ? 1.7 : 1));
+  sizeGround(new THREE.Vector3(), 60); aimSun(new THREE.Vector3(), mounted ? 4 : 2.5);
+};
+// The clip shown now: the one picked, or the game's gait for the move speed.
+clips.clip = () => A && clips.info && $('clip').value ? A.clipOf(clips.info.rig, $('clip').value) : null;
+clips.sync = () => {
+  $('rateOut').textContent = (+$('rate').value).toFixed(2) + '×';
+  $('moveOut').textContent = (+$('move').value).toFixed(1) + ' m/s';
+  const c = clips.clip();
+  $('scrub').disabled = !c;
+  if (!A) note(`${$('unit').value}: the clips (src/anim.js, assets/anim.*) aren't on this build yet, so the unit stands in its baked pose.`);
+};
+// A stand-in soldier and battle for the game's soldierClip: alive, nobody near, nothing to shoot, moving at `v`.
+const standIn = { s: { reg: { T: { reach: 1 }, side: 0 }, alive: true, target: null, climb: 0, v: 0 }, b: { time: 0, winner: null }, out: {} };
+clips.enter = () => { clips.frame(!!clips.info?.horse); clips.sync(); };
+clips.tick = dt => {
+  const rate = +$('rate').value, v = +$('move').value;
+  if (clips.playing) clips.t += dt * rate;
+  // the ground moves under him at his speed, as if he walked over it
+  groundMat.uniforms.shift.value.y += clips.playing ? dt * rate * v : 0;
+  if (!A || !clips.info) return;
+  let c, t, hc = null, ht = 0;
+  if ($('clip').value) {
+    c = clips.clip();
+    t = c ? (c.loop ? clips.t % c.duration : Math.min(clips.t, c.duration)) : 0;
+    if (c && clips.playing && !c.loop && clips.t > c.duration + 0.8) clips.t = 0;   // one-shots replay after a beat
+    if (clips.info.horse) { const pace = /Gallop|Charge|Couch/.test($('clip').value) ? 'Gallop' : /Trot/.test($('clip').value) ? 'Trot' : 'Idle'; hc = A.clipOf('horse', pace); ht = clips.t; }
+    if (c) $('scrub').value = t / c.duration;
+    $('scrubOut').textContent = c ? `${t.toFixed(2)} / ${c.duration.toFixed(2)} s` : '';
+  } else {
+    // the game's own choice: the battle view's soldierClip on a stand-in moving at the slider's speed
+    standIn.b.time += clips.playing ? dt * rate : 0;
+    standIn.s.v = v;
+    const k = gaitOf(standIn.s, standIn.b, clips.info, standIn.out);
+    c = k.c; t = k.t; hc = k.hc; ht = k.ht;
+    const name = c && Object.entries(table.clips[clips.info.rig]).find(([, x]) => x.start === c.start)?.[0];
+    $('scrubOut').textContent = c ? `${name} ${c.loop ? (t % c.duration).toFixed(2) : Math.min(t, c.duration).toFixed(2)} s` : '';
+  }
+  for (const m of clips.mesh) {
+    A.setClip(m.geometry, 0, c, t);
+    if (clips.info.horse) A.setClip(m.geometry, 0, hc, ht, true);
+    m.geometry.attributes.aAnim.needsUpdate = true;
+    if (m.geometry.attributes.aAnimH) m.geometry.attributes.aAnimH.needsUpdate = true;
+  }
+  note(`${$('unit').value} · ${clips.info.rig}${clips.info.horse ? ' on horse' : ''} · ${$('clip').value || 'game gait'} · drag to orbit, scroll to zoom`);
+};
+
+// ============================================================ buildings
+
+// Every building at every level it can reach, in the game's own drawing (TownView.geo, which falls back to the level
+// below and then to a code shape), then the keep, castle and fort lines, then walls, towers and gates as a siege
+// draws them (SiegeView.geo). A label in red marks a piece drawn as a code shape because it has no baked model.
+const bld = { root: new THREE.Group(), spots: [], names: [] };
+TABS.buildings = bld;
+scene.add(bld.root);
+const town = { geos: {}, cached: TownView.prototype.cached, geo: TownView.prototype.geo };
+const siege = { geos: {}, geo: SiegeView.prototype.geo };
+const MAT = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+
+bld.build = async () => {
+  const rows = [];
+  // the village's buildings: houses in their three styles, then every other kind at levels 1 to 3
+  rows.push({ title: 'Houses', items: Array.from({ length: HOUSE_STYLES }, (_, s) => ({ name: `House, style ${s + 1}`, geo: town.geo('house', s, 1), baked: !!buildingModel('house.' + s) })) });
+  const kinds = Object.keys(BUILDINGS).filter(k => k !== 'house');
+  for (const k of kinds) {
+    const B = BUILDINGS[k], levels = B.hall || B.great ? 1 : UPGRADES.length - 1;
+    const base = k === 'monastery' ? 'chapel' : k === 'cathedral' && !buildingModel('cathedral') ? 'monastery' : k;
+    rows.push({ title: B.name, items: Array.from({ length: levels }, (_, i) => {
+      const l = i + 1, own = buildingModel(l > 1 ? `${base}.${l}` : base), any = [...Array(l)].some((_, j) => buildingModel(j ? `${base}.${j + 1}` : base));
+      return { name: `${B.name}${levels > 1 ? ' · level ' + l : ''}${l > 1 && !own && any ? ' (as level below)' : ''}`, geo: town.geo(k, 0, l), baked: any || !!buildingModel(k) };
+    }) });
+  }
+  // the lord's seat
+  rows.push({ title: 'Keep', items: [1, 2, 3, 4, 5].map(l => ({ name: `Keep · level ${l}`, geo: keepModel({ palisade: false, level: l }), baked: !!buildingModel('keep.' + l) })) });
+  rows.push({ title: 'Castle', items: [1, 2, 3, 4].map(l => ({ name: `Castle · level ${l}`, geo: castleModel(l), baked: !!buildingModel('castle.' + l) })).concat([{ name: 'Fort', geo: fortModel(), baked: !!buildingModel('fort') }]) });
+  // walls, towers and gates, standing and broken, in wood and stone
+  for (const m of ['wood', 'stone']) {
+    const W = m === 'wood' ? 'Wooden' : 'Stone';
+    rows.push({ title: `${W} walls`, items: [
+      ['wall', 'Wall'], ['wall', 'Wall, broken', '.broken'], ['tower', 'Tower'], ['tower', 'Tower, broken', '.broken'],
+      ['gate', 'Gate', '', true], ['gate', 'Gate, broken', '.broken']].map(([p, n, end = '', door]) => {
+      const name = `${p}.${m}${end}`, g = siege.geo(name);
+      return { name: `${W} ${n.toLowerCase()}`, geo: g, door: door ? siege.geo(`gate.${m}.door`) : null, baked: !!buildingModel(name) };
+    }) });
+  }
+  rows.push({ title: 'Siege engines and carts', items: ['siege.ram', 'siege.mangonel', 'siege.trebuchet', 'siege.tower', 'siege.ladder', 'wagon', 'wagon.trade', 'wagon.run']
+    .map(n => ({ name: n, geo: buildingModel(n) || siege.geo(n), arm: buildingModel(n + '.arm'), baked: !!buildingModel(n) })) });
+
+  // lay the rows out front to back, each row's pieces left to right with room between, the rows in a few columns
+  // so the whole set is about as deep as it is wide
+  const missing = [], gap = 4;
+  for (const row of rows) {
+    row.items = row.items.filter(it => { if (!it.geo) missing.push(it.name); return !!it.geo; });
+    row.sizes = row.items.map(it => { it.geo.computeBoundingBox(); return it.geo.boundingBox.getSize(new THREE.Vector3()); });
+    row.depth = Math.max(...row.sizes.map(s => s.z), 4);
+    row.width = row.sizes.reduce((a, s) => a + s.x + gap, 0);
+  }
+  const colW = Math.max(...rows.map(r => r.width)) + 24, total = rows.reduce((a, r) => a + r.depth + 10, 0);
+  const cols = Math.max(1, Math.round(Math.sqrt(total / colW))), perCol = total / cols;
+  let z = 0, col = 0, widest = 0, deepest = 0;
+  for (const row of rows) {
+    if (z > 0 && z + row.depth / 2 > perCol && col < cols - 1) { col++; z = 0; }
+    const items = row.items, sizes = row.sizes, depth = row.depth, x0 = col * colW;
+    let x = x0;
+    const head = label(row.title, 'head'); head.position.set(x0 - 6, 0.5, z + depth / 2); bld.root.add(head);
+    items.forEach((it, i) => {
+      const s = sizes[i], g = it.geo, b = g.boundingBox, c = b.getCenter(new THREE.Vector3());
+      const hold = new THREE.Group();
+      hold.position.set(x + s.x / 2 - c.x, -b.min.y, z + depth / 2 - c.z);
+      const mesh = new THREE.Mesh(g, MAT); mesh.castShadow = mesh.receiveShadow = true; hold.add(mesh);
+      for (const extra of [it.door, it.arm]) if (extra) { const e = new THREE.Mesh(extra, MAT); e.castShadow = true; hold.add(e); }
+      bld.root.add(hold);
+      const l = label(it.name + (it.baked ? '' : ' · code shape'), it.baked ? '' : 'flag');
+      l.position.set(x + s.x / 2, Math.max(s.y, 2) + 1.2, z + depth / 2);
+      bld.root.add(l); bld.names.push(l);
+      bld.spots.push({ name: `${row.title}: ${it.name}`, at: new THREE.Vector3(x + s.x / 2, s.y / 2, z + depth / 2), size: Math.max(s.x, s.y, s.z) });
+      x += s.x + gap;
+    });
+    widest = Math.max(widest, x);
+    z += depth + 10;
+    deepest = Math.max(deepest, z);
+  }
+  z = deepest;
+  if (missing.length) console.warn('Viewer: nothing to draw for', missing);
+  bld.centre = new THREE.Vector3(widest / 2, 0, z / 2);
+  bld.span = Math.max(widest, z);
+  bld.missing = missing;
+  const sel = $('goto');
+  sel.add(new Option('Everything', ''));
+  bld.spots.forEach((s, i) => sel.add(new Option(s.name, i)));
+  sel.onchange = () => bld.look(sel.value === '' ? null : bld.spots[+sel.value]);
+};
+// Row titles always show; each piece's name only from close enough to read it among its neighbours.
+bld.tick = () => {
+  const on = $('labels').checked, p = new THREE.Vector3();
+  bld.root.traverse(o => { if (o.isCSS2DObject) o.visible = on && (!bld.names.includes(o) || o.getWorldPosition(p).distanceTo(camera.position) < 140); });
+};
+bld.look = spot => {
+  if (!spot) {
+    controls.target.copy(bld.centre);
+    camera.position.copy(bld.centre).add(new THREE.Vector3(0, 0.8, 0.6).multiplyScalar(bld.span * 1.15));
+  } else {
+    controls.target.copy(spot.at);
+    camera.position.copy(spot.at).add(new THREE.Vector3(-0.6, 0.45, 0.9).multiplyScalar(spot.size * 1.6 + 4));
+  }
+};
+bld.enter = () => {
+  sizeGround(bld.centre, bld.span * 2 + 80);
+  aimSun(bld.centre, bld.span * 0.75);
+  groundMat.uniforms.shift.value.set(0, 0);
+  bld.look(null);
+  note(`${bld.spots.length} pieces${bld.missing.length ? ` · nothing to draw for: ${bld.missing.join(', ')}` : ''} · red labels have no baked model · drag to orbit, right-drag to pan`);
+};
+
+// ============================================================ run
+
+function resize() {
+  const w = innerWidth, h = innerHeight - $('stage').getBoundingClientRect().top;
+  renderer.setSize(w, h); labels.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+let last = performance.now();
+renderer.setAnimationLoop(now => {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (current === 'clips') clips.tick(dt);
+  if (current === 'buildings') bld.tick();
+  controls.update();
+  renderer.render(scene, camera);
+  labels.render(scene, camera);
+});
+await show(q.get('tab') === 'buildings' ? 'buildings' : 'clips');
+resize();
+window.viewer = { show, clips, bld, camera, controls, scene };

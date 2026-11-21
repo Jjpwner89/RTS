@@ -29,6 +29,16 @@ It writes `/tmp/out/models.glb`, `anim.bin` and `anim.json`; copy all three to `
 
 To change only the soldiers, bake `bakeAll(/^unit\./)` and swap its `unit.*` meshes into the existing `assets/models.glb`, so the buildings stay byte for byte. After changing the stances, rerun `assets/art/3d/wip/make-clips.mjs` and `fetch.py`, then `pack.py`.
 
+## Viewer
+
+`tools/viewer.html` shows what the game draws, outside the game. It imports the game's own code, so what it shows is what a battle or a village shows. It changes no game code and writes no saves or settings. Serve the repository and open `tools/viewer.html`; it has an orbit camera and a light or dark ground on every tab.
+
+- **Clips on units:** pick any unit, armour level and shield, full or light version, and play any clip of its skeleton on the game's GPU-skinned mesh (`src/anim.js`). Play, pause, scrub, and a speed slider. The *move* slider scrolls the metre grid under the man at that speed, so a sliding foot shows. *Game gait* lets the battle view's `soldierClip` pick idle, walk, march or run and pace it for that speed, as in battle; it needs `soldierClip` exported from `src/view.js`, and says so in the console when it isn't.
+- **Buildings:** every building at every level it can reach, drawn by `TownView.geo` (which falls back to the level below, then to a code shape), then the keep, castle and fort lines, then walls, towers and gates in wood and stone, standing and broken, as a siege draws them (`SiegeView.geo`), and the siege engines and carts. Red labels mark pieces with no baked model. *Go to* jumps the camera to one piece.
+- **Places:** to come, once the places generator (`src/world/places.js`) lands.
+
+`?tab=clips|buildings&unit=spear&armour=plate&shield=0&clip=Walk&move=1.6&dark=1` opens it on a given view.
+
 ## Soldier inspector
 
 `inspect.html` shows the soldiers in a models.glb put together exactly as the game does (`src/models.js` `unitLook`): any unit, armour level, with or without shield, full or light version, in four fixed views, with close-ups on the hands or the head. It reads nothing from the game and writes nothing. Serve the repository and open `tools/models/inspect.html`; `?unit=maa&armour=plate&shield=0&focus=hands&file=<another models.glb>` picks what it shows, and `window.inspect.set({...})` changes it from the console.

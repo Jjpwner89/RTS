@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8"><title>RTS viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#e3dfd1;--ink:#292820;--soft:#5b5848;--panel:#efebdf;--line:#c9c2ad;--accent:#7a3b22}
+body{margin:0;background:var(--bg);font:14px system-ui;color:var(--ink);overflow:hidden}
+header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{font-size:16px;margin:0 8px 0 0}
+.tabs button{font:inherit;padding:5px 12px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;border-radius:4px}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--panel)}
+.tabs button:disabled{opacity:.45;cursor:default}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+.bar[hidden]{display:none}
+select,button,input{font:inherit}select{padding:3px 4px}
+label{display:inline-flex;gap:4px;align-items:center}
+input[type=range]{width:140px}
+.out{font-variant-numeric:tabular-nums;min-width:3.5em;display:inline-block}
+#stage{position:relative}canvas{display:block}
+.lab{font:600 12px system-ui;color:#2b2a22;background:#f4f0e4e6;padding:1px 6px;border-radius:3px;white-space:nowrap;pointer-events:none}
+.lab.flag{background:#f6d5c8;color:#7a1f10}
+.lab.head{font-size:14px;background:#2b2a22;color:#f4f0e4}
+#note{position:absolute;left:12px;bottom:8px;font-size:12px;color:var(--soft);background:#efebdfcc;padding:3px 8px;border-radius:3px;max-width:calc(100% - 40px)}
+.right{margin-left:auto}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body>
+<header><h1>RTS viewer</h1>
+<span class="tabs" role="tablist">
+<button role="tab" data-tab="clips">Clips on units</button>
+<button role="tab" data-tab="buildings">Buildings</button>
+<button role="tab" data-tab="places" disabled title="Waits for the places generator (src/world/places.js)">Places</button>
+</span>
+<label class="right"><input type="checkbox" id="dark"> dark ground</label>
+</header>
+<div class="bar" id="bar-clips" hidden>
+<select id="unit" aria-label="Unit"></select>
+<select id="armour" aria-label="Armour"></select>
+<label><input type="checkbox" id="shield" checked> shield</label>
+<label><input type="checkbox" id="light"> light version</label>
+<select id="clip" aria-label="Clip"></select>
+<button id="play">Pause</button>
+<label>time <input type="range" id="scrub" min="0" max="1" step="0.001" value="0"><span class="out" id="scrubOut"></span></label>
+<label>speed <input type="range" id="rate" min="0.1" max="2" step="0.05" value="1"><span class="out" id="rateOut"></span></label>
+<label title="Movement speed in metres a second; the game's gait picks walk, march or run and paces it">move <input type="range" id="move" min="0" max="7" step="0.1" value="0"><span class="out" id="moveOut"></span></label>
+</div>
+<div class="bar" id="bar-buildings" hidden>
+<select id="goto" aria-label="Go to"></select>
+<label><input type="checkbox" id="labels" checked> labels</label>
+</div>
+<div id="stage"><div id="note"></div></div>
+<script type="module" src="./viewer.js"></script>
+</body></html>
