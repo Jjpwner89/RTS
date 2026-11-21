@@ -198,23 +198,34 @@ export const cartsNear = (w, a) => w.armies.filter(o => (o.wagon?.trade || o.wag
 // One of your villages sends a wagon of its spare building goods and food, and a few
 // families, to another: mostly to put a place back on its feet after it was taken or
 // burned. Half of each good stays at home. A raider who meets the wagon seizes it.
-const RUN_GOODS = { food: 40, bread: 20, wood: 40, planks: 20, stone: 30, iron: 10 };
+// (2026-11-20) Raised from 40 food, 20 bread, 40 wood, 20 planks, 30 stone and 10 iron, which
+// fed a village of sixty for under a minute; still half of what is spare.
+const RUN_GOODS = { food: 120, bread: 60, wood: 80, planks: 30, stone: 60, iron: 20 };
 const RUN_PEOPLE = 4;
-export function runLoad(from) {
+// What a run carries (the Realm screen lets you choose): food, building goods, or both.
+export const RUN_KINDS = { all: 'Food and building goods', food: 'Food only', build: 'Building goods only' };
+const RUN_FOOD = new Set(['food', 'bread']);
+export function runLoad(from, what = 'all', families = true) {
   const t = from.town, have = t.stock, goods = {};
-  for (const [g, n] of Object.entries(RUN_GOODS)) { const k = Math.min(n, Math.floor((have[g] || 0) / 2)); if (k > 0) goods[g] = k; }
-  return { goods, people: t.population > 20 ? RUN_PEOPLE : 0 };
+  for (const [g, n] of Object.entries(RUN_GOODS)) {
+    if ((what === 'food' && !RUN_FOOD.has(g)) || (what === 'build' && RUN_FOOD.has(g))) continue;
+    const k = Math.min(n, Math.floor((have[g] || 0) / 2));
+    if (k > 0) goods[g] = k;
+  }
+  return { goods, people: families && t.population > 20 ? RUN_PEOPLE : 0 };
 }
-export function runCheck(w, from, to) {
+export function runCheck(w, from, to, what, families) {
   if (!from?.town || !to?.town || from.owner !== 0 || to.owner !== 0 || from === to) return { ok: false, why: 'Both ends must be villages of yours' };
   if (from.town.hostile || from.town.underAttack) return { ok: false, why: `${from.name} is being fought over` };
   if (w.armies.some(a => a.wagon?.run && a.wagon.from === from && !a.gone)) return { ok: false, why: `A wagon from ${from.name} is already on the road` };
-  const load = runLoad(from);
+  const load = runLoad(from, what, families);
   if (!Object.keys(load.goods).length && !load.people) return { ok: false, why: `${from.name} has nothing to spare` };
-  return { ok: true, load };
+  return { ok: true, load, eta: runTime(w, from, to) };
 }
-export function sendRun(w, from, to) {
-  const c = runCheck(w, from, to);
+// Seconds a run takes on the road (they drive straight, as caravans do).
+export const runTime = (w, from, to) => Math.hypot(to.x - from.x, to.z - from.z) / (WAGON_SPEED * 0.8 * (w.decrees?.on?.roads ? 1.2 : 1));
+export function sendRun(w, from, to, what, families) {
+  const c = runCheck(w, from, to, what, families);
   if (!c.ok) return c;
   const t = from.town;
   t.spend(c.load.goods);

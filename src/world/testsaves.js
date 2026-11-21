@@ -9,10 +9,10 @@ import { World, FACTIONS } from './world.js';
 export const TEST_RANKS = {
   lord: { name: 'Lord', places: 2, minutes: 10, gold: 800, people: 35,
     blurb: 'Two places, at minute 10: vassals, town templates and calling the banners.' },
-  count: { name: 'Count', places: 5, minutes: 24, gold: 2000, people: 60,
-    blurb: 'Five places, at minute 24: the knights\' hall, and the great houses take notice.' },
-  duke: { name: 'Duke', places: 11, minutes: 42, gold: 4000, people: 80,
-    blurb: 'Eleven places, at minute 42: half the realm, the palace, and the crown within reach.' },
+  count: { name: 'Count', places: 5, minutes: 24, gold: 2000, people: 60, vassals: 1,
+    blurb: 'Five places, at minute 24, one held by a vassal: the knights\' hall, and the great houses take notice.' },
+  duke: { name: 'Duke', places: 11, minutes: 42, gold: 4000, people: 80, vassals: 3,
+    blurb: 'Eleven places, at minute 42, three held by vassals: half the realm, the palace, and the crown within reach.' },
 };
 const SEED = 7;
 const STOCK = { wood: 250, stone: 200, planks: 80, iron: 30, food: 400, flax: 20, string: 20 };
@@ -76,7 +76,15 @@ export async function makeTestCampaign(key, progress = () => {}) {
   const t = ash();
   for (const [g, n] of Object.entries(STOCK)) t.put(t.keep, g, n);
   while (t.housing < T.people + 4 && raise(t, 'house'));
-  for (let i = t.population; i < Math.min(T.people, t.housing - 2); i++) { const a = i * 2.4; t.addVillager(t.keep.x + Math.sin(a) * 14, t.keep.z + Math.cos(a) * 14); }
+  for (let i = t.population; i < Math.min(T.people, t.housing - 2); i++) { const a = i * 2.4; t.addVillager(t.keep.x + Math.sin(a) * 24, t.keep.z + Math.cos(a) * 24); } // clear of a grown keep
+  // Vassals to manage (2026-11-20): the furthest villages go to new lords, the first on
+  // your council, so the Realm screen's vassals and council have someone in them.
+  const far = w.pois.filter(p => p.owner === 0 && p.town && p.kind === 'village' && p !== w.home && w.canGrant(p).ok)
+    .sort((a, b) => Math.hypot(b.x - w.home.x, b.z - w.home.z) - Math.hypot(a.x - w.home.x, a.z - w.home.z));
+  for (const p of far.slice(0, T.vassals || 0)) {
+    const v = w.grant(p, null);
+    if (v && !w.vassals.some(o => o.council)) w.vassalAct(v, 'seat', 'steward');
+  }
   w.update(0.5);
   return w;
 }

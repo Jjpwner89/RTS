@@ -66,6 +66,12 @@ button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #res
 #realm .trouble .l3 { background: rgba(176, 96, 20, .16); color: #8a4a10; }
 #realm .trouble .l2 { background: rgba(160, 120, 20, .14); color: #7a5a0c; }
 #realm nav button.on { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
+#realm :is(.tile, .box, .vdetail) { background: rgba(255, 250, 235, .35); border-color: var(--rule); }
+#realm .chip { background: rgba(80, 50, 20, .1); }
+#realm .chip.warn, #realm .lvl.l2 { color: #8a5a0c; }
+#realm .faction { background: rgba(163, 39, 26, .08); }
+#realm select { background: #f6ecd2; border-color: #7a5a2e; }
+#realm .badge { background: var(--bad); color: #f6ecd2; }
 #herald { border-left: 6px solid var(--hc, var(--gold)); }
 /* A routing regiment's card flushes red parchment rather than the dark red. */
 @keyframes blink { to { background: var(--grain), linear-gradient(#efc3a4, #d58f70); } }
