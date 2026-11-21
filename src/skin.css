@@ -210,3 +210,8 @@ body.town #orders, body.campaign.mode-town #orders { flex-wrap: wrap; justify-co
 /* The March button's long wording gives way to a count in a small window (QC round 2: the top bar ran 2px off the edge). */
 #march .short { display: none; }
 @media (max-width: 1200px), (max-height: 720px) { #march .long { display: none; } #march .short { display: inline; } }
+
+/* News lines and toasts sit over the panels, never behind them, and wrap inside the window (QC round 2: a long line lost its first half behind the stock panel). */
+#log { z-index: 30; }
+#log div, #toast { max-width: min(520px, calc((100vw - 32px) / var(--hud))); width: max-content; text-align: center; }
+.town-labels .stuck.sum { white-space: normal; width: max-content; max-width: min(300px, 60vw); text-align: center; line-height: 1.3; }

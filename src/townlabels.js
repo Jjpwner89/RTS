@@ -65,7 +65,8 @@ export class TownLabels {
     else {
       if (under) put(under, under.status, under, 'stuck');
       const kinds = new Map();
-      for (const [, why] of stuck) { const k = why.match(STUCK)[0].toLowerCase(); kinds.set(k, (kinds.get(k) || 0) + 1); }
+      // The reason as the building words it ("waiting for iron ore and wood"), never cut short.
+      for (const [, why] of stuck) { const k = why.toLowerCase(); kinds.set(k, (kinds.get(k) || 0) + 1); }
       const list = [...kinds].sort((p, q) => q[1] - p[1]).slice(0, 3).map(([k, n]) => `${n} ${k}`).join(', ');
       put(SUMMARY, `${stuck.length} places stuck: ${list}. Point at one to see why`, town.keep, 'stuck sum');
     }
