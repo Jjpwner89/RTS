@@ -43,7 +43,7 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
     for (const r of mine) {
       if (r.dest || r.targetReg || r.posts || r.targetWall || Math.hypot(h.x - r.cx, h.z - r.cz) < 40) continue;
       const ang = Math.atan2(h.x - r.cx, h.z - r.cz);
-      r.dest = { x: r.x + Math.sin(ang) * 20, z: r.z + Math.cos(ang) * 20, angle: ang };
+      nudge(battle, r, r.x + Math.sin(ang) * 20, r.z + Math.cos(ang) * 20, ang);
     }
     return;
   }
@@ -56,11 +56,20 @@ function thinkField(battle, side, mine, { hold = false } = {}) {
     for (const r of mine) {
       if (r.dest || r.targetReg || r.posts || r.targetWall) continue;
       const ang = Math.atan2(f.cx - r.cx, f.cz - r.cz);
-      r.dest = { x: r.x + Math.sin(ang) * 30, z: r.z + Math.cos(ang) * 30, angle: ang };
+      nudge(battle, r, r.x + Math.sin(ang) * 30, r.z + Math.cos(ang) * 30, ang);
     }
     return;
   }
   for (const r of mine) pickFight(battle, r, foes, standing);
+}
+
+// A step forward that isn't a full order: never to a spot in a river, where a regiment would
+// halt with its men in the water. It goes on to dry ground on whichever bank the spot is
+// mostly on (battle.keepDry), as a player's order does.
+function nudge(battle, r, x, z, angle) {
+  r.dest = { x, z, angle };
+  const R = battle.river;
+  if (R && !r.T.engine) battle.keepDry(r, R.bank(x, z));
 }
 
 // An army told to hold first moves up onto the best rise near it, facing the enemy,
@@ -79,7 +88,7 @@ function takeHill(battle, side, mine, standing) {
   if (best.y - H(c.cx, c.cz) < 2) return;
   for (const r of mine) {
     if (r.dest || r.targetReg || r.posts || r.targetWall) continue;
-    r.dest = { x: r.x + best.x - c.cx, z: r.z + best.z - c.cz, angle: toward };
+    nudge(battle, r, r.x + best.x - c.cx, r.z + best.z - c.cz, toward);
   }
 }
 

@@ -265,8 +265,10 @@ export class Battle {
     return b ? Math.max(this.heightAt(x, z), this.river.deckY(b)) : this.heightAt(x, z);
   }
 
-  // A regiment (or a man) bound for the far bank goes by the best ford or bridge, not through
-  // deep water, unless the wade is short and the way round long: deep water counts six times over (slow going, and no place to be caught).
+  // A regiment bound for the far bank goes by the best ford or bridge, not through deep water,
+  // unless the crossing is more than about 70 m out of its way: then it swims, and r.swim says so
+  // (its card reads Swimming, and its men may step into the channel). A man out of his ranks
+  // follows his regiment: over by the crossing, or swimming with it.
   riverWay(r, tx, tz) {
     const R = this.river, a = R.bank(r.x, r.z), b = R.bank(tx, tz);
     // Over: straight on out of the water before turning, so the tail doesn't wade.
@@ -275,6 +277,10 @@ export class Battle {
       r.exit = null;
     }
     if (a === b) return null;
+    if (!r.soldiers && r.reg.swim) return null;
+    // A regiment that has started to swim, chasing a foe that moves, swims on rather than
+    // turning back for a crossing with its men in the water.
+    if (r.soldiers && r.swim && Math.abs(R.across(r.x, r.z)) < R.half + 8) return null;
     // A man pushed off the side of a bridge or ford into deep water steps back onto it.
     if (!r.soldiers && R.depthAt(r.x, r.z) === 2) {
       for (const c of R.crossings()) {
@@ -285,15 +291,23 @@ export class Battle {
     // Wading straight over is fine where the way crosses at a ford or bridge.
     const cx = r.x + (tx - r.x) * Math.abs(R.across(r.x, r.z)) / (Math.abs(R.across(r.x, r.z)) + Math.abs(R.across(tx, tz)) || 1);
     const m = r.soldiers ? 3 : 0.5;          // a regiment needs room for its files either side
-    if (R.depthAt(cx - m, R.zAt(cx - m)) < 2 && R.depthAt(cx + m, R.zAt(cx + m)) < 2) return null;
+    if (R.depthAt(cx - m, R.zAt(cx - m)) < 2 && R.depthAt(cx + m, R.zAt(cx + m)) < 2) { if (r.soldiers) r.swim = false; return null; }
     let best = null, bs = Infinity;
     for (const c of R.crossings()) {
       const p = c.end(a), q = c.end(b);
       const cost = Math.hypot(p.x - r.x, p.z - r.z) + Math.hypot(q.x - p.x, q.z - p.z) + Math.hypot(tx - q.x, tz - q.z);
       if (cost < bs) { bs = cost; best = c; }
     }
-    if (!best) return null;
-    if (Math.hypot(tx - r.x, tz - r.z) + R.half * 2 * 5 < bs) return null;
+    // A river with no ford or bridge left (its bridges burnt) is swum, and the game says so.
+    if (!best) {
+      if (!this.saidNoCrossing) { this.saidNoCrossing = true; console.warn('riverWay: no ford or bridge left on this river, so regiments swim the deep channel'); this.event(0, 'No ford or bridge is left: men must swim the deep water.'); }
+      if (r.soldiers) { r.swim = true; r.swimTo = b; }
+      return null;
+    }
+    if (r.soldiers) {
+      r.swim = Math.hypot(tx - r.x, tz - r.z) + R.half * 2 * 5 < bs;
+      if (r.swim) { r.swimTo = b; return null; }
+    }
     // A regiment lines up on the middle of the crossing first, so its outer files don't step off.
     const tol = (best.ref.half || 3) * 0.7, lined = Math.abs(r.x - best.x) < (r.soldiers ? Math.min(tol, 1.6) : tol) && Math.abs(R.across(r.x, r.z)) < R.half + 6;
     if (!lined) return best.end(a);
@@ -1555,14 +1569,24 @@ export class Battle {
     if (this.walls.sites) this.walls.build(dt, this.masons);
     this.nav.sync();
     this.buildGrid();
+    // Where each man stood as the step began, before anyone moves or knocks him about:
+    // constrain() puts him back there if he ends the step in a wall or the deep channel.
+    for (const s of this.soldiers) { s.lx = s.x; s.lz = s.z; }
     for (const r of this.regs) this.updateRegiment(r, dt);
     for (const r of this.regs) { r.engaged = 0; r._lagSum = 0; r._lagN = 0; if (r.pinch) this.queuePinch(r); }
     for (const s of this.soldiers) if (live(s)) this.updateSoldier(s, dt);
     else if (!s.alive && s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5);
     this.separate();
-    if (this.walls.any) this.constrain();
+    if (this.walls.any || this.river) this.constrain();
     for (const r of this.regs) {
       r.lag = r._lagN ? r._lagSum / r._lagN : 0;
+      // A swim is over once nobody is left in the deep water and the regiment isn't still
+      // bound for the far bank. Halted mid-swim (arrived too near the bank, or stopped by an
+      // order), it swims on out until its back rank is dry.
+      if (r.swim && (!r.dest || this.river.bank(r.x, r.z) === this.river.bank(r.dest.x, r.dest.z))) {
+        if (!r.soldiers.some(s => live(s) && this.deepAt(s.x, s.z))) r.swim = false;
+        else if (!r.dest && !r.routing) r.dest = this.swimOut(r, r.angle);
+      }
       this.updateMorale(r, dt);
       this.updateFatigue(r, dt);
       if (r.T.range) this.updateArchers(r, dt);
@@ -1667,7 +1691,9 @@ export class Battle {
         const dx = t.cx - r.cx, dz = t.cz - r.cz, d = Math.hypot(dx, dz) || 1;
         const ang = Math.atan2(dx, dz);
         const range = this.shoots(r) ? T.range : r.engine?.range;
-        if (range && d <= range * 0.9 && d >= (r.engine?.min || 0)) r.dest = null;
+        // In range mid-swim, bowmen swim on out of the water onto the far bank before they halt.
+        if (range && d <= range * 0.9 && r.swim) r.dest = this.swimOut(r, ang);
+        else if (range && d <= range * 0.9 && d >= (r.engine?.min || 0)) r.dest = null;
         else if (range) r.dest = { x: t.cx - dx / d * range * 0.8, z: t.cz - dz / d * range * 0.8, angle: ang };
         else r.dest = { x: t.cx, z: t.cz, angle: ang };
         if (!r.dest) r.angle = turnToward(r.angle, ang, dt * 1.2);
@@ -1979,7 +2005,6 @@ export class Battle {
     s.lunge = Math.max(0, s.lunge - dt * 3);
     s.cd -= dt;
     const px = s.x, pz = s.z;
-    s.lx = px; s.lz = pz;
 
     if (s.climb > 0) this.climbStep(s, dt);
     else if (s.duel) this.duelStep(s, dt);
@@ -2195,10 +2220,34 @@ export class Battle {
     if (s.level === 0 && !s.climb) speed *= this.groundPace(s, dx / d, dz / d);
     speed *= this.paceOf(s.reg);
     const stepLen = Math.min(d, speed * dt);
-    s.x += dx / d * stepLen;
-    s.z += dz / d * stepLen;
+    let ux = dx / d, uz = dz / d;
+    // Nobody on dry ground, a ford or a bridge steps off into the deep channel, chasing a foe
+    // or cutting a corner: he slides along the bank instead, or holds at the edge. (A man
+    // already in it can always climb out; a swimming regiment's men go in.)
+    if (this.river && s.level === 0 && !s.reg.swim && this.deepAt(s.x + ux * stepLen, s.z + uz * stepLen) && !this.deepAt(s.x, s.z)) {
+      const R = this.river, tz = R.zAt(s.x + 1) - R.zAt(s.x - 1), tl = Math.hypot(2, tz);
+      const along = Math.sign(ux * 2 + uz * tz) || 1, ax = along * 2 / tl, az = along * tz / tl;
+      if (this.deepAt(s.x + ax * stepLen, s.z + az * stepLen)) return;
+      ux = ax; uz = az;
+    }
+    s.x += ux * stepLen;
+    s.z += uz * stepLen;
     if (d > 0.3) s.yaw = turnToward(s.yaw, Math.atan2(dx, dz), dt * 6);
   }
+
+  // Where a swimming regiment halts: the nearest spot ahead or behind, on the bank it was
+  // swimming for, where its whole block is out of the water (keepDry).
+  swimOut(r, angle) {
+    const was = r.dest;
+    r.dest = { x: r.x, z: r.z, angle };
+    this.keepDry(r, r.swimTo);
+    const out = r.dest;
+    r.dest = was;
+    return out;
+  }
+
+  // The deep channel, where nobody walks: not a ford's shelf, nor a bridge's deck.
+  deepAt(x, z) { return this.river.depthAt(x, z) >= 2 && !this.river.onBridge(x, z); }
 
   // How fast the ground lets a man walk in direction (ux, uz): slower uphill, a little
   // quicker down. Horses feel the slope more.
@@ -2305,12 +2354,16 @@ export class Battle {
     }
   }
 
-  // Nobody walks through a wall; men on the walkway stay on it.
+  // Nobody walks through a wall; men on the walkway stay on it. Nobody is walked or shoved
+  // off a bank, ford or bridge into the deep channel either (routers aside, who run blind, and
+  // a swimming regiment's men, who mean to): he stays where he stood this step.
   constrain() {
-    const nav = this.nav;
+    const nav = this.nav, walls = this.walls.any, R = this.river;
     for (const s of this.soldiers) {
-      if (!live(s) || s.climb > 0) continue;
+      if (!live(s) || s.climb > 0 || s.lx === undefined) continue;
       if (s.level === 1) { this.keepOnWall(s); s.y = this.walls.walkY(s.perch, s.x, s.z); continue; }
+      if (R && !s.reg.routing && !s.reg.swim && this.deepAt(s.x, s.z) && !this.deepAt(s.lx, s.lz)) { s.x = s.lx; s.z = s.lz; continue; }
+      if (!walls) continue;
       const side = s.reg.side;
       if (nav.blockedAt(side, s.x, s.z) && !nav.blockedAt(side, s.lx, s.lz)) {
         // Slide along the wall rather than stop dead.
@@ -2693,6 +2746,7 @@ export class Battle {
     if (r.posts) return r.posts[0]?.perch.side === r.side ? 'On the walls' : 'Storming the walls';
     if (r.targetWall) return 'Attacking the wall';
     if (r.burnBridge) return 'Burning the bridge';
+    if (r.swim) return 'Swimming';
     if (r.mine && !r.mine.done && !r.mine.lost) return r.mine.side === r.side ? `Digging a mine ${Math.floor(r.mine.progress * 100)}%` : 'Counter-mining';
     if (r.seen === false) return 'Hidden in the woods';
     if (r.hold) return 'Holding';

@@ -33,6 +33,11 @@ try {
 const STUCK = 60, SAMPLE = 2000, MOVED = 3;
 const stand = new WeakMap();   // villager or regiment → { x, z, since }
 const watchedFrom = new WeakMap();   // battle → game time it was first sampled
+// Men in a river's deep channel, the most at once per regiment: standing there (no order) or
+// fighting there short of a swim, and separately on the march though their regiment isn't
+// swimming (battle.js r.swim: a long detour to the crossing, about 70 m, is swum).
+const wetStand = new WeakMap(), wetMarch = new WeakMap();   // regiment → { n, at, x, z }
+const WET = 3;   // one or two men a step off a ford's edge for a moment aren't a regiment in the water
 function sampleStuck() {
   for (const { battle, town } of scenes()) {
     const now = battle.time;
@@ -45,6 +50,14 @@ function sampleStuck() {
     for (const v of town?.villagers || []) note(v, v.x, v.z, !v.hidden && ['haul', 'build', 'work', 'flee', 'idle'].includes(v.state) && v.v > 0 && (v.state !== 'idle' || !!v.task));
     // regiments marching to an order and not fighting
     for (const r of battle.regs) note(r, r.cx, r.cz, !r.gone && !r.routing && !!r.dest && !(r.engaged > 0));
+    // men in a river's deep channel (not on a bridge's deck), routers aside
+    if (battle.river) for (const r of battle.regs) {
+      if (r.gone || r.routing) continue;
+      let stood = 0, marched = 0;
+      for (const s of r.soldiers) if (live(s) && battle.waterAt(s.x, s.z) >= 2 && !battle.river.onBridge?.(s.x, s.z)) { if ((!r.dest && !r.targetReg) || (s.target && !r.swim)) stood++; else if (!r.swim) marched++; }
+      if (stood > (wetStand.get(r)?.n || 0)) wetStand.set(r, { n: stood, at: now, x: r.cx, z: r.cz });
+      if (marched > (wetMarch.get(r)?.n || 0)) wetMarch.set(r, { n: marched, at: now, x: r.cx, z: r.cz });
+    }
   }
 }
 setInterval(() => { try { sampleStuck(); } catch { /* the checks never break the game */ } }, SAMPLE);
@@ -149,12 +162,29 @@ async function battleChecks({ battle, town, label }) {
     return out.length ? sample(out) : ran < STUCK ? { warn: [`watched for only ${ran}s of game time, so this can't see a minute's sticking yet`] } : [];
   });
 
-  if (battle.river) await check(`${label}: nobody standing in deep water`, () => {
-    const out = [];
+  // Nobody stands or fights in a river's deep channel (battle.js keeps men from stepping or
+  // being shoved off a bank, ford or bridge into it): now, and at any time since the page
+  // loaded, sampled every two seconds. A bridge's deck is dry; routers run where they can; a
+  // regiment caught mid-swim is swimming, not standing.
+  if (battle.river) await check(`${label}: nobody standing or fighting in deep water`, () => {
+    const out = [], deep = s => live(s) && battle.waterAt(s.x, s.z) >= 2 && !battle.river.onBridge?.(s.x, s.z);
     for (const r of regs) {
-      if (r.dest || r.routing) continue;
-      const wet = r.soldiers.filter(s => live(s) && battle.waterAt(s.x, s.z) >= 2).length;
-      if (wet) out.push(`${r.name}: ${wet} of ${r.alive} men standing in deep water with no order`);
+      if (r.routing) continue;
+      const now = r.soldiers.filter(s => deep(s) && ((!r.dest && !r.targetReg) || (s.target && !r.swim))).length, k = wetStand.get(r);
+      if (now) out.push(`${r.name} (side ${r.side}): ${now} of ${r.alive} men standing or fighting in deep water now, at ${at({ x: r.cx, z: r.cz })}`);
+      else if (k && k.n >= WET) out.push(`${r.name} (side ${r.side}): ${k.n} men standing or fighting in deep water at ${Math.round(k.at)}s, ${at(k)}`);
+    }
+    return sample(out);
+  });
+
+  // Regiments cross by a ford or bridge (battle.js riverWay) unless it is a long detour and they
+  // swim (r.swim): men in the deep channel on the march of a regiment that isn't swimming
+  // strayed or were shoved in.
+  if (battle.river) await check(`${label}: nobody in deep water on the march but a swim`, () => {
+    const out = [];
+    for (const r of battle.regs) {
+      const k = wetMarch.get(r);
+      if (k && k.n >= WET) out.push(`${r.name} (side ${r.side}): ${k.n} men in deep water at once on the march, not swimming, at ${Math.round(k.at)}s, ${at(k)}`);
     }
     return sample(out);
   });
