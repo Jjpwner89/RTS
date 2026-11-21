@@ -34,3 +34,16 @@ document.getElementById('help-more')?.addEventListener('click', e => {
   const help = document.getElementById('help'), on = help.classList.toggle('show-more');
   e.currentTarget.textContent = on ? 'Less ▴' : 'More: how everything works ▾';
 });
+
+// In a running game the help is help, not the campaign's opening page.
+(() => {
+  const help = document.getElementById('help');
+  if (!help) return;
+  const title = help.querySelector('h3'), close = document.getElementById('help-close'), first = title.textContent, start = close.textContent;
+  new MutationObserver(() => {
+    if (!help.classList.contains('open')) return;
+    const running = (window.game?.world?.time ?? 0) > 5;
+    title.textContent = running ? 'How to play' : first;
+    close.textContent = running ? 'Close' : start;
+  }).observe(help, { attributes: true, attributeFilter: ['class'] });
+})();

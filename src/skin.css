@@ -206,3 +206,7 @@ body.town #orders, body.campaign.mode-town #orders { flex-wrap: wrap; justify-co
 #help .more { display: none; }
 #help.show-more .more { display: block; }
 #help #help-more { margin: 6px 0; width: 100%; }
+
+/* The March button's long wording gives way to a count in a small window (QC round 2: the top bar ran 2px off the edge). */
+#march .short { display: none; }
+@media (max-width: 1200px), (max-height: 720px) { #march .long { display: none; } #march .short { display: inline; } }

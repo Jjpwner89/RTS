@@ -11,10 +11,13 @@ document.body.append(tip);
 let host = null, held = '', timer = 0, mouse = { x: 0, y: 0 };
 const DELAY = 280;
 
+// A card, the help or the Realm screen is open: only tips for things inside it show.
+const covered = el => [...document.querySelectorAll('.modal.open, #help.open, #realm')].some(m => m.getClientRects().length && !m.contains(el));
 const owner = el => el?.closest?.('[title], [data-tip], [data-tip-held], [data-why]');
 
 function lift() {
   if (!host) return;
+  if (covered(host)) { tip.classList.remove('show'); return; }
   const t = host.getAttribute('title');
   if (t !== null) { held = t; host.removeAttribute('title'); host.dataset.tipHeld = '1'; }
   const text = host.dataset.tip || held;

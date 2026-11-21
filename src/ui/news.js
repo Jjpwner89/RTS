@@ -51,23 +51,26 @@ export function tick(w) {
     slip.querySelector('span').textContent = UNLOCKS[key].intro;
     slip.onclick = () => { markSeen(w, key); el.classList.remove('is-new'); slip.classList.remove('show'); shown = null; };
   }
-  place(el);
   slip.classList.add('show');
+  if (!place(el)) { slip.classList.remove('show'); shown = null; }
 }
 
-// Beside the thing: to its right if there is room, else above it, kept on screen.
+// Beside the thing: to its right if there is room, else under, over or left of it, kept on
+// screen and off every panel and card that holds buttons (a notice never covers a choice,
+// whichever came first). False when there is nowhere clear: the line waits, the seal stays.
+const AVOID = '#wpanel, #info, #build, #stock, #orders, #cards, #alerts, #goals, #defences, #log > div:not(.fade)';
 function place(el) {
   const r = el.getBoundingClientRect(), s = slip.getBoundingClientRect(), pad = 8;
-  let x = r.right + 10, y = r.top + r.height / 2 - s.height / 2, side = 'right';
-  if (x + s.width > innerWidth - pad) { x = r.left + r.width / 2 - s.width / 2; y = r.top - s.height - 10; side = 'above'; }
-  // Something in the top bar: right of it is the next button or a side panel, so go under it.
-  if (el.closest('#top')) { x = r.left + r.width / 2 - s.width / 2; y = r.bottom + 10; side = 'below'; }
-  if (y < pad) { y = r.bottom + 10; side = 'below'; }
-  x = Math.max(pad, Math.min(innerWidth - s.width - pad, x));
-  // Not over the news lines under the top bar: step below them.
-  const lines = [...document.querySelectorAll('#log > div:not(.fade)')].map(d => d.getBoundingClientRect());
-  for (const b of lines) if (x < b.right && x + s.width > b.left && y < b.bottom && y + s.height > b.top) y = b.bottom + 8;
-  slip.style.left = `${Math.round(x)}px`;
-  slip.style.top = `${Math.round(Math.max(pad, Math.min(innerHeight - s.height - pad, y)))}px`;
-  slip.dataset.side = side;
+  const boxes = [...document.querySelectorAll(AVOID)].filter(b => b.getClientRects().length && !b.contains(el)).map(b => b.getBoundingClientRect());
+  const cx = r.left + r.width / 2 - s.width / 2, cy = r.top + r.height / 2 - s.height / 2;
+  const cands = [[r.right + 10, cy, 'right'], [cx, r.bottom + 10, 'below'], [cx, r.top - s.height - 10, 'above'], [r.left - s.width - 10, cy, 'left']];
+  if (el.closest('#top')) cands.unshift(cands.splice(1, 1)[0]);   // the next button is to the right: go under the bar
+  const ok = ([x, y]) => x >= pad && y >= pad && x + s.width <= innerWidth - pad && y + s.height <= innerHeight - pad;
+  const clear = ([x, y]) => boxes.every(b => x >= b.right || x + s.width <= b.left || y >= b.bottom || y + s.height <= b.top);
+  const pick = cands.find(c => ok(c) && clear(c));
+  if (!pick) return false;
+  slip.style.left = `${Math.round(pick[0])}px`;
+  slip.style.top = `${Math.round(pick[1])}px`;
+  slip.dataset.side = pick[2];
+  return true;
 }

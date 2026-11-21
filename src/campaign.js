@@ -564,7 +564,11 @@ function nextAsk() {
   pic.hidden = true;
   if (a.kind === 'choice') {
     const ev = a.ev;
-    if (ev.at.owner !== 0 || !ev.at.town) { ev.choices.at(-1).run(); return nextAsk(); }
+    if (ev.at.owner !== 0 || !ev.at.town) {
+      ev.choices.at(-1).run();
+      flash(`${ev.title}: it passes without you, as ${ev.at.name} ${ev.at.owner !== 0 ? 'is no longer yours' : 'is not a village you run'}.`, false);
+      return nextAsk();
+    }
     box.querySelector('h2').textContent = ev.title;
     box.querySelector('p').textContent = ev.text;
     pic.onload = () => { pic.hidden = false; };
@@ -1186,7 +1190,7 @@ function topBar() {
   if (mode === 'town') $('clock').textContent = clock(world.time);
   const n = mode === 'town' ? current.controls.selection.size : 0;
   $('march').hidden = !n;
-  $('march').textContent = `March out with ${n} regiment${n === 1 ? '' : 's'}`;
+  $('march').innerHTML = `March out <span class="long">with ${n} regiment${n === 1 ? '' : 's'}</span><span class="short">(${n})</span>`;
 }
 
 // ---- the loop ----
