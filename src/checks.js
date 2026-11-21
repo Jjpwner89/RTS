@@ -279,6 +279,18 @@ async function battleChecks({ battle, town, label }) {
     return sample(out);
   });
 
+  // Raiders on your village's own land can be seen, so they can be clicked and answered; in
+  // the trees they were hidden from a retinue and a right-click alike (economy.js openGround).
+  if (town) await check(`${label}: raiders on the village's land are never hidden`, () => {
+    if (!town.underAttack || town.hostile) return null;
+    const og = town.battle.openGround, out = [];
+    if (!og) return [`no open ground is set while ${town.attackers.length} attacking band(s) are in the village`];
+    for (const g of town.attackers) for (const r of g.regs) {
+      if (!r.gone && r.unseen && Math.hypot(r.cx - og.x, r.cz - og.z) < og.r) out.push(`${r.name} are hidden ${Math.round(Math.hypot(r.cx - og.x, r.cz - og.z))} m from the keep`);
+    }
+    return out;
+  });
+
   // The militia can only be called out while the village is attacked (townhud.js).
   if (town && town === shownTown()) await check(`${label}: no Muster or Stand down at peace`, () => {
     if (town.underAttack) return null;

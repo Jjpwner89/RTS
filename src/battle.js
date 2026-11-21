@@ -398,7 +398,9 @@ export class Battle {
       const busy = r.engaged > 0 || this.time - (r.lastShot ?? -99) < 3 || r.routing;
       // In fog or at night nobody sees far; only cover in the woods makes an ambush.
       const sight = WEATHER[this.weather].sight;
-      const hidden = (cover || (sight && near > sight)) && !busy;
+      // (`openGround`: a village's own land, where nobody raiding it is hidden from its people, economy.js)
+      const og = this.openGround, open = og && r.side !== this.viewer && Math.hypot(r.cx - og.x, r.cz - og.z) < og.r;
+      const hidden = !open && (cover || (sight && near > sight)) && !busy;
       if (hidden && cover) { r.hiddenAt = this.time; r.ambushed = false; }
       r.seen = !hidden;
       r.unseen = hidden && r.side !== this.viewer;

@@ -274,6 +274,7 @@ export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuch
 
 const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
+const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
 // A crate holds 20 of most goods (10 before pace B halved the walk); a yard or workshop
@@ -976,6 +977,36 @@ export class Town {
     v.musterJob = v.musterSite = null;
     if (site && !site.removed && site.state === 'site') { site.builders.push(v); v.state = 'build'; v.site = site; }
     else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; }
+  }
+
+  // Your soldiers at home (the retinue, a garrison, hired men) don't stand at the keep while
+  // raiders burn the village: with no orders they go for raiders on the village's land, and
+  // the militia follow them in (thinkMilitia). Hold keeps them where they stand, an order of
+  // yours comes first, and bowmen shoot as ever. (The manager's QC, seed 61, 2026-11-21: a
+  // retinue stood "Steady" at the keep for a hundred seconds while a house burned.)
+  thinkDefenders() {
+    if (this.hostile || this.readOnly) return;
+    const b = this.battle, foes = this.attackers.filter(g => !g.leaving && g.mode !== 'hold').flatMap(g => g.regs).filter(r => !r.gone && !r.routing && !r.regrouping);
+    if (!foes.length) return;
+    const d = (a, o) => Math.hypot(a.cx - o.x, a.cz - o.z);
+    // (at the village itself, not out on its land: met in the open, the retinue and the militia behind it
+    // fared worse than fighting where the whole village stands)
+    const onLand = f => d(f, this.keep) < 45 || this.buildings.some(o => o.state !== 'ruined' && d(f, o) < 25);
+    const raiders = foes.filter(onLand);
+    if (!raiders.length) return;
+    let sent = 0;
+    for (const r of b.regs) {
+      if (r.side !== 0 || !b.usable(r) || r.T.militia || r.T.engine || b.shoots(r) || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.after || r.ai === 'siege') continue;
+      const t = raiders.sort((p, q) => d(p, r) - d(q, r))[0];
+      r.homeSpot ??= { x: r.cx, z: r.cz, angle: r.angle };   // where it stood: it comes back there (endAttack)
+      r.homeTarget = t;
+      b.orderAttack([r], t);
+      sent++;
+    }
+    if (sent && !this.droveSaid) {
+      this.droveSaid = true;
+      this.event('Your soldiers go out to drive the raiders from the village. (Hold keeps them at the keep.)', 0);
+    }
   }
 
   // The militia hold by the keep. When your soldiers go for the attackers they follow a
@@ -1966,7 +1997,11 @@ export class Town {
       const off = (i - (specs.length - 1) / 2) * 30;
       return Object.assign(b.addRegiment(1, sp.key, entry.x + Math.cos(face) * off, entry.z - Math.sin(face) * off, face, { count: sp.count, name: sp.name, ...carry(sp) }), carry(sp));
     });
-    if (!this.underAttack) this.fallen = {};
+    if (!this.underAttack) { this.fallen = {}; this.droveSaid = false; }
+    // Raiders in the woods are hidden from an enemy's eyes (battle.updateSight), but not on a
+    // village's own land: its people see them burn it, and you must be able to order men at
+    // them (a band in the trees by the village could not be clicked, nor answered).
+    if (!this.hostile) b.openGround = { x: this.keep.x, z: this.keep.z, r: HOME_LAND };
     this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0 });
     this.lastRaid = this.time;
     this.lastRegs = regs;
@@ -2022,6 +2057,15 @@ export class Town {
     // home at once, not on the next think: a militia standing at peace for that moment
     // would still offer Stand down, and a save made then would keep them under arms
     if (!this.underAttack) this.thinkMilitia();
+    // Soldiers who went out against the raiders by themselves go back to where they stood
+    // (not left out in the field, with the village open behind them).
+    if (!this.underAttack) for (const r of this.battle.regs) {
+      const h = r.homeSpot, last = r.homeTarget;
+      r.homeSpot = r.homeTarget = null;
+      // (a chase leaves its last waypoint behind as a dest, where the foe was; an order of yours is somewhere else)
+      const theirs = r.targetReg ? r.targetReg.gone : !r.dest || (last && Math.hypot(r.dest.x - last.cx, r.dest.z - last.cz) < 30);
+      if (h && r.side === 0 && this.battle.usable(r) && theirs && !r.targetWall && !r.posts && Math.hypot(r.cx - h.x, r.cz - h.z) > 12) this.battle.orderMove([r], h.x, h.z, h.angle);
+    }
     if (!this.underAttack && !this.lost && !this.hostile) {
       const word = this.fallenWord();
       if (word) this.event(word, 1);
@@ -2086,6 +2130,7 @@ export class Town {
   thinkAttackers() {
     const b = this.battle;
     thinkTownSiege(this);      // ai.js: hosts that must get past walls
+    this.thinkDefenders();
     this.thinkMilitia();
     if (this.hostile) this.thinkHolders();
     const defenders = b.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
