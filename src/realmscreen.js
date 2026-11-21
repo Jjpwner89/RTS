@@ -13,7 +13,7 @@
 import { FACTIONS, headcount, seenAs } from './world/world.js';
 import { GOOD_GROUPS, TAXES } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
-  moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, titleCap, titleName, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN } from './world/vassals.js';
+  moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN } from './world/vassals.js';
 import { elitePay } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
@@ -291,7 +291,7 @@ export class RealmScreen {
       const risk = fv.men / Math.max(1, fv.yours);
       return `<div class="faction"><b class="bad">⚑ A faction against you</b>: ${fv.members.map(v => esc(v.name)).join(', ')}.
         ${fv.members.length < 2 ? 'Alone for now; it needs a second to make a demand.' : fv.demandIn !== null ? `They will make their demand in ${clock(fv.demandIn)}.` : 'They have made their demand.'}
-        Their men: ${num(fv.men)} against your ${num(fv.yours)} (${risk > 0.6 ? '<b class="bad">a grave threat</b>' : risk > 0.25 ? '<b class="warn">a real threat</b>' : 'a small threat'}).
+        Their men: ${num(fv.men)}${fv.members.some(v => v.title) ? ' (a titled lord\'s count double)' : ''} against your ${num(fv.yours)} (${risk > 0.6 ? '<b class="bad">a grave threat</b>' : risk > 0.25 ? '<b class="warn">a real threat</b>' : 'a small threat'}).
         <small>Win members back with gifts, honours and what they want, or arrest the worst of them.</small></div>`;
     }
     if (fv.close.length >= 2) return `<div class="faction"><b class="warn">Discontent</b>: ${fv.close.map(v => esc(v.name)).join(', ')} are near to banding together (opinion −10 or worse makes a faction).</div>`;
@@ -502,8 +502,8 @@ export class RealmScreen {
       <section><h4>What they want</h4>${want ? `<p class="${met ? 'good' : 'warn'}">${met ? `Has ${want.text}` : `Wants ${want.text}`}${met ? '' : ` <small>(for ${clock(w.time - v.wantSince)})</small>`}</p><p class="note">${met ? 'Met for long enough, they will be grateful and want something new.' : `${esc(want.how)}.`}</p>` : ''}
         <h4>Their power</h4><p>${num(pw.men)} men · ${num(pw.people)} people · ${num(pw.gold)} gold in their purse<br><small>Their men are ${share} (${Math.round(pw.share * 100)}% of yours).</small></p>
         <p>Paid you ${num(v.paid || 0)} gold, sent ${num(v.sent || 0)} men.${v.favours ? ` <b class="good">Owes you ${plural(v.favours, 'favour')}</b>: a demand or harder terms will pass without bad blood.` : ''}</p></section></div>
-      <h4>Terms</h4><div class="terms"><span>Dues</span>${btn('dues-', '−', v.dues > 0, 'Lighter dues please them')}<b>${DUES[v.dues].name} (${Math.round(DUES[v.dues].share * 100)}%)</b>${btn('dues+', '+', v.dues < 2, v.favours ? 'They owe you: no bad blood' : 'Heavier dues anger them')}
-        <span>Levies</span>${btn('levy-', '−', v.levy > 0, 'Lighter levies please them')}<b>${LEVIES[v.levy].name} (${Math.round(LEVIES[v.levy].share * 100)}%)</b>${btn('levy+', '+', v.levy < 2, v.favours ? 'They owe you: no bad blood' : 'Heavier levies anger them')}</div>
+      <h4>Terms</h4><div class="terms"><span>Dues</span>${btn('dues-', '−', v.dues > 0, 'Lighter dues please them')}<b title="${v.title ? 'A quarter less, for their title' : ''}">${DUES[v.dues].name} (${Math.round(duesShare(v) * 100)}%)</b>${btn('dues+', '+', v.dues < 2, v.favours ? 'They owe you: no bad blood' : 'Heavier dues anger them')}
+        <span>Levies</span>${btn('levy-', '−', v.levy > 0, 'Lighter levies please them')}<b title="${v.title ? 'Half again, for their title' : ''}">${LEVIES[v.levy].name} (${Math.round(Math.min(0.9, levyShare(v)) * 100)}%)</b>${btn('levy+', '+', v.levy < 2, v.favours ? 'They owe you: no bad blood' : 'Heavier levies anger them')}</div>
       <h4>Favour</h4><div class="acts-row">${btn('gift', `${ico('gold', '#e8c45a')} Gift (${GIFT} gold)`, me.gold >= GIFT, `+15${T.dues ? ' (more for the greedy)' : ''}, fading over 15 minutes`)}
         ${btn('honour', `${ico('crown')} Honour before your court${honourWait ? ` (${Math.ceil(honourWait / 60)} min)` : ''}`, !honourWait, `Free. +8${T.honour ? ' (twice that for the proud)' : ''}; the proud among the others mind being passed over (−3)`)}
         ${this.titleButton(v, btn)}</div>
@@ -524,7 +524,8 @@ export class RealmScreen {
     if (k >= TITLES.length) return '';
     const name = titleName(v, k), seat = holdingsOf(w, v)[0];
     const why = v.landless ? 'They hold no land to take a title from' : k > cap ? `From the rank of ${TITLES[k].from.toLowerCase()} you can make ${TITLES[k].name.toLowerCase()}s` : '';
-    return btn('title', `${ico('crown')} Make them ${name}${seat ? ` of ${esc(seat.name)}` : ''}`, !why, why || `Free, and for good: +${10 * (T.honour || 1)}${T.honour ? ' (the proud twice over)' : ''}. The proud and ambitious among the rest mind it (−4), and every vassal minds harm done to a titled one half again as much.`);
+    const trade = v.title ? '' : ` A titled vassal sends ${Math.round((TITLED.levy - 1) * 100)}% more men when called but pays ${Math.round((1 - TITLED.dues) * 100)}% less in dues; in a faction against you their men count double, and every vassal minds harm done to them half again as much.`;
+    return btn('title', `${ico('crown')} Make them ${name}${seat ? ` of ${esc(seat.name)}` : ''}`, !why, why || `Free, and for good: +${10 * (T.honour || 1)}${T.honour ? ' (the proud twice over)' : ''}; the proud and ambitious among the rest mind it (−4).${trade}`);
   }
 
   prisoner(v) {

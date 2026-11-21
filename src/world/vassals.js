@@ -51,8 +51,11 @@ export const TEMPERS = {
 };
 // Titles you can raise a vassal to (2026-11-21, roadmap "titles as ambitions"): always one
 // below your own rank, so a count makes barons and a duke or king makes counts. A title is
-// kept for good, and the rest of your vassals mind harm done to a titled one half again as
-// much.
+// kept for good, and it is a real trade (orchestrator's ruling, 2026-11-21, after Mount &
+// Blade's fiefs): a titled vassal sends half again as many men to your banners but pays a
+// quarter less in dues, their men count double in a faction against you (and stand twice
+// as strong in their villages if it rises), and the rest mind harm done to them half again
+// as much.
 export const TITLES = [
   { name: 'Sir', lady: ['Lady', 'Dame'] },
   { name: 'Baron', lady: ['Baroness'], from: 'Count' },
@@ -63,7 +66,10 @@ const LADY = new Set(TITLES.flatMap(t => t.lady));
 // The highest title you can give now (0: none).
 export const titleCap = w => TITLES.reduce((n, t, i) => (t.from && RANK_ORDER.indexOf(w.rank) >= RANK_ORDER.indexOf(t.from) ? i : n), 0);
 export const titleName = (v, k = v.title || 0) => LADY.has(v.name.split(' ')[0]) ? TITLES[k].lady[0] : TITLES[k].name;
-export const harmWeight = v => (v.title ? 1.5 : 1);
+export const TITLED = { levy: 1.5, dues: 0.75, faction: 2, harm: 1.5 };
+export const harmWeight = v => (v.title ? TITLED.harm : 1);
+export const duesShare = v => DUES[v.dues].share * (v.title ? TITLED.dues : 1);
+export const levyShare = v => LEVIES[v.levy].share * (v.title ? TITLED.levy : 1);
 
 // What they want. Each is met or not; unmet, it weighs on them more as time passes. Once
 // met for a while (WANT_KEPT) they are grateful for good and want something new. `how`
@@ -225,7 +231,7 @@ export function factionView(w) {
   const F = w.faction, ids = F?.members || [];
   const members = ids.map(id => w.vassals.find(o => o.id === id)).filter(Boolean);
   const close = landed(w).filter(v => !ids.includes(v.id) && opinion(w, v).total <= FACTION_ANGER + 8);
-  const men = members.reduce((n, v) => n + powerOf(w, v).men, 0);
+  const men = members.reduce((n, v) => n + powerOf(w, v).men * (v.title ? TITLED.faction : 1), 0);
   return { F, members, close, men, yours: yourMen(w), demandIn: F && !F.asked && members.length >= 2 ? Math.max(0, ULTIMATUM - (w.time - F.since)) : null };
 }
 
@@ -347,7 +353,7 @@ function tickFaction(w) {
 // What one of a vassal's places earns this step is split between the vassal and you.
 export function share(w, v, gold) {
   if (v.refusing) { v.gold += gold; return 0; }
-  const yours = gold * DUES[v.dues].share;
+  const yours = gold * duesShare(v);
   v.gold += gold - yours;
   v.paid += yours;
   return yours;

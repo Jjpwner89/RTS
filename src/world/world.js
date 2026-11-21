@@ -4,7 +4,7 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
-import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, harmWeight, DUES, LEVIES, RECONCILE } from './vassals.js';
+import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
@@ -553,7 +553,7 @@ export class World {
   // A vassal's share of the men at one of their places marches for dest, as an army of
   // yours that remembers whose men they are (a.vassal). Returns how many went.
   vassalMen(v, p, dest) {
-    const share = LEVIES[v.levy].share * (decreed(this, 'levy') ? 1.5 : 1) * (1 + seatPower(this, 'marshal'));
+    const share = levyShare(v) * (decreed(this, 'levy') ? 1.5 : 1) * (1 + seatPower(this, 'marshal'));
     const units = takeUnits(p.garrison, power(p.garrison) * Math.min(0.9, share));
     if (!units.length) return 0;
     const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
@@ -1505,7 +1505,11 @@ export class World {
       return;
     }
     for (const v of vs) {
-      for (const p of holdingsOf(this, v)) { p.vassal = null; p.owner = null; p.free = v.name; }
+      for (const p of holdingsOf(this, v)) {
+        // A titled lord who rises draws twice the men to their banner (vassals.js TITLED).
+        if (!yes && v.title) for (const u of p.garrison || []) u.count *= TITLED.faction;
+        p.vassal = null; p.owner = null; p.free = v.name;
+      }
       v.gone = true;
       v.rebel = !yes;
       recall(this, v, yes ? 'Released from your service' : 'Rose against you');
