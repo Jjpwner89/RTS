@@ -441,7 +441,7 @@ const BLADE = new THREE.Matrix4().set(0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 
 const BOW = new THREE.Matrix4().set(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 const SHIELD = new THREE.Matrix4().set(-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1);
 const HELD = {
-  W_Spear: { basis: BLADE, grip: len => len >= 3 ? 0.28 : 0.35 }, W_Sword: { basis: BLADE }, W_Axe: { basis: BLADE }, W_Axe_Small: { basis: BLADE, grip: () => 0.05 },
+  W_Spear: { basis: BLADE, grip: len => len >= 3 ? 0.28 : 0.35 }, W_Sword: { basis: BLADE }, W_Axe: { basis: BLADE }, W_Axe_Small: { basis: BLADE, grip: () => 0.05 }, W_Hammer_Small: { basis: BLADE, grip: () => 0.08 },
   W_Bow_Wooden: { basis: BOW }, W_Shield_Round: { basis: SHIELD, out: 0.08 }, W_Shield_Heater: { basis: SHIELD, out: 0.08 }, W_Shield_Heater_2: { basis: SHIELD, out: 0.08 },
 };
 function heldFrame(item, box, size, k, len) {

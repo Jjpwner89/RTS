@@ -8,17 +8,17 @@
 // (Quaternius Ultimate Animated Animals, its own in-place clips: see WOLF). A fifth, the Ultimate Animated Character
 // knight, only lends the men a clip (KNIGHT).
 // A human has 24 bones (fingers fold into the wrist, curled round a grip) and eleven "prop" bones that carry what a
-// soldier holds: right-hand weapon, bow, shield, the villagers' axe, pick, hoe and sack, and the two halves of a bow's
+// soldier holds: right-hand weapon, bow, shield, the villagers' axe, pick, hoe, sack, hammer, saw and shovel, and the two halves of a bow's
 // and a crossbow's string. Each clip decides where a prop goes or hides it (a zero matrix). Horse vertices use bone
 // numbers from 128.
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
 
 const R = window.__roster, { THREE, C } = R;
-export const SLOTS = 35, HORSE = 128, FPS = 20;
+export const SLOTS = 37, HORSE = 128, FPS = 20;
 export const HUMAN = ['Root', 'Body', 'Hips', 'Abdomen', 'Torso', 'Chest', 'Neck', 'Head', 'ShoulderL', 'UpperArmL', 'LowerArmL', 'WristL',
   'ShoulderR', 'UpperArmR', 'LowerArmR', 'WristR', 'UpperLegL', 'LowerLegL', 'UpperLegR', 'LowerLegR', 'FootL', 'PTL', 'FootR', 'PTR'];
-export const PROP = { R: 24, BOW: 25, SHIELD: 26, AXE: 27, PICK: 28, HOE: 29, STRING_A: 30, STRING_B: 31, CSTRING_A: 32, CSTRING_B: 33, SACK: 34 };
+export const PROP = { R: 24, BOW: 25, SHIELD: 26, AXE: 27, PICK: 28, HOE: 29, STRING_A: 30, STRING_B: 31, CSTRING_A: 32, CSTRING_B: 33, SACK: 34, HAMMER: 35, SAW: 36 };
 // A string hangs between its weapon's tips in two halves, each hinged at its own tip, so its middle can be drawn back
 // while its ends stay on the tips. `on` is the weapon's prop, `tips` where the string's ends are in that prop's frame
 // (bake.js split() puts the string's vertices on these props, and stops if a baked string isn't there), `nut` where a
@@ -37,14 +37,15 @@ const GRIP = new THREE.Vector3(0, 0.135, -0.035);
 const SHIELD_IN_HAND = new Set(['Shield_Block', 'Shield_Wall', 'Cheer']);
 // How far a spearman's shield's middle keeps from the shaft (the round shield is 0.31 m across to its rim).
 const SHIELD_CLEAR = 0.34;
-const TOOLS = { Chop: 'AXE', Mine: 'PICK', Hoe: 'HOE' };
+const TOOLS = { Chop: 'AXE', Hoe: 'HOE', Hammer: 'HAMMER', Saw: 'SAW', Pickaxe: 'PICK' };
+const TOOL_SLOTS = ['AXE', 'PICK', 'HOE', 'HAMMER', 'SAW'];
 
 // The clips each skeleton gets. `src` names the source clip; `arm` takes the right arm from March_Upright at that
 // time (a weapon held upright while standing, walking or running); `upper` lays the upper body of another clip over
 // this one, frozen at a time (a lance couched at the gallop) or keeping step ('step': a load carried on the move).
 // Walking and running come from the stock Walk and Run, whose strides fit the game's paces (anim.js gaitSpeed);
 // March_Upright and Carry step short, so on the move they lend only their arms.
-const FOOT = ['Spear_Thrust', 'Spear_Brace', 'March_Upright', 'Bow_Loose', 'Crossbow_Span', 'Shield_Block', 'Shield_Wall', 'Javelin_Throw', 'Rout', 'Cheer', 'Chop', 'Hoe', 'Mine', 'Carry'];
+const FOOT = ['Spear_Thrust', 'Spear_Brace', 'March_Upright', 'Bow_Loose', 'Crossbow_Span', 'Shield_Block', 'Shield_Wall', 'Javelin_Throw', 'Rout', 'Cheer', 'Chop', 'Hoe', 'Carry'];
 const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Couch', 'Ride_Slash'];
 const HUMAN_CLIPS = {
   Idle: { src: 'Idle', loop: true }, Stand: { src: 'Idle', loop: true, arm: 0 },
@@ -59,6 +60,11 @@ const HUMAN_CLIPS = {
   Death: { src: 'Death', hold: true }, Sword_Slash: { src: 'Sword_Slash' },
   // a second death, falling forward onto his face (the knight's, KNIGHT), and two ways of taking a blow
   Death_Fwd: { src: 'Death', rig: 'knight', hold: true, weapon: 'Death' }, Hit: { src: 'HitRecieve', weapon: 'Death' }, Hit_2: { src: 'HitRecieve_2', weapon: 'Death' },
+  // the villagers' work at a building site, a workshop door, a quarry or a mine (KAYKIT), each with its tool (KayKit's
+  // Digging is left out: a spade at the foot of an ore rock is lost in the rock, where a pick swung at its face reads)
+  Hammer: { src: 'Hammering', rig: 'kaykit', loop: true }, Saw: { src: 'Sawing', rig: 'kaykit', loop: true },
+  // (Pickaxing's first blow lands at 0.3 s and holds there a second)
+  Pickaxe: { src: 'Pickaxing', rig: 'kaykit', loop: true, events: { 'pick-contact': 0.3 } }, Work: { src: 'Working_A', rig: 'kaykit', loop: true },
 };
 // A rider whose horse goes down is thrown clear of it: from the seat he pitches out over its far shoulder, turning to
 // fall on his back in his own Death beside it (`thrown`: where he lands, in metres off the saddle's foot, and the turn).
@@ -84,6 +90,17 @@ const HORSE_CLIPS = {
 // men but for its fists and body, other proportions and a T-ish rest, so its clips are carried over pose to pose:
 // each bone turns in the world as the knight's does from his idle, from the man's own idle (retarget).
 export const KNIGHT = { file: 'assets/anims/Quaternius_UAC_Knight_Male.gltf', names: { FistL: 'WristL', FistR: 'WristR', Body_1: 'Body' } };
+// Kay Lousberg's KayKit medium rig (Character Animations 1.1, CC0, assets/scout/anims/kaykit-rig-medium), for the
+// villagers' work: a short, big-headed skeleton of 21 bones under other names (one spine bone and a chest, no neck
+// or shoulders, a wrist and a hand, toes), carried over pose to pose from its idle like the knight's. Its hand is
+// the man's wrist, and each tool rides its hand slot (`slot`), turned to the tool's frame (bake.js tools: the haft
+// along +x from the grip).
+const LR = (k, v) => ({ [k + 'l']: v + 'L', [k + 'r']: v + 'R' });   // (three drops the dot in 'hand.l')
+export const KAYKIT = {
+  files: ['assets/anims/kaykit/Rig_Medium_Tools.glb', 'assets/anims/kaykit/Rig_Medium_General.glb'], idle: 'Idle_A',
+  names: { hips: ['Hips', 'Body'], spine: 'Abdomen', chest: 'Torso', head: 'Head', ...LR('upperarm', 'UpperArm'), ...LR('lowerarm', 'LowerArm'), ...LR('hand', 'Wrist'),
+    ...LR('upperleg', 'UpperLeg'), ...LR('lowerleg', 'LowerLeg'), ...LR('foot', 'Foot') },
+};
 
 // The war dog: the CC0 Quaternius wolf (assets/scout/animals/Wolf.glb, copied to the lineup by fetch.py), scaled so
 // it stands `shoulder` metres at the top of its back (its armature is in centimetres, x100; the size is the rig's,
@@ -114,10 +131,11 @@ let rigs = null;
 export async function load(dir = 'assets/clips/') {
   if (rigs) return rigs;
   const L = new GLTFLoader();
-  const [foot, riders, horsePack, manifest, male, female, horse, wolf, knight] = await Promise.all([
+  const [foot, riders, horsePack, manifest, male, female, horse, wolf, knight, ...kaykit] = await Promise.all([
     L.loadAsync(dir + 'clips-foot.glb'), L.loadAsync(dir + 'clips-riders.glb'), L.loadAsync(dir + 'clips-horse.glb'),
     fetch(dir + 'clip-manifest.json').then(r => r.json()),
     C.gltf('assets/qmod/Male_Adventurer.glb'), C.gltf('assets/qmod/Female_Medieval.glb'), C.fbx('assets/q18/Horse.fbx'), C.gltf(WOLF.file), C.gltf(KNIGHT.file),
+    ...KAYKIT.files.map(f => C.gltf(f)),
   ]);
   const meta = Object.fromEntries(manifest.clips.map(c => [c.name, c]));
   const clipsOf = list => Object.fromEntries(list.map(a => [a.name, a]));
@@ -130,7 +148,8 @@ export async function load(dir = 'assets/clips/') {
     female: rig('female', SU.clone(female.scene), humanSrc),
     horse: rig('horse', SU.clone(horse), { ...clipsOf(horse.animations), ...clipsOf(horsePack.animations) }, metres.matrix.clone()),
     wolf: rig('wolf', SU.clone(wolf.scene), clipsOf(wolf.animations)),
-    knight: rig('knight', SU.clone(knight.scene), clipsOf(knight.animations)),
+    knight: rig('knight', SU.clone(knight.scene), clipsOf(knight.animations), undefined, { names: KNIGHT.names }),
+    kaykit: rig('kaykit', SU.clone(kaykit[0].scene), Object.assign({}, ...kaykit.map(g => clipsOf(g.animations))), undefined, { names: KAYKIT.names, idle: KAYKIT.idle }),
   };
   const w = rigs.wolf, k = WOLF.shoulder / withers(w);
   w.G = new THREE.Matrix4().makeScale(k, k, k); w.Ginv = w.G.clone().invert();
@@ -138,14 +157,14 @@ export async function load(dir = 'assets/clips/') {
   return rigs;
 }
 
-function rig(name, root, clips, G = new THREE.Matrix4()) {
+function rig(name, root, clips, G = new THREE.Matrix4(), more = {}) {
   root.updateMatrixWorld(true);
   let skel = null;
   root.traverse(o => { if (o.isSkinnedMesh && !skel) skel = o.skeleton; });
   const bones = new Map(skel.bones.map(b => [b.name, b])), IB = new Map(skel.bones.map((b, i) => [b.name, skel.boneInverses[i]]));
   const slots = name === 'horse' ? skel.bones.map(b => b.name) : name === 'wolf' ? WOLF_BONES : HUMAN, fold = name === 'wolf' ? WOLF_FOLD : {};
   const rest = new Map(skel.bones.map(b => [b.name, { q: b.getWorldQuaternion(new THREE.Quaternion()), p: b.getWorldPosition(new THREE.Vector3()), local: b.quaternion.clone(), pos: b.position.clone() }]));
-  return { name, root, clips, G, Ginv: G.clone().invert(), bones, IB, slots, fold, rest, mixer: new THREE.AnimationMixer(root) };
+  return { name, root, clips, G, Ginv: G.clone().invert(), bones, IB, slots, fold, rest, mixer: new THREE.AnimationMixer(root), ...more };
 }
 // The top of the wolf's back in its rest pose, between its chest bones (its withers, in its own units).
 function withers(r) {
@@ -185,7 +204,7 @@ function pose(r, def, t) {
     const src = rigs[def.rig], from = idleOf(src), to = idleOf(base);
     sample(src, def.src, t);
     sample(base, 'Idle', 0);
-    retarget(src, base, { names: KNIGHT.names, from, to, feet: true });
+    retarget(src, base, { names: src.names, from, to, feet: true });
     if (r.from) retarget(r.from, r);
     return;
   }
@@ -286,7 +305,7 @@ function meanPose(r, src) {
 const idles = new Map();
 function idleOf(r) {
   if (!idles.has(r.name)) {
-    sample(r, 'Idle', 0);
+    sample(r, r.idle || 'Idle', 0);
     idles.set(r.name, new Map([...r.bones].map(([n, b]) => [n, { q: b.getWorldQuaternion(new THREE.Quaternion()), p: b.getWorldPosition(new THREE.Vector3()) }])));
   }
   return idles.get(r.name);
@@ -320,8 +339,8 @@ function thrown(r, def, t) {
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _p = new THREE.Vector3();
 function retarget(m, f, { names = {}, from = m.rest, to = f.rest, feet = false } = {}) {
   const turn = new Map();
-  for (const [name, b] of m.bones) if (from.has(name)) turn.set(names[name] || name, b.getWorldQuaternion(new THREE.Quaternion()).multiply(_q.copy(from.get(name).q).invert()));
-  const k = to.get('Hips').p.y / from.get('Hips').p.y;
+  for (const [name, b] of m.bones) if (from.has(name)) for (const n of [].concat(names[name] || name)) turn.set(n, b.getWorldQuaternion(new THREE.Quaternion()).multiply(_q.copy(from.get(name).q).invert()));
+  const hips = Object.keys(names).find(n => [].concat(names[n]).includes('Hips')) || 'Hips', k = to.get('Hips').p.y / from.get(hips).p.y;
   f.root.traverse(b => {
     if (!b.isBone || !turn.has(b.name)) return;
     const want = turn.get(b.name).clone().multiply(to.get(b.name).q);
@@ -329,7 +348,7 @@ function retarget(m, f, { names = {}, from = m.rest, to = f.rest, feet = false }
     b.parent.getWorldQuaternion(_q2);
     b.quaternion.copy(_q2.invert().multiply(want));
     if (b.name === 'Hips' || (feet && b.name === 'Body')) {
-      const d = m.bones.get('Hips').getWorldPosition(new THREE.Vector3()).sub(from.get('Hips').p).multiplyScalar(k);
+      const d = m.bones.get(hips).getWorldPosition(new THREE.Vector3()).sub(from.get(hips).p).multiplyScalar(k);
       b.position.copy(b.parent.worldToLocal(_p.copy(to.get(b.name).p).add(d)));
     }
     b.updateMatrixWorld(true);
@@ -367,6 +386,21 @@ function hand(r, side, axis) {
   if (axis) q.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(...axis).normalize());
   else if (side === 'R') q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
   return boneFrame(r, 'Wrist' + side).multiply(new THREE.Matrix4().compose(GRIP, q, new THREE.Vector3(1, 1, 1)));
+}
+// A tool in a KayKit work clip (bake.js tools: the haft along the frame's +x from the grip, the face or teeth toward
+// +z). A hammer sits in the right grip and turns as KayKit's right hand slot does (its +y along the haft, its +x the
+// frame's -y); a pick's haft runs from the left grip, at its foot, on through the right, the head beyond it; a saw's
+// blade points from the right grip ahead of him and down, along the stroke, its teeth below.
+const SLOT_TOOL = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1)));
+const HELD_AS = { Hammer: 'slot', Saw: 'ahead', Pickaxe: 'hands' };
+function kayTool(r, name) {
+  const how = HELD_AS[name], grip = side => new THREE.Vector3().setFromMatrixPosition(hand(r, side, null));
+  const at = grip(how === 'hands' ? 'L' : 'R');
+  if (how === 'slot') return new THREE.Matrix4().compose(at, rigs.kaykit.root.getObjectByName('handslotr').getWorldQuaternion(new THREE.Quaternion()).multiply(SLOT_TOOL), new THREE.Vector3(1, 1, 1));
+  const x = how === 'hands' ? grip('R').sub(at).normalize() : new THREE.Vector3(0, -0.5, 1).normalize();
+  const z = new THREE.Vector3(0, -1, 0).addScaledVector(x, x.y).normalize();   // (down, square to the haft)
+  if (how === 'hands') z.set(1, 0, 0).cross(x).normalize();   // (the points in the swing's plane, square to his shoulders)
+  return new THREE.Matrix4().makeBasis(x, z.clone().cross(x), z).setPosition(at);
 }
 // The shield strapped to the left forearm when the hand isn't gripping it: face out and forward, top toward the elbow.
 function armShield(r) {
@@ -408,7 +442,7 @@ function props(r, name, def, t) {
     const c = new THREE.Vector3(0, 0.08, 0).applyMatrix4(out.SHIELD).sub(grip), off = c.clone().addScaledVector(along, -c.dot(along)), d = off.length();
     if (d < SHIELD_CLEAR) out.SHIELD = new THREE.Matrix4().makeTranslation(...off.normalize().multiplyScalar(SHIELD_CLEAR - d).toArray()).multiply(out.SHIELD);
   }
-  for (const k of ['AXE', 'PICK', 'HOE']) out[k] = TOOLS[name] === k ? hand(r, 'R', axis) : ZERO;
+  for (const k of TOOL_SLOTS) out[k] = TOOLS[name] !== k ? ZERO : def.rig === 'kaykit' ? kayTool(r, name) : hand(r, 'R', axis);
   out.SACK = (def.weapon || def.src) === 'Carry' ? shoulderSack(r) : ZERO;
   // the strings: a bow's drawn to the right hand from the nock to the loose; a crossbow's drawn by both hands from
   // the prod up the stock while spanning, then caught on the nut until the shot; otherwise straight from tip to tip

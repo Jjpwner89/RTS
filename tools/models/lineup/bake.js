@@ -366,11 +366,12 @@ async function crossbow(fig) {
 }
 // Until a clip moves it, a held thing made here sits at the hand as the bake posed it (the game redraws it anyway).
 function placeHeld(fig, g, at) { g.position.copy(fig.bones[at]); fig.group.add(g); }
-// A villager's tools, each shown only while its work clip plays (skin.js): the pack's small axe, and a pick and a hoe
-// made here, held as the clip review holds them. Built in the hand's prop frame: the haft along +x from the grip, the
-// edge or point toward +z, then turned about the haft by `roll` degrees so it leads the stroke when it strikes (Chop
-// and Mine come straight down; the hoe's blade points down and back, toward the villager). Goods carried
+// A villager's tools, each shown only while its work clip plays (skin.js): the pack's small axe and hammer, and a
+// pick, a hoe and a saw made here, held as the clip review holds them. Built in the hand's prop frame: the haft along
+// +x from the grip, the edge or point toward +z, then turned about the haft by `roll` degrees so it leads the stroke
+// when it strikes (Chop and Pickaxe come straight down; the hoe's blade points down and back, toward the villager). Goods carried
 // ride in a sack over the shoulder, shown only in CarryWalk and CarryRun.
+const HAMMER_ROLL = 0, SAW_ROLL = 0;
 async function tools(fig) {
   const wood = plain('#7a5a3a'), iron = plain('#8d979c'), roll = deg => new THREE.Matrix4().makeRotationX(deg * Math.PI / 180);
   const axe = (await R.hang(fig, { item: 'W_Axe_Small', at: 'R', len: 0.75 })).userData.prop;
@@ -388,11 +389,27 @@ async function tools(fig) {
   const arm = side => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.27, 6).rotateX(side * Math.PI / 2), iron); m.position.set(0.76, 0, side * 0.135); m.rotation.y = -side * 0.18; return m; };
   const eye = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.06), iron);
   eye.position.x = 0.78;
-  tool('PICK', 0.85, [arm(1), arm(-1), eye], 85);
+  tool('PICK', 0.85, [arm(1), arm(-1), eye]);
   // a hoe: a flat blade on a neck at the end of the haft, its edge on the soil as Hoe pulls it
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.06), iron), blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.12), iron);
   neck.position.set(0.95, 0, 0.03); blade.position.set(0.93, 0, 0.1); blade.rotation.y = 0.3;
   tool('HOE', 1.05, [neck, blade]);
+  // the KayKit work clips' tools (skin.js KAYKIT), each turned in its slot by `roll` so it meets the work as the clip
+  // swings it: the pack's small hammer, its face toward +z
+  const hammer = (await R.hang(fig, { item: 'W_Hammer_Small', at: 'R', len: 0.42 })).userData.prop;
+  hammer.slot = 'HAMMER';
+  hammer.canon.premultiply(roll(HAMMER_ROLL));
+  // a hand saw: a tapering steel blade on from a wooden grip, its teeth toward +z
+  const saw = new THREE.Group(), steel = plain('#a9b1b5');
+  saw.userData.prop = { slot: 'SAW', item: 'saw', canon: roll(SAW_ROLL) };
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 0.09), wood);
+  grip.position.x = 0.02; saw.add(grip);
+  const sawBlade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.004, 0.1), steel);
+  sawBlade.geometry.translate(0.25, 0, 0);
+  const bp = sawBlade.geometry.attributes.position;
+  for (let i = 0; i < bp.count; i++) if (bp.getX(i) > 0.4 && bp.getZ(i) < 0) bp.setZ(i, -0.01);   // narrowing to its tip
+  sawBlade.position.set(0.08, 0, 0.03); saw.add(sawBlade);
+  placeHeld(fig, saw, 'R');
   // a sack, slung over the right shoulder while carrying (skin.js shoulderSack): its body down the back, its neck
   // forward in the hand
   const sack = new THREE.Group(), cloth = plain('#b39a6c');

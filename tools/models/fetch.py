@@ -53,4 +53,8 @@ shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
 # The knight whose forward death the men borrow: CC0 Quaternius Ultimate Animated Character, kept by the asset scout (lineup/skin.js KNIGHT)
 os.makedirs(os.path.join(assets, 'anims'), exist_ok=True)
 shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'scout', 'anims', 'Quaternius_UAC_Knight_Male.gltf'), os.path.join(assets, 'anims', 'Quaternius_UAC_Knight_Male.gltf'))
+# The villagers' work (hammering, sawing, digging): CC0 KayKit Character Animations 1.1, kept by the asset scout (lineup/skin.js KAYKIT)
+os.makedirs(os.path.join(assets, 'anims', 'kaykit'), exist_ok=True)
+for f in ['Rig_Medium_Tools.glb', 'Rig_Medium_General.glb']:
+    shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'scout', 'anims', 'kaykit-rig-medium', f), os.path.join(assets, 'anims', 'kaykit', f))
 print('done')

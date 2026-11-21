@@ -181,18 +181,14 @@ attribute vec3 bindNormal;
 attribute vec4 aBones;
 attribute vec4 aWeights;
 attribute vec4 aShift;   // a second rider's place in the model (xyz), and the human skeleton he follows (w)
-attribute vec4 aAnim;    // this instance's clip: first frame, frames (negative: holds at the end), frame now
+attribute vec4 aAnim;    // this instance's clip: first frame, frames (negative: holds at the end), frame now, and how far still in the last (setBlend)
 attribute vec4 aAnimH;   // and its horse's
 mat4 animBone(float frame, float bone) {
   int f = int(frame), row = f / ${T.rowFrames}, x = (f - row * ${T.rowFrames}) * ${T.slots * 3} + int(bone) * 3;
   vec4 a = texelFetch(animTex, ivec2(x, row), 0), b = texelFetch(animTex, ivec2(x + 1, row), 0), c = texelFetch(animTex, ivec2(x + 2, row), 0);
   return mat4(a.x, b.x, c.x, 0.0, a.y, b.y, c.y, 0.0, a.z, b.z, c.z, 0.0, a.w, b.w, c.w, 1.0);
 }
-mat4 animSkin() {
-  bool horse = aBones.x >= ${T.horse}.0;
-  vec4 clip = horse ? aAnimH : aAnim;
-  if (!horse) clip.x += aShift.w * ${rigStep}.0;
-  vec4 bones = horse ? aBones - ${T.horse}.0 : aBones;
+mat4 animAt(vec4 clip, vec4 bones) {
   // (a time at the very end of a loop can round up to its length: wrap it, never read the next clip)
   float n = max(abs(clip.y), 1.0), f0 = floor(clip.z), t = clip.z - f0;
   f0 = clip.y > 0.0 ? mod(f0, n) : min(f0, n - 1.0);
@@ -204,6 +200,20 @@ mat4 animSkin() {
     mat4 b = animBone(clip.x + f0, bones[k]);
     ${light ? '' : 'b += (animBone(clip.x + f1, bones[k]) - b) * t;'}
     m += w * b;
+  }
+  return m;
+}
+mat4 animSkin() {
+  bool horse = aBones.x >= ${T.horse}.0;
+  vec4 clip = horse ? aAnimH : aAnim;
+  if (!horse) clip.x += aShift.w * ${rigStep}.0;
+  vec4 bones = horse ? aBones - ${T.horse}.0 : aBones;
+  mat4 m = animAt(clip, bones);
+  // a figure with no horse may be easing out of the clip it was in, held in the horse's (setBlend)
+  if (!horse && aAnim.w > 0.0) {
+    vec4 was = aAnimH;
+    was.x += aShift.w * ${rigStep}.0;
+    m += (animAt(was, bones) - m) * aAnim.w;
   }
   return m;
 }`)
@@ -231,4 +241,11 @@ export function setClip(geo, i, c, t, horse = false) {
   if (!c) { a.setXYZW(i, 0, 1, 0, 0); return; }
   const f = c.loop ? ((t * c.fps) % c.frames + c.frames) % c.frames : Math.min(Math.max(0, t * c.fps), c.frames - 1);
   a.setXYZW(i, c.start, c.loop ? c.frames : -c.frames, f, 0);
+}
+// After setClip: ease instance i out of clip `c` (at `t` seconds), `w` of the way still in it, 1 to 0. Only for a
+// figure with no horse, whose horse's clip it borrows.
+export function setBlend(geo, i, c, t, w) {
+  if (!c || !(w > 0)) return;
+  setClip(geo, i, c, t, true);
+  geo.attributes.aAnim.setW(i, Math.min(1, w));
 }

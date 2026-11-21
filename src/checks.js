@@ -844,7 +844,7 @@ async function findAssets() {
   const { footGaits } = await import('./view.js');
   const { HORSE_GAITS } = await import('./view.js');
   const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Death_Fwd', 'Hit', 'Hit_2', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed', 'Turn', 'TurnArmed', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
-  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Mine', 'Hoe', 'Idle'];
+  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Hoe', 'Hammer', 'Saw', 'Pickaxe', 'Work', 'Idle'];
   const DOG = ['Idle', 'Walk', 'Trot', 'Run', 'Rout', 'Bite', 'Death'];
   const GAITS = ['Walk', 'Trot', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed'];
   const noClip = new Set();
@@ -1015,12 +1015,13 @@ export async function kitProblems(keys, unitModel) {
         const m = A.clipOf(a.rig, clip) && A.boneOf(a.rig, clip, 0, P.SACK), shown = m && Math.hypot(m[0], m[1], m[2]) > 0.01;
         if (shown !== clip.startsWith('Carry')) bad.push(`${key}: the sack is ${shown ? 'shown' : 'hidden'} in ${clip}`);
       }
-      for (const [slot, clip, shape] of [['AXE', 'Chop', 'axe'], ['PICK', 'Mine', 'pick'], ['HOE', 'Hoe', 'hoe']]) {
+      for (const [slot, clip, shape] of [['AXE', 'Chop', 'axe'], ['PICK', 'Pickaxe', 'pick'], ['HOE', 'Hoe', 'hoe'], ['HAMMER', 'Hammer', 'hammer'], ['SAW', 'Saw', 'saw']]) {
         if (!has(P[slot])) { bad.push(`${key}: no ${shape} (prop ${slot})`); continue; }
-        for (const other of ['Chop', 'Mine', 'Hoe', 'Walk', 'CarryWalk', 'Idle']) {
+        for (const other of ['Chop', 'Pickaxe', 'Hoe', 'Hammer', 'Saw', 'Work', 'Walk', 'CarryWalk', 'Idle']) {
           const m = A.clipOf(a.rig, other) && A.boneOf(a.rig, other, 0, P[slot]), shown = m && Math.hypot(m[0], m[1], m[2], m[4], m[5], m[6]) > 0.01;
           if (shown !== (other === clip)) bad.push(`${key}: the ${shape} is ${shown ? 'shown' : 'hidden'} in ${other}`);
         }
+        if (shape === 'hammer' || shape === 'saw') continue;   // (the pack's hammer and a saw: no head to measure)
         const vs = [];
         slotOf(P[slot]).forEach((l, gi) => { const b = geos[gi].attributes.bind; for (const i of l) vs.push([b.getX(i), b.getY(i), b.getZ(i)]); });
         const top = Math.max(...vs.map(v => v[0])), head = vs.filter(v => v[0] > top - 0.32 && Math.hypot(v[1], v[2]) > 0.03);
@@ -1036,7 +1037,7 @@ export async function kitProblems(keys, unitModel) {
         if (shape === 'pick' ? !(near > 0.12 && pointy()) : !(farSide > 0.1 && near < 0.4 * farSide))
           bad.push(`${key}: the ${shape}'s head reaches ${best.hi.toFixed(2)} and ${best.lo.toFixed(2)} m to either side of the haft: it doesn't read as ${shape === 'axe' ? 'an axe' : 'a ' + shape}`);
         // when it strikes, the edge (or point) leads the stroke; the hoe's blade is on the soil
-        const hit = { Chop: 'axe-contact', Mine: 'pick-contact', Hoe: 'pull-soil' }[clip], t = ev(clip, hit);
+        const hit = { Chop: 'axe-contact', Pickaxe: 'pick-contact', Hoe: 'pull-soil' }[clip], t = ev(clip, hit);
         if (t == null) { bad.push(`${key}: ${clip} has no '${hit}' event to check the ${shape} at`); continue; }
         const f = frameAt(clip, t), now = posed(clip, f, P[slot]), lead = best.hi >= best.lo ? best.u : best.u.map(e => -e);
         const tip = lead.map(e => e * farSide), m = A.boneOf(a.rig, clip, f, P[slot]);
