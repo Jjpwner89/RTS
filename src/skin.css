@@ -323,3 +323,8 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 }
 .town-labels .stuck.shy { opacity: 0; pointer-events: none; }
 .town-labels .stuck { transition: opacity .15s; }
+
+/* A greyed prompt button's reason, under the row. */
+.modal .whyline { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
+/* A news card waits in the corner: the map under it and the clock go on. */
+#prompt.soft { top: auto; bottom: 120px; left: 50%; transform: translateX(-50%); width: min(380px, calc((100vw - 32px) / var(--hud))); }

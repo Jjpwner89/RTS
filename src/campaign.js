@@ -220,8 +220,8 @@ function townBundle(p, look = null) {
     companies: () => (world.companies || []).map(c => {
       const o = offer(world, c, 0), boss = c.employer !== null && c.employer !== undefined ? FACTIONS[c.employer] : null;
       const where = world.byId[c.home]?.name;
-      return { id: c.id, name: c.name, size: c.size, unit: TYPES[c.key].name.toLowerCase(), wage: c.employer === 0 ? wage(c) : fullWage(c), ok: o.ok, why: o.why,
-        status: c.employer === 0 ? 'in your service' : o.ok ? `${o.price} gold${o.outbid ? ` (outbid ${boss.name})` : ''}${where ? ` · at ${where}` : ''}` : o.why };
+      return { id: c.id, known: c.employer === 0 || !!world.byId[c.home]?.seen, name: c.name, size: c.size, unit: TYPES[c.key].name.toLowerCase(), wage: c.employer === 0 ? wage(c) : fullWage(c), ok: o.ok, why: o.why,
+        status: c.employer === 0 ? 'in your service' : `${o.ok ? `${o.price} gold${o.outbid ? ` (outbid ${boss.name})` : ''}` : o.why}${where ? ` · seen at ${where}` : ''}` };
     }),
     hireCompany: id => { const c = world.companies.find(o => o.id === id); return hireCompany(world, c, 0, p); },
     companyOf: r => { const c = (world.companies || []).find(c => c.employer === 0 && c.name === r.name); return c && { ...c, wage: wage(c) }; },
@@ -567,6 +567,11 @@ function openChronicle() {
 // encounters on the road do not.
 const fighting = () => mode === 'town' && !current?.look && !!(current?.town?.underAttack || current?.town?.hostile);
 const WAITS = new Set(['choice', 'offer', 'news']);
+// News cards (a fair, a fever, newcomers, masons) sit in a corner card that waits: the clock runs on and
+// right-clicks reach the map. Real decisions (petitions, a tournament, a fight, an offer) still stop it.
+const SOFT = new Set(['harvest', 'fever', 'knight', 'refugees', 'fair', 'bandits', 'pilgrims', 'quarrel', 'fall']);
+const isSoft = a => a.kind === 'choice' && (SOFT.has(a.ev.id) || String(a.ev.id).startsWith('settlers-'));
+let softAsk = null;   // the news card now open, if one
 
 // A walled place, and an army with nothing to climb or break the walls with.
 function bareHanded(enc) {
@@ -578,6 +583,15 @@ function bareHanded(enc) {
 const CALM = 5000;
 let fightSeen = 0;
 
+// A greyed button's reason in a line under the row, as elsewhere in the game (never only in a tooltip).
+function say(reasons) {
+  const box = $('prompt');
+  let el = box.querySelector('.whyline');
+  if (!el) { el = document.createElement('p'); el.className = 'whyline'; box.append(el); }
+  const text = [...new Set(reasons)].join(' · ');
+  if (el.textContent !== text) el.textContent = text;
+  el.hidden = !text;
+}
 let shown = [];   // the open box's [button, choice] pairs: re-read every frame, as the purse changes
 function nextAsk() {
   for (const [btn, c] of shown) {
@@ -586,13 +600,19 @@ function nextAsk() {
     if (btn.disabled !== off) btn.disabled = off;
     if (btn.title !== tip) btn.title = tip;
   }
+  if (shown.length && $('prompt').classList.contains('open')) say(shown.filter(([, c]) => !c.ok && c.why).map(([, c]) => c.why));
   if (mode === 'field' || fighting()) fightSeen = performance.now();
+  // A decision that comes while a news card is open takes its place; the card goes back to wait.
+  if ($('prompt').classList.contains('soft') && softAsk && asks.some(a => !isSoft(a))) { asks.push(softAsk); softAsk = null; $('prompt').classList.remove('open', 'soft'); }
   if (mode === 'field' || $('prompt').classList.contains('open') || $('result').classList.contains('open') || !asks.length) return;
-  const i = performance.now() - fightSeen < CALM ? asks.findIndex(a => !WAITS.has(a.kind)) : 0;
+  // a decision goes before a news card
+  const i = performance.now() - fightSeen < CALM ? asks.findIndex(a => !WAITS.has(a.kind)) : Math.max(0, asks.findIndex(a => !isSoft(a)));
   if (i < 0) return;
   const a = asks.splice(i, 1)[0];
+  softAsk = isSoft(a) ? a : null;
   if (a.kind === 'encounter' && (a.enc.army.gone || world.encounter !== a.enc)) return nextAsk();
   const box = $('prompt');
+  box.classList.toggle('soft', !!softAsk);
   const buttons = [];
   const pic = box.querySelector('img');
   pic.hidden = true;
@@ -698,9 +718,10 @@ function nextAsk() {
     btn.disabled = !!off;
     if (off && why) btn.title = why;
     if (choice) shown.push([btn, choice]);
-    btn.onclick = () => { box.classList.remove('open'); fn(); };
+    btn.onclick = () => { box.classList.remove('open'); softAsk = null; fn(); };
     row.append(btn);
   }
+  say(buttons.filter(b => b[2] && b[3]).map(b => b[3]));
   box.classList.add('open');
 }
 
@@ -858,7 +879,7 @@ function flash(text, good = false) {
   flash.timer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-const blocked = () => $('prompt').classList.contains('open') || $('result').classList.contains('open') || $('help').classList.contains('open');
+const blocked = () => ($('prompt').classList.contains('open') && !$('prompt').classList.contains('soft')) || $('result').classList.contains('open') || $('help').classList.contains('open');
 
 // ---- the world panel ----
 
@@ -1324,7 +1345,7 @@ function frame(now) {
         autosave();
       }
       left -= h;
-      if (blocked() || asks.length) break;
+      if (blocked() || asks.some(a => !isSoft(a))) break;
     }
   }
   if (selected?.gone) selected = null;
