@@ -6,6 +6,7 @@ import { WALL_COSTS, MATERIALS } from './walls.js';
 import { SiegeView } from './siegeview.js';
 import { drawDeployZone } from './fieldview.js';
 import { GOODS, MASONS } from './economy.js';
+import { why } from './ui/why.js';
 
 const costText = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g]?.name.toLowerCase() || g}`).join(', ');
 
@@ -38,6 +39,9 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
   const view = new SiegeView(scene, battle, heightAt);
   const ui = { tool: null, drag: null, hover: null, selected: null, view };
   const afford = cost => { const { gold = 0, ...goods } = cost; return town.purse.gold >= gold && town.canAfford(goods); };
+  // What a greyed tool lacks, for its tooltip: "Short of stone: 12 of 40".
+  const lacking = cost => { const out = Object.entries(cost).map(([g, n]) => [g, g === 'gold' ? town.purse.gold : town.free(g), n]).filter(([, have, n]) => have < n);
+    return out.length ? `Short of ${out.map(([g, have, n]) => `${GOODS[g]?.name.toLowerCase() || g}: ${Math.floor(have)} of ${n}`).join(', ')}` : ''; };
   // Walls keep clear of the keep, buildings and deposits, and stay on your land.
   const avoid = (x, z, r) => {
     if (Math.hypot(x, z) > town.territory) return true;
@@ -166,7 +170,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     for (const btn of el.querySelectorAll('[data-tool]')) {
       btn.classList.toggle('on', btn.dataset.tool === ui.tool);
       const t = TOOLS.find(o => o.key === btn.dataset.tool);
-      btn.disabled = !afford(t.cost);
+      why(btn, afford(t.cost) ? '' : lacking(t.cost));
     }
     const mb = el.querySelector('[data-act="masons"]');
     if (mb) { const c = town.masonsCheck(); mb.disabled = !c.ok; const txt = c.ok ? `${MASONS.gold} gold` : c.reason; if (mb.lastChild.textContent !== txt) mb.lastChild.textContent = txt; }

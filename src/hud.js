@@ -2,6 +2,7 @@
 import { drawIcon, SIDE_COLORS } from './view.js';
 import { FORMATIONS, WEATHER, ARMOUR, VET_RANKS, canShield, hasShield } from './battle.js';
 import { ico } from './icons.js';
+import { why } from './ui/why.js';
 
 // The badge on a card's icon: rank as gold chevrons (none for green men) beside the armour
 // level, and a mark when men who could carry shields have none. Two regiments in the same
@@ -108,12 +109,13 @@ export class Hud {
     for (const btn of this.ordersEl.querySelectorAll('[data-f]')) {
       const f = btn.dataset.f;
       btn.classList.toggle('on', sel.every(r => r.formation === f));
-      btn.disabled = sel.every(r => r.T.engine || r.posts || (f === 'square' && r.T.mounted));
+      const no = sel.map(r => r.T.engine ? "Siege engines don't take formations" : r.posts ? 'Men on the walls keep their posts' : f === 'square' && r.T.mounted ? "Horse can't form a square" : '');
+      why(btn, no.every(Boolean) ? [...new Set(no)].join('; ') : '');
     }
     const on = (k, test) => { const btn = this.ordersEl.querySelector(`[data-c="${k}"]`); btn.classList.toggle('on', sel.every(test)); return btn; };
-    on('charge', r => this.battle.time < r.chargeUntil).disabled = sel.every(r => r.T.range || r.T.engine);
+    why(on('charge', r => this.battle.time < r.chargeUntil), sel.every(r => r.T.range || r.T.engine) ? "Bowmen and siege engines don't charge" : '');
     on('hold', r => r.hold);
-    on('fire', r => r.fireAtWill).disabled = !sel.some(r => r.T.range);
+    why(on('fire', r => r.fireAtWill), sel.some(r => r.T.range) ? '' : 'Only bows and crossbows shoot');
     // Only shown with a standing bridge near the selection.
     const burn = on('burn', r => !!r.burnBridge);
     burn.hidden = !this.bridgeFor(sel);

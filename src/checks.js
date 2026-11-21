@@ -637,7 +637,7 @@ function pageChecks() {
   const top = document.getElementById('top'), wide = top && top.offsetParent ? top.scrollWidth - top.clientWidth : 0;
   results.push({ group, name: 'the top bar fits the window', status: wide > 1 ? 'fail' : 'pass', detail: wide > 1 ? [`${wide}px of it scrolls out of sight at ${innerWidth}×${innerHeight}`] : [] });
   // GENRE_BASICS: a greyed button says why. A choice box that doesn't fails; elsewhere it warns for now.
-  const mute = [...document.querySelectorAll('button:disabled')].filter(b => b.offsetParent && !b.title && !b.closest('[title]') && b.textContent.trim())
+  const mute = [...document.querySelectorAll('button:disabled')].filter(b => b.offsetParent && !b.title && !b.dataset.why && !b.closest('[title]') && b.textContent.trim())
     .map(b => `${b.closest('[id]')?.id || 'page'}: "${b.textContent.trim().slice(0, 40)}"`);
   const boxed = mute.filter(m => m.startsWith('prompt:'));
   results.push({ group, name: 'greyed buttons say why', status: boxed.length ? 'fail' : mute.length ? 'warn' : 'pass', detail: sample(boxed.length ? boxed : mute, 8) });

@@ -1,7 +1,8 @@
 // One tooltip for the whole interface: a parchment slip in place of the browser's grey box,
 // with the hotkey shown when the element names one (data-key). Code keeps writing `title`
 // as before; while the pointer rests on an element its title is lifted into the slip (and
-// put back when the pointer leaves), so the browser's own tooltip never shows as well.
+// put back when the pointer leaves), so the browser's own tooltip never shows as well. A
+// greyed button's reason (data-why, set by ui/why.js) shows under its title.
 // Loaded once per page from its HTML.
 const tip = document.createElement('div');
 tip.id = 'tip';
@@ -10,15 +11,16 @@ document.body.append(tip);
 let host = null, held = '', timer = 0, mouse = { x: 0, y: 0 };
 const DELAY = 280;
 
-const owner = el => el?.closest?.('[title], [data-tip], [data-tip-held]');
+const owner = el => el?.closest?.('[title], [data-tip], [data-tip-held], [data-why]');
 
 function lift() {
   if (!host) return;
   const t = host.getAttribute('title');
   if (t !== null) { held = t; host.removeAttribute('title'); host.dataset.tipHeld = '1'; }
   const text = host.dataset.tip || held;
-  const key = host.dataset.key;
-  const html = text ? esc(text).replace(/\n/g, '<br>') + (key ? ` <kbd>${esc(key)}</kbd>` : '') : '';
+  const key = host.dataset.key, why = host.disabled && host.dataset.why;
+  const html = (text ? esc(text).replace(/\n/g, '<br>') + (key ? ` <kbd>${esc(key)}</kbd>` : '') : '')
+    + (why ? `<span class="why">${esc(why)}</span>` : '');
   if (tip.dataset.was !== html) { tip.dataset.was = html; tip.innerHTML = html; }
   tip.classList.toggle('show', !!html);
   if (html) place();
@@ -58,7 +60,7 @@ addEventListener('mousedown', () => tip.classList.remove('show'), true);
 document.documentElement.addEventListener('mouseleave', drop);
 // Code may rewrite a title every frame (a reason that changes): pick that up while shown.
 (function follow() {
-  if (host && (host.getAttribute('title') !== null || tip.classList.contains('show'))) {
+  if (host && (host.getAttribute('title') !== null || tip.classList.contains('show') || host.dataset.why)) {
     if (!host.isConnected) drop();
     else if (tip.classList.contains('show')) lift();
     else { const t = host.getAttribute('title'); if (t !== null) { held = t; host.removeAttribute('title'); } }

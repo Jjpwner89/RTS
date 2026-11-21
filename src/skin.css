@@ -99,6 +99,10 @@ kbd { font-family: var(--body-font); font-size: 10px; font-weight: 700; line-hei
   background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: 0 0 0 1px #4a3018, 0 4px 12px rgba(0, 0, 0, .35);
   color: var(--ink); font: 13px/1.35 var(--body-font); white-space: normal; }
 #tip.show { opacity: 1; }
+/* A greyed button's reason (ui/why.js): its own line, in the seal's red, under the title. */
+#tip .why { display: block; color: var(--seal); font-weight: 600; }
+#tip .why:not(:first-child) { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(74, 48, 24, .25); }
+button:disabled[data-why] { cursor: help; }
 
 /* New things (ui/news.js): a red seal on the thing, its one line beside it. */
 .is-new { position: relative; }
