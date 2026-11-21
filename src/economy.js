@@ -1267,6 +1267,7 @@ export class Town {
   upgradeCheck(b) {
     const U = UPGRADES[(b.level || 1) + 1];
     if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.B.camp || b.kind === 'house') return { ok: false, reason: 'Fully upgraded', done: true };
+    if (b.dry) return { ok: false, reason: "Worked out: upgrading won't help" };
     if (U.gold && this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
     if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
     return { ok: true, U };

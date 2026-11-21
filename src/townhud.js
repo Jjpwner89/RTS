@@ -442,8 +442,8 @@ export class TownHud {
     if (f === 'game') { const g = this.town.gameNear(b); return `Game in reach: ${g > 0.66 ? 'plenty' : g > 0.33 ? 'thinning' : g > 0.12 ? 'scarce' : 'hunted out'} (${Math.round(g * 100)}%). It breeds back over about 25 minutes.`; }
     if (f === 'deposit') {
       const g = b.B.gather, near = this.town.nodes[g.node].filter(n => Math.hypot(n.x - b.x, n.z - b.z) < g.range);
-      const left = near.reduce((n, d) => n + Math.max(0, d.left ?? 0), 0);
-      return `Left in reach: ${Math.round(left)} ${g.node === 'rock' ? 'stone' : 'ore'} in ${near.filter(d => (d.left ?? 1) > 0).length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}(s). ${left > 0 ? 'It runs out. ' : 'Worked out. '}Mines sharing a deposit strip it faster.`;
+      const left = near.reduce((n, d) => n + Math.max(0, d.left ?? 0), 0), next = left > 0 ? null : this.town.nextDeposit(b);
+      return `Left in reach: ${Math.round(left)} ${g.node === 'rock' ? 'stone' : 'ore'} in ${near.filter(d => (d.left ?? 1) > 0).length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}(s). ${left > 0 ? 'It runs out. ' : `Worked out.${next ? ` The next deposit is ${next.m} m ${next.to}.` : ' No other deposit is left in your land.'} `}Mines sharing a deposit strip it faster.`;
     }
     if (f === 'settlers') return settlerWhy(this.town, this.town.settlers());
     if (f === 'mood') return `${moodWord(this.town.mood)} (${Math.round(this.town.mood)}): ${this.town.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join(', ') || 'nothing much either way'}. A happy village grows faster and pays more tax; a miserable one loses families.`;
