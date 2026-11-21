@@ -363,8 +363,9 @@ async function gearModel(name) {
 // item's length from its butt, `twist` turns the item about its length, and `slide` moves it along its length in metres. `shield` straps a shield to that forearm
 // instead, upright with its face toward `face` (model space; forward and a little out to that side by default),
 // `flip` if the model faces the other way.
-async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, native, tint, room = 1.18, hand, grip, edge, twist = 0, slide = 0, shield, face, flip }) {
-  const o = await gearModel(item);
+// `model` hangs a model made in code in place of the pack's `item`, held as that item is (a pitchfork as a spear).
+async function hang(fig, { item, model, at, off = [0, 0, 0], rot = [0, 0, 0], len, native, tint, room = 1.18, hand, grip, edge, twist = 0, slide = 0, shield, face, flip }) {
+  const o = model || await gearModel(item);
   o.updateMatrixWorld(true);
   const b = new THREE.Box3().setFromObject(o), s = b.getSize(new THREE.Vector3());
   if (at === 'head' && fig.head) {

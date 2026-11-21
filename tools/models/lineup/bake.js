@@ -101,6 +101,13 @@ const UNITS = {
     return f;
   },
   villager: async () => { const f = await people('Male_Farmer', { tint: FARMER }); tools(f); return f; },
+  // a village's militia, everyone called out: undyed clothes, a pitchfork, and the village's colour only in the
+  // neckerchief and a sash tied round the waist
+  folk: async () => {
+    const f = await people('Male_Farmer', { tint: { Beige: '#a39577', Red: 'team' }, armour: [{ bones: ['Abdomen'], push: 0.045, color: 'team' }], hold: ['Hold_Spear_R'] });
+    await R.hang(f, { ...R.KIT.spear[0], len: 2.0, model: pitchfork() });
+    return f;
+  },
 };
 const LIGHT = 1500;
 
@@ -332,6 +339,15 @@ function tools(fig) {
   tool('AXE', 0.85, new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.045, 0.28), iron), 0.55);
   tool('PICK', 0.85, new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 4).rotateX(Math.PI / 2), iron), 0.55);
   tool('HOE', 1.5, new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.15), iron), 1.0);
+}
+// A pitchfork along +y, the tines at the top spread along x (a spear's blade width), for hang's `model`.
+function pitchfork() {
+  const g = new THREE.Group(), wood = plain('#7a5a3a'), iron = plain('#6f767b');
+  const add = (geo, m, x, y) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, 0); g.add(o); };
+  add(new THREE.CylinderGeometry(0.018, 0.022, 1.7, 6), wood, 0, 0.85);
+  add(new THREE.BoxGeometry(0.2, 0.03, 0.025), iron, 0, 1.71);
+  for (const x of [-0.09, 0, 0.09]) add(new THREE.ConeGeometry(0.012, 0.3, 4), iron, x, 1.86);
+  return g;
 }
 const plume = fig => {
   const m = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.34, 5), teamMat(1));

@@ -10,7 +10,7 @@ import { Nav } from './nav.js';
 // role: what the unit is for, shown on its card. kit: goods each man needs to be raised
 // (the Realm side decides where they come from). gold: the price per man for hired and
 // household troops, who cost no villagers. engine: a siege engine worked by the regiment.
-// look: the model to borrow until the unit has its own.
+// look: the model (and banner icon) to borrow when the unit has none of its own.
 export const TYPES = {
   spear: { key: 'spear', armour: 'none', name: 'Spearmen', role: 'Hold the line; stop horse from the front', count: 80, files: 20, spacing: 1.6, speed: 3.0, hp: 12, atk: 3, def: 5, dmg: 4, reach: 2.4, cooldown: 1.4, morale: 65, shield: true, vsMounted: 0.3, braces: true,
     kit: { spears: 1, shields: 1 } },
@@ -34,7 +34,7 @@ export const TYPES = {
   bandit: { key: 'bandit', armour: 'none', name: 'Bandits', role: 'Raiders', count: 20, files: 10, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 40 },
   // A village's whole people called out when it is attacked (economy.js muster): axes,
   // flails and pitchforks, no armour and no drill. Weaker than any levy and quick to break.
-  folk: { key: 'folk', armour: 'none', name: 'Village militia', role: 'Everyone called out: improvised weapons, no armour, break easily', count: 40, files: 14, spacing: 1.7, speed: 3.2, hp: 9, atk: 2, def: 2, dmg: 3, reach: 1.8, cooldown: 1.4, morale: 35, militia: true, value: 0.35, look: 'bandit' },
+  folk: { key: 'folk', armour: 'none', name: 'Village militia', role: 'Everyone called out: improvised weapons, no armour, break easily', count: 40, files: 14, spacing: 1.7, speed: 3.2, hp: 9, atk: 2, def: 2, dmg: 3, reach: 1.8, cooldown: 1.4, morale: 35, militia: true, value: 0.35, look: 'militia' },
   // Hired and household troops: paid in gold, no villagers. Mercenaries lose heart quickly when a fight goes badly.
   sellsword: { key: 'sellsword', armour: 'mail', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
   hiredxbow: { key: 'hiredxbow', armour: 'leather', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
@@ -2325,7 +2325,8 @@ export class Battle {
   }
 
   // How much a regiment's tiredness and armour slow it.
-  paceOf(r) { return (1 - (r.fatigue || 0) * 0.3) * kitPace(r); }
+  // (`hurry`: men running to catch up, as a village's militia following its soldiers in, economy.js)
+  paceOf(r) { return (1 - (r.fatigue || 0) * 0.3) * kitPace(r) * (r.hurry || 1); }
 
   // Put a regiment in an armour level (none, leather, mail, plate) and with or without shields;
   // left out, it wears what its type usually does. Changing r.armour or r.shield later works too.

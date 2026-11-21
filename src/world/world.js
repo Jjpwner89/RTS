@@ -1590,7 +1590,8 @@ export class World {
       // With nobody watching, the garrison turns out against attackers by itself.
       if (t.underAttack && this.hooks.watching() !== p) {
         if (t.hostile && b.walls.structures().some(s => s.side === 1 && s.state === 'up')) thinkSiegeAttack(b, 0);
-        else thinkAI(b, 0, { start: 0 });
+        // (not the militia: they keep their own rules, economy.js thinkMilitia)
+        else thinkAI(b, 0, { start: 0, regs: b.regs.filter(r => !r.T.militia) });
       }
     }
     p.pruneClock -= dt;

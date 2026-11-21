@@ -109,7 +109,7 @@ try {
 try { gaitOf = (await import('../src/view.js')).soldierClip || null; } catch { gaitOf = null; }
 if (A && !gaitOf) console.warn('Viewer: src/view.js does not export soldierClip, so the game-gait choice is off; pick clips by name.');
 
-const UNITS = ['spear', 'sword', 'archer', 'crossbow', 'cav', 'lightcav', 'maa', 'knight', 'captain', 'militia', 'javelin', 'axeman', 'bandit', 'villager', 'lord', 'lady'];
+const UNITS = ['spear', 'sword', 'archer', 'crossbow', 'cav', 'lightcav', 'maa', 'knight', 'captain', 'militia', 'folk', 'javelin', 'axeman', 'bandit', 'villager', 'lord', 'lady'];
 const clips = { root: new THREE.Group(), mesh: [], t: 0, playing: true, last: performance.now() };
 TABS.clips = clips;
 scene.add(clips.root);

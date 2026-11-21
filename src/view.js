@@ -289,13 +289,18 @@ function buildKeeps(scene, heightAt) {
 // ---- regiment icons, shared by banners and HUD cards ----
 
 export function drawIcon(ctx, key, cx, cy, s) {
-  key = lookChain(key).find(k => BUILT_IN.includes(k)) || key;
+  key = lookChain(key).find(k => BUILT_IN.includes(k) || k === 'folk') || key;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(s / 32, s / 32);
   ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath();
-  if (key === 'militia') {
+  if (key === 'folk') {
+    // a pitchfork
+    ctx.moveTo(0, 14); ctx.lineTo(0, -4); ctx.moveTo(-6, -4); ctx.lineTo(6, -4);
+    for (const x of [-6, 0, 6]) { ctx.moveTo(x, -4); ctx.lineTo(x, -14); }
+    ctx.stroke();
+  } else if (key === 'militia') {
     ctx.moveTo(0, 14); ctx.lineTo(0, -8); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(-4, -7); ctx.lineTo(4, -7); ctx.fill();
   } else if (key === 'spear') {

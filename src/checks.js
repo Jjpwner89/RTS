@@ -87,6 +87,12 @@ function scenes() {
   return out;
 }
 
+// The village whose panels are on screen, if any.
+function shownTown() {
+  const g = window.game;
+  return g?.world ? g.current?.town || null : g?.town || null;
+}
+
 // ---- the checks ----
 
 const results = [];
@@ -236,8 +242,31 @@ async function battleChecks({ battle, town, label }) {
       if (!r.levy || r.side !== 0) continue;
       const men = town.villagers.filter(v => v.soldier?.reg === r && v.soldier.alive).length;
       if (men !== r.alive) out.push(`${r.name}: ${r.alive} men standing, ${men} of them villagers`);
+      // the militia learn nothing a hall would train (economy.js blooded, disband)
+      if (r.T.militia && (r.xp || r.vet)) out.push(`${r.name} are militia but carry experience (xp ${r.xp}, rank ${r.vet || 0})`);
     }
     return sample(out);
+  });
+
+  // At peace a save can be made, and a save keeps neither soldiers outside a regiment nor
+  // a routing regiment (save.js snapshot): such villagers would be lost.
+  if (town) await check(`${label}: at peace, every soldier villager stands in a regiment`, () => {
+    if (town.underAttack || town.hostile) return null;
+    const out = [];
+    for (const v of town.villagers) {
+      if (v.state !== 'soldier') continue;
+      const r = v.soldier?.reg;
+      if (!v.soldier || !live(v.soldier) || !r || r.gone) out.push(`villager ${v.id} is a soldier with no living place in a regiment`);
+      else if (r.routing) out.push(`villager ${v.id} is a soldier in ${r.name}, still routing after the fight`);
+    }
+    return sample(out);
+  });
+
+  // The militia can only be called out while the village is attacked (townhud.js).
+  if (town && town === shownTown()) await check(`${label}: no Muster or Stand down at peace`, () => {
+    if (town.underAttack) return null;
+    const shown = [...document.querySelectorAll('#stock [data-act="muster"], #stock [data-act="standdown"]')].filter(el => el.offsetParent !== null);
+    return shown.map(el => `the "${el.firstChild?.textContent.trim()}" button shows with no attack on`);
   });
 
   if (town) await check(`${label}: nothing negative in any store`, () => {

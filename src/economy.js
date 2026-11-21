@@ -914,15 +914,26 @@ export class Town {
     const c = this.musterCheck();
     if (!c.ok) return c;
     const men = this.villagers.filter(v => v.state !== 'soldier' && v.state !== 'rebel');
-    // They form up in front of the keep, facing the nearest attackers.
-    const foe = this.attackers.flatMap(g => g.regs).filter(r => !r.gone)
-      .sort((p, q) => Math.hypot(p.cx - this.keep.x, p.cz - this.keep.z) - Math.hypot(q.cx - this.keep.x, q.cz - this.keep.z))[0];
-    const face = foe ? Math.atan2(foe.cx - this.keep.x, foe.cz - this.keep.z) : 0;
+    // They form up behind your soldiers (or the keep, with none standing), facing the
+    // nearest attackers: your soldiers meet the attackers first, and the militia are close
+    // enough to follow them in. (Formed in front of the keep, they took the first charge
+    // alone whenever the soldiers stayed back; formed behind the keep, they trailed
+    // the soldiers by 50 m. Seed 7, 2026-11-21.) Their place to come back to is behind the
+    // keep, wherever the soldiers stood when they formed (soldiers left out in the field
+    // would otherwise leave the militia's home out there too).
+    const foes = this.attackers.flatMap(g => g.regs).filter(r => !r.gone);
+    const nearest = (list, o) => list.sort((p, q) => Math.hypot(p.cx - o.x, p.cz - o.z) - Math.hypot(q.cx - o.x, q.cz - o.z))[0];
+    const foe = nearest(foes, this.keep);
+    const front = foe && nearest(this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping && !r.T.militia), { x: foe.cx, z: foe.cz });
+    const at = front ? { x: front.cx, z: front.cz } : this.keep;
+    const face = foe ? Math.atan2(foe.cx - at.x, foe.cz - at.z) : 0;
+    const home = foe ? Math.atan2(foe.cx - this.keep.x, foe.cz - this.keep.z) : 0;
     const k = Math.ceil(men.length / TYPES.folk.count), regs = [];
     for (let i = 0; i < k; i++) {
       const band = men.slice(Math.floor(i * men.length / k), Math.floor((i + 1) * men.length / k));
       const off = (i - (k - 1) / 2) * 22;
-      const x = this.keep.x + Math.sin(face) * 16 + Math.cos(face) * off, z = this.keep.z + Math.cos(face) * 16 - Math.sin(face) * off;
+      const behind = (o, a) => ({ x: o.x - Math.sin(a) * 16 + Math.cos(a) * off, z: o.z - Math.cos(a) * 16 - Math.sin(a) * off });
+      const { x, z } = behind(at, face);
       for (const v of band) {
         v.musterJob = v.job; v.musterSite = v.site;
         if (v.load) { this.put(this.keep, v.load.g, v.load.n); v.load = null; v.carry = null; }
@@ -932,6 +943,7 @@ export class Town {
       }
       const r = this.battle.addRegiment(0, 'folk', x, z, face, { count: band.length, from: band });
       r.levy = 'folk';
+      r.post = { ...behind(this.keep, home), angle: home };   // their place by the keep (thinkMilitia)
       r.soldiers.forEach((s, j) => { band[j].state = 'soldier'; band[j].soldier = s; s.villager = band[j]; });
       regs.push(r);
     }
@@ -960,31 +972,61 @@ export class Town {
   // The militia hold by the keep. When your soldiers go for the attackers they follow a
   // little way behind, and once those soldiers are locked in a fight they pile into it,
   // where numbers on a flank count most (not before: alone they break at once and shake
-  // the men beside them). With no soldiers of yours standing they go at whatever comes
-  // for the village. Your own orders come first. A militia that breaks scatters home to
-  // the keep as villagers. Once the attack is over they stand down.
+  // the men beside them). When the soldiers they followed stop, they go back to their
+  // place by the keep. With no soldiers of yours standing they go at whatever comes for
+  // the village. Your own orders come first. A militia that breaks scatters home to the
+  // keep as villagers, even in the last moment of an attack. Once it is over they stand down.
   thinkMilitia() {
     const mine = this.militia;
     if (!mine.length) return;
+    // First, before anything else: a routing militia left standing would still be soldiers
+    // when the attack ends and saving opens, and a save keeps neither.
+    for (const r of mine) if (r.routing || r.regrouping) this.hide(r);
     if (!this.underAttack) { this.standDown(); return; }
     const foes = this.attackers.filter(g => !g.leaving).flatMap(g => g.regs).filter(r => !r.gone && !r.routing && !r.regrouping);
     const near = (a, b, d) => Math.hypot(a.cx - b.cx, a.cz - b.cz) < d;
     const soldiers = this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.T.militia);
-    for (const r of mine) {
-      if (r.routing || r.regrouping) { this.hide(r); continue; }
+    const free = [];
+    for (const r of this.militia) {
       // (a destination they were not given here is yours)
-      if (r.hold || r.posts || (r.dest && r.dest !== r.followDest) || (r.targetReg && !r.targetReg.gone && !r.targetReg.routing)) continue;
+      if (r.hold || r.posts || (r.dest && r.dest !== r.ownDest) || (r.targetReg && !r.targetReg.gone && !r.targetReg.routing)) continue;
       const fighting = foes.filter(f => f.engaged > 0 && soldiers.some(o => o.engaged > 0 && near(o, f, 20)) && near(f, r, 160));
-      const t = (fighting.length ? fighting : soldiers.length ? foes.filter(f => near(f, r, 15)) : foes.filter(f => near(f, this.keep, 70) || near(f, r, 30)))
+      // (with no soldiers standing, only what comes at the village: caught out in the field
+      // after their soldiers fell, they made for raiders 100 m out and lost half the
+      // village; governor-run Ashford, seed 7, 2026-11-21)
+      const t = (fighting.length ? fighting : soldiers.length ? foes.filter(f => near(f, r, 15)) : foes.filter(f => near(f, this.keep, 70)))
         .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
-      if (t) { this.battle.orderAttack([r], t); continue; }
-      // Soldiers on their way to a fight: keep close behind them.
-      const lead = soldiers.find(o => o.targetReg && !o.targetReg.gone && foes.includes(o.targetReg));
-      if (lead) {
-        const a = Math.atan2(lead.targetReg.cx - lead.cx, lead.targetReg.cz - lead.cz);
-        this.battle.orderMove([r], lead.cx - Math.sin(a) * 14, lead.cz - Math.cos(a) * 14, a);
-        r.followDest = r.dest;
-      } else if (r.dest) this.battle.orderHalt([r]);
+      if (t) this.battle.orderAttack([r], t);
+      else free.push(r);
+    }
+    for (const r of mine) r.hurry = 1;
+    if (!free.length) return;
+    const own = regs => { for (const r of regs) r.ownDest = r.dest; };
+    // Soldiers on their way to a fight: keep about 14 m behind them, side by side in one
+    // line. They aim 14 m behind where the soldiers will be a few seconds on (never past
+    // the fight), so they keep walking, and are only re-aimed when that has moved well
+    // away: every new order makes a regiment dress its ranks, which slows it.
+    const lead = soldiers.find(o => o.targetReg && !o.targetReg.gone && foes.includes(o.targetReg));
+    if (lead) {
+      const f = lead.targetReg, a = Math.atan2(f.cx - lead.cx, f.cz - lead.cz);
+      const on = Math.min(18, Math.max(0, Math.hypot(f.cx - lead.cx, f.cz - lead.cz) - 4)) - 14;
+      const x = lead.cx + Math.sin(a) * on, z = lead.cz + Math.cos(a) * on;
+      if (free.some(r => !r.followAt || r.dest !== r.ownDest || Math.hypot(r.followAt.x - x, r.followAt.z - z) > 12)) {
+        this.battle.orderMove(free, x, z, a);
+        own(free);
+        for (const r of free) r.followAt = { x, z };
+      }
+      // Fallen behind (gathering from all over the village, they set off late): they run.
+      for (const r of free) if (Math.hypot(r.cx - lead.cx, r.cz - lead.cz) > 18) r.hurry = 1.3;
+      return;
+    }
+    // Nothing to follow: back to their places by the keep, not left out in the field.
+    for (const r of free) {
+      r.followAt = null;
+      const h = r.post;
+      if (!h || Math.hypot(r.cx - h.x, r.cz - h.z) < 4 || (r.dest && r.dest === r.ownDest && Math.hypot(r.dest.x - h.x, r.dest.z - h.z) < 1)) continue;
+      this.battle.orderMove([r], h.x, h.z, h.angle);
+      own([r]);
     }
   }
 
@@ -1030,7 +1072,8 @@ export class Town {
   blooded() {
     const up = [];
     for (const r of this.battle.regs) {
-      if (r.side !== 0 || r.gone || r.T.engine || !r.fought || r.alive <= 0) continue;
+      // (the militia learn nothing a hall would train: they go home, see disband)
+      if (r.side !== 0 || r.gone || r.T.engine || r.T.militia || !r.fought || r.alive <= 0) continue;
       const kills = r.kills - (r.killsSeen || 0);
       r.killsSeen = r.kills;
       r.fought = false;
@@ -1902,6 +1945,9 @@ export class Town {
       this.defendedAt = this.time;
       this.event('The militia beat them off. The village is proud: they defended their homes.');
     }
+    // home at once, not on the next think: a militia standing at peace for that moment
+    // would still offer Stand down, and a save made then would keep them under arms
+    if (!this.underAttack) this.thinkMilitia();
     g.onLeave?.(survivors);
   }
 
