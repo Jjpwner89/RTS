@@ -349,12 +349,24 @@ export class World {
   raiseFromPeople(h, at, n) {
     let raised = 0;
     // Places with a real economy arm men from their own stores and people.
-    for (const p of this.pois.filter(p => p.owner === h.index && p.eco?.buildings).sort((p, q) => kits(q.eco) - kits(p.eco))) {
-      if (raised >= n) break;
-      for (const u of arm(p.eco, Math.min(n - raised, 6), Math.max(12, housing(p.eco) * 0.45), armourPolicy(h))) {
+    const real = this.pois.filter(p => p.owner === h.index && p.eco?.buildings).sort((p, q) => kits(q.eco) - kits(p.eco));
+    const keep = p => Math.max(12, housing(p.eco) * 0.45);
+    const take = (p, stock) => {
+      const e = stock ? { ...p.eco, stock } : p.eco;
+      for (const u of arm(e, Math.min(n - raised, 6), keep(p), armourPolicy(h))) {
         recruit(at.garrison, u.key, u.count, null, h, gearFields(u));
         raised += u.count;
       }
+      if (stock) { p.eco.pop = e.pop; p.eco.raised = e.raised; }
+    };
+    for (const p of real) { if (raised >= n) break; take(p); }
+    // The kit is often where the people are not: a seat's racks full and its people few,
+    // market towns full of people with no weapons (creator, 2026-11-21: 400 to 700 arms
+    // unspent at minute 100). The house carries its kit to its people.
+    const stores = real.filter(p => kits(p.eco) > 0);
+    for (const p of [...real].sort((p, q) => (q.eco.pop - keep(q)) - (p.eco.pop - keep(p)))) {
+      if (raised >= n || p.eco.pop - keep(p) < 1) break;
+      for (const s of stores) { if (s !== p && raised < n) take(p, s.eco.stock); }
     }
     if (raised) h.arms = Math.max(0, h.arms - raised);
     while (raised < n && h.arms >= 1) {
