@@ -424,7 +424,8 @@ At minute 107 on the creator's save no army was on the map, four houses sat in m
   - Engaged, seed 7: 7 places at minute 70. All five houses league against you at 72 (a host of about 950, 691 of them levies), and 3 places are left at 120.
   - Engaged, seed 91: 7 places at minute 70. The league forms at 62, Stonemere takes five places from minute 75, and 2 are left at 120.
   - No muster stall at any minute in any run. Houses end with 3–14 places and 50–670 men.
-  - The engaged proxy does not show whether an engaged player holds: it never fights in the field. The league's free levies (diplomacy.js `raiseHost`, 60 a place at no gold) are the one way houses still get men that are not people taken from work. That is a parity question for the Orchestrator.
+  - The engaged proxy does not show whether an engaged player holds: it never fights in the field. The league's levies were free (60 a place at no gold). By the Orchestrator's ruling they are now each member's own arrière-ban (see "The arrière-ban").
+  - After cutting `CATCH` (898083c), seed 21 passive falls at minute 105, not 69. Dunmore and Penhallow gather against Ashford from minute 57, and a Penhallow host of about 80 marches from Fenworth at 100, lays siege at 101 and takes Ashford at 105. A ramp, not a freak: Ashford had 1 soldier from minute 90, and four of the five houses were arming.
 - `checks()`: 'rival houses: raised men lower production' (a rival place that raises 20 men makes less in a minute: Redham, 54 down to 15), and 'rival houses: stance follows their situation' (the score's answers for five sample situations, and every house's stance a known one).
 - `checks()`: 'rival houses: no muster stalls with arms and men'. A plan in muster over 180 s fails it if the house could march, or if it has kit and people and has raised nobody for a minute.
 - Free villages do grow (seed 7, minute 105: levels 2–4, 17–105 buildings), but they stop at their caps. Two the same size, like Garton and Iveden on the creator's save, have both reached their caps.
@@ -704,7 +705,7 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
   - Garrisons never merge levies with men who stay.
   - A village under attack keeps its levies until the fight ends.
 - **The march.** The levies march by friendly roads. Columns with no such road gather where the banners would (`World.stageColumns`, now shared with callBanners).
-- **The league uses it too.** Its host adds a duke's levy from each member place, up to one duke's army (1,000 with engines). These levies serve from the muster for two minutes plus ten.
+- **The league uses it too, on your rules** (Orchestrator, 2026-11-21: no free men). Each member calls its own arrière-ban (`houseBan`): its rank's levy from each of its places (rank by places held, `rankOf`, the same as yours), 3 gold a man from its purse, ten minutes of food taken from its stores, and not again until its countryside has rested. A house that cannot pay sends fewer. The whole host stays within one duke's army (1,000 with engines), as yours does. These levies serve from the muster for two minutes plus ten. Engaged-bot sims, league host at minute 62: seed 91, 741 paid levies against 767 under the old free rule; seed 7, 729 against 755. The purses pay for nearly all of it (1,300–5,200 gold left a house), so the duke cap, not the gold, is what binds.
 - **Measured on the Duke save:**
   - 11 places, 660 levies, 1,980 gold.
   - With the banners, 494 men stood at Ashford and 244 at Kingsbridge, the staging place. That is 738 men, plus about 180 sellswords, so about 920 against the 1,000 cap.

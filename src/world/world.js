@@ -21,7 +21,7 @@ import { tickEvents } from './events.js';
 import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
-import { tickArriere } from './arriere.js';
+import { tickArriere, rankOf } from './arriere.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -1488,7 +1488,7 @@ export class World {
   get rank() {
     const n = this.pois.filter(p => p.owner === 0).length;
     if (this.crowned) return 'King';
-    return n >= 11 ? 'Duke' : n >= 5 ? 'Count' : n >= 2 ? 'Lord' : 'Reeve';
+    return rankOf(n);
   }
 
   checkEnd() {

@@ -7,7 +7,7 @@
 // and jumps with gifts, victories and broken promises.
 import { seatPower, kinWarmth } from './vassals.js';
 import { FACTIONS, power, headcount, takeUnits, mergeInto, roughly, unit as unitOf, ARMY_CAP } from './world.js';
-import { ARRIERE } from './arriere.js';
+import { ARRIERE, houseBan } from './arriere.js';
 
 const SIEGE = new Set(['ram', 'ladder', 'mangonel', 'trebuchet']);
 
@@ -173,12 +173,14 @@ function raiseHost(w) {
   }
   if (headcount(units) < 30) { for (const u of units) S.garrison.push(u); C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
   for (const [key, count] of [['ram', 8], ['ladder', 12], ['mangonel', 6]]) units.push({ ...unitOf(key, count, `League ${key}s`) });
-  // The league calls its own arrière-ban, as a duke's rivals must (ruling, 2026-11-21): a
-  // duke's levy from each member place, up to one duke's army (ARMY_CAP), so the host is a
-  // match for yours. They serve their ten minutes from the march, then go home (arriere.js).
-  const places = w.pois.filter(p => C.members.includes(p.owner) && p.kind !== 'camp');
-  const levy = Math.min(places.length * ARRIERE.per.Duke, Math.max(0, ARMY_CAP.Duke - headcount(units)));
-  if (levy >= 30) { mergeInto(units, [{ ...unitOf(ARRIERE.key, levy, 'League levies'), until: w.time + HOST_GATHER + ARRIERE.serve }]); from.push(`levies ${levy}`); }
+  // Each member calls its own arrière-ban on your rules (Orchestrator, 2026-11-21: no free
+  // men): its rank's levy from each of its places, 3 gold a man from its purse, carts from
+  // its stores, ten minutes from the march, and not again until its countryside has rested
+  // (arriere.js houseBan). A house that cannot pay sends fewer. The host is one army, within
+  // a duke's cap, as yours is.
+  let room = Math.max(0, ARMY_CAP.Duke - headcount(units)), levy = 0;
+  for (const i of C.members) { const n = houseBan(w, FACTIONS[i], room, w.time + HOST_GATHER); levy += n; room -= n; }
+  if (levy) { mergeInto(units, [{ ...unitOf(ARRIERE.key, levy, 'League levies'), until: w.time + HOST_GATHER + ARRIERE.serve }]); from.push(`levies ${levy}`); }
   const a = w.spawnArmy(lead.index, units, S, 'The league host', 'siege');
   a.league = true;
   C.host = { id: a.id, at: S.id, target: T.id, marchAt: w.time + HOST_GATHER, men: headcount(units.filter(u => !SIEGE.has(u.key))), lead: lead.index,

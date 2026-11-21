@@ -62,6 +62,31 @@ function home(w, p, units) {
   else for (const u of units) p.garrison.push(u);
 }
 
+// A rank by places held, the same for you (World.rank) and for a house.
+export const rankOf = n => (n >= 11 ? 'Duke' : n >= 5 ? 'Count' : n >= 2 ? 'Lord' : 'Reeve');
+
+// A great house's own arrière-ban, for the league's host (diplomacy.js raiseHost), on your
+// rules: its rank's men from each of its places, as many as its purse pays for at 3 gold a
+// man and the host has room for; their carts loaded from its stores as far as they go; they
+// serve from `from`, then the countryside rests. Takes the gold and food; returns the men.
+export function houseBan(w, h, room, from = w.time) {
+  const S = h.arriere || {};
+  if (S.until > w.time || S.rest > w.time) return 0;
+  const places = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling);
+  const per = ARRIERE.per[rankOf(places.length)] || 0;
+  const men = Math.max(0, Math.min(per * places.length, Math.floor(room), Math.floor(h.gold / ARRIERE.gold)));
+  if (!men) return 0;
+  h.gold -= men * ARRIERE.gold;
+  const until = from + ARRIERE.serve;
+  h.arriere = { until, rest: until + ARRIERE.rest };
+  let food = men * EAT * ARRIERE.serve;
+  for (const p of places) for (const g of ['bread', 'food']) {
+    const st = p.eco?.stock, k = st ? Math.min(food, st[g] || 0) : 0;
+    if (k) { st[g] -= k; food -= k; }
+  }
+  return men;
+}
+
 // Every five seconds: levies whose time is up go home, from armies, garrisons and villages.
 // A village under attack keeps its levies until the fight is over.
 export function tickArriere(w) {
