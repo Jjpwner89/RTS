@@ -287,6 +287,26 @@ const compass = p => ['north', 'north-east', 'east', 'south-east', 'south', 'sou
 const listCost = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(', ');
 export { listCost };
 
+// Calls `each(x, z)` at points in widening rings round (x, z), nearest first, the way a
+// template lays out, until it returns true.
+function inRings(x, z, each, max = 48) {
+  for (let r = 0; r <= max; r += 3) {
+    const steps = r ? Math.max(6, Math.round(r * 0.9)) : 1;
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2 + r * 0.37;
+      if (each(x + Math.sin(a) * r, z + Math.cos(a) * r)) return true;
+    }
+  }
+  return false;
+}
+
+// "storehouse, house ×2": names in order, repeats counted.
+export function countList(names) {
+  const n = new Map();
+  for (const k of names) n.set(k, (n.get(k) || 0) + 1);
+  return [...n].map(([k, c]) => (c > 1 ? `${k} ×${c}` : k)).join(', ');
+}
+
 export class Town {
   // timedRaids: bandits turn up on their own (the standalone village); on the world
   // map, attackers are real armies instead.
@@ -683,18 +703,20 @@ export class Town {
       }
       return false;
     };
-    const missed = kind => { const at = tried || past || { x, z }; spots.missed.push({ kind, B: BUILDINGS[kind], x: at.x, z: at.z, miss: true }); };
+    // With nowhere clear at all (a packed village), the misses still spread round the cursor
+    // as the template would lie, so the size of what won't fit shows.
+    const ghostFree = (kind, px, pz) => ![...spots, ...spots.missed].some(b => Math.hypot(b.x - px, b.z - pz) < b.B.radius + BUILDINGS[kind].radius + 1.5);
+    const missed = kind => {
+      let at = tried || past;
+      if (!at) inRings(x, z, (px, pz) => ghostFree(kind, px, pz) && (at = { x: px, z: pz }));
+      at ??= { x, z };
+      spots.missed.push({ kind, B: BUILDINGS[kind], x: at.x, z: at.z, miss: true });
+    };
     for (const kind of T.list) {
       tried = past = null;
       let done = false;
       if (T.gather) done = this.gathererSpot(kind, x, z, spots, fits);
-      else for (let r = 0; r <= 48 && !done; r += 3) {
-        const steps = r ? Math.max(6, Math.round(r * 0.9)) : 1;
-        for (let i = 0; i < steps && !done; i++) {
-          const a = (i / steps) * Math.PI * 2 + r * 0.37;
-          done = fits(kind, x + Math.sin(a) * r, z + Math.cos(a) * r);
-        }
-      }
+      else done = inRings(x, z, (px, pz) => fits(kind, px, pz));
       if (!done) missed(kind);
     }
     return spots;
@@ -726,7 +748,7 @@ export class Town {
     for (const p of spots) if (this.place(p.kind, p.x, p.z, { free: true }).ok) placed++; else skipped.push(p.B.name.toLowerCase());
     this.tplPreview = null;
     // What was left out is said, on screen and in the console, never dropped quietly.
-    const message = skipped.length ? `Laid out ${placed} of ${T.list.length}: no room for ${[...new Set(skipped)].join(', ')}` : 'Laid out';
+    const message = skipped.length ? `Laid out ${placed} of ${T.list.length}: no room for ${countList(skipped)}` : 'Laid out';
     if (skipped.length) console.warn(`${T.name} at (${Math.round(x)}, ${Math.round(z)}): ${message}`);
     return { ok: true, placed, of: T.list.length, message };
   }
