@@ -1,7 +1,9 @@
 // A governor runs each village of yours that you are not watching: one building at a
 // time, paid from the village's own goods, to keep it fed, housed, supplied and content.
 // It never raises men, spends gold or knocks anything down, though it will put up a
-// barracks for you to call men from. Switch it off at the keep.
+// barracks for you to call men from. The one exception is the militia: when an assault
+// on the keep outnumbers the men standing, it calls the whole village out to save it.
+// Switch it off at the keep.
 
 const EVERY = 15;
 
@@ -10,9 +12,17 @@ export function govern(t, dt) {
   t.govClock = (t.govClock ?? EVERY) - dt;
   if (t.govClock > 0) return;
   t.govClock = EVERY;
-  if (t.underAttack || t.buildings.some(b => b.state === 'site')) return;
+  if (t.underAttack) { if (desperate(t) && t.muster().ok) t.event('The governor has called out the militia to hold the keep.', 1); return; }
+  if (t.buildings.some(b => b.state === 'site')) return;
   const kind = wanted(t);
   if (kind && site(t, kind)) t.event(`The governor has set the villagers to build a ${kindName(t, kind)}.`);
+}
+
+// An assault (not a raid) with more men standing than the village has under arms.
+function desperate(t) {
+  const standing = regs => regs.filter(r => !r.gone && !r.routing).reduce((n, r) => n + r.alive, 0);
+  const foes = t.attackers.filter(g => g.mode === 'assault' && !g.leaving).flatMap(g => g.regs);
+  return foes.length > 0 && standing(foes) > standing(t.garrison());
 }
 
 function wanted(t) {

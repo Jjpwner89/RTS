@@ -79,6 +79,9 @@ export class TownHud {
       // Clicking the alarm takes you to the attackers.
       this.stockEl.onclick = e => {
         if (e.target.closest('.raid.now')) this.hooks.findAttackers?.();
+        // Everyone out: the whole village turns militia while it is attacked.
+        if (e.target.closest('[data-act="muster"]')) { const r = town.muster(); if (!r.ok) this.flash(r.reason); }
+        if (e.target.closest('[data-act="standdown"]')) town.standDown();
         const tax = e.target.closest('[data-tax]');
         if (tax) town.taxes = Math.max(0, Math.min(TAXES.length - 1, town.taxes + +tax.dataset.tax));
       };
@@ -122,6 +125,8 @@ export class TownHud {
       <div class="people"><span data-s="settlers"></span></div>
       <div class="warn" data-s="hunger"></div>
       <div class="raid" data-s="raid"></div>
+      <button data-act="muster" class="wide muster" hidden><span>Muster the militia</span><small></small></button>
+      <button data-act="standdown" class="wide muster" hidden><span>Stand the militia down</span><small>back to their work</small></button>
       ${GOOD_GROUPS.map(([label, goods]) => `
         <h4>${label}</h4>
         <div class="goods">${goods.map(g => `<span title="${GOODS[g].name}">${gi(g)}<b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
@@ -179,6 +184,11 @@ export class TownHud {
     set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.hungry ? 'Food has run out: nobody new will settle.' : t.cold ? 'The hearths are cold: the village needs firewood.' : t.population >= t.housing ? 'No room: build houses to grow.' : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
+    const mb = this.stockEl.querySelector('[data-act="muster"]'), sb = this.stockEl.querySelector('[data-act="standdown"]');
+    const mc = t.underAttack && !t.readOnly ? t.musterCheck() : null, out = t.militia.length;
+    mb.hidden = !mc || (!mc.ok && out > 0);
+    if (mc) { mb.disabled = !mc.ok; put(mb.querySelector('small'), mc.ok ? `all ${mc.n} villagers: weak, but every one counts; work stops` : mc.reason); }
+    sb.hidden = !out || t.readOnly;
 
     for (const el of this.tabEls) el.classList.toggle('on', el.dataset.tab === this.tab);
     const lord = this.hooks.templates?.() ?? true, locked = this.buildEl.querySelector('.locked');
@@ -305,7 +315,7 @@ export class TownHud {
 
   regHtml(r) {
     const rows = [`<h3>${r.name}</h3>`, `<p data-f="men"></p>`, `<p data-f="gear"></p>`, `<p class="status" data-f="morale"></p>`];
-    if ((r.levy || r.elite) && !r.T.engine) rows.push(`<button data-act="refit" class="wide"><span>Refit</span><small></small></button>`);
+    if ((r.levy || r.elite) && !r.T.engine && !r.T.militia) rows.push(`<button data-act="refit" class="wide"><span>Refit</span><small></small></button>`);
     const co = this.hooks.companyOf?.(r);
     if (co) rows.push(`<p class="note">A mercenary company under ${co.captain}. Wages: ${co.wage} gold a minute, from your treasury.${co.unpaid ? ' <b class="bad">They are owed pay.</b>' : ''}</p>`,
       `<button data-act="dismiss" class="wide"><span>Dismiss them</span><small>they leave your service; no refund</small></button>`);

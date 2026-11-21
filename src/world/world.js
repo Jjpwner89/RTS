@@ -1109,7 +1109,7 @@ export class World {
     const yieldTo = b.acceptTerms.bind(b);
     b.acceptTerms = () => {
       if (b.terms?.side === 0 && !t.hostile && p.owner === 0) {
-        t.yieldedOurs = t.garrison().filter(r => r.alive > 0)
+        t.yieldedOurs = t.garrison().filter(r => r.alive > 0 && !r.T.militia)
           .map(r => ({ key: r.T.key, count: r.alive, name: r.name, xp: r.xp || 0, elite: !!r.elite, ...carry(r) }));
         yieldTo();
         t.lost = true;
@@ -1202,8 +1202,10 @@ export class World {
     note(this, side, 'lostPlace');
     const theirs = groups.flatMap(g => g.regs).filter(r => !r.disbanded && alive(r) > 0)
       .map(r => ({ ...unit(r.T.key, alive(r), r.name), ...carry(r) }));
-    const ours = t.yieldedOurs || t.garrison().filter(r => alive(r) > 0)
+    // The militia are the village's own people: they stay with it, under the new lord.
+    const ours = t.yieldedOurs || t.garrison().filter(r => alive(r) > 0 && !r.T.militia)
       .map(r => ({ key: r.T.key, count: alive(r), name: r.name, levy: r.levy || null, retinue: !!r.retinue, xp: r.xp || 0, elite: !!r.elite, ...carry(r) }));
+    for (const r of t.militia) for (const s of r.soldiers) if (s.alive && s.villager) s.villager.state = 'idle';
     const pop = t.villagers.filter(v => v.state !== 'soldier').length;
     this.takePlace(p, side);
     p.mem = remember(t, 0, this.time);

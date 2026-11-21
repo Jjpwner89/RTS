@@ -813,7 +813,7 @@ export class Town {
   // Survivors hand back their kit at the nearest barracks and go home to work. The
   // lord's retinue can be sent to work too: each man becomes a villager and racks a
   // sword and a shield, so the barracks can arm them again later.
-  disband(r) {
+  disband(r, quiet = false) {
     if (r.gone || r.routing) return false;
     const rack = this.armoury({ x: r.cx, z: r.cz });
     if (r.retinue) {
@@ -832,18 +832,113 @@ export class Town {
     for (const s of r.soldiers) {
       if (!s.alive || s.gone || !s.villager) continue;
       const v = s.villager;
-      Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null, xp: Math.max(v.xp || 0, r.xp || 0) });
+      // The militia go back to the work they dropped, and learn nothing a hall would train.
+      Object.assign(v, { x: s.x, z: s.z, state: 'idle', soldier: null, xp: r.T.militia ? v.xp || 0 : Math.max(v.xp || 0, r.xp || 0) });
+      if (r.T.militia) this.backToWork(v);
       if (KITS[r.levy]) for (const [g, n] of Object.entries(outfitKit(r.levy, 1, gearOf(r)))) this.put(rack, g, n);
     }
     this.battle.disband(r);
-    this.event(`${r.name} went home to work.`);
+    if (!quiet) this.event(`${r.name} went home to work.`);
     return true;
+  }
+
+  // ---- the militia ----
+  // When the village is attacked, everyone can be called out: every villager not already
+  // under arms takes up what is to hand and forms regiments of village militia (battle.js
+  // 'folk'), weak and quick to break. Work stops while they fight. When the attack is over
+  // they go back to the jobs they left; the dead are villagers lost, as with levies.
+
+  get militia() { return this.battle.regs.filter(r => r.side === 0 && !r.gone && r.T.militia); }
+
+  musterCheck() {
+    if (this.hostile || this.readOnly) return { ok: false, reason: 'Not your village' };
+    if (!this.attackers.some(g => g.mode !== 'hold')) return { ok: false, reason: 'Only when the village is attacked' };
+    const n = this.villagers.filter(v => v.state !== 'soldier' && v.state !== 'rebel').length;
+    if (n < LEVY_MIN) return { ok: false, reason: this.militia.length ? 'Everyone is out already' : `Needs ${LEVY_MIN} villagers` };
+    return { ok: true, n };
+  }
+
+  muster() {
+    const c = this.musterCheck();
+    if (!c.ok) return c;
+    const men = this.villagers.filter(v => v.state !== 'soldier' && v.state !== 'rebel');
+    // They form up in front of the keep, facing the nearest attackers.
+    const foe = this.attackers.flatMap(g => g.regs).filter(r => !r.gone)
+      .sort((p, q) => Math.hypot(p.cx - this.keep.x, p.cz - this.keep.z) - Math.hypot(q.cx - this.keep.x, q.cz - this.keep.z))[0];
+    const face = foe ? Math.atan2(foe.cx - this.keep.x, foe.cz - this.keep.z) : 0;
+    const k = Math.ceil(men.length / TYPES.folk.count), regs = [];
+    for (let i = 0; i < k; i++) {
+      const band = men.slice(Math.floor(i * men.length / k), Math.floor((i + 1) * men.length / k));
+      const off = (i - (k - 1) / 2) * 22;
+      const x = this.keep.x + Math.sin(face) * 16 + Math.cos(face) * off, z = this.keep.z + Math.cos(face) * 16 - Math.sin(face) * off;
+      for (const v of band) {
+        v.musterJob = v.job; v.musterSite = v.site;
+        if (v.load) { this.put(this.keep, v.load.g, v.load.n); v.load = null; v.carry = null; }
+        if (v.state === 'flee' || v.state === 'shelter') v.state = 'idle';
+        this.release(v);
+        v.hidden = false;
+      }
+      const r = this.battle.addRegiment(0, 'folk', x, z, face, { count: band.length, from: band });
+      r.levy = 'folk';
+      r.soldiers.forEach((s, j) => { band[j].state = 'soldier'; band[j].soldier = s; s.villager = band[j]; });
+      regs.push(r);
+    }
+    audio.play('horn', this.keep, this.battle); audio.play('drums', this.keep, this.battle); // audio: the militia called out
+    this.event(`The whole village turns out: ${men.length} villagers took up axes, flails and pitchforks.`, 1);
+    return { ok: true, regs };
+  }
+
+  // Every militia regiment that is not running goes home; returns how many went.
+  standDown() {
+    const regs = this.militia.filter(r => !r.routing);
+    for (const r of regs) this.disband(r, true);
+    if (regs.length) this.event('The militia lay down their tools and go back to work.');
+    return regs.length;
+  }
+
+  // A villager back from the militia picks up the job or the building site they left.
+  backToWork(v) {
+    const job = v.musterJob, site = v.musterSite;
+    v.musterJob = v.musterSite = null;
+    if (site && !site.removed && site.state === 'site') { site.builders.push(v); v.state = 'build'; v.site = site; }
+    else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; }
+  }
+
+  // The militia hold by the keep until your soldiers are fighting, then pile into that
+  // fight, where numbers on a flank count most. With no soldiers of yours standing they
+  // go at whatever comes for the village. Your own orders come first. A militia that
+  // breaks runs for the keep and hides there. Once the attack is over they stand down.
+  thinkMilitia() {
+    const mine = this.militia;
+    if (!mine.length) return;
+    if (!this.underAttack) { this.standDown(); return; }
+    const foes = this.attackers.filter(g => !g.leaving).flatMap(g => g.regs).filter(r => !r.gone && !r.routing && !r.regrouping);
+    const near = (a, b, d) => Math.hypot(a.cx - b.cx, a.cz - b.cz) < d;
+    const soldiers = this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.T.militia);
+    for (const r of mine) {
+      if (r.routing || r.regrouping) { if (Math.hypot(r.cx - this.keep.x, r.cz - this.keep.z) < 40) this.hide(r); continue; }
+      if (r.hold || r.posts || r.dest || (r.targetReg && !r.targetReg.gone && !r.targetReg.routing)) continue;
+      const fighting = foes.filter(f => soldiers.some(o => o.targetReg === f || f.targetReg === o) && near(f, r, 120));
+      const t = (fighting.length ? fighting : soldiers.length ? foes.filter(f => near(f, r, 15)) : foes.filter(f => near(f, this.keep, 70) || near(f, r, 30)))
+        .sort((p, q) => Math.hypot(p.cx - r.cx, p.cz - r.cz) - Math.hypot(q.cx - r.cx, q.cz - r.cz))[0];
+      if (t) this.battle.orderAttack([r], t);
+    }
+  }
+
+  // Broken militia at the keep throw down their tools and shelter inside with the rest.
+  hide(r) {
+    for (const s of r.soldiers) {
+      if (!s.alive || s.gone || !s.villager) continue;
+      Object.assign(s.villager, { x: s.x, z: s.z, state: 'flee', soldier: null, musterJob: null, musterSite: null });
+    }
+    this.battle.disband(r);
+    this.event(`${r.name} broke and ran for the keep.`);
   }
 
   // A regiment swaps up its armour and shields at the nearest barracks without standing
   // down: same men, name and experience, better kit. Its old kit goes back on the racks.
   refitCheck(r) {
-    if (!r || r.side !== 0 || r.gone || r.routing || !(r.levy || r.elite) || r.T.engine) return { ok: false, reason: 'Only your own levies and elites refit' };
+    if (!r || r.side !== 0 || r.gone || r.routing || !(r.levy || r.elite) || r.T.engine || r.T.militia) return { ok: false, reason: 'Only your own levies and elites refit' };
     const rack = this.buildings.filter(b => b.kind === 'barracks' && b.state === 'active').sort((a, b) => dist(a, { x: r.cx, z: r.cz }) - dist(b, { x: r.cx, z: r.cz }))[0];
     if (!rack) return { ok: false, reason: 'Needs a barracks' };
     const was = gearOf(r), n = r.alive;
@@ -1744,6 +1839,7 @@ export class Town {
   thinkAttackers() {
     const b = this.battle;
     thinkTownSiege(this);      // ai.js: hosts that must get past walls
+    this.thinkMilitia();
     if (this.hostile) this.thinkHolders();
     const defenders = b.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];
@@ -1905,7 +2001,8 @@ export class Town {
   takeTroops(regs) {
     const specs = [];
     for (const r of regs) {
-      if (r.side !== 0 || r.gone || r.routing) continue;
+      // The militia never leave their village.
+      if (r.side !== 0 || r.gone || r.routing || r.T.militia) continue;
       const men = r.soldiers.filter(s => s.alive && !s.gone);
       const gone = new Set(men.map(s => s.villager).filter(Boolean));
       this.villagers = this.villagers.filter(v => !gone.has(v));
