@@ -695,7 +695,8 @@ export class BattleView {
   syncBanners() {
     for (const r of this.battle.regs.slice(this.banners.length)) {
       const tex = this.bannerTextures(r);
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true }));
+      // (no haze on a banner: at night it would sink into the dark)
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], sizeAttenuation: false, depthTest: false, transparent: true, fog: false }));
       sprite.scale.set(0.032, 0.04, 1);
       sprite.center.set(0.5, 0);
       sprite.renderOrder = 10;
@@ -844,7 +845,7 @@ export class BattleView {
   markMaterial(color, opacity) {
     const key = color + opacity;
     this.markMats ??= new Map();
-    if (!this.markMats.has(key)) this.markMats.set(key, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+    if (!this.markMats.has(key)) this.markMats.set(key, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, depthWrite: false, side: THREE.DoubleSide, fog: false }));
     return this.markMats.get(key);
   }
   // A flat band through ground points [x, z] (closed: back round to the first), `w` wide, lying on the ground.

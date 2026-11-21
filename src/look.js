@@ -150,9 +150,12 @@ function turnDay(s, t) {
   // a colour from the keys, each falling back to the weather's own; a dull sky takes only some of the day's colour
   const B0 = L.base, wc = L.weather === 'clear' ? 1 : 0.8;
   const col = (key, out, base) => out.copy(tmp.set(A[key] || base).lerp(new THREE.Color(B[key] || base), w)).lerp(base, 1 - wc);
-  L.sun.intensity = B0.sunI * num('i');
+  // A battlefield's night keeps a brighter moon (playtest round 4: men vanished), still dark-skied and blue, so
+  // every regiment and its side can be told apart (fieldview.js marks a battle's scene).
+  const moon = L.battle ? num('night') * wc : 0;
+  L.sun.intensity = B0.sunI * (num('i') + 0.33 * moon);
   col('sun', L.sun.color, B0.sun);
-  L.hemi.intensity = B0.hemiI * num('hemi');
+  L.hemi.intensity = B0.hemiI * (num('hemi') + 0.45 * moon);
   col('sky', L.hemi.color, PALETTE.skyLight);
   const u = L.sky.material.uniforms;
   col('zenith', u.uZenith.value, B0.zenith);

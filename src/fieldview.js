@@ -9,6 +9,8 @@ export class FieldView {
   constructor(scene, battle) {
     this.scene = scene;
     this.battle = battle;
+    // a battle's night has a brighter moon (look.js turnDay)
+    if (scene.userData.look) { scene.userData.look.battle = true; scene.userData.look.dayStep = -1; }
     this.group = new THREE.Group();
     scene.add(this.group);
     this.bridges = [];
