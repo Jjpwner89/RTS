@@ -1306,7 +1306,7 @@ export class Town {
     this.time += dt;
     this.stockCache = null;
     // A place you are storming is only a battlefield until it is yours.
-    if (this.hostile) { this.updateAttacks(dt); this.updateBurning(dt); return; }
+    if (this.hostile) { this.updateAttacks(dt); this.updateBurning(dt); for (const v of this.villagers) this.updateFolk(v, dt); return; }
     this.keepPeak = Math.max(this.keepPeak || 1, byPeople(this.population));
     // Masons: more hands as the village grows, twice as many while hired ones are here.
     this.battle.masons = (1 + Math.floor(this.population / 15)) * (this.time < (this.masonsUntil || 0) ? 2 : 1);
@@ -1327,7 +1327,7 @@ export class Town {
     return best;
   }
 
-  walk(v, tx, tz, dt, speed = WALK) {
+  walk(v, tx, tz, dt, speed = WALK, side = 0) {
     if (Math.hypot(tx - v.x, tz - v.z) < 0.6) { v.v = 0; return true; }
     // By road, when that is quicker: onto it, along it, off it (roadnet.js).
     const r = this.roads.length && this.roadWay(v, tx, tz);
@@ -1336,7 +1336,7 @@ export class Town {
       if (r.i < r.pts.length) ({ x: tx, z: tz } = r.pts[r.i]);
     }
     // Round any walls, through the gates (battle.js).
-    ({ x: tx, z: tz } = this.battle.steerWalker(v, 0, tx, tz, dt));
+    ({ x: tx, z: tz } = this.battle.steerWalker(v, side, tx, tz, dt));
     const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz) || 0.01;
     const step = Math.min(d, speed * dt * (this.onRoad(v.x, v.z) ? ROAD.speed : 1));
     v.x += dx / d * step; v.z += dz / d * step;
@@ -1987,6 +1987,41 @@ export class Town {
     }
   }
 
+  // The people of a place you are storming: about their houses and workshops until your
+  // men come near, then running for the keep, where they hide until it is decided.
+  townsfolk(n) {
+    const homes = this.buildings.filter(b => b.state === 'active' && b.kind === 'house');
+    const spots = homes.length ? homes : this.buildings.filter(b => b.state === 'active');
+    for (let i = 0; i < n; i++) {
+      const b = spots[i % Math.max(1, spots.length)], a = this.rand() * Math.PI * 2, r = b ? b.B.radius + 1.5 : 14;
+      const v = this.addVillager((b?.x || 0) + Math.sin(a) * r, (b?.z || 0) + Math.cos(a) * r);
+      v.folk = { x: v.x, z: v.z };
+    }
+  }
+
+  updateFolk(v, dt) {
+    if (v.hidden) return;
+    v.v = 0;
+    v.checkCd -= dt;
+    if (v.checkCd <= 0) {
+      v.checkCd = 0.5;
+      if (v.state !== 'flee') {
+        let near = false;
+        this.battle.forNear(v.x, v.z, 35, s => { if (!near && s.reg.side === 0 && s.alive) near = true; });
+        if (near) v.state = 'flee';
+      }
+    }
+    if (v.state === 'flee') {
+      if (this.walk(v, this.keep.x + (this.rand() - 0.5) * 4, this.keep.z + (this.rand() - 0.5) * 4, dt, WALK * 1.6, 1)) { v.state = 'shelter'; v.hidden = true; }
+      return;
+    }
+    const home = v.folk || { x: 0, z: 0 };
+    if (!v.wander || this.walk(v, v.wander.x, v.wander.z, dt, WALK * 0.5, 1)) {
+      const a = this.rand() * Math.PI * 2, r = 2 + this.rand() * 6;
+      v.wander = { x: home.x + Math.sin(a) * r, z: home.z + Math.cos(a) * r };
+    }
+  }
+
   // The place is yours: its defenders are beaten, its people come out of hiding.
   claim({ villagers = 10, stock = null } = {}) {
     const b = this.battle;
@@ -1997,7 +2032,10 @@ export class Town {
     b.walls.changeSide(1, 0);   // their walls are yours now, broken stretches and all
     this.attackers = this.attackers.filter(g => g.mode !== 'hold');
     for (const r of b.regs) r.burnTarget = null;
-    for (let i = 0; i < villagers; i++) {
+    // Those who hid in the keep come out; the rest are gone from the place.
+    this.villagers = this.villagers.filter(v => v.state === 'soldier' || !v.folk).concat(this.villagers.filter(v => v.folk && v.state !== 'soldier').slice(0, villagers));
+    for (const v of this.villagers) if (v.folk) Object.assign(v, { folk: null, hidden: false, state: 'idle', wander: null });
+    for (let i = this.villagers.filter(v => v.state !== 'soldier').length; i < villagers; i++) {
       const a = this.rand() * Math.PI * 2;
       this.addVillager(Math.sin(a) * 12, Math.cos(a) * 12);
     }

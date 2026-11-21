@@ -129,6 +129,25 @@ function storesOf(p, lvl, base = 30) {
   return p.eco?.stock ? stores(p.eco) : { wood: base + lvl * 20, stone: 10 + lvl * 10, food: 40 + lvl * 20, planks: 10 };
 }
 
+// Whether a place stands behind walls: as remembered if it has been seen up close, else
+// by its numbers (holdings.js eco.walls), else by its kind.
+export const walledPlace = p => (p.mem ? p.mem.pieces.length > 0 : p.eco?.walls ? p.eco.walls !== 'none'
+  : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
+
+// Puts up a walled place's walls for `side`, unless it already has its remembered ones.
+// Returns the walls' radius, or 0 for an open place.
+function fortify(town, p, side, gateAngle) {
+  const W = town.battle.walls;
+  const mine = W.pieces.filter(q => q.side === side);
+  if (mine.length) return Math.max(...mine.map(q => Math.hypot(q.x, q.z)));
+  if (!walledPlace(p)) return 0;
+  const lvl = p.eco?.level ?? 1, walls = p.eco?.walls;
+  const stone = walls ? walls === 'stone' : p.kind !== 'warcamp' && (lvl >= 2 || p.kind === 'castle' || p.kind === 'crown' || p.kind === 'pass');
+  const R = p.kind === 'crown' ? 30 : 24;
+  buildFort(W, side, 0, 0, R, { gateAngle, material: stone ? 'stone' : 'wood', sides: p.kind === 'crown' ? 8 : 6 });
+  return R;
+}
+
 function prebuild(town, kinds, rand, near = 25) {
   for (const kind of kinds) {
     for (let tries = 0; tries < 200; tries++) {
@@ -847,7 +866,7 @@ export class World {
 
   autoResolve(enc) {
     // Walls stormed with no ladders, ram or engines cost as dearly here as by hand (battle.js).
-    const p = enc.poi, walled = p && (p.mem ? p.mem.pieces.length > 0 : p.eco?.walls ? p.eco.walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
+    const p = enc.poi, walled = p && walledPlace(p);
     const bare = enc.kind === 'assault' && walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
     const folk = enc.kind === 'assault' ? turnOut(p, enc.army.units, FACTIONS[p.owner]) : [];
     if (folk.length) this.log(`The people of ${p.name} have turned out to defend it.`);
@@ -917,8 +936,9 @@ export class World {
     const town = this.makeTown(p, { villagers: Math.max(6, Math.min(40, Math.round(pop * 0.5))), retinue: false,
       stock: storesOf(p, lvl, 60) });
     if (p.mem) rebuild(town, p.mem, 0, true);
+    const R = fortify(town, p, 0, this.angle(p, a.last && a.last !== p ? a.last : p.links[0]));
     p.mem = null;
-    layOut(town, p, lvl, town.rand);
+    layOut(town, p, lvl, town.rand, R ? R + 9 : 18);
     grownLevels(town, p.eco);
     this.plunder(p);
     p.eco = null;
@@ -989,23 +1009,21 @@ export class World {
     const came = this.angle(p, a.last && a.last !== p ? a.last : p.links[0]);
     // Castles, lords' seats, Kingsbridge and the north's strongholds have walls round the
     // keep, with the gate facing the road you came by. Their buildings stand outside.
-    const kept = p.mem && rebuild(town, p.mem, 1, this.time - p.mem.at > 240);
+    if (p.mem) rebuild(town, p.mem, 1, this.time - p.mem.at > 240);
+    const walledR = fortify(town, p, 1, came);
     p.mem = null;
-    const walls = p.eco?.walls;
-    const walled = kept || (walls ? walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
-    if (walled && !kept) {
-      const stone = walls ? walls === 'stone' : p.kind !== 'warcamp' && (lvl >= 2 || p.kind === 'castle' || p.kind === 'crown' || p.kind === 'pass');
-      buildFort(town.battle.walls, 1, 0, 0, p.kind === 'crown' ? 30 : 24, { gateAngle: came, material: stone ? 'stone' : 'wood', sides: p.kind === 'crown' ? 8 : 6 });
-    }
-    layOut(town, p, lvl, town.rand, walled ? (p.kind === 'crown' ? 40 : 33) : 16);
+    const walled = walledR > 0;
+    layOut(town, p, lvl, town.rand, walled ? walledR + 9 : 16);
     town.keepLevel = town.keepLevel || Math.min(5, lvl + (p.seat !== undefined || p.kind === 'castle' || p.kind === 'crown' ? 1 : 0));
     const H = owner === null ? NEUTRAL : FACTIONS[owner];
     town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came, folk };
     town.flagColor = H.color;
     town.holdKeep(defenders, came, { house: owner ?? 1 });
+    // Its people are about the place, all but those who turned out to fight.
+    town.townsfolk(Math.max(0, Math.min(80, Math.round(pop - folk.reduce((n, u) => n + u.count, 0)))));
     this.seatCaptain(town.battle, 0, captainOf(this, a), town.addTroops(a.units, came, { stand: 100 }));
     // The army forms up out of bowshot on the road it came by, then goes in (battle.js).
-    const R = walled ? (p.kind === 'crown' ? 30 : 24) : 16;
+    const R = walled ? walledR : 16;
     town.battle.startDeployment(0, { at: { x: 0, z: 0 }, toward: came, near: R + 70, far: R + 140, width: 80, limit: 90 });
     // A beaten garrison may ask for terms (battle.js); a hungry place asks sooner. Yielding,
     // its men march out under arms to their lord, and the place is yours whole: no more
@@ -1499,7 +1517,8 @@ export class World {
     const look = { town, heightAt: p.heightAt, trees: p.trees, onRoad: p.onRoad };
     Object.assign(p, keep);
     if (p.mem) rebuild(town, p.mem, 0, true);
-    layOut(town, p, e.level, town.rand);
+    const R = fortify(town, p, 0, this.angle(p, p.links[0]));
+    layOut(town, p, e.level, town.rand, R ? R + 9 : 18);
     grownLevels(town, e);
     p.mem = remember(town, 0, this.time);
     if (keep.garrison.length) town.addTroops(keep.garrison.map(u => ({ ...u })), this.angle(p, p.links[0]));

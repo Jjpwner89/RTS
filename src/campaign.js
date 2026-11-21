@@ -18,7 +18,7 @@ import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js'
 import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
-import { World, headcount, ownerOf, FACTIONS } from './world/world.js';
+import { World, headcount, ownerOf, FACTIONS, walledPlace } from './world/world.js';
 import { fedAt, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
@@ -522,9 +522,7 @@ const WAITS = new Set(['choice', 'offer', 'news']);
 
 // A walled place, and an army with nothing to climb or break the walls with.
 function bareHanded(enc) {
-  const p = enc.poi, walls = p.eco?.walls;
-  const walled = p.mem ? p.mem.pieces.length > 0 : walls ? walls !== 'none' : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined;
-  return walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
+  return walledPlace(enc.poi) && !enc.army.units.some(u => TYPES[u.key]?.engine);
 }
 
 function nextAsk() {

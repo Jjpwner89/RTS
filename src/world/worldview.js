@@ -5,10 +5,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
 import { part, box, keepModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD } from '../view.js';
 import { unitModel, unitLook, hasLevels, buildingModel, HOUSE_STYLES } from '../models.js';
-import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
+import { ownerOf, FACTIONS, NEUTRAL, headcount, walledPlace } from './world.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
 import { TYPES, lookChain } from '../battle.js';
+
+// How far out a walled place's wall runs on the map, by kind: round its houses, short of its fields.
+const WALL_R = { village: 42, seat: 44, castle: 23, market: 51, mine: 36, ford: 40, monastery: 38, camp: 26 };
 
 // The map's half-width follows world.half, which grows when the north opens in Part 2.
 export const WORLD_HALF = REALM_RADIUS + 140;
@@ -487,10 +490,11 @@ export class WorldView {
     // A place you run as a real village looks like that village, and grows as you build.
     if (p.town) {
       const t = p.town, built = t.buildings.filter(b => b.state === 'active');
-      return `town:${keepLevelOf(t)}:${built.length}:${built.reduce((n, b) => n + (b.level || 1), 0)}:${p.seen}`;
+      const W = t.battle.walls;
+      return `town:${keepLevelOf(t)}:${built.length}:${built.reduce((n, b) => n + (b.level || 1), 0)}:${p.seen}:${W.pieces.length}:${W.pieces.filter(q => q.state === 'up').length}:${W.nodes.filter(n => n.tower).length}`;
     }
     const level = Math.max(1, Math.min(4, (p.visible ? p.eco?.level : p.known?.level) || p.known?.level || 1));
-    return `${p.kind}:${p.seat !== undefined}:${level}:${p.seen}`;
+    return `${p.kind}:${p.seat !== undefined}:${level}:${p.seen}:${this.wallsOf(p)}`;
   }
 
   dress(p, o) {
@@ -559,6 +563,10 @@ export class WorldView {
         const a = Math.atan2(b.x, b.z), r = 20 + Math.hypot(b.x, b.z) * k;
         put(geo, Math.sin(a) * r, Math.cos(a) * r, b.angle || 0, 0.6);
       }
+      // and the walls you built, drawn the same way
+      const W = t.battle.walls, at = n => { const a = Math.atan2(n.x, n.z), r = 20 + Math.hypot(n.x, n.z) * k; return { x: Math.sin(a) * r, z: Math.cos(a) * r }; };
+      this.wallPieces(put, W.pieces.filter(q => q.state !== 'site').map(q => ({ a: at(q.a), b: at(q.b), material: q.material, gate: q.gate, broken: q.state === 'broken' })),
+        W.nodes.filter(n => n.tower && n.tower.state !== 'site').map(n => ({ ...at(n), material: n.tower.material, broken: n.tower.state === 'broken' })));
     } else switch (p.kind === 'pass' || p.kind === 'warcamp' ? p.kind : seat ? 'seat' : p.kind) {
       case 'pass':
         // the mountain gate: a great castle inside stone walls, the northern host camped outside
@@ -632,8 +640,33 @@ export class WorldView {
         ring(4 + level * 2, 28, 36);
         put(buildingModel('farm'), ...out(2.8, 52), 2.8);
     }
+    // A place walled in its numbers shows its wall, stone or timber, with a gate on each road.
+    const walls = !p.town && !['pass', 'warcamp', 'crown'].includes(p.kind) && this.wallsOf(p);
+    if (walls) this.cityWall(put, roads, WALL_R[seat ? 'seat' : p.kind] || WALL_R.village, walls, walls === 'stone' ? 5 : 6);
     // the flag flies over the centre
     if (centre) o.flag.position.set(4.5, S * centre.scale.x * keepTop(centre.geometry) + 4, 0);
+  }
+
+  // A place's walls as the map knows them: 'stone', 'wood' or '' for none.
+  wallsOf(p) {
+    if (p.town || !walledPlace(p)) return '';
+    const m = p.mem?.pieces.find(q => !q.broken) || p.mem?.pieces[0];
+    return m ? m.material : p.eco?.walls && p.eco.walls !== 'none' ? p.eco.walls : p.kind === 'warcamp' ? 'wood' : 'stone';
+  }
+
+  // Wall pieces between points (already in the place's own map units), towers on their nodes.
+  wallPieces(put, pieces, towers) {
+    for (const q of pieces) {
+      const dx = q.b.x - q.a.x, dz = q.b.z - q.a.z, len = Math.hypot(dx, dz);
+      if (len < 0.5 || q.broken) continue;
+      const mx = (q.a.x + q.b.x) / 2, mz = (q.a.z + q.b.z) / 2;
+      // the model's length runs along its x; its outer face (-z) looks away from the keep
+      let yaw = Math.atan2(-dz, dx);
+      if (Math.sin(yaw) * mx + Math.cos(yaw) * mz > 0) yaw += Math.PI;
+      const m = put(buildingModel(`${q.gate ? 'gate' : 'wall'}.${q.material}`), mx, mz, yaw, 0.6);
+      if (m) m.scale.x = len / 10 * 1.04;
+    }
+    for (const t of towers) if (!t.broken) put(buildingModel(`tower.${t.material}`), t.x, t.z, Math.atan2(t.x, t.z), 0.5);
   }
 
   // A ring of walls and towers round a place, stone or timber, with a gate wherever a road comes in.

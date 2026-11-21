@@ -253,10 +253,17 @@ export function fromTown(t, { kept = 0.6 } = {}) {
   const pop = Math.max(10, t.villagers.filter(v => v.state !== 'soldier').length * 0.7);
   const e = { pop, level: 1, focus, wealth: 1, buildings, stock, gold: 0, planAt: PLANS[focus].length, grown: 0, buildCd: BUILD_EVERY, arms: 0,
     raised: 0, maxPop: Math.max(100, Math.round(pop * 1.5)), maxBuilt: Math.max(34, Object.values(buildings).reduce((n, k) => n + k, 0) + 8),
-    walls: t.battle.walls.nodes.some(n => n.side === 0) ? 'wood' : 'none' };
+    walls: wallsOf(t.battle.walls, 0) };
   e.level = Math.min(4, 1 + Math.floor(builtCount(e) / 14));
   e.wealth = worth(stock) > 1500 ? 2 : worth(stock) < 250 ? 0 : 1;
   return e;
+}
+
+// A town's walls for its numbers: stone if most of its wall is stone, wood if it has any.
+function wallsOf(W, side) {
+  const mine = [...W.pieces.filter(p => p.side === side), ...W.nodes.filter(n => n.side === side && n.tower).map(n => n.tower)];
+  if (!mine.length) return 'none';
+  return mine.filter(p => p.material === 'stone').length * 2 > mine.length ? 'stone' : 'wood';
 }
 
 // Burned buildings are gone from a place's tally.
