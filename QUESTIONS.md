@@ -7,7 +7,6 @@ Tradeoffs where either answer plays well. The game carries on with the default n
 - **Pause while the Realm screen is open?** It keeps running now, as the map does, so supplies and armies move while you read. Pausing would make it a calm planning screen, at the cost of forgetting to unpause. Default: keeps running (Space still pauses).
 - **How often vassals petition you.** Every 10–15 minutes now. More often gives the court more life and more small choices; less keeps the focus on war. Default: 10–15 minutes.
 - **What a title costs you** (2026-11-21). *Decided by the orchestrator, 2026-11-21; the creator can override:* sharper. A titled vassal sends half again as many men to your banners but pays a quarter less in dues, their men count double in a faction against you (and twice as many stand in their villages if it rises), and harm done to them is minded half again as much. A real trade: a stronger army and loyalty now, against a more dangerous vassal if they sour. See "Titles" under "Vassals, deeper" in DESIGN_NOTES.
-- **What giving way to a king-faction costs** (2026-11-21). Built: light dues and levies for the faction, and their king's house becomes your ally (you can't war on it without betraying it). Refusing sends their villages to that house and starts a war with it. *Sharper:* giving way also costs a place (the one nearest that house) or gold; *softer:* no alliance, only the dues. Default: as built; the orchestrator can choose.
 
 ## The militia (2026-11-21)
 

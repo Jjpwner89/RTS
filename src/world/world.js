@@ -4,7 +4,7 @@
 // rules at a coarser grain: people grow, workshops make arms, and soldiers are raised
 // from the people. The rival houses' minds are in rivals.js.
 import { Battle, TYPES } from '../battle.js';
-import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
+import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, kingGift, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
@@ -1733,8 +1733,9 @@ export class World {
     if (yes && c != null) {
       const d = this.dip[c];
       for (const v of vs) { v.dues = 0; v.levy = 0; v.refusing = false; mark(this, v, 10, 'You gave in to the faction', 2400); recall(this, v, `Won light dues from you, and ${K.name} as your ally`); }
-      if (!this.atWar(0, c)) { d.allied = true; d.opinion = Math.min(100, d.opinion + 15); this.chron(`You allied with ${K.name} at your vassals' demand.`); }
-      this.log(`You give way: ${vs.map(v => v.name).join(', ')} pay light dues and send light levies${this.atWar(0, c) ? '' : `, and ${K.name} is your ally`}.`, 1);
+      const gift = kingGift(this), peace = !this.atWar(0, c);
+      if (peace) { FACTIONS[0].gold -= gift; K.gold += gift; d.allied = true; d.opinion = Math.min(100, d.opinion + 15); this.chron(`You allied with ${K.name} at your vassals' demand.`); }
+      this.log(`You give way: ${vs.map(v => v.name).join(', ')} pay light dues and send light levies${peace ? `, ${K.name} is your ally, and you send it ${gift} gold` : ''}.`, 1);
       return;
     }
     if (yes && (F.demand === 'dues' || F.demand === 'king')) {

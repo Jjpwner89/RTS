@@ -80,6 +80,7 @@ export const levyShare = v => LEVIES[v.levy].share * (v.title ? TITLED.levy : 1)
 export const KIN_WARMTH = 6;
 export const WAR_ON_KIN = -15;
 export const MATCH_WARM = 10;        // a house must like you at least this much to take a match
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const greatHouses = w => w.houses.slice(1, w.bandits);
 // The houses that would take a match for your vassal now, and the gold your share costs.
 export const suitors = w => greatHouses(w).filter(H => H.alive && w.knows(H.index) && !w.atWar(0, H.index) && w.dip[H.index].opinion >= MATCH_WARM);
@@ -392,7 +393,7 @@ function tickFaction(w) {
       F.demand = c ? 'king' : vs.every(v => v.dues === 0 && v.levy === 0) ? 'free' : 'dues';
       F.claimant = c?.house ?? null;
       w.hooks.offer?.({ house: { alive: true, name: 'Your vassals' }, title: 'Your vassals make a demand',
-        text: c ? `${vs.map(v => v.name).join(', ')} will have ${H.lord} of ${H.name} (${c.why}) for their king in your place. Give way, and they pay light dues and send light levies, and ${H.name} becomes your ally. Refuse, and they rise, holding their villages for ${H.name}, and ${H.name} goes to war on you.`
+        text: c ? `${vs.map(v => v.name).join(', ')} will have ${H.lord} of ${H.name} (${c.why}) for their king in your place.\n\nGive way: ${plural(vs.length, 'vassal')} pay${vs.length > 1 ? '' : 's'} light dues and send light levies; ${H.name} becomes your ally (you could not war on it without betraying it); a gift of about ${kingGift(w)} gold to ${H.name}. No place is lost.\n\nRefuse: they rise, and ${vs.reduce((n, v) => n + holdingsOf(w, v).length, 0)} villages with ${vs.reduce((n, v) => n + powerOf(w, v).men, 0)} men go over to ${H.name}, which goes to war on you. The vassals who stood by you think the better of you (+8).`
           : `${vs.map(v => v.name).join(', ')} ${F.demand === 'free' ? 'demand to hold their villages free of you' : 'demand light dues and light levies for all of them'}. Refuse, and they rise.`,
         accept: () => w.factionAnswer(true), decline: () => w.factionAnswer(false) });
     }
@@ -410,6 +411,10 @@ function tickFaction(w) {
 // (30% of your men), the strongest house they know. The house must be at peace with you and not your
 // vassal. null: they ask for dues or freedom as before.
 export const CLAIMANT_FORCE = 0.3;
+// Giving way to a king-faction costs light dues and levies, an ally in their king's house, and a one-time
+// gift to that house: about 15% of your purse (floor 100, to the nearest 50; never a place) (ruling, 2026-11-21).
+export const KING_GIFT = 0.15;
+export const kingGift = w => { const g = Math.max(0, Math.floor(w.houses[0].gold || 0)); return Math.min(g, Math.max(100, Math.round(g * KING_GIFT / 50) * 50)); };
 export function claimant(w, members) {
   const ok = H => H && H.alive && w.knows(H.index) && !w.atWar(0, H.index) && !w.dip[H.index].vassal;
   const kin = members.filter(isWed).map(v => w.houses[v.wed.house]).filter(ok).sort((a, b) => w.dip[b.index].opinion - w.dip[a.index].opinion)[0];

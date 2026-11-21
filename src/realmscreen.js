@@ -14,7 +14,7 @@ import { FACTIONS, headcount, seenAs } from './world/world.js';
 import { GOOD_GROUPS, TAXES } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
   moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN,
-  suitors, matchCost, claimant, kinWar, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
+  suitors, matchCost, claimant, kinWar, kingGift, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
 import { elitePay } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GOODS } from './world/supply.js';
@@ -296,7 +296,7 @@ export class RealmScreen {
       const risk = fv.men / Math.max(1, fv.yours), king = fv.members.length >= 2 && claimant(this.w, fv.members), K = king && FACTIONS[king.house];
       return `<div class="faction"><b class="bad">⚑ A faction against you</b>: ${fv.members.map(v => esc(v.name)).join(', ')}.
         ${fv.members.length < 2 ? 'Alone for now; it needs a second to make a demand.' : fv.demandIn !== null ? `They will make their demand in ${clock(fv.demandIn)}.` : 'They have made their demand.'}
-        ${K ? `<b class="warn">They would have ${esc(K.lord)} of ${esc(K.name)} for king</b> (${esc(king.why)}): give way and ${esc(K.name)} becomes your ally; refuse and their villages go over to ${esc(K.name)}, which goes to war on you.` : ''}
+        ${K ? `<b class="warn">They would have ${esc(K.lord)} of ${esc(K.name)} for king</b> (${esc(king.why)}): give way (light dues and levies, ${esc(K.name)} your ally, about ${kingGift(this.w)} gold to it, no place lost) or refuse (they rise, their villages go over to ${esc(K.name)}, which goes to war on you).` : ''}
         Their men: ${num(fv.men)}${fv.members.some(v => v.title) ? ' (a titled lord\'s count double)' : ''} against your ${num(fv.yours)} (${risk > 0.6 ? '<b class="bad">a grave threat</b>' : risk > 0.25 ? '<b class="warn">a real threat</b>' : 'a small threat'}).
         <small>Win members back with gifts, honours and what they want, or arrest the worst of them.</small></div>`;
     }
