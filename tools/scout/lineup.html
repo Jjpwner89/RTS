@@ -1,0 +1,262 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Scout lineup</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --bg: #e9e2cf; --ink: #2b2620; --red: #a3322a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.4 Georgia, serif; overflow: hidden; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: #f4eedd; border-bottom: 1px solid #b9ab88; }
+  #bar button { font: inherit; padding: 3px 8px; border: 1px solid #9c8b66; background: #fffaf0; border-radius: 3px; cursor: pointer; }
+  #bar button.on { background: #6b5a3a; color: #fff; }
+  #note { position: fixed; left: 8px; bottom: 8px; z-index: 2; max-width: 520px; background: #fffaf0e8; border: 1px solid #b9ab88; padding: 6px 9px; border-radius: 3px; }
+  .lab { font: 11px/1.2 Georgia, serif; color: #1e1a14; background: #fffaf0d0; padding: 1px 4px; border-radius: 2px; white-space: nowrap; text-align: center; }
+  .lab.cur { color: #fff; background: var(--red); }
+  .lab small { color: #6b5a3a; display: block; }
+  .lab.cur small { color: #f3d8d2; }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body>
+<div id="bar"></div>
+<div id="note"></div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { buildingModel, unitModel } from '../../src/models.js';
+import { drawTrees } from '../../src/terrain.js';
+
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+const labels = new CSS2DRenderer(); labels.domElement.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none';
+document.body.appendChild(labels.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#b9cbd6');
+scene.fog = new THREE.Fog('#b9cbd6', 400, 1200);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+scene.add(new THREE.HemisphereLight('#dfe9f2', '#5b5a3c', 1.3));
+const sun = new THREE.DirectionalLight('#fff1d6', 2.2); sun.position.set(60, 120, 80); sun.castShadow = true;
+Object.assign(sun.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, far: 500 }); sun.shadow.mapSize.set(4096, 4096);
+scene.add(sun, sun.target);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#7f8f55' }));
+ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(4000, 800, '#6d7a48', '#76844e'); grid.position.y = 0.02; scene.add(grid);
+
+const gl = new GLTFLoader(), fl = new FBXLoader();
+const mixers = [];
+// The game's look: flat-shaded Lambert, colour kept from each source material.
+function gameLook(root) {
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = o.receiveShadow = true; o.frustumCulled = false;
+    const conv = m => new THREE.MeshLambertMaterial({ color: m.color || '#ccc', map: m.map || null, flatShading: true, vertexColors: !!o.geometry.attributes.color && !m.color });
+    o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+  });
+  return root;
+}
+const PACKED = {"Apple_4.glb": "village", "Bell_Tower.glb": "village", "Bench_1.glb": "village", "BirchTree_1.glb": "nature", "BirchTree_2.glb": "nature", "BirchTree_3.glb": "nature", "BirchTree_4.glb": "nature", "BirchTree_5.glb": "nature", "Boat.glb": "water", "BoatWSail.glb": "water", "Bonfire.glb": "village", "Bonfire_Lit.glb": "village", "Bull.glb": "animals", "BushBerries_1.glb": "nature", "BushBerries_2.glb": "nature", "Bush_1.glb": "nature", "Bush_2.glb": "nature", "Bush_Snow_1.glb": "nature", "Carrot_4.glb": "village", "Chicken.glb": "animals", "CommonTree_1.glb": "nature", "CommonTree_2.glb": "nature", "CommonTree_3.glb": "nature", "CommonTree_4.glb": "nature", "CommonTree_5.glb": "nature", "CommonTree_Autumn_1.glb": "nature", "CommonTree_Autumn_2.glb": "nature", "CommonTree_Dead_1.glb": "nature", "CommonTree_Dead_2.glb": "nature", "Cow.glb": "animals", "Deer.glb": "animals", "Donkey.glb": "animals", "Dummy.glb": "hall", "Fence.glb": "village", "Flowers.glb": "nature", "Fox.glb": "animals", "Husky.glb": "animals", "Inn.glb": "hall", "Lettuce_4.glb": "village", "MarketStand_1.glb": "village", "MarketStand_2.glb": "village", "Pig.fbx": "animals", "PineTree_1.glb": "nature", "PineTree_2.glb": "nature", "PineTree_3.glb": "nature", "PineTree_4.glb": "nature", "PineTree_5.glb": "nature", "PineTree_Snow_1.glb": "nature", "PineTree_Snow_2.glb": "nature", "PineTree_Snow_3.glb": "nature", "Plant_1.glb": "nature", "Plant_2.glb": "nature", "Pumpkin_4.glb": "village", "Rock_1.glb": "nature", "Rock_2.glb": "nature", "Rock_3.glb": "nature", "Rock_4.glb": "nature", "Rock_5.glb": "nature", "Rock_6.glb": "nature", "Rock_7.glb": "nature", "Rock_Moss_1.glb": "nature", "Rock_Moss_2.glb": "nature", "Rock_Moss_3.glb": "nature", "Rock_Snow_1.glb": "nature", "Rock_Snow_2.glb": "nature", "Sheep.fbx": "animals", "SmallBridge.glb": "water", "Stag.glb": "animals", "Target.glb": "hall", "TargetWithArrows.glb": "hall", "TreeStump.glb": "nature", "TreeStump_Moss.glb": "nature", "Viking_boat.glb": "water", "Wheat_1.glb": "village", "Wheat_2.glb": "village", "Wheat_3.glb": "village", "Wheat_4.glb": "village", "Willow_1.glb": "nature", "Willow_2.glb": "nature", "Willow_3.glb": "nature", "Wolf.glb": "animals", "WoodLog.glb": "nature", "WoodLog_Moss.glb": "nature"};
+// Candidates were compared from the packs' mirrors; only the picks are packaged in assets/scout.
+function packed(path) { const f = path.split('/').pop(); return PACKED[f] ? `../../assets/scout/${PACKED[f]}/${f}` : null; }
+async function load(path) {
+  const p = packed(path);
+  if (!p) throw new Error(`${path} was compared but not packaged (rejected); see assets/scout/README.md`);
+  path = p;
+  if (path.endsWith('.fbx')) { const g = await fl.loadAsync(path); return { scene: g, animations: g.animations }; }
+  return gl.loadAsync(path);
+}
+function sizeOf(o) { o.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(o, true); return b.getSize(new THREE.Vector3()); }
+
+// rows: each { title, note, items: [{ cur?, label, path | make(), h (target height, m) | w (target width) | k (scale), clip }] }
+const ROWS = [
+  { id: 'trees', title: 'Trees', note: 'Game today: oak, pine and birch built in code (terrain.js treeKinds), instanced and tinted. Candidates: Quaternius Ultimate Nature Pack (CC0), common, pine, birch and willow, plus autumn, dead and snow sets for the north. All scaled to the game\'s 7 m tree.', items: [
+    { cur: true, label: 'game: code trees', make: () => codeTrees(), raw: true },
+    ...['CommonTree_1', 'CommonTree_2', 'CommonTree_3', 'CommonTree_4', 'CommonTree_5', 'PineTree_1', 'PineTree_2', 'PineTree_3', 'PineTree_4', 'BirchTree_1', 'BirchTree_2', 'BirchTree_3', 'Willow_1', 'Willow_2', 'CommonTree_Autumn_1', 'CommonTree_Dead_1', 'PineTree_Snow_1', 'PineTree_Snow_2'].map(n => ({ label: n, path: `m/nature_pack/${n}.glb`, h: n.startsWith('Pine') ? 8 : n.startsWith('Willow') ? 6.5 : 7 })),
+  ] },
+  { id: 'ground', title: 'Bushes, rocks, ground cover', note: 'Game today: bushes are three icosahedra, stones a squashed dodecahedron (scenery.js). Candidates: Ultimate Nature Pack bushes, berry bushes, rocks, mossy rocks, stumps, logs, plants and flowers (CC0).', items: [
+    { cur: true, label: 'game: bush', make: () => codeBush(), raw: true },
+    { cur: true, label: 'game: stone ×3', make: () => codeStone(), raw: true },
+    ...['Bush_1', 'Bush_2', 'BushBerries_1', 'BushBerries_2'].map(n => ({ label: n, path: `m/nature_pack/${n}.glb`, h: 1.4 })),
+    ...['Rock_1', 'Rock_2', 'Rock_3', 'Rock_4', 'Rock_5', 'Rock_6', 'Rock_7', 'Rock_Moss_1', 'Rock_Moss_2', 'Rock_Moss_3'].map(n => ({ label: n, path: `m/nature_pack/${n}.glb`, w: 2.4 })),
+    ...['TreeStump', 'TreeStump_Moss', 'WoodLog', 'WoodLog_Moss', 'Plant_1', 'Plant_2', 'Flowers', 'Grass', 'Grass_2'].map(n => ({ label: n, path: `m/nature_pack/${n}.glb`, w: n.startsWith('Wood') ? 3 : n.startsWith('Tree') ? 1.4 : 0.9 })),
+  ] },
+  { id: 'dogs', title: 'War dogs', note: 'Game today: unit.wardog, a dog built from spheres and boxes in the bake (bake.js warDog), posed, sliding. Candidates: Ultimate Animated Animals Husky, Wolf and Shiba Inu (CC0, rigged, with Gallop, Walk, Attack, Death and more). (The 2017 Animal Pack Vol.2 dog and wolf were tried and dropped: no colours, two clips.) Shown at 0.8 m to the shoulder like the game\'s dog, playing their run.', items: [
+    { cur: true, label: 'game: unit.wardog', make: () => gameUnit('wardog'), raw: true },
+    { label: 'Husky', path: 'm/animals_pack/Husky.glb', h: 1.05, clip: /gallop|run/i },
+    { label: 'Wolf', path: 'm/animals_pack/Wolf.glb', h: 1.05, clip: /gallop|run/i },
+    { label: 'ShibaInu', path: 'm/animals_pack/ShibaInu.glb', h: 0.8, clip: /gallop|run/i },
+    { label: 'Husky (attack)', path: 'm/animals_pack/Husky.glb', h: 1.05, clip: /attack/i },
+    { label: 'Wolf (idle)', path: 'm/animals_pack/Wolf.glb', h: 1.05, clip: /idle/i },
+    { cur: true, label: 'game: spearman (scale)', make: () => gameUnit('spear'), raw: true },
+  ] },
+  { id: 'beasts', title: 'Livestock and wildlife (none in the game yet)', note: 'Nothing grazes in the villages or runs in the woods today. Candidates: the 2018 Farm Animals pack (same pack as the game\'s horse, so the same rig and clip style): sheep, pig, cow; and Ultimate Animated Animals (CC0): cow, bull, donkey, deer, stag, fox, alpaca, horse. Each plays its walk or idle.', items: [
+    { cur: true, label: 'game: horse (cav)', make: () => gameUnit('cav'), raw: true },
+    { label: 'Sheep 2018', path: 'm/farm_animals_2018/Sheep.fbx', h: 1.0, clip: /\|(Idle|Walk)$/i },
+    { label: 'Pig 2018', path: 'm/farm_animals_2018/Pig.fbx', h: 0.9, clip: /\|(Idle|Walk)$/i },
+    { label: 'Cow 2018', path: 'm/farm_animals_2018/Cow.fbx', h: 1.5, clip: /\|(Walk|WalkSlow|Idle)$/i },
+    { label: 'Cow', path: 'm/animals_pack/Cow.glb', h: 1.6, clip: /\|(Eating|Idle)$/ },
+    { label: 'Bull', path: 'm/animals_pack/Bull.glb', h: 1.7, clip: /walk/i },
+    { label: 'Donkey', path: 'm/animals_pack/Donkey.glb', h: 1.4, clip: /walk/i },
+    { label: 'Deer', path: 'm/animals_pack/Deer.glb', h: 1.5, clip: /\|(Eating|Idle)$/ },
+    { label: 'Stag', path: 'm/animals_pack/Stag.glb', h: 2.0, clip: /idle/i },
+    { label: 'Fox', path: 'm/animals_pack/Fox.glb', h: 0.6, clip: /gallop|run/i },
+    { label: 'Horse (UAA)', path: 'm/animals_pack/Horse.glb', h: 2.0, clip: /walk/i },
+    { label: 'Chicken (Quaternius via Poly Pizza)', path: 'm/polypizza/Chicken.glb', h: 0.5, clip: /idle|peck|walk/i },
+  ] },
+  { id: 'hall', title: "Knights' hall (no baked model)", note: "checks() warns: no baked model for building 'hall', drawn as a shape built in code. Candidates, all CC0 Quaternius: the Medieval Village Inn (a big timber hall), the Fantasy RTS second-age barracks and archery range (unused levels), the 2018 Big Barn and Open Barn as a stable wing, and training props (Target, Dummy) to stand in its yard. Shown at native size next to the game's barracks.3 and stable.", items: [
+    { cur: true, label: 'game: barracks.3', make: () => gameBuilding('barracks.3'), raw: true },
+    { cur: true, label: 'game: stable', make: () => gameBuilding('stable'), raw: true },
+    { label: 'Inn (MVP)', path: 'm/medieval_village_pack/Inn.glb', k: 'mvp' },
+    { label: 'Barracks_SecondAge_Level2', path: 'm/real_time_strategy_pack/Barracks_SecondAge_Level2.glb', fit: 'barracks.3' },
+    { label: 'Barracks_SecondAge_Level3', path: 'm/real_time_strategy_pack/Barracks_SecondAge_Level3.glb', fit: 'barracks.3' },
+    { label: 'Archery_SecondAge_Level3', path: 'm/real_time_strategy_pack/Archery_SecondAge_Level3.glb', fit: 'barracks.3' },
+    { label: 'BigBarn 2018', path: 'm/farm_buildings_2018/BigBarn.fbx', w: 14 },
+    { label: 'OpenBarn 2018', path: 'm/farm_buildings_2018/OpenBarn.fbx', w: 10 },
+    { label: 'Target', path: 'm/modular_medieval_buildings_pack/Target.glb', h: 1.8 },
+    { label: 'TargetWithArrows', path: 'm/modular_medieval_buildings_pack/TargetWithArrows.glb', h: 1.8 },
+    { label: 'Dummy', path: 'm/modular_medieval_buildings_pack/Dummy.glb', h: 1.9 },
+  ] },
+  { id: 'water', title: 'Boats and bridges', note: 'Game today: the battle bridge is boxes (fieldview.js), the port has the Fantasy RTS dock and no boats. Fords need a bridge and a ferry (places report). Candidates: Quaternius Ships pack (CC0) boat, sail boat, sail ship, longship; Modular Medieval Buildings bridge; Fantasy RTS first-age dock.', items: [
+    { label: 'Boat', path: 'm/ships_pack/Boat.glb', w: 4 },
+    { label: 'BoatWSail', path: 'm/ships_pack/BoatWSail.glb', w: 6 },
+    { label: 'Sail_ship', path: 'm/ships_pack/Sail_ship.glb', w: 18 },
+    { label: 'Viking_boat', path: 'm/ships_pack/Viking_boat.glb', w: 14 },
+    { label: 'Bridge (MMB, rejected)', path: 'm/modular_medieval_buildings_pack/Bridge.glb', w: 12 },
+    { label: 'Small Bridge (Quaternius, Poly Pizza)', path: 'm/polypizza/SmallBridge.glb', w: 10 },
+    { label: 'KayKit bridge A', path: 'm/kaykit/building_bridge_A.gltf', w: 10 },
+    { label: 'KayKit bridge B', path: 'm/kaykit/building_bridge_B.gltf', w: 10 },
+    { label: 'Dock_FirstAge', path: 'm/real_time_strategy_pack/Dock_FirstAge.glb', k: 1 },
+    { cur: true, label: 'game: port', make: () => gameBuilding('port'), raw: true },
+  ] },
+  { id: 'props', title: 'Village life: stalls, bells, fires, crops, banners', note: 'Candidates to dress the square, the fields and the camps (all CC0 Quaternius): market stalls, the bell tower, a lit bonfire, fences, benches, chicken coop, crops at four growth stages, apple trees for orchards, and the banner from Modular Medieval Buildings.', items: [
+    { cur: true, label: 'game: market', make: () => gameBuilding('market'), raw: true },
+    ...['MarketStand_1', 'MarketStand_2', 'Bell_Tower', 'Bonfire_Lit', 'Fence', 'Bench_1', 'Gazebo', 'House_3'].map(n => ({ label: n + ' (MVP)', path: `m/medieval_village_pack/${n}.glb`, k: 'mvp' })),
+    { label: 'ChickenCoop 2018', path: 'm/farm_buildings_2018/ChickenCoop.fbx', w: 3 },
+    ...['Wheat_1', 'Wheat_2', 'Wheat_3', 'Wheat_4', 'Carrot_4', 'Lettuce_4', 'Pumpkin_4', 'Beet_4', 'Apple_4'].map(n => ({ label: n, path: `m/crops_pack/${n}.glb`, h: n.startsWith('Apple') ? 4.5 : n.startsWith('Wheat') ? 1.1 : 0.5 })),
+    { label: 'Banner (MMB)', path: 'm/modular_medieval_buildings_pack/Banner.glb', h: 4 },
+  ] },
+];
+
+let MVP = null;
+async function mvpScale() {
+  if (MVP) return MVP;
+  // the game's stable is the pack's Stable at this scale (measured in the scout's full lineup)
+  return MVP = 2.3401;
+}
+// ---- what the game draws today ----
+function codeTrees() {
+  const g = new THREE.Group(), spots = [];
+  // pick spots so that each of the three kinds shows (kindOf reads position)
+  for (let i = 0; i < 9; i++) spots.push({ x: i * 6, z: [0, 400, -400][i % 3] + (i * 37 % 11), standing: true, k: 1, tall: 1, hue: [0.3, 0.33, 0.27][i % 3], light: [0.26, 0.24, 0.22][i % 3], i });
+  const tmp = new THREE.Scene(); drawTrees(tmp, () => 0, { spots });
+  const grp = tmp.children[0];
+  // re-place every instance on one line
+  for (const mesh of grp.children) {
+    const m = new THREE.Matrix4(), p = new THREE.Vector3(), qq = new THREE.Quaternion(), s = new THREE.Vector3();
+    for (let i = 0; i < mesh.count; i++) { mesh.getMatrixAt(i, m); m.decompose(p, qq, s); p.set(0, 0, 0); m.compose(p, qq, s); mesh.setMatrixAt(i, m); }
+  }
+  // keep one instance per kind, side by side
+  grp.children.forEach((mesh, j) => { mesh.count = Math.min(1, mesh.count); mesh.position.x = j * 6; });
+  g.add(grp); return g;
+}
+function codeBush() {
+  const geo = [new THREE.IcosahedronGeometry(0.9, 0).translate(0, 0.6, 0), new THREE.IcosahedronGeometry(0.7, 0).translate(0.7, 0.45, 0.2), new THREE.IcosahedronGeometry(0.65, 0).translate(-0.6, 0.4, -0.25)];
+  const g = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ flatShading: true, color: new THREE.Color().setHSL(0.27, 0.4, 0.27) });
+  for (const x of geo) g.add(new THREE.Mesh(x, mat)); g.position.y = -0.2; return g;
+}
+function codeStone() {
+  const g = new THREE.Group();
+  [0.6, 1.4, 2.4].forEach((k, i) => { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35, 0).scale(1, 0.55, 0.8), new THREE.MeshLambertMaterial({ flatShading: true, color: new THREE.Color().setHSL(0.1, 0.07, 0.5) })); m.scale.setScalar(k); m.position.x = i * 1.4; g.add(m); });
+  return g;
+}
+const vc = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+function gameBuilding(name) {
+  const geo = buildingModel(name);
+  if (!geo) { const m = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshLambertMaterial({ color: '#c33' })); m.position.y = 2; return m; }
+  const m = new THREE.Mesh(geo, vc); m.castShadow = m.receiveShadow = true; return m;
+}
+function gameUnit(key) {
+  const u = unitModel(key); const g = new THREE.Group();
+  if (!u) return g;
+  for (const [geo, tint] of [[u.gear, null], [u.cloth, '#3a6fb0']]) {
+    const gg = geo.clone();
+    for (const a of Object.keys(gg.attributes)) if (a.startsWith('_')) gg.deleteAttribute(a);
+    const m = new THREE.Mesh(gg, tint ? new THREE.MeshLambertMaterial({ vertexColors: true, color: tint, flatShading: true }) : vc); m.castShadow = true; g.add(m);
+  }
+  return g;
+}
+
+// ---- lay the rows out ----
+const ROW_GAP = 140, bar = document.getElementById('bar'), note = document.getElementById('note');
+const rowAt = {};
+function label(text, sub, cur, y) {
+  const d = document.createElement('div'); d.className = 'lab' + (cur ? ' cur' : '');
+  d.innerHTML = text + (sub ? `<small>${sub}</small>` : '');
+  const o = new CSS2DObject(d); o.position.y = y; return o;
+}
+const stats = [], allLabels = [];
+for (const [r, row] of ROWS.entries()) {
+  const z = -r * ROW_GAP; let x = 0;
+  const placed = [];
+  for (const it of row.items) {
+    let obj, sub = '';
+    try {
+      if (it.make) obj = it.make();
+      else {
+        const g = await load(it.path);
+        obj = gameLook(g.scene); obj.updateMatrixWorld(true);
+        const native = sizeOf(obj);
+        let k = 1;
+        if (it.h) k = it.h / native.y; else if (it.w) k = it.w / Math.max(native.x, native.z);
+        else if (it.fit) { const ref = buildingModel(it.fit); if (ref) { ref.computeBoundingBox(); const rs = ref.boundingBox.getSize(new THREE.Vector3()); k = Math.max(rs.x, rs.z) / Math.max(native.x, native.z); } }
+        else if (it.k === 'mvp') k = await mvpScale(); else if (typeof it.k === 'number') k = it.k;
+        obj.scale.multiplyScalar(k);
+        const clips = g.animations.map(a => a.name.replace(/^.*\|/, ''));
+        if (g.animations.length) {
+          const mx = new THREE.AnimationMixer(obj);
+          const a = g.animations.find(a => it.clip?.test(a.name)) || g.animations[0];
+          mx.clipAction(a).play(); mixers.push(mx);
+          sub = `▶ ${a.name.replace(/^.*\|/, '')} · ${clips.length} clips`;
+        }
+        let tris = 0; obj.traverse(o => { if (o.isMesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
+        const s = sizeOf(obj);
+        sub = `${s.x.toFixed(1)}×${s.y.toFixed(1)}×${s.z.toFixed(1)} m · ${Math.round(tris)} tris` + (sub ? '<br>' + sub : '');
+        stats.push({ row: row.id, label: it.label, path: it.path, scale: +k.toFixed(4), native: native.toArray().map(v => +v.toFixed(3)), tris: Math.round(tris), clips });
+      }
+    } catch (e) { console.warn('lineup: could not load', it.label, e); obj = new THREE.Group(); sub = /not packaged/.test(e.message) ? 'rejected, not packaged' : 'failed to load'; }
+    obj.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+    const s = sizeOf(obj), b = new THREE.Box3().setFromObject(obj, true);
+    const holder = new THREE.Group(); holder.add(obj);
+    obj.position.x -= b.min.x; obj.position.z -= (b.min.z + b.max.z) / 2; obj.position.y -= b.min.y;
+    holder.position.set(x, 0, z);
+    const lab = label(it.label, sub, it.cur, s.y + 0.6 + (placed.length % 2) * Math.max(1.2, s.y * 0.35)); lab.userData.row = row.id; holder.add(lab); allLabels.push(lab);
+    scene.add(holder); placed.push(holder);
+    x += s.x + Math.max(1.5, Math.min(6, s.x * 0.35));
+  }
+  rowAt[row.id] = { z, len: x, idx: r };
+  const btn = document.createElement('button'); btn.textContent = row.title.replace(/ \(.*/, ''); btn.onclick = () => go(row.id); bar.appendChild(btn);
+}
+window.lineupStats = stats;
+function go(id) {
+  const r = rowAt[id], row = ROWS[r.idx];
+  [...bar.children].forEach((b, i) => b.classList.toggle('on', i === r.idx));
+  for (const l of allLabels) l.visible = l.userData.row === id;
+  const cx = r.len / 2, span = Math.max(20, r.len);
+  const dist = (span * 0.62 + 4) * (({ dogs: 0.45, beasts: 0.6, ground: 0.6 })[row.id] ?? 1);
+  const ty = ({ hall: 4, water: 2.5, trees: 3.5 })[row.id] ?? 0.8;
+  controls.target.set(cx, ty, r.z);
+  camera.position.set(cx + span * 0.12, ty + dist * 0.32, r.z + dist);
+  note.innerHTML = `<b>${row.title}</b><br>${row.note}`;
+  history.replaceState(null, '', '?row=' + id);
+}
+window.go = go;
+go(q.get('row') || 'trees');
+function resize() { renderer.setSize(innerWidth, innerHeight); labels.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => { const dt = clock.getDelta(); for (const m of mixers) m.update(dt); controls.update(); renderer.render(scene, camera); labels.render(scene, camera); });
+window.lineupReady = true; window.scene = scene; window.camera = camera; window.controls = controls; window.rowAt = rowAt; window.renderFrame = dt => { for (const m of mixers) m.update(dt || 0); controls.update(); renderer.render(scene, camera); labels.render(scene, camera); };
+</script>
+</body></html>

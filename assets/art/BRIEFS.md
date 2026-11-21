@@ -440,3 +440,24 @@ Not requested yet: only if the creator asks for them after 7.1 and 7.2 are in. K
 | `banner-pole.glb` | 200 | A tall pole with a crossbar and a plain `cloth` banner hanging from it (the game swaps in the arms). |
 
 *Design context:* the soldiers are baked from posed, still models, so on the battlefield they only bob. The Art workstream will bake the clips (with the rig's own Walk and Run) into the game's soldiers. These clips are what make a spear wall brace, archers draw and a broken regiment run.
+
+---
+
+## 8. The climb and the realm: more moments
+
+Added 2026-11-21 by the asset scout. Status: **ready**. Work this section after section 6.4, in the order of the table. The rank-ups and the knights' hall already have a moment in the game (`world.js` `checkRank` and `rankUp('hall')`: a herald, drums and a horn) but no picture; the vassal and faction scenes come up in the Realm screen. The Realm workstream shows each one once its file is in place, as with the events.
+
+Same format and rules as 6.4: **1280×720, opaque**, saved as `assets/art/moments/<id>.png`; the same painting hand as the portraits, events and moments; the bottom quarter calm for text and a button; no text. The player's house is blue (`#3d6fd6`, `SIDE_COLORS` in `src/view.js`; house colours in `src/world/realm.js`); rivals and vassals in their own colours where a scene names them, otherwise in browns, greens and greys.
+
+| id | When it shows | Scene |
+|---|---|---|
+| `rank-lord` | You become a Lord | A modest timber hall in a village. The player's reeve, in blue, takes an oath with one hand on a book before an old priest, while a handful of villagers and two spearmen watch from the doorway. Morning light, small and earnest. |
+| `rank-count` | You become a Count | An outdoor muster in a meadow: the player's lord on horseback in blue, many small banners of the villages the house holds gathered behind, levies in rows. A herald with a horn alongside. Bright, growing confidence. |
+| `rank-duke` | You become a Duke | A stone hall with a long table. The player's lord at its head in a rich blue cloak, captains and vassal lords in their own colours along both sides, a great map of the realm spread across the wood. Candle and window light, power and weight. |
+| `rank-king` | You become King | Not the crowning (that is `crowned`, 6.4): the new king on the walls of Kingsbridge at dusk, seen from behind, looking out over the river city and its lights, a blue royal standard snapping overhead. Alone, the cost of it. |
+| `knights-hall` | Your first knights' hall is finished | A long timber-and-stone hall with a red tiled roof and a training yard before it: straw targets, a wooden pell, a quintain. Veterans in mail, newly knighted, kneel in a row while an older knight in blue walks the line. |
+| `investiture` | You raise a vassal to baron or count | Inside the player's hall, a vassal lord (any of the vassal colours, not blue) kneels as the player's lord places a gold chain of office round his neck. A clerk with a charter and wax seal beside them. |
+| `feud` | Two of your vassals start a feud | A burned barn and a broken fence between two fields at dawn; on each side a small group of armed men under different coloured pennons, glaring across the ditch. Bitter, local, petty. |
+| `faction-rises` | A faction of vassals rises against you | Night, a rough camp in a wood. Three vassal lords in different colours stand round a fire, hands joined over a sword laid on a drum, their men's tents behind. Conspiratorial, firelit. |
+
+**Must keep:** grounded and human, like 6.4. The player may be a lord or a lady (`player` and `player-f` portraits): paint the rank-ups with the player seen from behind or at a distance, so either reads. The four rank-ups should read as one rising sequence, from a village oath to a lonely king, so paint them in order and compare them side by side.
