@@ -171,6 +171,21 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
   return gold;
 }
 
+// A full place clears new ground, as your villages grow outward (Orchestrator, 2026-11-21:
+// free villages froze at their caps). It costs the wood and stone of the work, and only a fed
+// place does it; the ground is finite, twice what it started with. Room for buildings and for
+// people grows together, so its limits are land and food, not a number fixed at the start.
+const CLEAR = { wood: 60, stone: 30, built: 2, people: 6, upTo: 2 };
+function clear(e) {
+  const s = e.stock;
+  e.land0 ??= [e.maxBuilt ?? 40, e.maxPop ?? 120];
+  if (e.hungry || (s.food || 0) < e.pop * 1.5 || (e.maxBuilt ?? 40) >= e.land0[0] * CLEAR.upTo) return;
+  if ((s.wood || 0) < CLEAR.wood || (s.stone || 0) < CLEAR.stone) return;
+  s.wood -= CLEAR.wood; s.stone -= CLEAR.stone;
+  e.maxBuilt = (e.maxBuilt ?? 40) + CLEAR.built;
+  e.maxPop = (e.maxPop ?? 120) + CLEAR.people;
+}
+
 function nextBuild(e) {
   const s = e.stock, plan = PLANS[e.focus] || PLANS.farming;
   // A grown military place raises a knights' hall (as yours need a strong keep: level 3)
@@ -181,7 +196,7 @@ function nextBuild(e) {
   if (e.wantHall && can('hall')) return 'hall';
   // With a hall, the kit for its men: leather and mail, and horses.
   if (e.buildings.hall) for (const k of ['tanner', 'armourer', 'stable']) if (!e.buildings[k] && can(k)) return k;
-  if (builtCount(e) >= (e.maxBuilt ?? 40)) return null;
+  if (builtCount(e) >= (e.maxBuilt ?? 40)) { clear(e); return null; }
   if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
   if (e.cold && (B_count(e, 'woodcutter') < 1 + (e.buildings.house || 0) / 8)) return 'woodcutter';
   if (e.pop >= housing(e) - 3 && housing(e) < (e.maxPop ?? 120)) return 'house';

@@ -7,7 +7,7 @@
 // and jumps with gifts, victories and broken promises.
 import { seatPower, kinWarmth } from './vassals.js';
 import { FACTIONS, power, headcount, takeUnits, mergeInto, roughly, unit as unitOf, ARMY_CAP } from './world.js';
-import { ARRIERE, houseBan } from './arriere.js';
+import { ARRIERE, houseBan, banCost } from './arriere.js';
 
 const SIEGE = new Set(['ram', 'ladder', 'mangonel', 'trebuchet']);
 
@@ -18,8 +18,7 @@ const DOWRY = 150;
 // Coalitions, after Europa Universalis: when you hold too much of the realm, the houses
 // that don't love you band together, make peace among themselves and come for you, and
 // fall apart again when the threat has passed.
-const LEAGUE_SHARE = 0.3;    // of the realm's places, held by you, that alarms them
-const LEAGUE_EASE = 0.22;    // ... and below which they feel safe again
+const LEAGUE_BORDER = 420;   // a place this near one of theirs: they border you
 const LEAGUE_LONG = 2400;    // seconds a coalition holds together at most
 const LEAGUE_REST = 1800;    // and before another can form
 
@@ -124,11 +123,18 @@ export function thinkDiplomacy(w, dt) {
 }
 
 const great = () => FACTIONS.filter(H => H.index !== 0 && !H.bandit && !H.invader && H.alive);
-function threat(w) {
-  const mine = w.pois.filter(p => p.owner === 0).length / w.pois.length;
-  const ratio = w.strength(0) / Math.max(1, ...great().map(H => w.strength(H.index)));
-  return { mine, ratio };
+// Why a house would league against a side (Orchestrator, 2026-11-21: on real reasons, never
+// on who leads): that side borders it, has warred on it or wronged it, or holds a place it
+// claims; and the house is arming and can pay its own arrière-ban. The same for you and for a
+// house that runs away with the realm.
+function leagueReason(w, H, side) {
+  const theirs = w.pois.filter(p => p.owner === side), mine = w.pois.filter(p => p.owner === H.index);
+  if (!theirs.length || !mine.length) return false;
+  if (w.atWar(side, H.index) || (side === 0 && grudgeWeight(w, H) > 0)) return true;
+  if (side === 0 && theirs.some(p => wantsBack(w, H, p))) return true;
+  return theirs.some(p => mine.some(q => Math.hypot(p.x - q.x, p.z - q.z) < LEAGUE_BORDER));
 }
+const leagueReady = (w, H) => H.ai?.stance === 'war' && !(H.arriere?.rest > w.time) && H.gold >= banCost(w, H);
 export const leagued = (w, h) => !!w.coalition?.members.includes(h);
 
 // The league raises one host (Duke batch, 2026-11-21): every member sends two men in five from
@@ -221,6 +227,24 @@ function endLeague(w, C, over) {
   w.coalition = { members: [], since: C.since, rest: w.time + LEAGUE_REST };
 }
 
+// A league against a house, on the same reasons: those with one go to war on it together
+// and make peace among themselves. There is no one host: each marches its own (rivals.js).
+// The league holds LEAGUE_LONG, then the house may be leagued against again after a rest.
+function thinkRivalLeagues(w) {
+  w.leagues = (w.leagues || []).filter(L => w.time - L.since < LEAGUE_LONG && FACTIONS[L.target]?.alive);
+  for (const R of great()) {
+    if (w.leagues.some(L => L.target === R.index) || (R.ai?.leagueRest ?? 1200) > w.time) continue;
+    const join = great().filter(H => H !== R && !leagued(w, H.index) && !w.leagues.some(L => L.members.includes(H.index)) && leagueReady(w, H) && leagueReason(w, H, R.index));
+    if (join.length < 2) continue;
+    const ids = join.map(H => H.index);
+    for (const a of ids) for (const b of ids) if (a < b && w.atWar(a, b)) w.makePeace(a, b);
+    for (const h of ids) if (!w.atWar(h, R.index)) w.declareWar(h, R.index);
+    w.leagues.push({ target: R.index, members: ids, since: w.time });
+    R.ai.leagueRest = w.time + LEAGUE_LONG + LEAGUE_REST;
+    w.log(`${join.map(H => H.name).join(', ')} have leagued together against ${R.name}.`, 2);
+  }
+}
+
 function thinkCoalition(w) {
   const C = w.coalition;
   if (C?.members.length) {
@@ -236,8 +260,7 @@ function thinkCoalition(w) {
       w.hooks.herald?.({ house: FACTIONS[0], title: 'The league is broken', text: `With its host beaten, ${lords.map(H => H.lord).join(', ')} sue for peace. None of them may attack you for ten minutes.` });
       return;
     }
-    const { mine, ratio } = threat(w);
-    const over = C.members.length < 2 ? 'has fallen apart' : mine < LEAGUE_EASE && ratio < 1.2 ? 'breaks up: you no longer frighten them' : w.time - C.since > LEAGUE_LONG ? 'has worn itself out' : null;
+    const over = C.members.length < 2 ? 'has fallen apart' : w.time - C.since > LEAGUE_LONG ? 'has worn itself out' : null;
     if (over) {
       // Its host goes home with it.
       const a = hostOf(w);
@@ -246,11 +269,11 @@ function thinkCoalition(w) {
     }
     return;
   }
+  thinkRivalLeagues(w);
   if (w.crowned || w.time < (C?.rest ?? 1200)) return;
-  const { mine, ratio } = threat(w);
-  if (mine < LEAGUE_SHARE && !(ratio > 1.8 && mine > 0.2)) return;
-  // Only houses playing to win (rivals.js STAGES: Contending) join a league.
-  const join = great().filter(H => { const d = w.dip[H.index]; return (H.ai?.stage ?? 0) >= 2 && !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25 && !(d.paidUntil > w.time); });
+  // Houses with a reason, arming and able to pay; peace, a marriage, an alliance or tribute
+  // keeps a house out, as before.
+  const join = great().filter(H => { const d = w.dip[H.index]; return leagueReady(w, H) && leagueReason(w, H, 0) && !(w.leagues || []).some(L => L.members.includes(H.index)) && !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25 && !(d.paidUntil > w.time); });
   if (join.length < 2) return;
   const ids = join.map(H => H.index);
   for (const a of ids) for (const b of ids) if (a < b) w.makePeace(a, b);
@@ -260,7 +283,7 @@ function thinkCoalition(w) {
   w.log(`${names} have leagued together against you!`, 1);
   w.hooks.sound?.('boom'); // audio
   w.chron(`${names} leagued together against you.`);
-  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `You hold ${Math.round(mine * 100)}% of the realm, and the lords are afraid. ${names} have made peace among themselves and declared war on you together, and will raise one host between them. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
+  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `Each has a quarrel with you: your lands border theirs, you have wronged them, or you hold what they claim. ${names} have made peace among themselves and declared war on you together, and will raise one host between them. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
   raiseHost(w);
 }
 

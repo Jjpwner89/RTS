@@ -4,10 +4,9 @@
 // Every house climbs three stages (STAGES): Settling, when it builds up, clears outlaws and
 // takes the free villages next door; Expanding, when it reaches further out, raids its
 // weakest neighbour and strikes where a place is weakly held; and Contending, when it plays
-// to win from where it stands: it goes for the leader, joins coalitions, besieges seats and
+// to win from where it stands: it goes for its enemies' places, joins leagues, besieges seats and
 // pushes for Kingsbridge. A house moves up with time (sooner for hot-blooded lords, later
-// for builders and turtlers, and by the campaign's Rivals option), or early once you close
-// the gap on it.
+// for builders and turtlers, and by the campaign's Rivals option).
 //
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
@@ -204,12 +203,13 @@ function thinkWars(w, h, B, stage) {
   }
   // A contending house reaches further for you, and a rich purse draws it.
   const strength = i => w.strength(i);
-  const ours = strength(h.index), lead = leader(w, h);
+  const ours = strength(h.index);
   const choices = [...near.keys()].filter(i => !w.atWar(h.index, i) && !(leagued(w, h.index) && leagued(w, i)) && (i !== 0 || !protectedFrom(w, 0, h.index))
     && !(FACTIONS[i].vassalOf === 0 && w.dip[h.index].opinion > -20))
-    // A lord with a grudge against you fancies his chances more than he should; a
-    // contending one goes for whoever leads.
-    .map(i => ({ i, odds: ours / Math.max(1, strength(i)) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) * (stage === 2 && i === lead ? 1.6 : 1) * (i === 0 && FACTIONS[0].gold > 5000 ? 1.2 : 1) }))
+    // A lord with a grudge against you fancies his chances more than he should, and a full
+    // purse draws any house. Nobody is picked for leading (the leader weights were a rubber
+    // band, cut 2026-11-21): odds, borders, grudges and temper, the same for every target.
+    .map(i => ({ i, odds: ours / Math.max(1, strength(i)) * (i === 0 ? 1 + Math.min(0.5, grudgeWeight(w, h) / 40) : 1) * (FACTIONS[i].gold > 5000 ? 1.2 : 1) }))
     .sort((a, b) => b.odds - a.odds);
   const pick = choices[0];
   if (pick && pick.odds * B.war > 0.9 && w.rand() < 0.7) {
@@ -234,29 +234,21 @@ function warRaids(w, h, B, plan) {
   for (const o of foes) for (const from of froms) if (sendRaid(w, h, { target: { owner: o.index }, staging: from, raids: 0 })) return;
 }
 
-// The strongest side in the realm other than this house: you, or another house.
-function leader(w, h) {
-  let best = null, bs = -1;
-  for (const o of FACTIONS) {
-    if (o === h || !o.alive || o.bandit || o.invader) continue;
-    const s = w.strength(o.index);
-    if (s > bs) { bs = s; best = o.index; }
-  }
-  return best;
-}
-
 // What a house goes for next. Settling: free villages next door and outlaw camps, and only
 // raids on an enemy. Expanding: free villages further out, and an enemy's place only where
-// it is weakly held. Contending: anything, the leader's places and Kingsbridge first.
+// it is weakly held. Contending: anything, an enemy's places and Kingsbridge first.
 function choosePlan(w, h, B, stage, arming = true) {
-  const options = [], ours = w.strength(h.index), lead = stage === 2 ? leader(w, h) : null;
+  const options = [], ours = w.strength(h.index);
   let skirmish = null;
   for (const p of w.pois) {
     if (!w.canAttack(h.index, p) || h.ai.passed?.[p.id] > w.time) continue;
     const enemy = p.owner !== null && p.owner !== w.bandits;
     if (enemy && !arming) continue;
     if (p.owner === 0 && stage === 0) { if (!protectedFrom(w, 0, h.index)) skirmish ??= p; continue; }
-    // the free villages around your start are yours to win first
+    // The free villages around your start are yours to win first, for the first twenty
+    // minutes. Kept when the rubber bands were cut (Orchestrator, 2026-11-21): it is a fixed
+    // opening, the same every game, not something that adapts to how you are doing, and the
+    // sims put the point of no return at minute 20 to 30, so without it there is no climb.
     if (p.owner === null && w.time < grace(w) && w.byId.ashford && dist(p, w.byId.ashford) < 260) continue;
     const from = nearestOwn(w, h, p);
     if (!from.place || from.length > (stage === 0 && p.owner === null ? NEXT_DOOR : 900)) continue;
@@ -265,11 +257,10 @@ function choosePlan(w, h, B, stage, arming = true) {
     if (enemy && stage === 1 && (def > ours * 0.25 || p.seat !== undefined || p.kind === 'crown')) { skirmish ??= p; continue; }
     // Free villages and bandit camps are easy pickings; enemy places are a war aim.
     let prize = p.kind === 'crown' ? (stage === 2 ? 0.45 : 0.7) : p.seat !== undefined ? 0.8 : 1;
-    if (lead !== null && p.owner === lead) prize *= 0.7;   // the leader's lands
     if (h.invader && p.owner === 0) prize *= 0.6;   // the north comes for the king first
     if (p.owner === 0 && leagued(w, h.index)) prize *= 0.7;   // a coalition is about you
     if (p.owner === 0 && wantsBack(w, h, p)) prize *= 0.6;    // and a lord wants back what you took
-    if (p.owner === 0 && stage === 2 && w.atWar(h.index, 0)) prize *= 0.6;   // a war with you is fought for
+    if (enemy && stage === 2) prize *= 0.6;   // a war is fought for, yours or a house's
     options.push({ p, staging: from.place, score: (def + from.length * 0.15) * prize });
   }
   // Nothing to take: a house at war with a place it can't yet take only skirmishes there.

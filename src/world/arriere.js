@@ -69,6 +69,10 @@ export const rankOf = n => (n >= 11 ? 'Duke' : n >= 5 ? 'Count' : n >= 2 ? 'Lord
 // rules: its rank's men from each of its places, as many as its purse pays for at 3 gold a
 // man and the host has room for; their carts loaded from its stores as far as they go; they
 // serve from `from`, then the countryside rests. Takes the gold and food; returns the men.
+export const banCost = (w, h) => {
+  const n = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling).length;
+  return (ARRIERE.per[rankOf(n)] || 0) * n * ARRIERE.gold;
+};
 export function houseBan(w, h, room, from = w.time) {
   const S = h.arriere || {};
   if (S.until > w.time || S.rest > w.time) return 0;
