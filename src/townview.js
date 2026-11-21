@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
+import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, heartModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
 import { BUILDINGS } from './economy.js';
@@ -111,7 +111,7 @@ function crateModel() {
   ]);
 }
 
-function deposit(kind, rand) {
+export function deposit(kind, rand) {
   const parts = [];
   for (let i = 0; i < 6; i++) {
     const g = new THREE.IcosahedronGeometry(1.4 + rand() * 1.8, 0);
@@ -162,7 +162,7 @@ export class TownView {
 
     // the keep grows through five levels with the village; see wantedKeepLevel()
     this.keepLevel = this.wantedKeepLevel();
-    const keepGeo = keepModel({ palisade: false, level: this.keepLevel });
+    const keepGeo = heartModel(town.kind, this.keepLevel);
     const keep = this.keep = new THREE.Mesh(keepGeo, this.mat);
     keep.position.set(0, heightAt(0, 0) - 0.5, 0);
     keep.castShadow = keep.receiveShadow = true;
@@ -309,7 +309,7 @@ export class TownView {
     const level = this.wantedKeepLevel();
     if (level !== this.keepLevel) {
       this.keepLevel = level;
-      this.keep.geometry = keepModel({ palisade: false, level });
+      this.keep.geometry = heartModel(town.kind, level);
       this.flag.position.y = this.heightAt(0, 0) + keepTop(this.keep.geometry) + 2.5;
     }
     for (const [b, o] of this.meshes) {

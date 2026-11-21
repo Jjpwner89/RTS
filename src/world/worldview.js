@@ -3,11 +3,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHeight, drawGround, plantTrees, drawTrees } from '../terrain.js';
-import { part, box, keepModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD, soldierClip } from '../view.js';
+import { part, box, keepModel, heartModel, keepTop, keepLevelOf, poleFor, castleModel, fortModel, houseModel, SKIN, WOOD, soldierClip } from '../view.js';
+import { deposit } from '../townview.js';
 import { animGeometry, animMaterial, animDepthMaterial, setClip, clipOf, gaitFor } from '../anim.js';
 import { unitModel, unitLook, hasLevels, buildingModel, HOUSE_STYLES } from '../models.js';
 import { ownerOf, FACTIONS, NEUTRAL, headcount } from './world.js';
-import { layoutOf, walledPlace, wallMaterial } from './places.js';
+import { layoutOf, walledPlace, wallMaterial, worked } from './places.js';
 import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
 import { TYPES, lookChain } from '../battle.js';
@@ -598,6 +599,8 @@ export class WorldView {
     const cache = this.geoCache || (this.geoCache = new Map());
     const once = (key, make) => cache.get(key) || cache.set(key, make()).get(key);
     const keep = l => once('keep' + l, () => keepModel({ palisade: false, level: l }));
+    // a place's heart: its keep, or an abbey's church
+    const heart = l => once(`heart${p.kind}${l}`, () => heartModel(p.kind, l));
     const house = () => { const st = Math.floor(rand() * HOUSE_STYLES); return (level >= 4 && buildingModel(`house.${st}.3`)) || (level >= 3 && buildingModel(`house.${st}.2`)) || houseModel(st); };
     // roads leaving this place, as angles
     const roads = this.world.roads.map(r => Math.hypot(r.a.x - p.x, r.a.z - p.z) < 1 ? r.b : Math.hypot(r.b.x - p.x, r.b.z - p.z) < 1 ? r.a : null)
@@ -627,13 +630,13 @@ export class WorldView {
     if (p.town) {
       // the village in miniature: its keep, its buildings and walls where they stand
       const t = p.town, W = t.battle.walls;
-      centre = this.miniature(put, keep(keepLevelOf(t)), t.buildings.filter(b => b.state === 'active'),
+      centre = this.miniature(put, heart(keepLevelOf(t)), t.buildings.filter(b => b.state === 'active'), worked(t),
         W.pieces.filter(q => q.state !== 'site').map(q => ({ a: q.a, b: q.b, material: q.material, gate: q.gate, broken: q.state === 'broken' })),
         W.nodes.filter(n => n.tower && n.tower.state !== 'site').map(n => ({ x: n.x, z: n.z, material: n.tower.material, broken: n.tower.state === 'broken' })));
     } else if (!['pass', 'warcamp'].includes(p.kind) && p.seen) {
       // anyone else's place: the same layout you would find there (places.js), in miniature
       const L = layoutOf(p);
-      centre = this.miniature(put, keep(L.keepShown || level), L.buildings,
+      centre = this.miniature(put, heart(L.keepShown || level), L.buildings, L.deposits || [],
         L.pieces.map(q => ({ a: L.nodes[q.a], b: L.nodes[q.b], material: q.material, gate: q.gate, broken: q.broken })),
         L.nodes.filter(n => n.tower).map(n => ({ x: n.x, z: n.z, material: n.tower.material, broken: n.tower.broken })));
     } else switch (p.kind === 'pass' || p.kind === 'warcamp' ? p.kind : seat ? 'seat' : p.kind) {
@@ -721,9 +724,12 @@ export class WorldView {
   // A place in miniature, from its keep model, buildings ({ kind, x, z, angle, level, style }),
   // wall pieces ({ a, b } points) and towers in its own metres: the whole place shrunk evenly,
   // its models a little less so they read. Returns the keep's mesh.
-  miniature(put, keepGeo, buildings, pieces, towers) {
+  miniature(put, keepGeo, buildings, deposits, pieces, towers) {
     const K = 0.45, M = 0.55, at = n => ({ x: n.x * K, z: n.z * K });
     const centre = put(keepGeo, 0, 0, 0, M);
+    // the rock and ore its quarries and mines work, a little larger than life to read at this size
+    const rock = kind => (this.rocks ||= {})[kind] ||= deposit(kind, (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(kind === 'ore' ? 7 : 11));
+    for (const d of deposits) { const q = at(d); put(rock(d.kind), q.x, q.z, d.x % 6, 0.8); }
     for (const b of buildings) {
       if (b.kind === 'keep') continue;
       const base = b.kind === 'house' ? `house.${(b.style || 0) % HOUSE_STYLES}` : b.kind === 'monastery' ? 'chapel' : b.kind;

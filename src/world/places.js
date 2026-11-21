@@ -501,7 +501,14 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
   const mem = remember(t, 1, 0);
   // the keep is the place's own, not the planning copy's
   Object.assign(mem, { keepLevel: p.mem?.keepLevel, keepPeak: p.mem?.keepPeak, keepBought: p.mem?.keepBought, keepShown: keepLevelFor(p) });
-  return { ...mem, lanes: t.lanes || [], unplaced };
+  return { ...mem, lanes: t.lanes || [], unplaced, deposits: worked(t) };
+}
+
+// The stone and ore its quarries and mines work (the map shows them: a pithead is its rock).
+export function worked(t) {
+  const pits = t.buildings.filter(b => b.kind === 'mine' || b.kind === 'quarry');
+  return [...t.nodes.rock, ...t.nodes.ore].filter(n => pits.some(b => hyp(b.x - n.x, b.z - n.z) < 30))
+    .map(n => ({ kind: n.kind, x: Math.round(n.x), z: Math.round(n.z) }));
 }
 
 // The part of lane s that has buildings along it, out to the last of them, as the land mask takes it.

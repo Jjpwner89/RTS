@@ -240,6 +240,9 @@ export function keepLevelOf(town) {
 // `level` 1 to 4: wood fort, wood castle, stone castle, fortress.
 export const castleModel = (level = 2) => buildingModel('castle.' + level) || buildingModel('castle') || keepModel();
 // A fort: forts and army camps.
+// What stands at a place's heart: its keep, or at an abbey the abbey church, which is its
+// store and its last stand as a keep is.
+export const heartModel = (kind, level) => (kind === 'monastery' && buildingModel('monastery')) || keepModel({ palisade: false, level });
 export const fortModel = () => buildingModel('fort') || keepModel({ palisade: false, level: 1 });
 // Houses come in three styles; `style` picks one.
 export function houseModel(style = 0) {
