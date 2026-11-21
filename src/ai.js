@@ -238,6 +238,12 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   const tdx = army.cx - target.x, tdz = army.cz - target.z, td = Math.hypot(tdx, tdz) || 1;
   const stage = { x: target.x + tdx / td * 135, z: target.z + tdz / td * 135, angle: Math.atan2(-tdx, -tdz) };
 
+  // Drawn off from a gate the axes couldn't break (below): out of bowshot, to starve them out.
+  if (st.drawnOff) {
+    for (const r of mine) if (!r.posts && !r.targetReg && !r.dest && dist(r, { cx: stage.x, cz: stage.z }) > 40) battle.orderMove([r], stage.x, stage.z, stage.angle);
+    return;
+  }
+
   const engines = mine.filter(r => r.engine);
   const foot = mine.filter(r => !r.engine && !r.T.mounted && !r.T.range);
   const shooters = mine.filter(r => !r.engine && r.T.range);
@@ -367,6 +373,18 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   if (gate && (weak || (!working && st.waited > (throwing ? 60 : 20) && (gate.material !== 'stone' || lastResort)))) {
     if (gate.material === 'stone' && !weak && !st.axes) { st.axes = true; battle.event(side, side ? 'With no ram left, the enemy set about the stone gate with axes.' : 'With no ram left, our men set about the stone gate with axes.'); }
     for (const r of foot) if (!r.posts && !r.mine && r.targetWall !== gate) battle.orderAttackWall([r], gate, gate.x, gate.z);
+    // Half a minute on the axes shows how it goes. If the gate wouldn't fall for three minutes more at that rate,
+    // bleeding under it is worse than a blockade: draw off out of bowshot and starve them out.
+    // (timed from when the first of them is at it, not from the order: the walk up isn't the axes' fault)
+    if (st.axes && gate.material === 'stone' && (st.axeFrom || foot.some(r => r.targetWall === gate && Math.hypot(r.cx - gate.x, r.cz - gate.z) < 15))) {
+      st.axeFrom ??= { t: battle.time, hp: gate.hp };
+      const took = battle.time - st.axeFrom.t, rate = (st.axeFrom.hp - gate.hp) / Math.max(1, took);
+      if (took > 30 && gate.hp > rate * 180) {
+        st.drawnOff = true;
+        for (const r of mine) if (!r.posts) { r.mine = null; battle.orderMove([r], stage.x, stage.z, stage.angle); }
+        battle.event(side, side ? 'The stone gate holds against the axes: the enemy draw off out of bowshot to starve the garrison out.' : 'The stone gate holds against our axes: we draw off out of bowshot to starve them out.');
+      }
+    }
   } else if (stuck && !digging && !st.warned && !battle.regs.some(r => r.side === side && !r.gone && !r.engine && !r.T.mounted && !r.T.range)) {
     // No foot left at all (routed men may rally) and nothing else to break in with: say so, once.
     st.warned = true;

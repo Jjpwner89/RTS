@@ -2183,6 +2183,11 @@ export class Town {
         g.leaving = true;
         this.event('The raiders are making off with their plunder.');
       }
+      // An assault that drew off from a gate it couldn't break (ai.js thinkSiegeAttack) goes home.
+      if (g.mode === 'assault' && !g.leaving && this.battle.siegeAI?.drawnOff) {
+        g.leaving = true;
+        this.event('The besiegers could not break the gate and have drawn off.');
+      }
       if (g.leaving || this.hostile) continue;
       // Attackers not fighting set fire to whatever they stand beside.
       for (const r of live) {

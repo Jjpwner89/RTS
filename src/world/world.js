@@ -1140,8 +1140,10 @@ export class World {
     grudge(this, was, 'took', p.name);
     if (t.buildings.some(o => o.state === 'ruined')) grudge(this, was, 'burned', p.name);
     this.takePlace(p, 0);
-    if (h.folk?.length) h.pop = Math.max(5, h.pop - Math.max(0, h.folk.reduce((n, u) => n + u.count, 0) - folkLeft(t.battle)));
-    t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * (h.yielded ? 0.8 : 0.5)))) });
+    // Of the townsfolk struck down, most were hurt, not killed, and come home: a third are lost. Taken by
+    // storm, seven in ten of those left stay on (eight in ten under terms); the rest have fled.
+    if (h.folk?.length) h.pop = Math.max(5, h.pop - Math.round(Math.max(0, h.folk.reduce((n, u) => n + u.count, 0) - folkLeft(t.battle)) / 3));
+    t.claim({ villagers: Math.max(6, Math.min(40, Math.round(h.pop * (h.yielded ? 0.8 : 0.7)))) });
     t.flagColor = null;
     p.eco = h.eco;
     this.plunder(p);
