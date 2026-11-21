@@ -77,3 +77,95 @@ button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #res
 #herald { border-left: 6px solid var(--hc, var(--gold)); }
 /* A routing regiment's card flushes red parchment rather than the dark red. */
 @keyframes blink { to { background: var(--grain), linear-gradient(#efc3a4, #d58f70); } }
+
+/* ---- One visual language (DESIGN_NOTES, "An interface that grows with rank") ----
+   Ink colours that read on parchment, one hover and one disabled look, one tooltip, the New
+   seal and its introduction, and keys on the face of buttons. */
+:root { --warn: #8a5a0c; --seal: #a3271a; }
+button { transition: background .12s, border-color .12s, box-shadow .12s; }
+button:not(:disabled):hover { border-color: #4f3416; box-shadow: var(--btn-shadow, none), 0 0 0 1px rgba(141, 59, 22, .25); }
+button:disabled { opacity: .45; cursor: default; filter: saturate(.35); }
+/* A greyed choice never wears the blue cloth: blue is for what you can pick. */
+:is(button.on, .modal .row button:first-child, #result button, #deploy .go, #terms .yes, #duel .yes):disabled { background: var(--btn); color: var(--btn-ink); border: var(--btn-border); }
+button.warn, #panel button.warn, #wpanel button.warn { color: var(--bad); border-color: #a3532a; }
+:is(.houses .h.pick, .vassals .h, #alerts div.go, #realm .vcard):hover { background: var(--hilite); }
+kbd { font-family: var(--body-font); font-size: 10px; font-weight: 700; line-height: 1; padding: 2px 4px 1px; margin-left: 6px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; color: var(--dim); background: rgba(255, 250, 235, .45); vertical-align: 1px; }
+#top kbd { color: var(--bar-dim); border-color: rgba(214, 170, 96, .45); background: rgba(0, 0, 0, .18); }
+#top button kbd { color: var(--dim); border-color: var(--rule); background: rgba(255, 250, 235, .45); }
+#top button[hidden] { display: none; }
+
+/* The tooltip (ui/tooltip.js): a parchment slip, the key in a chip. */
+#tip { position: fixed; left: 0; top: 0; z-index: 60; max-width: min(340px, calc(100vw - 16px)); padding: 6px 10px; pointer-events: none; opacity: 0; transition: opacity .12s;
+  background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: 0 0 0 1px #4a3018, 0 4px 12px rgba(0, 0, 0, .35);
+  color: var(--ink); font: 13px/1.35 var(--body-font); white-space: normal; }
+#tip.show { opacity: 1; }
+
+/* New things (ui/news.js): a red seal on the thing, its one line beside it. */
+.is-new { position: relative; }
+.is-new::before { content: 'New'; position: absolute; top: -7px; right: -6px; z-index: 2; padding: 1px 5px; border-radius: 8px; background: var(--seal); color: #f6ecd2;
+  font: 700 9px/1.3 var(--body-font); letter-spacing: .04em; text-transform: uppercase; box-shadow: 0 1px 2px rgba(0, 0, 0, .4); pointer-events: none; }
+#newslip { position: fixed; z-index: 55; display: none; align-items: center; gap: 10px; max-width: min(320px, calc(100vw - 16px)); padding: 7px 8px 7px 12px; cursor: pointer;
+  background: var(--surface); border: var(--surface-border); border-left: 4px solid var(--seal); border-radius: var(--surface-radius); box-shadow: var(--surface-shadow);
+  color: var(--ink); font: 13px/1.35 var(--body-font); animation: newslip-in .35s ease-out; }
+#newslip.show { display: flex; }
+#newslip button { flex: none; padding: 1px 8px; }
+@keyframes newslip-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* ---- The village HUD ---- */
+#stock [hidden], #build [hidden] { display: none !important; }
+#stock { overflow-y: auto; scrollbar-width: thin; }
+#stock .people:first-child { align-items: center; gap: 6px; flex-wrap: wrap; }
+#stock .people:first-child [data-s="pop"] { flex: 1; }
+#stock .people:first-child .fold { order: 2; }
+#stock .people:first-child [data-s="idle"] { order: 3; flex-basis: 100%; font-size: 12px; margin-top: -2px; }
+#stock .fold { flex: none; width: 22px; height: 20px; padding: 0; font-size: 12px; line-height: 1; }
+#stock .mood .tax button { min-width: 22px; padding: 1px 6px; }
+#stock .goods .ico { width: 18px; height: 18px; }
+#stock .goods span { padding: 1px 2px; border-radius: 3px; }
+#stock .goods span:hover { background: var(--hilite); }
+/* Folded: people, gold, warnings and the goods in hand as one strip. */
+#stock.folded { width: auto; max-width: 236px; padding: 6px 10px; }
+#stock.folded :is(.mood, [data-s="settlers"], [data-s="idle"], h4, .raid:not(.now)) { display: none; }
+#stock.folded .people:has([data-s="settlers"]) { display: none; }
+#stock.folded .goods { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; }
+
+#build > .items { grid-auto-rows: 62px; min-height: calc(var(--rows, 3) * 62px + (var(--rows, 3) - 1) * 4px); align-content: start; }
+#build .item { justify-content: center; gap: 0; padding: 3px; overflow: hidden; line-height: 1.15; }
+#build .item .ico { width: 24px; height: 24px; margin: 0 auto 2px; }
+#build .item small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#build .tabs { flex-wrap: nowrap; }
+#build .tabs .tab { min-width: 0; padding: 3px 2px; font-size: 13px; }
+#build .hint { font-size: 11px; }
+#build .hint kbd { margin: 0 2px; }
+#build.folded > :is(.items, .walls, .hint) { display: none !important; }
+#build.folded .tabs { margin-bottom: 0; }
+/* The Walls tab holds the defences (siegeui.js) in the bar's own space. */
+#build .walls { display: none; min-height: calc(var(--rows, 3) * 62px + (var(--rows, 3) - 1) * 4px); }
+#build.walls-on > .items { display: none; }
+#build.walls-on .walls { display: block; }
+#build #defences { position: static; width: auto; display: block; zoom: 1; padding: 0; background: none; border: 0; box-shadow: none; }
+#build #defences h4 { display: none; }
+#build #defences .items { min-height: 0; grid-auto-rows: auto; }
+#build #defences .items button { font-size: 12px; padding: 4px 6px; }
+#build #defences .items small, #build #defences .masons small { font-size: 11px; }
+#build.no-masons #defences .masons { display: none; }
+body.town.has-defences #cards, body.campaign.mode-town.has-defences #cards { left: 372px; }
+body.campaign.mode-town.has-defences #orders { left: calc(50% + 186px); }
+
+/* The details panel: what you can do first; what a building is for behind "?". */
+#info h3 { display: flex; align-items: center; gap: 6px; }
+#info h3 small { flex: 1; }
+#info h3 .close-t { flex: none; width: 22px; height: 22px; padding: 0; font: 700 15px/1 var(--body-font); }
+#info h3 .about-t { margin-left: auto; flex: none; width: 22px; height: 22px; padding: 0; font: 700 12px/1 var(--body-font); border-radius: 50%; }
+#info.about h3 .about-t { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
+#info:not(.about) p.note:not([data-f]) { display: none; }
+body.campaign.mode-town #info, body.town #info { max-height: calc(100vh - 180px); scrollbar-width: thin; }
+#info button.wide { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; }
+#info button.wide small { font-size: 11px; }
+
+/* Small windows: the top bar keeps its icons and keys in the tooltip. */
+@media (max-width: 800px), (max-height: 600px) {
+  #top kbd { display: none; }
+  #top :is(#to-world, #realm-toggle, #retreat) { font-size: 0; padding: 4px 8px; }
+  #top :is(#to-world, #realm-toggle, #retreat) .ico { width: 18px; height: 18px; }
+}

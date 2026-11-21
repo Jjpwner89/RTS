@@ -19,7 +19,7 @@
 <header id="top">
   <span class="title">Battle test</span>
   <span id="clock">0:00</span>
-  <button id="pause">❚❚ Pause</button>
+  <button id="pause" title="Pause or carry on: you can still give orders while paused" data-key="Space">❚❚ Pause</button>
   <span class="speeds"><button data-speed="1">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></span>
   <span id="strength"></span>
   <span class="speeds"><a href="?mode=field"><button data-mode="field">Field</button></a><a href="?mode=siege"><button data-mode="siege">Storm a fort</button></a><a href="?mode=defend"><button data-mode="defend">Hold a fort</button></a></span>
@@ -56,5 +56,6 @@
 
 <script type="module" src="src/checks.js"></script><!-- consistency checks: checks() in the console (HOW_WE_BUILD.md section 4) -->
 <script type="module" src="src/main.js"></script>
+<script type="module" src="src/ui/tooltip.js"></script><!-- one parchment tooltip for every title -->
 </body>
 </html>

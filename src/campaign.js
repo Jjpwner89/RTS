@@ -44,6 +44,8 @@ import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
 import { LOD } from './models.js';
 import { audio } from './audio.js';
+import { unlocked } from './ui/unlocks.js';
+import * as news from './ui/news.js';
 
 const params = new URLSearchParams(location.search);
 // ?continue picks up the saved campaign (?continue=test the test one); ?test=lord, count or
@@ -181,6 +183,7 @@ function townBundle(p, look = null) {
     startPlacing: kind => { if (look) return; st.placing = kind; st.roadFrom = null; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
     templates: () => world.rank !== 'Reeve',
+    unlocked: key => unlocked(world, key),
     companies: () => (world.companies || []).map(c => {
       const o = offer(world, c, 0), boss = c.employer !== null && c.employer !== undefined ? FACTIONS[c.employer] : null;
       const where = world.byId[c.home]?.name;
@@ -1031,7 +1034,7 @@ const realm = new RealmScreen(world, {
 $('realm-toggle').onclick = () => realm.toggle();
 addEventListener('keydown', e => {
   if (e.target.closest?.('input, select, textarea')) return;
-  if (e.key === 'Tab') { e.preventDefault(); realm.toggle(); }
+  if (e.key === 'Tab') { e.preventDefault(); if (unlocked(world, 'realm') || realm.open) realm.toggle(); else flash('The Realm screen comes with the rank of Lord: hold a second place.'); }
   else if (e.key === 'Escape' && realm.open) { e.stopImmediatePropagation(); realm.hide(); }
 }, true);
 $('help-close').onclick = () => { $('help').classList.remove('open'); paused = false; };
@@ -1112,7 +1115,9 @@ function worldLog() {
   if (goalsWaiting.length && calm && !logEl.querySelector('[data-key="goal"]')) newsLine(logEl, goalsWaiting.shift(), 'goal', 5000);
 }
 
+news.watch('realm', () => $('realm-toggle'));
 function topBar() {
+  $('realm-toggle').hidden = !unlocked(world, 'realm');
   $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
   const holder = mode === 'town' ? current.holder || $('place').textContent : '';
   if ($('place').title !== holder) $('place').title = holder;
@@ -1191,6 +1196,7 @@ function frame(now) {
   }
   if (mode === 'world') labels.hide();
   topBar();
+  news.tick(world);
   goals();
   alertList();
   worldLog();

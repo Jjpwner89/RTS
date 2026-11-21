@@ -5,6 +5,18 @@ import { ROAD, ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLAT
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
+import { watch } from './ui/news.js';
+
+// Folds and the "about" notes are the player's choice, kept between visits and sessions.
+const pref = (k, d) => { try { const v = localStorage.getItem(`rts.ui.${k}`); return v === null ? d : v === '1'; } catch { return d; } };
+const setPref = (k, v) => { try { localStorage.setItem(`rts.ui.${k}`, v ? '1' : '0'); } catch {} };
+// Small windows start with the stores folded to a strip, to leave the village in view.
+const small = () => innerWidth < 1100 || innerHeight < 720;
+// Goods always worth a cell; the rest show once there is some, or a building here makes or uses them.
+const BASIC = new Set(['wood', 'stone', 'food']);
+// What each build tab holds, for its tooltip.
+const TAB_TIPS = { Village: 'Houses, stores, the market and the church', Gather: 'Wood, stone, ore, food and flax', Craft: 'Workshops: planks, iron, bread, arms and armour', Military: 'Barracks, stables, siege workshop and watchtowers', Walls: 'Palisades, towers, gates and stone walls', Towns: 'Town templates: a whole quarter laid out at once' };
+const CLOSE = '<button class="close-t" title="Close" data-key="Esc">×</button>';
 
 const gi = g => ico(GOODS[g].icon, GOODS[g].color);
 // Writes HTML only when it changed, so icons are not rebuilt every frame.
@@ -72,12 +84,15 @@ export class TownHud {
     this.toastEl = document.getElementById('toast');
     this.tab = 'Village';
     this.infoKey = null;
+    // What this rank may see (ui/unlocks.js); the village page on its own sees everything.
+    this.can = key => this.hooks.unlocked ? this.hooks.unlocked(key) : true;
     if (town.hostile) this.buildStorm();
     else {
       this.buildStock();
       this.buildMenu();
       // Clicking the alarm takes you to the attackers.
       this.stockEl.onclick = e => {
+        if (e.target.closest('.fold')) { this.fold(!this.stockEl.classList.contains('folded')); setPref('stock-folded', this.stockEl.classList.contains('folded')); return; }
         // A vassal's village is theirs to run: you may look, not act (creator's call, 2026-11-19).
         if (town.readOnly) return;
         if (e.target.closest('.raid.now')) this.hooks.findAttackers?.();
@@ -90,7 +105,10 @@ export class TownHud {
     }
     this.buildEl.hidden = !!town.hostile || !!town.readOnly;
     // onclick rather than addEventListener: a new village's panels replace the old handlers.
+    this.infoEl.classList.toggle('about', pref('about', false));
     this.infoEl.onclick = e => {
+      if (e.target.closest('.close-t')) { this.hooks.deselect?.(); return; }
+      if (e.target.closest('.about-t')) { const on = !this.infoEl.classList.contains('about'); this.infoEl.classList.toggle('about', on); setPref('about', on); return; }
       const btn = e.target.closest('[data-act]');
       if (btn && !btn.disabled) this.act(btn.dataset.act);
     };
@@ -123,7 +141,7 @@ export class TownHud {
     // A look-round's taxes are the vassal's to set: no − / + there.
     const lever = (d, title, mark) => this.town.readOnly ? '' : `<button data-tax="${d}" title="${title}">${mark}</button>`;
     this.stockEl.innerHTML = `
-      <div class="people"><span data-s="pop"></span><span data-s="idle"></span></div>
+      <div class="people"><span data-s="pop"></span><span data-s="idle"></span><button class="fold" title="Fold the stores to one strip, to see more of the village"></button></div>
       <div class="people mood"><span data-s="mood"></span><span class="tax">${lever(-1, 'Lower taxes', '−')}<span data-s="tax"></span>${lever(1, 'Raise taxes', '+')}</span></div>
       <div class="people"><span data-s="gold"></span></div>
       <div class="people"><span data-s="settlers"></span></div>
@@ -132,13 +150,17 @@ export class TownHud {
       <button data-act="muster" class="wide muster" hidden><span>Muster the militia</span><small></small></button>
       <button data-act="standdown" class="wide muster" hidden><span>Stand the militia down</span><small>back to their work</small></button>
       ${GOOD_GROUPS.map(([label, goods]) => `
-        <h4>${label}</h4>
-        <div class="goods">${goods.map(g => `<span title="${GOODS[g].name}">${gi(g)}<b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
+        <h4 data-grp="${label}">${label}</h4>
+        <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${gi(g)}<b data-g="${g}">0</b></span>`).join('')}</div>`).join('')}`;
     this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
+    this.cellEls = [...this.stockEl.querySelectorAll('[data-cell]')];
+    this.grpEls = [...this.stockEl.querySelectorAll('[data-grp]')];
+    this.fold(pref('stock-folded', small()));
   }
 
   buildMenu() {
-    const tabs = [...BUILD_GROUPS, 'Towns'].map(g => `<button class="tab" data-tab="${g}">${g}</button>`).join('');
+    // Walls holds the defences panel (siegeui.js), docked here rather than a panel of its own.
+    const tabs = [...BUILD_GROUPS, 'Walls', 'Towns'].map(g => `<button class="tab" data-tab="${g}" title="${TAB_TIPS[g] || g}">${g}</button>`).join('');
     const items = Object.entries(BUILDINGS).map(([k, B]) => `
       <button class="item" data-build="${k}" data-group="${B.group}" title="${B.desc}">
         ${ico(B.icon)}<span>${B.name}</span><small>${listCost(B.cost)}</small><kbd>${KEY_OF[k].toUpperCase()}</kbd>
@@ -148,16 +170,69 @@ export class TownHud {
       </button>` + Object.entries(TEMPLATES).map(([k, T]) => `
       <button class="item" data-build="tpl:${k}" data-group="Towns" title="${T.focus}: ${T.desc}">
         ${ico(T.icon)}<span>${T.name}</span><small>${listCost(templateCost(k))}</small>
-      </button>`).join('') + `<p class="locked" data-group="Towns">Town templates come with the rank of Lord.</p>`;
-    this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="hint">Click to place, and again for more · right-click or Esc to stop · <b>B</b> then a letter picks a building</div>`;
+      </button>`).join('');
+    this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="walls"></div><div class="hint"><kbd>B</kbd> + letter picks · click to place, again for more · <kbd>Esc</kbd> stops</div>`;
+    this.wallsEl = this.buildEl.querySelector('.walls');
+    this.buildEl.classList.toggle('folded', pref('build-folded', false));
     this.buildEl.onclick = e => {
       const tab = e.target.closest('[data-tab]');
-      if (tab) { this.tab = tab.dataset.tab; return; }
+      if (tab) {
+        // The open tab again folds the bar to its tabs, to see more of the village.
+        const fold = tab.dataset.tab === this.tab && !this.buildEl.classList.contains('folded');
+        this.buildEl.classList.toggle('folded', fold);
+        setPref('build-folded', fold);
+        this.tab = tab.dataset.tab;
+        return;
+      }
       const item = e.target.closest('[data-build]');
       if (item) this.hooks.startPlacing(item.dataset.build);
     };
     this.itemEls = [...this.buildEl.querySelectorAll('[data-build]')];
     this.tabEls = [...this.buildEl.querySelectorAll('[data-tab]')];
+    // Where each new thing lives, for its introduction (ui/news.js): the button if it is on
+    // the open tab, else the tab it is on.
+    const at = (sel, tab) => () => { const el = this.buildEl.querySelector(sel); return el && !el.hidden ? el : [this.buildEl.querySelector(`[data-tab="${tab}"]`), true]; };
+    watch('towns', () => this.buildEl.querySelector('[data-tab="Towns"]'));
+    watch('b:hall', at('[data-build="hall"]', 'Military'));
+    watch('b:cathedral', at('[data-build="cathedral"]', 'Village'));
+  }
+
+  // The stores folded to one strip: people, gold and the goods in hand, nothing else.
+  fold(on) {
+    this.stockEl.classList.toggle('folded', on);
+    const b = this.stockEl.querySelector('.fold');
+    if (b) { b.textContent = on ? '▸' : '▾'; b.title = on ? 'Show the stores in full: mood, taxes, newcomers and every good' : 'Fold the stores to one strip, to see more of the village'; }
+  }
+
+  // The left column: the stores above the build bar, never under it. The stores scroll if
+  // the window is too short for both (checked a few times a second, not every frame).
+  fitColumn() {
+    if ((this.fitTick = (this.fitTick || 0) + 1) % 10) return;
+    const z = parseFloat(getComputedStyle(this.stockEl).zoom) || 1, top = this.stockEl.getBoundingClientRect().top;
+    const floor = this.buildEl.hidden ? innerHeight - 12 : this.buildEl.getBoundingClientRect().top - 8;
+    const h = `${Math.max(60, Math.floor((floor - top) / z))}px`;
+    if (this.stockEl.style.maxHeight !== h) this.stockEl.style.maxHeight = h;
+  }
+
+  // A good earns a cell once there is some, or once a building here gathers, makes or uses
+  // it; a group's heading shows with its first cell. Worked out again when buildings change.
+  showGoods() {
+    const t = this.town, key = t.buildings.length + ':' + t.buildings.filter(b => b.state === 'active').length;
+    const want = new Set(BASIC);
+    for (const g of Object.keys(t.stock)) if (t.stock[g] >= 1) want.add(g);
+    if (key !== this.goodsKey) {
+      this.goodsKey = key;
+      const uses = this.uses = new Set();
+      for (const b of t.buildings) {
+        if (b.state === 'ruined') continue;
+        for (const g of Object.keys(b.B.gather?.out || {})) uses.add(g);
+        for (const r of b.B.recipes || []) for (const g of [...Object.keys(r.in || {}), ...Object.keys(r.out || {})]) uses.add(g);
+      }
+    }
+    for (const g of this.uses) want.add(g);
+    for (const el of this.cellEls) el.hidden = !want.has(el.dataset.cell);
+    const live = new Set(this.cellEls.filter(c => !c.hidden).map(c => c.parentElement.dataset.grp));
+    for (const el of this.grpEls) el.hidden = !live.has(el.dataset.grp);
   }
 
   flash(text) {
@@ -173,6 +248,8 @@ export class TownHud {
     active = this;
     if (t.hostile) { this.updateStorm(); this.updateInfo(selected, regs); return; }
     for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
+    this.showGoods();
+    this.fitColumn();
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
     const armed = t.underArms;
     set('pop', `${ico('people')} ${t.population} / ${t.housing}${armed ? ` <small>(${armed} under arms)</small>` : ''}`);
@@ -194,12 +271,28 @@ export class TownHud {
     if (mc) { mb.disabled = !mc.ok; put(mb.querySelector('small'), mc.ok ? `all ${mc.n} villagers: weak, but every one counts; work stops` : mc.reason); }
     sb.hidden = !out || t.readOnly;
 
-    for (const el of this.tabEls) el.classList.toggle('on', el.dataset.tab === this.tab);
-    const lord = this.hooks.templates?.() ?? true, locked = this.buildEl.querySelector('.locked');
-    if (locked) locked.hidden = this.tab !== 'Towns' || lord;
+    // Tabs and buildings your rank can't use yet aren't shown at all (DESIGN_NOTES).
+    const lord = this.can('towns') && (this.hooks.templates?.() ?? true);
+    const shown = el => el.dataset.build.startsWith('tpl:') ? lord : this.can(`b:${el.dataset.build}`);
+    if (this.tab === 'Towns' && !lord) this.tab = 'Village';
+    const folded = this.buildEl.classList.contains('folded');
+    for (const el of this.tabEls) {
+      el.classList.toggle('on', el.dataset.tab === this.tab && !folded);
+      el.hidden = el.dataset.tab === 'Towns' && !lord;
+      const tip = `${TAB_TIPS[el.dataset.tab] || el.dataset.tab}${el.dataset.tab === this.tab && !folded ? '. Click again to fold the bar away' : ''}`;
+      if (el.title && el.title !== tip) el.title = tip;
+    }
+    // The bar keeps the height of its fullest tab, so buttons never move under the cursor.
+    const per = {};
+    for (const el of this.itemEls) if (shown(el)) per[el.dataset.group] = (per[el.dataset.group] || 0) + 1;
+    this.buildEl.style.setProperty('--rows', Math.max(2, ...Object.values(per).map(n => Math.ceil(n / 3))));
+    const walls = this.tab === 'Walls', def = document.getElementById('defences');
+    if (def && def.parentElement !== this.wallsEl) this.wallsEl.append(def);
+    this.buildEl.classList.toggle('walls-on', walls);
+    this.buildEl.classList.toggle('no-masons', !this.can('masons'));
     for (const el of this.itemEls) {
       const tpl = el.dataset.build.startsWith('tpl:');
-      el.hidden = el.dataset.group !== this.tab || (tpl && !lord);
+      el.hidden = el.dataset.group !== this.tab || !shown(el);
       const T = tpl && TEMPLATES[el.dataset.build.slice(4)], small = T?.at && t.population < T.at;
       el.classList.toggle('poor', small || !t.canAfford(tpl ? templateCost(el.dataset.build.slice(4)) : BUILDINGS[el.dataset.build]?.cost || { stone: 1 }));
       const tip = T && `${T.focus}: ${T.desc}${T.at ? `\nFor a village of ${T.at} people or more${small ? ` (you have ${t.population})` : ''}.` : ''}`;
@@ -250,7 +343,7 @@ export class TownHud {
 
   buildingHtml(b) {
     const B = b.B;
-    const rows = [`<h3>${ico(B.icon)} ${B.name}${(b.level || 1) > 1 ? ` <small>level ${b.level}</small>` : ''}</h3>`, `<p class="status" data-f="status"></p>`];
+    const rows = [`<h3>${ico(B.icon)} ${B.name}${(b.level || 1) > 1 ? ` <small>level ${b.level}</small>` : ''}<button class="about-t" title="What this building does: show or hide the notes">?</button>${CLOSE}</h3>`, `<p class="status" data-f="status"></p>`];
     if (this.town.hostile) {
       rows.push(`<p data-f="hp"></p>`);
       if (b.kind === 'keep') rows.push(`<p class="note">Their keep. Beat or rout the men defending it and the place is yours.</p>`);
@@ -265,11 +358,11 @@ export class TownHud {
         `<button data-act="governor" class="wide"><span data-f="gov"></span><small>builds houses, farms and the like while you are away</small></button>`,
         `<h4>Spend gold</h4>`,
         `<button data-act="feast" class="wide"><span>Hold a feast</span><small></small></button>`,
-        `<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`,
+        ...(this.can('greatkeep') ? [`<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`] : []),
         `<h4>Hire men</h4><p class="note">Paid in gold from your treasury. They cost no villagers.</p>`,
         ...HIRES.filter(h => !this.hooks.companies || h.key === 'household').map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}</span><small></small></button>`));
       // Mercenary companies (on the campaign map): a price to hire, then wages every minute.
-      if (this.hooks.companies) rows.push(`<h4>Mercenary companies</h4><p class="note">A price to hire, then wages every minute. Unpaid, they desert. They never work, and a company in the village sours its mood.</p>`,
+      if (this.hooks.companies && this.can('companies') && this.hooks.companies().length) rows.push(`<h4>Mercenary companies</h4><p class="note">A price to hire, then wages every minute. Unpaid, they desert. They never work, and a company in the village sours its mood.</p>`,
         ...this.hooks.companies().map(c => `<button data-act="co:${c.id}" class="wide"><span>${c.name[0].toUpperCase() + c.name.slice(1)}: ${c.size} ${c.unit}</span><small></small></button>`));
       return rows.join('');
     }
@@ -318,7 +411,7 @@ export class TownHud {
   }
 
   regHtml(r) {
-    const rows = [`<h3>${r.name}</h3>`, `<p data-f="men"></p>`, `<p data-f="gear"></p>`, `<p class="status" data-f="morale"></p>`];
+    const rows = [`<h3>${r.name}${CLOSE}</h3>`, `<p data-f="men"></p>`, `<p data-f="gear"></p>`, `<p class="status" data-f="morale"></p>`];
     if ((r.levy || r.elite) && !r.T.engine && !r.T.militia) rows.push(`<button data-act="refit" class="wide"><span>Refit</span><small></small></button>`);
     const co = this.hooks.companyOf?.(r);
     if (co) rows.push(`<p class="note">A mercenary company under ${co.captain}. Wages: ${co.wage} gold a minute, from your treasury.${co.unpaid ? ' <b class="bad">They are owed pay.</b>' : ''}</p>`,
