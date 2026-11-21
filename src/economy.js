@@ -1777,8 +1777,19 @@ export class Town {
       // Builders there but the materials haven't come: they wait, they aren't building.
       if (n && b.progress >= this.delivered(b) - 1e-6) {
         const missing = Object.entries(b.B.cost).filter(([g, k]) => (b.store[g] || 0) < k).map(([g]) => GOODS[g].name.toLowerCase());
-        const coming = Object.entries(b.B.cost).some(([g, k]) => (b.store[g] || 0) < k && (b.incoming[g] || 0) > 0);
-        const from = this.stores().reduce((m, o) => Math.min(m, dist(o, b)), Infinity), eta = coming && from < Infinity ? Math.max(5, Math.round(from / WALK / 5) * 5) : 0;
+        // How long until the last missing crate lands: each good's nearest hauler, by the walk they still have
+        // (to the pile, then here), at their own pace (the road's speed-up where they stand).
+        const left = Object.entries(b.B.cost).filter(([g, k]) => (b.store[g] || 0) < k).map(([g]) => {
+          let best = Infinity;
+          for (const v of this.villagers) {
+            const t = v.task;
+            if (t?.kind !== 'haul' || t.to !== b || t.g !== g) continue;
+            const way = t.phase === 'fetch' ? dist(v, t.from) + dist(t.from, b) : dist(v, b);
+            best = Math.min(best, way / (WALK * (this.onRoad(v.x, v.z) ? ROAD.speed : 1)));
+          }
+          return best;
+        });
+        const eta = left.length && left.every(x => x < Infinity) ? Math.max(5, Math.round(Math.max(...left) / 5) * 5) : 0;
         if (missing.length) return `Priority: ${plural(n)} waiting for ${missing.join(' and ')}${eta ? ` (about ${eta} s)` : ''}`;
       }
       if (n >= PRIO_BUILDERS) return `Priority: ${plural(n)} at work`;
