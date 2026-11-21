@@ -2109,7 +2109,9 @@ export class Battle {
         // let it catch up; only a place that stands still lets him stop just short of it.
         const gv = s.gpx === undefined || !(dt > 0) ? 0 : Math.min(20, Math.hypot(goal.x - s.gpx, goal.z - s.gpz) / dt);
         s.gpx = goal.x; s.gpz = goal.z;
-        const full = T.speed * (FORMATIONS[r.formation]?.speed || 1) * 1.35;
+        // While the regiment walks, a man catches up at no more than twice the walk (a jog on
+        // foot, a trot on horseback), not at a gallop inside a walking block.
+        const full = Math.min(T.speed, this.gaitPace(r) * 2) * (FORMATIONS[r.formation]?.speed || 1) * 1.35;
         const sp = d > 2 || !onGoal ? full : Math.min(full, gv / Math.max(0.2, this.paceOf(r)) + d * 2 + 0.05);
         if (!onGoal || d > (gv > 0.05 ? 0.01 : 0.15)) this.travel(s, goal, sp, dt);
         if (onGoal && d < 0.8) {
