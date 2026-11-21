@@ -292,7 +292,7 @@ export class TownHud {
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
     set('tax', t.readOnly ? `${TAXES[t.taxes].name}, set by ${t.readOnly.name}` : TAXES[t.taxes].name);
-    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.population * t.taxRate * 60).toFixed(0)}/min`);
+    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.taxed * t.taxRate * 60).toFixed(0)}/min`);
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
     this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);

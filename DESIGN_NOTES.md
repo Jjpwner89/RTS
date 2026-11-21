@@ -498,26 +498,8 @@ Rival houses grow by your rules, so a gap compounds. Nothing in this section ada
 - **Men stood down go home** (holdings.js `standDown`). Men go back to the house's places that gave them (`e.raised`, men given and not yet back), most owed first, as far as each has room. Any left over stay where they stand. Before, every one went into the muster village.
 - **A house keeps its people working** (holdings.js `AT_WORK`). A house's place arms men for its guard only down to 60% of its homes, and for the field army down to 65% (it was 40% and 45%). It also builds a house once its people reach 65% of its homes, ahead of them as you would, instead of waiting until it was nearly full. A vassal's place, being yours, still keeps 40%.
 - **How full rival places run.** Before (seed 21, minute 80), people filled 39–46% of their homes and 20–25% of the land they could clear (`maxPop`). Now, across nine runs at minute 80, they fill 52–77% of their homes (mostly 57–65%) and 31–48% of their land. The land can't fill further because a place's building slots (`maxBuilt`, at most twice its start) fill with farms and workshops before houses. Men under arms per house stay about where they were: 63–311 at minute 80.
-- **Wages scaled** (treasury.js `WAGES`, economy.js `HOUSEHOLD_PAY` and `ELITE`, companies.js `WAGE`). Every wage is ×1.8, in the same order, for you and the houses. Gold a man a minute:
+- **Wages** were first scaled by 1.8; the next ruling ("gold as a real limit, judged by outcome") took them to 2.5 (see the section below).
 
-  | Levy | Foot | Mail or horse | Household | Sellsword | Crossbowman | Man-at-arms | Knight |
-  |---|---|---|---|---|---|---|---|
-  | 0.35 | 0.55 | 0.65 | 0.75 (22.5 for 30) | 0.9 | 1.1 | 1.1 | 2.7 |
-
-  The 12 free home guard per place stay.
-- **What wages take now.** The peaceful bot (30 men a place, Ashford growing, a field army) is paying wages for its garrisons:
-
-  | Seed | Places at min 80 | Men | Wages / tax at min 80 | At min 120 | Gold at 80 / 120 |
-  |---|---|---|---|---|---|
-  | 21 (Count-sized) | 3, 5 by min 100 | 273 | 141 / 390 (36%) | 260 / 774 (34%) | 11,767 / 44,839 |
-  | 7 | 4 | 298 | 148 / 171 (87%) | 291 / 324 (90%) | 5,786 / 14,631 |
-  | 91 | 3 | 286 | 138 / 228 (61%) | 302 / 422 (72%) | 4,675 / 19,247 |
-
-  - Seed 21 lands in the 35–45% band; the smaller realms of seeds 7 and 91 pay far more for the same 300 men, which is gold capping an army.
-  - On seed 7, men stood down unpaid 16 times. That came from the bot's extra garrisons, not its home guard.
-  - The passive bot pays 0–4 a minute, from its home guard alone, and was never broke: 785–921 gold at minute 40 and 1,745–1,898 at minute 60.
-  - Rival houses pay 20–180 a minute, and none ran short.
-- **Where the idle gold comes from.** Gold still builds up, mostly from **plunder**, not tax. On seed 21, minutes 80 to 90, the player took in 705 a minute from coin found in places taken, against 336 of tax, 118 from workshops and 30 from caravans, while paying 110 in wages. A market town keeps half its trade as coin (World.tickEconomy, `e.gold`), so one taken at minute 88 held 7,050 gold. Not changed here; it's the Orchestrator's question.
 - **Leagues on one rule** (diplomacy.js `leagueReason`, `strongestReason`, `formLeagues`).
   - Grudges and claims now count against houses as against you. A house that takes another's place leaves a "took" grudge against the taker (World.takePlace, `grudge(..., by)`, saved in the house's grudges; one without `by` is against you, so old saves load). A house's claim, its grudge factor in choosing a war, and its wish to take back what was taken now work against any side.
   - The reasons rank: a war the other side started (4) > a claim (3) > a wrong (2) > a bigger neighbour on the border (1). Each free house that is arming and can pay joins against the side its strongest reason names, and of equal reasons the nearer side. Anyone two or more houses choose is leagued against. A house whose choice found no partner tries its next reason.
@@ -530,6 +512,41 @@ Rival houses grow by your rules, so a gap compounds. Nothing in this section ada
   - Peaceful: no war on seeds 7 and 21; war at minute 59 on seed 91 (48 before).
   - Fighter: the same as peaceful, because its declare path still never fires (a known sim bug, skipped by ruling).
   - Leagues: house-against-house leagues formed in every run (two to four), none against you.
+
+### Gold as a real limit (2026-11-21, Orchestrator: judged by outcome, both levers)
+The target is that a peaceful player banks a few thousand by minute 120, not 14,000–47,000, and that an engaged player fielding a Count-sized army runs near break-even. Rivals follow the same rules, and none may go broke on its home guard alone.
+- **Where the gold came from.** The sims' gold ledger (by the function that moved it) for the peaceful bot, minutes 0–120, under the 1.8 wages:
+
+  | Seed | Tax | Plunder | Workshops | Caravans | Wages | Banked |
+  |---|---|---|---|---|---|---|
+  | 7 | 15,400 | 6,600 | 6,700 | 0 | −13,400 | 14,600 |
+  | 21 | 33,300 | 11,700 | 11,100 | 2,000 | −12,900 | 44,800 |
+  | 91 | 18,400 | 9,900 | 4,200 | 0 | −12,900 | 19,200 |
+
+- **A strongbox, not a treasury** (World.tickEconomy, `COFFER` = 5 gold a head). A place keeps at most 5 gold a head of its people. A house's place sends the rest to its lord, and a free place spends it. Before, a market town banked half its trade all game: one taken at minute 88 held 7,050 gold. Plunder over 120 minutes fell to 0.8k–1.7k.
+- **A keep's reach** (economy.js `KEEP_REACH`, `taxedHeads`, `Town.taxed`). A keep taxes in full only as far as it reaches, and each head beyond pays a third (`BEYOND_REACH`). Reach by keep level: 20, 40, 60, 90, 130. So a village that has outgrown its keep pays less a head until a greater keep is raised (500 and 1,200 gold), which makes those raises pay. A house's place uses its own level. Its effect on rival places is small, because few of them outgrow their level. The town panel's tax and the Realm screen use it.
+- **Wages ×2.5** (in the same order, for you and the houses). Gold a man a minute:
+
+  | Levy | Foot | Mail or horse | Household | Sellsword | Crossbowman | Man-at-arms | Knight |
+  |---|---|---|---|---|---|---|---|
+  | 0.5 | 0.75 | 0.9 | 1 (30 for 30) | 1.25 | 1.5 | 1.5 | 3.75 |
+
+  The 12 free home guard per place stay.
+- **Outcome** (seeds 7, 21, 91, to minute 120). Wage share is wages over tax.
+
+  | Run | Banked at 60 | Wage share at 60 | Banked at 120 | Wage share at 120 | First war on you |
+  |---|---|---|---|---|---|
+  | Passive 7 | 1,488 | 9% | 4,703 | 4% | 22 |
+  | Passive 21 | 1,724 | 0% | 5,025 | 0% | 27 |
+  | Passive 91 | 1,594 | 8% | 4,715 | 7% | 35 |
+  | Peaceful 7 | 1,313 | 114% | 1,917 | 151% | 28 |
+  | Peaceful 21 | 4,694 | 58% | 29,763 | 62% | 99 |
+  | Peaceful 91 | 135 | 134% | 3,133 | 121% | 98 |
+
+  - On seeds 7 and 91 the peaceful bot's ~300 men at minute 80 run near break-even (wages 196 and 213 against tax 131 and 176, plus workshops). Its army is then held by its purse: men stood down unpaid 30 and 57 times, and the bot tops them up for free.
+  - Seed 21 still banks 29,800. That realm holds four market towns: a market's tax counts double (realm.js KINDS), and its workshops' sales brought 13,700 by minute 120. The levers for the Orchestrator: a market's tax at 1.5 instead of 2, or sale prices that fall as a market sells more.
+  - The passive player banks 4,700–5,000 by minute 120 and pays 0–5 a minute from its home guard. No house went broke: the poorest hover at 300–500 gold, paying wages above their free guard.
+- checks(): "treasury: a keep taxes in full only as far as it reaches, and places keep only a strongbox".
 
 ## Test campaigns (built 2026-11-20)
 

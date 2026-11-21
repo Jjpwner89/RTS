@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, taxedHeads, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -52,6 +52,7 @@ export const fierceness = w => AGGRESSION[w.options?.aggression] || AGGRESSION.n
 export const grace = w => GRACE * fierceness(w).stage;
 // Gold a person pays a second at fair taxes, yours and the rivals' alike (merchants 1.5×).
 export const TAX = 0.012;
+export const COFFER = 5;   // gold a head a place keeps in its strongbox (tickEconomy)
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
 // their halls.
@@ -294,11 +295,16 @@ export class World {
     const v = vassalOf(this, p);
     // Rival lords tax as you do at fair taxes, the merchant house half as much again; a
     // vassal at a middling mood.
-    const taxes = dt * e.pop * K.gold * TAX * (v ? 0.9 : h?.trait === 'merchant' ? 1.5 : 1);
+    const taxes = dt * taxedHeads(e.pop, e.level) * K.gold * TAX * (v ? 0.9 : h?.trait === 'merchant' ? 1.5 : 1);
     // A vassal keeps what his village earns, less your dues.
     if (v) FACTIONS[0].gold += share(this, v, taxes + traded);
     else if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
     else e.gold += taxes * 0.5 + traded;
+    // A place keeps a strongbox, not a treasury (Orchestrator, 2026-11-21: a market town taken
+    // at minute 88 held 7,050 gold): COFFER a head at most. A house's place sends the rest
+    // to its lord; a free place spends it on itself.
+    const box = e.pop * COFFER;
+    if (e.gold > box) { if (h && !h.bandit && !v) h.gold += e.gold - box; e.gold = box; }
     const want = this.keepHome(p), have = headcount(p.garrison);
     if (have < want) for (const u of arm(e, Math.min(6, want - have), Math.max(12, housing(e) * (v ? 0.4 : AT_WORK.guard)), v ? 'best' : armourPolicy(h)))
       recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`, null, gearFields(u));
@@ -1853,7 +1859,7 @@ export class World {
   // Tax gold a second from one of the villages you run: the tithe and your steward add to it.
   taxOf(p) {
     const t = p.town;
-    return t ? t.population * t.taxRate * KINDS[p.kind].gold * (decreed(this, 'tithe') ? 1.25 : 1) * (1 + seatPower(this, 'steward')) : 0;
+    return t ? t.taxed * t.taxRate * KINDS[p.kind].gold * (decreed(this, 'tithe') ? 1.25 : 1) * (1 + seatPower(this, 'steward')) : 0;
   }
 
   collectTaxes(dt) {

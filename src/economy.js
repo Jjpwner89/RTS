@@ -181,9 +181,9 @@ export const TAXES = [
   { name: 'High taxes', gold: 1.6, mood: -12 }, { name: 'Cruel taxes', gold: 2.3, mood: -26 },
 ];
 // Hired men, paid in gold at the keep. They cost no villagers. The household guard also draws a wage, a little under
-// a sellsword's (creator, 2026-11-21): 30 men cost 22.5 gold a minute from the treasury (world/treasury.js).
-// Every wage was scaled by 1.8 the same day (Orchestrator: an army is what gold caps).
-export const HOUSEHOLD_PAY = 0.75;
+// a sellsword's (creator, 2026-11-21): 30 men cost 30 gold a minute from the treasury (world/treasury.js).
+// Every wage was scaled by 2.5 the same day (Orchestrator: an army is what gold caps).
+export const HOUSEHOLD_PAY = 1;
 export const HIRES = ['sellsword', 'hiredxbow', 'household'].map(k => ({ key: k, name: TYPES[k].name, count: TYPES[k].count, gold: TYPES[k].gold * TYPES[k].count }));
 export const BUILD_GROUPS = ['Village', 'Gather', 'Craft', 'Military'];
 // Town templates, from the rank of Lord: a block of buildings laid out at once round the
@@ -278,8 +278,8 @@ export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 
 // their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most. On
 // the campaign they draw pay every minute (gold per man; world/treasury.js).
 export const ELITE = {
-  maa: { fee: 8, drill: 45, pay: 1.1 },
-  knight: { fee: 20, drill: 75, pay: 2.7 },
+  maa: { fee: 8, drill: 45, pay: 1.5 },
+  knight: { fee: 20, drill: 75, pay: 3.75 },
 };
 export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least experience (Blooded)
 // The keep grows with the village to level 3 and never shrinks back (keepPeak) when levies
@@ -287,7 +287,13 @@ export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least e
 // village has the people; each gives homes and lifts the mood.
 const byPeople = n => n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
 export const keepCap = t => 3 + (t.keepBought || 0);
-const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : Math.min(keepCap(t), Math.max(t.keepPeak || 1, byPeople(t.population)));
+export const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : Math.min(keepCap(t), Math.max(t.keepPeak || 1, byPeople(t.population)));
+// A keep's reach (Orchestrator, 2026-11-21: tax outran the people and the army it paid): a
+// keep collects in full from so many heads and a third from each beyond, so a village that
+// has outgrown its keep pays less a head until a greater keep is raised (KEEP_RAISE). The
+// same for a house's places by their level (World.tickEconomy).
+export const KEEP_REACH = [0, 20, 40, 60, 90, 130], BEYOND_REACH = 1 / 3;
+export const taxedHeads = (n, level) => { const r = KEEP_REACH[Math.max(1, Math.min(5, level))]; return n <= r ? n : r + (n - r) * BEYOND_REACH; };
 export const KEEP_RAISE = [
   { name: 'great keep', pop: 100, gold: 500, cost: { stone: 80, planks: 30 }, housing: 10, mood: 4 },
   { name: 'castle keep', pop: 150, gold: 1200, cost: { stone: 160, planks: 40, iron: 10 }, housing: 10, mood: 4 },
@@ -1544,6 +1550,8 @@ export class Town {
 
   // Gold for each villager each second at this tax rate, weighed by the mood.
   get taxRate() { return 0.012 * TAXES[this.taxes].gold * (0.6 + this.mood / 125); }
+  // The heads that pay it, as far as the keep reaches (taxedHeads).
+  get taxed() { return taxedHeads(this.population, keepLevel(this)); }
 
   // ---- simulation ----
 

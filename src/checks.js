@@ -444,6 +444,18 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Gold as a limit (Orchestrator, 2026-11-21): a keep taxes in full only as far as it reaches,
+  // a greater keep reaches further, and no place hoards more coin than its strongbox holds.
+  await check('treasury: a keep taxes in full only as far as it reaches, and places keep only a strongbox', async () => {
+    const E = await import('./economy.js'), { COFFER } = await import('./world/world.js'), out = [];
+    const r3 = E.KEEP_REACH[3];
+    if (E.taxedHeads(r3, 3) !== r3) out.push(`a village of ${r3} under a level-3 keep pays for ${E.taxedHeads(r3, 3)} heads`);
+    if (Math.abs(E.taxedHeads(r3 + 30, 3) - (r3 + 30 * E.BEYOND_REACH)) > 1e-9) out.push(`thirty heads past a level-3 keep pay as ${E.taxedHeads(r3 + 30, 3) - r3}`);
+    if (!(E.taxedHeads(150, 4) > E.taxedHeads(150, 3))) out.push('a greater keep does not raise the tax of a village of 150');
+    for (const p of w.pois) if (p.eco?.buildings && !p.town && (p.eco.gold || 0) > p.eco.pop * COFFER + 50) out.push(`${p.name} hoards ${Math.round(p.eco.gold)} gold, past its strongbox of ${Math.round(p.eco.pop * COFFER)}`);
+    return out;
+  });
+
   // Leagues on one rule for every side (Orchestrator, 2026-11-21): of two equal reasons, one
   // against you and one against a house, the nearer side is chosen, and so not always you;
   // a stronger reason beats a nearer one.
