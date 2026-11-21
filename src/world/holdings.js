@@ -11,6 +11,10 @@ const EFF = 0.4;            // share of a hard-driven village's output a steward
 const EAT = 1 / 60;         // food per person per second, as in your villages
 const STEWARD_MOOD = 52;    // a steward's village is middling content, never as eager as one you look after
 const WORKING = 0.7;        // share of people who work; the rest are young, old or idle
+// Rivals were paced on the gatherers' yields before pace B (2026-11-21). Your villagers now walk at
+// half the speed and bring back more a trip (economy.js), but a steward's place counts no walking,
+// so it keeps the old yield a second: the share of the new one it gets.
+const OLD_YIELD = { woodcutter: 0.5, quarry: 0.5, mine: 4 / 9, hunter: 0.5, farm: 0.6, flax: 2 / 3 };
 const BUILD_EVERY = 40;     // seconds between new buildings
 const KEEP_HOUSING = 12;
 
@@ -119,10 +123,10 @@ export function runEconomy(p, dt, { pace = 1 } = {}) {
   for (const [k, n] of Object.entries(B)) {
     const G = BUILDINGS[k]?.gather;
     if (!G) continue;
-    let rate = n * BUILDINGS[k].jobs * work / G.time;
+    let rate = n * BUILDINGS[k].jobs * work / G.time * (OLD_YIELD[k] ?? 1);
     if (G.game) {
       e.game = Math.max(0, Math.min(1, (e.game ?? 1) + dt * GAME.regrow - rate * GAME.take / (6 * n)));
-      rate *= Math.min(1, e.game / GAME.take);
+      rate *= Math.min(1, e.game / (GAME.take * (OLD_YIELD[k] ?? 1)));
     }
     for (const [g, q] of Object.entries(G.out)) s[g] = (s[g] || 0) + q * rate;
   }

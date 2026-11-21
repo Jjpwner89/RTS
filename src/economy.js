@@ -44,7 +44,9 @@ export const GOOD_GROUPS = [
   ['Arms', ['shields', 'bows', 'arrows', 'spears', 'swords', 'crossbows', 'bolts', 'lances', 'mail', 'armour', 'horses']],
 ];
 
-// gather: villagers walk out to a resource and carry it back.
+// gather: villagers walk out to a resource and carry it back. Since pace B (2026-11-21) they walk
+// at 1.6 m/s, not 3.4, so each trip brings back more (and hunts take more game) to keep a worker's
+// output a minute where it was. Stewards' places (world/holdings.js) keep the old yields.
 // recipes: villagers work at the building, turning stock into stock. Each workshop can
 // switch any of its recipes off; it takes turns between those left on. `keep` stops a
 // recipe once that much of its output is stored. Arms have no limit (switch a recipe off to
@@ -59,18 +61,18 @@ export const BUILDINGS = {
   storehouse: { name: 'Storehouse', icon: 'storehouse', group: 'Village', cost: { wood: 15 }, radius: 4.5, build: 12, jobs: 3, hp: 150,
     haul: true, storage: true, desc: 'Holds any goods. Its three haulers carry goods between the buildings around it.' },
   woodcutter: { name: 'Woodcutter', icon: 'woodcutter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 3, hp: 120,
-    gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 2 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
+    gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 4 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
   quarry: { name: 'Quarry', icon: 'quarry', group: 'Gather', cost: { wood: 12 }, radius: 3.5, build: 12, jobs: 2, hp: 120,
-    gather: { node: 'rock', range: 35, need: 1, time: 8, out: { stone: 2 } }, desc: 'Cuts stone from a grey outcrop. Build it close to one.' },
+    gather: { node: 'rock', range: 35, need: 1, time: 6, out: { stone: 3 } }, desc: 'Cuts stone from a grey outcrop. Build it close to one.' },
   mine: { name: 'Mine', icon: 'mine', group: 'Gather', cost: { wood: 15, stone: 5 }, radius: 3.5, build: 15, jobs: 2, hp: 150,
-    gather: { node: 'ore', range: 30, need: 1, time: 9, out: { ore: 2 } }, desc: 'Digs iron ore from a rust-red deposit. Build it close to one.' },
+    gather: { node: 'ore', range: 30, need: 1, time: 8, out: { ore: 4 } }, desc: 'Digs iron ore from a rust-red deposit. Build it close to one.' },
   hunter: { name: "Hunter's lodge", icon: 'hunter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 2, hp: 120,
-    gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 3, feathers: 2, hides: 1 }, game: true },
+    gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 6, feathers: 4, hides: 2 }, game: true },
     desc: 'Hunts in the woods for food, feathers and hides. The game near the village runs out and breeds back slowly.' },
   farm: { name: 'Farm', icon: 'farm', group: 'Gather', cost: { wood: 12 }, radius: 9, build: 12, jobs: 2, hp: 100,
-    gather: { node: 'field', time: 10, out: { food: 3 }, ripen: 150 }, desc: 'Grows grain on its own field. Needs open ground. The first crop takes a while to come in.' },
+    gather: { node: 'field', time: 8, out: { food: 4 }, ripen: 150 }, desc: 'Grows grain on its own field. Needs open ground. The first crop takes a while to come in.' },
   flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
-    gather: { node: 'field', time: 8, out: { flax: 2 }, ripen: 120 }, desc: 'Grows flax for bowstring. The first crop takes a while to come in.' },
+    gather: { node: 'field', time: 8, out: { flax: 3 }, ripen: 120 }, desc: 'Grows flax for bowstring. The first crop takes a while to come in.' },
   carpenter: { name: 'Carpenter', icon: 'carpenter', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 60 }],
     desc: 'Saws wood into planks, and planks into shields.' },
@@ -138,7 +140,7 @@ export const SPEED = [1, 1, 1.15, 1.3];
 export const START_STOCK = { wood: 60, stone: 12, food: 60 };
 // Game in the woods: each 40 m patch has its own. A hunt takes a share of it, and a patch
 // breeds back over about twenty-five minutes; one hunted out yields nothing meanwhile.
-export const GAME = { cell: 40, take: 0.12, regrow: 1 / 1500 };
+export const GAME = { cell: 40, take: 0.24, regrow: 1 / 1500 };
 // Hearths: wood each house (and the keep) burns a minute.
 export const FIREWOOD = 1.5;
 // Newcomers a minute at best, before food, mood and the village's name.
@@ -274,9 +276,9 @@ const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jo
 const LEVY_MAX = 20, LEVY_MIN = 5;
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
-// A crate holds 10 of most goods; a yard or workshop holds 30 of each before it stops
-// for haulers. Arrows are light and go four times as far.
-const CRATE = 10, HOLD = 30, BULK = { arrows: 4, bolts: 4 };
+// A crate holds 20 of most goods (10 before pace B halved the walk); a yard or workshop
+// holds 30 of each before it stops for haulers. Arrows are light and go four times as far.
+const CRATE = 20, HOLD = 30, BULK = { arrows: 4, bolts: 4 };
 const crate = g => CRATE * (BULK[g] || 1);
 const holdOf = g => HOLD * (BULK[g] || 1);
 const ARMS = GOOD_GROUPS[2][1];
