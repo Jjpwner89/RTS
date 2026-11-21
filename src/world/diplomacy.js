@@ -129,15 +129,16 @@ const great = () => FACTIONS.filter(H => H.index !== 0 && !H.bandit && !H.invade
 // house that runs away with the realm. A border is a reason only when the side over it holds
 // more places than the house does (Orchestrator, 2026-11-21: a league against the one that
 // borders and threatens): a bigger neighbour, not any neighbour.
+// Returns the reason, as the coalition's herald says it to you, or nothing.
 function leagueReason(w, H, side) {
   const theirs = w.pois.filter(p => p.owner === side && p.kind !== 'camp'), mine = w.pois.filter(p => p.owner === H.index && p.kind !== 'camp');
-  if (!theirs.length || !mine.length) return false;
+  if (!theirs.length || !mine.length) return null;
   // A war is a reason when the side started it; one the house started itself is not (a
   // war from a save that didn't record who started it still counts).
-  const war = w.atWar(side, H.index) && (w.warBy?.[w.warKey(side, H.index)] ?? side) === side;
-  if (war || (side === 0 && grudgeWeight(w, H) > 0)) return true;
-  if (side === 0 && theirs.some(p => wantsBack(w, H, p))) return true;
-  return theirs.length > mine.length && theirs.some(p => mine.some(q => Math.hypot(p.x - q.x, p.z - q.z) < LEAGUE_BORDER));
+  if (w.atWar(side, H.index) && (w.warBy?.[w.warKey(side, H.index)] ?? side) === side) return 'you made war on them';
+  if (side === 0 && grudgeWeight(w, H) > 0) return 'you have wronged them';
+  if (side === 0 && theirs.some(p => wantsBack(w, H, p))) return 'you hold what they claim';
+  return theirs.length > mine.length && theirs.some(p => mine.some(q => Math.hypot(p.x - q.x, p.z - q.z) < LEAGUE_BORDER)) ? 'your lands border theirs' : null;
 }
 const leagueReady = (w, H) => H.ai?.stance === 'war' && !(H.arriere?.rest > w.time) && H.gold >= banCost(w, H);
 export const leagued = (w, h) => !!w.coalition?.members.includes(h);
@@ -274,11 +275,18 @@ function thinkCoalition(w) {
     }
     return;
   }
+  // The league against you is weighed first, then those against houses with whoever is left
+  // (QC: two house leagues took every house with a reason against you in the same tick).
+  leagueAgainstYou(w, C);
   thinkRivalLeagues(w);
+}
+
+function leagueAgainstYou(w, C) {
   if (w.crowned || w.time < (C?.rest ?? 1200)) return;
   // Houses with a reason, arming and able to pay; peace, a marriage, an alliance or tribute
   // keeps a house out, as before.
-  const join = great().filter(H => { const d = w.dip[H.index]; return leagueReady(w, H) && leagueReason(w, H, 0) && !(w.leagues || []).some(L => L.members.includes(H.index)) && !d.allied && !d.married && !d.vassal && !d.backs && d.opinion < 25 && !(d.paidUntil > w.time); });
+  const why = new Map();
+  const join = great().filter(H => { const d = w.dip[H.index]; if (!leagueReady(w, H) || (w.leagues || []).some(L => L.members.includes(H.index)) || d.allied || d.married || d.vassal || d.backs || d.opinion >= 25 || d.paidUntil > w.time) return false; const r = leagueReason(w, H, 0); if (r) why.set(H, r); return !!r; });
   if (join.length < 2) return;
   const ids = join.map(H => H.index);
   for (const a of ids) for (const b of ids) if (a < b) w.makePeace(a, b);
@@ -288,7 +296,8 @@ function thinkCoalition(w) {
   w.log(`${names} have leagued together against you!`, 1);
   w.hooks.sound?.('boom'); // audio
   w.chron(`${names} leagued together against you.`);
-  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `Each has a quarrel with you: your lands border theirs, you have wronged them, or you hold what they claim. ${names} have made peace among themselves and declared war on you together, and will raise one host between them. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
+  const quarrels = join.map(H => `${H.short}: ${why.get(H)}.`).join(' ');
+  w.hooks.herald?.({ house: join[0], title: 'A coalition against you', text: `Each has a quarrel with you. ${quarrels} ${names} have made peace among themselves and declared war on you together, and will raise one host between them. Break it and the league is broken; or buy them off, make peace one by one, or outlast it.` });
   raiseHost(w);
 }
 

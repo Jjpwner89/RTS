@@ -179,11 +179,13 @@ const CLEAR = { wood: 60, stone: 30, built: 2, people: 6, upTo: 2 };
 function clear(e) {
   const s = e.stock;
   e.land0 ??= [e.maxBuilt ?? 40, e.maxPop ?? 120];
-  if (e.hungry || (s.food || 0) < e.pop * 1.5 || (e.maxBuilt ?? 40) >= e.land0[0] * CLEAR.upTo) return;
+  const [built, people] = e.land0.map(n => n * CLEAR.upTo);
+  if (e.hungry || (s.food || 0) < e.pop * 1.5 || ((e.maxBuilt ?? 40) >= built && (e.maxPop ?? 120) >= people)) return;
   if ((s.wood || 0) < CLEAR.wood || (s.stone || 0) < CLEAR.stone) return;
   s.wood -= CLEAR.wood; s.stone -= CLEAR.stone;
-  e.maxBuilt = (e.maxBuilt ?? 40) + CLEAR.built;
-  e.maxPop = (e.maxPop ?? 120) + CLEAR.people;
+  // Neither goes past twice its start (QC: a place 2 below the cap ended at 226 people against 220).
+  e.maxBuilt = Math.min(built, (e.maxBuilt ?? 40) + CLEAR.built);
+  e.maxPop = Math.min(people, (e.maxPop ?? 120) + CLEAR.people);
 }
 
 function nextBuild(e) {
