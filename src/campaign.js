@@ -136,11 +136,12 @@ function herald(msg) { heraldQueue.push(msg); if (heraldQueue.length === 1) show
 function showHerald() {
   const msg = heraldQueue[0];
   if (!msg) return;
-  // A herald comes from a house, or from one of your vassals ({ name, color }, no portrait).
+  // A herald comes from a house, or from one of your vassals ({ name, color }, no portrait). The
+  // outlaws have no portrait either (asking for one was a 404 on every outlaw warning).
   const el = $('herald'), h = msg.house || { name: msg.title, color: '#8a6a3a' };
   const initials = (h.lord || h.name).split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
   el.style.setProperty('--hc', h.color);
-  el.innerHTML = `<div class="face">${h.id ? `<img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')">` : initials}</div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
+  el.innerHTML = `<div class="face">${h.id && !h.bandit ? `<img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')">` : initials}</div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
   el.classList.add('show');
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500);
 }

@@ -282,6 +282,7 @@ export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuch
 
 const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
+const ABOUT_TO_BURN = 120;   // m: a band this near the building it has picked is met (thinkDefenders)
 const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
@@ -1019,7 +1020,12 @@ export class Town {
     const d = (a, o) => Math.hypot(a.cx - o.x, a.cz - o.z);
     // (at the village itself, not out on its land: met in the open, the retinue and the militia behind it
     // fared worse than fighting where the whole village stands)
-    const onLand = f => d(f, this.keep) < 45 || this.buildings.some(o => o.state !== 'ruined' && d(f, o) < 25);
+    // A band is also met on its way to a building it has picked, wherever that stands: the
+    // gatherers' sheds out by the woods and rocks burn a hundred metres from the keep, and a
+    // retinue that waits until the band is on them arrives to the ashes (playtester round 3b,
+    // seed 91, 2026-11-21: 90 s of standing, a quarry and a woodcutter burned, the band away).
+    const aimed = f => f.raidTarget && f.raidTarget.state !== 'ruined' && !f.raidTarget.removed && d(f, f.raidTarget) < ABOUT_TO_BURN;
+    const onLand = f => d(f, this.keep) < 45 || aimed(f) || this.buildings.some(o => o.state !== 'ruined' && d(f, o) < 25);
     const raiders = foes.filter(onLand);
     if (!raiders.length) return;
     let sent = 0;

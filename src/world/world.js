@@ -65,6 +65,10 @@ const SIGHT = { place: 250, army: 190 };
 // What outlaws carry off when they get away from a village of yours: a share of its
 // stores, and of the treasury up to a cap.
 const OUTLAW_TAKE = { share: 0.35, gold: 120 };
+// What a fight with an outlaw band cost each side, as a phrase: "6 of them fell, none of ours",
+// and "nobody fell" when it cost nothing.
+const toll = (theirs, ours) => !theirs && !ours ? 'nobody fell'
+  : `${theirs ? `${theirs} of them fell` : 'none of them fell'}, ${ours ? `${ours} of ours` : 'none of ours'}`;
 export const TREAT = { folk: 6, man: 10, rich: ['market', 'monastery', 'castle'], richer: 1.5 };
 
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -968,7 +972,7 @@ export class World {
       if (won) {
         // An outlaw band met in the open gets the same word as one beaten off a village.
         const dead = headcount(theirsBefore) - headcount(theirs), lost = headcount(before) - headcount(mine);
-        this.log(e.outlaws ? `The outlaws are beaten off at ${was}: ${dead} dead, ${lost ? `${lost} of ours` : 'none of ours'}.` : `${e.name} was beaten at ${was}.`);
+        this.log(e.outlaws ? `The outlaws are beaten off at ${was}: ${toll(dead, lost)}.` : `${e.name} was beaten at ${was}.`);
         this.retreat(e);
         if (!a.units.length) this.removeArmy(a);
       } else {
@@ -1239,8 +1243,8 @@ export class World {
         // How a band's raid ended, said where you are: in the village if you are watching it
         // (QC, 2026-11-21: a band beaten off left only "1 battle" on the card).
         const say = (text, bad) => { if (this.hooks.watching() === p) t.event(text, bad ? 1 : 0); else this.log(text, bad ? 1 : 0); };
-        const ours = dead.ours ? `${dead.ours} of ours` : 'none of ours';
-        if (H.bandit && p.owner === 0 && !t.lost && !gotAway) say(`The outlaws are beaten off at ${p.name}: ${dead.theirs || 0} dead, ${ours}.`);
+        const cost = toll(dead.theirs || 0, dead.ours || 0);
+        if (H.bandit && p.owner === 0 && !t.lost && !gotAway) say(`The outlaws are beaten off at ${p.name}: ${cost}.`);
         if (t.lost || !survivors.length) return;
         // Outlaws who get away take a share of the stores and the purse with them.
         if (gotAway && H.bandit && p.owner === 0) {
@@ -1248,7 +1252,7 @@ export class World {
           FACTIONS[0].gold -= gold;
           const list = [...Object.entries(took).filter(([, n]) => n > 0).map(([g, n]) => `${n} ${g}`), gold ? `${gold} gold` : null].filter(Boolean);
           const and = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
-          if (list.length) say(`The outlaws got away from ${p.name} with ${and(list)} (${dead.theirs || 0} of them dead, ${ours}).`, true);
+          if (list.length) say(`The outlaws got away from ${p.name} with ${and(list)} (${cost}).`, true);
         }
         const back = this.spawnArmy(a.side, survivors, p, a.name);
         this.retreat(back);
