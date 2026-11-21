@@ -568,7 +568,7 @@ function tickPetitions(w) {
   // A choice you can't take says why on its face.
   const choices = ev.choices.map(c => ({ label: (c.ok ?? true) || !c.why ? c.label : `${c.label} (${c.why})`, ok: c.ok ?? true, why: c.ok ?? true ? null : c.why, run: () => {
     const why = v.gone ? `${v.name} is no longer your vassal` : v.prison ? `${v.name} is in your dungeon` : c.need?.();
-    if (why) { console.warn(`[vassals] petition ${id} from ${v.name}: ${why}`); w.log(`${why}.`); return `${why}.`; }
+    if (why) { console.warn(`[vassals] petition ${id} from ${v.name}: ${why}`); w.log(`${why}.`); return { ok: false, text: `${why}.` }; }   // campaign.js shows a refusal red
     const out = c.run(); w.log(out); return out;
   } }));
   w.hooks.choice({ id: `petition-${id}`, image: PAINTED.has('petition') ? 'assets/art/events/petition.png' : null, at: seat, ...ev, choices });
