@@ -32,6 +32,8 @@ export const animReady = () => !!table;
 
 // A clip of a skeleton ('male', 'female', 'horse', 'wolf'): { start, frames, fps, duration, loop?, hold?, events? }.
 export const clipOf = (rig, name) => table?.clips[rig]?.[name] || null;
+// Every clip of a skeleton, by name.
+export const clipNames = rig => table?.clips[rig] || {};
 // How many frames a woman's clip starts after the man's of the same name (0: they are not aligned).
 export const rigOffset = () => rigStep;
 
@@ -73,7 +75,7 @@ export function poseOf(geo, rig, name, horseName = 'Idle', frame = 0, only = nul
 
 // ---- gaits: how fast each clip's feet cover the ground ----
 
-// A looping gait's own speed, in metres a second: how fast a planted foot (or hoof) slides back when the clip plays
+// A looping gait's own speed, in metres a second: how fast a planted foot (or hoof) slides over the ground when the clip plays
 // at its natural pace. Measured once from the first baked figure of each skeleton (the horse's from a rider's
 // horse), so a clip that changes needs no number changed anywhere.
 const measureOn = {}, speeds = {};
@@ -97,7 +99,8 @@ export function gaitSpeed(rig, name) {
       if (Math.max(...ys) - low < 0.06) continue;   // never lifts: not a foot
       for (let f = 0; f < c.frames; f++) {
         const a = poses[f], b = poses[(f + 1) % c.frames];
-        if (a[i * 3 + 1] < low + 0.012 && b[i * 3 + 1] < low + 0.012) vs.push((a[i * 3 + 2] - b[i * 3 + 2]) * c.fps);
+        // (along the ground whichever way: a man stepping back or sideways plants his feet as surely)
+        if (a[i * 3 + 1] < low + 0.012 && b[i * 3 + 1] < low + 0.012) vs.push(Math.hypot(a[i * 3] - b[i * 3], a[i * 3 + 2] - b[i * 3 + 2]) * c.fps);
       }
     }
     vs.sort((x, y) => x - y);

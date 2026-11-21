@@ -86,12 +86,12 @@ function split(group, want) {
   return { gear: out.gear.length ? mergeGeometries(out.gear) : null, cloth: out.cloth.length ? mergeGeometries(out.cloth) : null, counts: [out.gear.length, out.cloth.length] };
 }
 
-// Indexed, with unused vertices dropped; simplified toward `tris` when given.
-// Bone weights go as bytes, strongest first; a light version keeps only each vertex's two strongest bones.
-function compact(geo, tris) {
+// Indexed, with unused vertices dropped; simplified toward `tris` when given (letting the shape drift up to `err`
+// of its size). Bone weights go as bytes, strongest first; a light version keeps only each vertex's two strongest bones.
+function compact(geo, tris, err = 0.06) {
   let g = mergeVertices(geo, 1e-4);
   let idx = g.index.array;
-  if (tris) idx = MeshoptSimplifier.simplify(new Uint32Array(idx), new Float32Array(g.attributes.position.array), 3, Math.min(idx.length, Math.max(3, Math.round(tris) * 3)), 0.06)[0];
+  if (tris) idx = MeshoptSimplifier.simplify(new Uint32Array(idx), new Float32Array(g.attributes.position.array), 3, Math.min(idx.length, Math.max(3, Math.round(tris) * 3)), err)[0];
   const remap = new Map(), pos = [], col = [], bones = [], weights = [], shift = [], P = g.attributes.position, Cc = g.attributes.color, B = g.attributes.bones, W = g.attributes.weights, S = g.attributes.shift;
   const keep = tris ? 2 : 4;
   const index = Array.from(idx, i => {
@@ -117,6 +117,9 @@ function compact(geo, tris) {
   return out;
 }
 const tri = g => g.index.count / 3;
+// The far version of a soldier: a quarter of the light one's triangles, for men seen across the field (the men's
+// meshes are most of what the GPU draws in a big battle), allowed to lose more of its shape to get there.
+const FAR = 0.25, FAR_ERR = 0.25;
 
 const qmod = R.FAMILIES.find(f => f.id === 'qmod');
 const people = (file, opts) => R.bake('glb', 'assets/qmod/' + file + '.glb', { rig: 'qmod', team: 0, clip: 'Idle', height: 1.8, drop: n => n === 'Backpack' || n === 'Sword', tint: { Green: 'team', LightGreen: 'team2', Blue: 'team' }, skin: SK.rigOf(file), ...opts });
@@ -963,8 +966,9 @@ export async function bakeAll(only) {
     const full = { gear: compact(gear), cloth: compact(cloth) };
     const total = tri(full.gear) + tri(full.cloth), budget = make.budget || (make.heavy ? LIGHT * 1.6 : LIGHT);
     const light = { gear: compact(gear, budget * tri(full.gear) / total), cloth: compact(cloth, budget * tri(full.cloth) / total) };
-    for (const part of ['gear', 'cloth']) { add(`unit.${key}.${part}`, full[part]); add(`unit.${key}.${part}.light`, light[part]); }
-    report[key] = `${total} → ${tri(light.gear) + tri(light.cloth)}`;
+    const far = { gear: compact(gear, tri(light.gear) * FAR, FAR_ERR), cloth: compact(cloth, tri(light.cloth) * FAR, FAR_ERR) };
+    for (const part of ['gear', 'cloth']) { add(`unit.${key}.${part}`, full[part]); add(`unit.${key}.${part}.light`, light[part]); add(`unit.${key}.${part}.far`, far[part]); }
+    report[key] = `${total} → ${tri(light.gear) + tri(light.cloth)} → ${tri(far.gear) + tri(far.cloth)}`;
   }
   for (const [key, L] of Object.entries(LEVELLED)) {
     if (only && !only.test('unit.' + key)) continue;
@@ -983,7 +987,9 @@ export async function bakeAll(only) {
     for (const [p, { gear, cloth }] of Object.entries(pieces)) for (const [part, geo] of [['gear', gear], ['cloth', cloth]]) {
       if (!geo) continue;
       add(`unit.${key}.${p}.${part}`, full[p][part]);
-      add(`unit.${key}.${p}.${part}.light`, compact(geo, Math.max(4, tri(full[p][part]) * k)));
+      const light = compact(geo, Math.max(4, tri(full[p][part]) * k));
+      add(`unit.${key}.${p}.${part}.light`, light);
+      add(`unit.${key}.${p}.${part}.far`, compact(geo, Math.max(4, tri(light) * FAR), FAR_ERR));
     }
     report[key] = Object.keys(pieces).map(p => `${p} ${tris(p)}`).join(', ');
   }

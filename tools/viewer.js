@@ -194,7 +194,7 @@ clips.tick = dt => {
     c = clips.clip();
     t = c ? (c.loop ? clips.t % c.duration : Math.min(clips.t, c.duration)) : 0;
     if (c && clips.playing && !c.loop && clips.t > c.duration + 0.8) clips.t = 0;   // one-shots replay after a beat
-    if (clips.info.horse) { const pace = /Gallop|Charge|Couch/.test($('clip').value) ? 'Gallop' : /Trot/.test($('clip').value) ? 'Trot' : 'Idle'; hc = A.clipOf('horse', pace); ht = clips.t; }
+    if (clips.info.horse) { const pace = /Gallop|Charge|Couch/.test($('clip').value) ? 'Gallop' : /Trot/.test($('clip').value) ? 'Trot' : /Fall/.test($('clip').value) ? 'Death' : 'Idle'; hc = A.clipOf('horse', pace); ht = clips.t; }
     if (c) $('scrub').value = t / c.duration;
     $('scrubOut').textContent = c ? `${t.toFixed(2)} / ${c.duration.toFixed(2)} s` : '';
   } else {

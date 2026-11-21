@@ -50,4 +50,7 @@ for f in ['clips-foot.glb', 'clips-riders.glb', 'clips-horse.glb', 'wip/clip-man
 # The war dog's wolf: CC0 Quaternius Ultimate Animated Animals, kept in this repo by the asset scout (lineup/skin.js WOLF)
 os.makedirs(os.path.join(assets, 'animals'), exist_ok=True)
 shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'scout', 'animals', 'Wolf.glb'), os.path.join(assets, 'animals', 'Wolf.glb'))
+# The knight whose forward death the men borrow: CC0 Quaternius Ultimate Animated Character, kept by the asset scout (lineup/skin.js KNIGHT)
+os.makedirs(os.path.join(assets, 'anims'), exist_ok=True)
+shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'scout', 'anims', 'Quaternius_UAC_Knight_Male.gltf'), os.path.join(assets, 'anims', 'Quaternius_UAC_Knight_Male.gltf'))
 print('done')

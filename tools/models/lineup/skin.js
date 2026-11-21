@@ -5,7 +5,8 @@
 //
 // Four skeletons: the Quaternius modular men (one skeleton shared by the adventurer, farmer and king), the women
 // (the same bones in a different rest pose, so clips are retargeted onto it), the 2018 horse, and the war dog's wolf
-// (Quaternius Ultimate Animated Animals, its own in-place clips: see WOLF).
+// (Quaternius Ultimate Animated Animals, its own in-place clips: see WOLF). A fifth, the Ultimate Animated Character
+// knight, only lends the men a clip (KNIGHT).
 // A human has 24 bones (fingers fold into the wrist, curled round a grip) and eleven "prop" bones that carry what a
 // soldier holds: right-hand weapon, bow, shield, the villagers' axe, pick, hoe and sack, and the two halves of a bow's
 // and a crossbow's string. Each clip decides where a prop goes or hides it (a zero matrix). Horse vertices use bone
@@ -49,11 +50,38 @@ const HUMAN_CLIPS = {
   Idle: { src: 'Idle', loop: true }, Stand: { src: 'Idle', loop: true, arm: 0 },
   Walk: { src: 'Walk', loop: true }, Run: { src: 'Run', loop: true }, RunArmed: { src: 'Run', loop: true, arm: 0 }, WalkArmed: { src: 'Walk', loop: true, arm: 0 },
   CarryWalk: { src: 'Walk', loop: true, upper: ['Carry', 'step'], weapon: 'Carry' }, CarryRun: { src: 'Run', loop: true, upper: ['Carry', 'step'], weapon: 'Carry' },
+  // stepping back or sideways, facing on (shoved in a melee, closing up in a ring facing out): the stock runs back and
+  // to each side, slowed to a walk's stride
+  Step_Back: { src: 'Run_Back', loop: true, speed: 0.45 }, Step_Left: { src: 'Run_Left', loop: true, speed: 0.45 }, Step_Right: { src: 'Run_Right', loop: true, speed: 0.45 },
+  Step_BackArmed: { src: 'Run_Back', loop: true, speed: 0.45, arm: 0 }, Step_LeftArmed: { src: 'Run_Left', loop: true, speed: 0.45, arm: 0 }, Step_RightArmed: { src: 'Run_Right', loop: true, speed: 0.45, arm: 0 },
   Death: { src: 'Death', hold: true }, Sword_Slash: { src: 'Sword_Slash' },
+  // a second death, falling forward onto his face (the knight's, KNIGHT), and two ways of taking a blow
+  Death_Fwd: { src: 'Death', rig: 'knight', hold: true, weapon: 'Death' }, Hit: { src: 'HitRecieve', weapon: 'Death' }, Hit_2: { src: 'HitRecieve_2', weapon: 'Death' },
 };
-const RIDER_CLIPS = { Ride_Charge: { src: 'Ride_Gallop', loop: true, upper: ['Ride_Couch', 1], weapon: 'Ride_Couch' } };
-// (the stock walk stalls halfway through its loop, so a horse walks in a slowed trot)
-const HORSE_CLIPS = { Idle: { src: 'Armature|Idle', loop: true }, Trot: { src: 'Trot', loop: true }, Gallop: { src: 'Gallop', loop: true }, Rear: { src: 'Rear' } };
+// A rider whose horse goes down is thrown clear of it: from the seat he pitches out over its far shoulder, turning to
+// fall on his back in his own Death beside it (`thrown`: where he lands, in metres off the saddle's foot, and the turn).
+const RIDER_CLIPS = {
+  Ride_Charge: { src: 'Ride_Gallop', loop: true, upper: ['Ride_Couch', 1], weapon: 'Ride_Couch' },
+  Ride_Fall: { src: 'Death', hold: true, weapon: 'Death', length: 1.2, thrown: { lead: 0.4, from: 0.35, land: [1.9, 0, 0.4], turn: -Math.PI / 2, hop: 0.45 } },
+};
+// The horse walks in its trot with the fore legs a quarter stride early (each hoof then comes down on its own beat,
+// hind then fore on one side, then the other) and slowed; the stock walk stalls halfway through its loop. A galloping
+// horse past its gallop's stride lengthens it: `swing` sweeps the legs (and the hooves, forward and back) that much
+// further from where they ride on average. The stock Death only sinks and tips the horse a third of the way over, so
+// `roll` turns the whole horse on over its hooves (`angle` radians about its length, through `pivot`, in metres,
+// between `from` and `to` seconds) till it lies on its side.
+const HORSE_FORE = ['FrontLegL', 'FrontUpLegL', 'FrontLowLegL', 'FrontFootL', 'FrontLegR', 'FrontUpLegR', 'FrontLowLegR', 'FrontFootR'];
+const HORSE_LEGS = [...HORSE_FORE, 'BackLegL', 'BackUpLegL', 'BackLowLegL', 'BackFootL', 'BackLegR', 'BackUpLegR', 'BackLowLegR', 'BackFootR'];
+const HORSE_CLIPS = {
+  Idle: { src: 'Armature|Idle', loop: true }, Walk: { src: 'Trot', loop: true, lag: [HORSE_FORE, 0.75], speed: 0.6 },
+  Trot: { src: 'Trot', loop: true }, Gallop: { src: 'Gallop', loop: true }, Gallop_Long: { src: 'Gallop', loop: true, swing: [HORSE_LEGS, 1.4] },
+  Rear: { src: 'Rear' }, Death: { src: 'Armature|Death', hold: true, roll: { angle: -0.9, pivot: [0.35, 0, 0], from: 0.15, to: 1 } },
+};
+
+// The knight of Quaternius's Ultimate Animated Character pack (CC0, assets/scout/anims): the same bone names as the
+// men but for its fists and body, other proportions and a T-ish rest, so its clips are carried over pose to pose:
+// each bone turns in the world as the knight's does from his idle, from the man's own idle (retarget).
+export const KNIGHT = { file: 'assets/anims/Quaternius_UAC_Knight_Male.gltf', names: { FistL: 'WristL', FistR: 'WristR', Body_1: 'Body' } };
 
 // The war dog: the CC0 Quaternius wolf (assets/scout/animals/Wolf.glb, copied to the lineup by fetch.py), scaled so
 // it stands `shoulder` metres at the top of its back (its armature is in centimetres, x100; the size is the rig's,
@@ -84,10 +112,10 @@ let rigs = null;
 export async function load(dir = 'assets/clips/') {
   if (rigs) return rigs;
   const L = new GLTFLoader();
-  const [foot, riders, horsePack, manifest, male, female, horse, wolf] = await Promise.all([
+  const [foot, riders, horsePack, manifest, male, female, horse, wolf, knight] = await Promise.all([
     L.loadAsync(dir + 'clips-foot.glb'), L.loadAsync(dir + 'clips-riders.glb'), L.loadAsync(dir + 'clips-horse.glb'),
     fetch(dir + 'clip-manifest.json').then(r => r.json()),
-    C.gltf('assets/qmod/Male_Adventurer.glb'), C.gltf('assets/qmod/Female_Medieval.glb'), C.fbx('assets/q18/Horse.fbx'), C.gltf(WOLF.file),
+    C.gltf('assets/qmod/Male_Adventurer.glb'), C.gltf('assets/qmod/Female_Medieval.glb'), C.fbx('assets/q18/Horse.fbx'), C.gltf(WOLF.file), C.gltf(KNIGHT.file),
   ]);
   const meta = Object.fromEntries(manifest.clips.map(c => [c.name, c]));
   const clipsOf = list => Object.fromEntries(list.map(a => [a.name, a]));
@@ -100,6 +128,7 @@ export async function load(dir = 'assets/clips/') {
     female: rig('female', SU.clone(female.scene), humanSrc),
     horse: rig('horse', SU.clone(horse), { ...clipsOf(horse.animations), ...clipsOf(horsePack.animations) }, metres.matrix.clone()),
     wolf: rig('wolf', SU.clone(wolf.scene), clipsOf(wolf.animations)),
+    knight: rig('knight', SU.clone(knight.scene), clipsOf(knight.animations)),
   };
   const w = rigs.wolf, k = WOLF.shoulder / withers(w);
   w.G = new THREE.Matrix4().makeScale(k, k, k); w.Ginv = w.G.clone().invert();
@@ -135,6 +164,7 @@ function withers(r) {
 function sample(r, src, t) {
   const clip = r.clips[src];
   if (!clip) throw new Error(`no clip ${src} for ${r.name}`);
+  if (r.root.userData.thrown) { r.root.position.set(0, 0, 0); r.root.quaternion.identity(); r.root.userData.thrown = false; }   // (thrown())
   r.mixer.stopAllAction();
   r.mixer.uncacheRoot(r.root);
   for (const b of r.bones.values()) { const s = r.rest.get(b.name); b.quaternion.copy(s.local); b.position.copy(s.pos); }
@@ -146,6 +176,17 @@ function sample(r, src, t) {
 function pose(r, def, t) {
   const base = r.from || r;
   t *= def.speed || 1;
+  if (def.thrown) return thrown(r, def, t);
+  const mean = def.swing && meanPose(base, def.src);
+  if (def.rig) {
+    // another skeleton's clip: the man stands in his idle, then each bone it shares turns as that one does
+    const src = rigs[def.rig], from = idleOf(src), to = idleOf(base);
+    sample(src, def.src, t);
+    sample(base, 'Idle', 0);
+    retarget(src, base, { names: KNIGHT.names, from, to, feet: true });
+    if (r.from) retarget(r.from, r);
+    return;
+  }
   sample(base, def.src, t);
   const over = def.arm != null ? [RIGHT_ARM, 'March_Upright', def.arm] : def.upper ? [UPPER, ...def.upper] : null;
   if (over) {
@@ -164,27 +205,109 @@ function pose(r, def, t) {
     for (const [b, [q, p]] of held) { b.quaternion.copy(q); b.position.copy(p); }
     base.root.updateMatrixWorld(true);
   }
+  if (def.swing) {
+    // each bone turned k times as far from its average turn, a hoof's place k times as far forward or back of its
+    // average (along the figure's length, so planted hooves stay on the ground)
+    const [names, k] = def.swing;
+    for (const n of names) {
+      const b = base.bones.get(n), m = mean.get(n), d = _q.copy(m.q).invert().multiply(b.quaternion);
+      if (d.w < 0) d.set(-d.x, -d.y, -d.z, -d.w);
+      const a = 2 * Math.acos(Math.min(1, d.w)), s = Math.sqrt(1 - d.w * d.w);
+      if (s > 1e-6) b.quaternion.copy(m.q).multiply(_q2.setFromAxisAngle(_p.set(d.x / s, d.y / s, d.z / s), a * k));
+    }
+    base.root.updateMatrixWorld(true);
+    for (const n of names) {
+      const b = base.bones.get(n), m = mean.get(n);
+      if (!m.world) continue;
+      const w = b.getWorldPosition(new THREE.Vector3());
+      w.z = m.world.z + (w.z - m.world.z) * k;
+      b.position.copy(b.parent.worldToLocal(w));
+      b.updateMatrixWorld(true);
+    }
+    base.root.updateMatrixWorld(true);
+  }
+  if (r.from) retarget(r.from, r);
+}
+// Each bone's average turn over a looping clip (and, for bones the clip moves about, its average place in the world).
+const means = new Map();
+function meanPose(r, src) {
+  const key = r.name + '/' + src;
+  if (means.has(key)) return means.get(key);
+  const D = r.clips[src].duration, N = 24, acc = new Map();
+  for (let i = 0; i < N; i++) {
+    sample(r, src, i * D / N);
+    for (const [n, b] of r.bones) {
+      const a = acc.get(n) || { q: new THREE.Vector4(), p: new THREE.Vector3(), first: b.quaternion.clone(), moves: false };
+      const s = a.first.dot(b.quaternion) < 0 ? -1 : 1;
+      a.q.x += s * b.quaternion.x; a.q.y += s * b.quaternion.y; a.q.z += s * b.quaternion.z; a.q.w += s * b.quaternion.w;
+      a.p.add(b.getWorldPosition(new THREE.Vector3()).divideScalar(N));
+      if (b.position.distanceTo(r.rest.get(n).pos) > 1e-4) a.moves = true;
+      acc.set(n, a);
+    }
+  }
+  const out = new Map();
+  for (const [n, a] of acc) { const v = a.q.normalize(); out.set(n, { q: new THREE.Quaternion(v.x, v.y, v.z, v.w), world: a.moves ? a.p : null }); }
+  means.set(key, out);
+  return out;
+}
+// A rig's pose in its idle's first frame: each bone's world turn, and where its hips are (retarget's reference).
+const idles = new Map();
+function idleOf(r) {
+  if (!idles.has(r.name)) {
+    sample(r, 'Idle', 0);
+    idles.set(r.name, new Map([...r.bones].map(([n, b]) => [n, { q: b.getWorldQuaternion(new THREE.Quaternion()), p: b.getWorldPosition(new THREE.Vector3()) }])));
+  }
+  return idles.get(r.name);
+}
+// A rider thrown as his horse goes down (RIDER_CLIPS Ride_Fall): for `lead` seconds he leaves the seat, every bone
+// turning from its seated pose toward his Death already falling (`from` seconds in) as the figure rises in an arc of
+// `hop` metres and turns by `turn`, landing `land` metres off; then he plays the rest of the Death from there. The figure is moved whole (its
+// root), so the woman's retarget and the props follow.
+function thrown(r, def, t) {
+  const base = r.from || r, T = def.thrown, k = ramp(t, 0, T.lead), at = T.from + Math.max(0, t - T.lead);
+  sample(base, 'Ride_Idle', 0);
+  const seat = new Map([...base.bones].map(([n, b]) => [n, [b.quaternion.clone(), b.position.clone()]]));
+  sample(base, def.src, at);
+  for (const [n, b] of base.bones) {
+    const [q, p] = seat.get(n);
+    b.quaternion.copy(q.slerp(b.quaternion, k));
+    b.position.copy(p.lerp(b.position, k));
+  }
+  const g = Math.min(1, t / T.lead);
+  base.root.position.set(T.land[0] * k, T.land[1] * k + T.hop * Math.sin(Math.PI * g) * (1 - k * 0.5), T.land[2] * k);
+  base.root.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), T.turn * k);
+  base.root.userData.thrown = true;
+  base.root.updateMatrixWorld(true);
   if (r.from) retarget(r.from, r);
 }
 // A woman's skeleton follows a man's: each bone turns in the world as his does from its rest, and the hips move as
-// his do, scaled to her height.
+// his do, scaled to her height. `from` and `to` set other reference poses than the rests (the knight's idle and the
+// man's), and `names` the bones of `m` known by other names on `f`. Both skeletons' feet hang from the root (they are
+// IK targets), so with `feet` each foot is put back at the end of its shin, as it is in `to`, and the body (which the
+// legs hang from) moves with the hips.
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _p = new THREE.Vector3();
-function retarget(m, f) {
+function retarget(m, f, { names = {}, from = m.rest, to = f.rest, feet = false } = {}) {
   const turn = new Map();
-  for (const [name, b] of m.bones) turn.set(name, b.getWorldQuaternion(new THREE.Quaternion()).multiply(_q.copy(m.rest.get(name).q).invert()));
-  const k = f.rest.get('Hips').p.y / m.rest.get('Hips').p.y;
+  for (const [name, b] of m.bones) if (from.has(name)) turn.set(names[name] || name, b.getWorldQuaternion(new THREE.Quaternion()).multiply(_q.copy(from.get(name).q).invert()));
+  const k = to.get('Hips').p.y / from.get('Hips').p.y;
   f.root.traverse(b => {
     if (!b.isBone || !turn.has(b.name)) return;
-    const want = turn.get(b.name).clone().multiply(f.rest.get(b.name).q);
+    const want = turn.get(b.name).clone().multiply(to.get(b.name).q);
     b.parent.updateMatrixWorld(true);
     b.parent.getWorldQuaternion(_q2);
     b.quaternion.copy(_q2.invert().multiply(want));
-    if (b.name === 'Hips') {
-      const d = m.bones.get('Hips').getWorldPosition(new THREE.Vector3()).sub(m.rest.get('Hips').p).multiplyScalar(k);
-      b.position.copy(b.parent.worldToLocal(_p.copy(f.rest.get('Hips').p).add(d)));
+    if (b.name === 'Hips' || (feet && b.name === 'Body')) {
+      const d = m.bones.get('Hips').getWorldPosition(new THREE.Vector3()).sub(from.get('Hips').p).multiplyScalar(k);
+      b.position.copy(b.parent.worldToLocal(_p.copy(to.get(b.name).p).add(d)));
     }
     b.updateMatrixWorld(true);
   });
+  if (feet) for (const side of ['L', 'R']) {
+    const foot = f.bones.get('Foot' + side), shin = f.bones.get('LowerLeg' + side), s0 = to.get('LowerLeg' + side);
+    const at = to.get('Foot' + side).p.clone().sub(s0.p).applyQuaternion(_q.copy(s0.q).invert()).applyQuaternion(shin.getWorldQuaternion(_q2)).add(shin.getWorldPosition(_p));
+    foot.position.copy(foot.parent.worldToLocal(at));
+    foot.updateMatrixWorld(true);
+  }
 }
 
 // ---- the matrices for one frame ----
@@ -192,10 +315,15 @@ function retarget(m, f) {
 const ZERO = new THREE.Matrix4().set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
 const ramp = (t, a, b) => { const v = Math.min(1, Math.max(0, (t - a) / (b - a))); return v * v * (3 - 2 * v); };
 const basis = (x, y) => { const bx = new THREE.Vector3(...x).normalize(), by = new THREE.Vector3(...y); by.addScaledVector(bx, -by.dot(bx)).normalize(); return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(bx, by, bx.clone().cross(by))); };
-// A bone's skinning matrix: from bind space to where the clip has it, in the rig's metres.
-function skinMatrix(r, name) {
-  const b = r.bones.get(name);
-  return new THREE.Matrix4().copy(r.G).multiply(b.matrixWorld).multiply(r.IB.get(name)).multiply(r.Ginv);
+// A bone's skinning matrix: from bind space to where the clip has it, in the rig's metres (then moved by `post`).
+function skinMatrix(r, name, post = null) {
+  const b = r.bones.get(name), m = new THREE.Matrix4().copy(r.G).multiply(b.matrixWorld).multiply(r.IB.get(name)).multiply(r.Ginv);
+  return post ? m.premultiply(post) : m;
+}
+// The whole figure turned `angle` about its length through `pivot`, eased in from `from` to `to` (HORSE_CLIPS roll).
+function rollAt({ angle, pivot, from, to }, t) {
+  const [x, y, z] = pivot;
+  return new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeRotationZ(angle * ramp(t, from, to))).multiply(new THREE.Matrix4().makeTranslation(-x, -y, -z));
 }
 // A frame turned like the man's bone (the clip's frame of reference) but placed at this rig's own bone.
 function boneFrame(r, name) {
@@ -286,7 +414,8 @@ const pack = (out, i, m) => { const e = m.elements; out.set([e[0], e[4], e[8], e
 function frame(r, name, def, t) {
   pose(r, def, t);
   const out = new Float32Array(SLOTS * 12), put = (i, m) => pack(out, i, m);
-  r.slots.forEach((n, i) => put(i, skinMatrix(r, n)));
+  const post = def.roll ? rollAt(def.roll, t) : null;
+  r.slots.forEach((n, i) => put(i, skinMatrix(r, n, post)));
   if (r.name === 'male' || r.name === 'female') for (const [k, m] of Object.entries(props(r, name, def, t))) put(PROP[k], m);
   return out;
 }
@@ -305,7 +434,8 @@ export async function bakeClips() {
     const r = rigs[rn];
     table[rn] = {};
     for (const [name, def] of Object.entries(defs)) {
-      const dur = (r.clips[def.src]?.duration ?? (r.from || r).clips[def.src].duration) / (def.speed || 1);
+      const src = def.rig ? rigs[def.rig] : r.clips[def.src] ? r : r.from || r;
+      const dur = def.length ?? src.clips[def.src].duration / (def.speed || 1);
       // (a quickened clip keeps its source's frames, so its pose doesn't coarsen)
       const n = Math.max(1, Math.round(dur * (def.speed || 1) * FPS)), count = def.loop ? n : n + 1;
       const events = def.events || (rigs.meta[def.src]?.events && Object.fromEntries(rigs.meta[def.src].events.map(e => [e.event, +e.time.toFixed(4)])));

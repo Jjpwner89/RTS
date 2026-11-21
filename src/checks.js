@@ -177,18 +177,25 @@ async function battleChecks({ battle, town, label }) {
     return sample(out);
   });
 
-  // The dead lie down: two seconds after he falls a man is flat, posed in his Death clip (measured: the top of the
-  // posed figure under 0.9 m) or toppled whole (view.js fallsInClip), never standing dead in his rest pose.
+  // The dead lie down: two seconds after he falls a man is flat, posed in the death he shows (view.js soldierClip;
+  // measured: the top of the posed man under 0.9 m, and a rider's horse down too, its back under 1.2 m though it may
+  // hold its head up) or toppled whole (view.js fallsInClip), never standing dead in his rest pose.
   await check(`${label}: every dead man lies down within 2 s`, async () => {
-    const out = [], { unitModel } = await import('./models.js'), { lookChain } = await import('./battle.js'), { fallsInClip } = await import('./view.js');
-    const tops = new Map(), standing = new Map();
-    const topOf = (key, model, info, frame) => {
-      const k = key + '/' + frame;
+    const out = [], { unitModel } = await import('./models.js'), { lookChain } = await import('./battle.js'), { fallsInClip, soldierClip } = await import('./view.js');
+    const tops = new Map(), standing = new Map(), shown = {}, H = anim.clipOf('horse', 'Death');
+    const nameOf = (rig, c) => Object.entries(anim.clipNames(rig)).find(([, x]) => x.start === c?.start)?.[0];
+    // the top of the posed man, and of his horse's middle (its back, not its head and neck: vertices within 0.6 m of
+    // its length's middle)
+    const topOf = (key, model, info, name, frame) => {
+      const k = [key, name, frame].join('/');
       if (!tops.has(k)) {
-        const p = anim.poseOf(model.gear, info.rig, 'Death', 'Idle', frame);
-        let hi = -Infinity;
-        for (let i = 1; i < p.length; i += 3) hi = Math.max(hi, p[i]);
-        tops.set(k, hi);
+        const p = anim.poseOf(model.gear, info.rig, name, 'Death', frame), B = model.gear.attributes.aBones;
+        let man = -Infinity, horse = -Infinity;
+        for (let i = 0; i < B.count; i++) {
+          if (B.getX(i) < 128) man = Math.max(man, p[i * 3 + 1]);
+          else if (Math.abs(p[i * 3 + 2]) < 0.6) horse = Math.max(horse, p[i * 3 + 1]);
+        }
+        tops.set(k, { man, horse });
       }
       return tops.get(k);
     };
@@ -197,8 +204,8 @@ async function battleChecks({ battle, town, label }) {
       const key = lookChain(s.reg.T.key).find(k => unitModel(k)), model = key && unitModel(key), info = anim.animReady() && model?.anim;
       let flat = s.fall >= 1;
       if (info && fallsInClip(info, s)) {
-        const c = anim.clipOf(info.rig, 'Death');
-        flat = topOf(key, model, info, Math.min(c.frames - 1, Math.floor((battle.time - s.diedAt) * c.fps))) < 0.9;
+        const c = soldierClip(s, battle, info, shown).c, top = topOf(key, model, info, nameOf(info.rig, c), Math.min(c.frames - 1, Math.floor((battle.time - s.diedAt) * c.fps)));
+        flat = top.man < 0.9 && (!info.horse || (H && top.horse < 1.2));
       }
       if (!flat) standing.set(s.reg.name, (standing.get(s.reg.name) || 0) + 1);
     }
@@ -702,13 +709,14 @@ async function findAssets() {
   // Clips: the animated soldiers and villagers stand in their bind pose without assets/anim.bin, and play a wrong
   // clip if their skeleton lacks one the views ask for (view.js soldierClip, townview.js villagerClip). A gait whose
   // stride can't be measured (anim.js gaitSpeed) can't keep pace with the ground: its feet would slide.
-  const { animReady, clipOf, gaitSpeed, gaitFor, rigOffset, PACE, walkSpeed } = await import('./anim.js');
+  const { animReady, clipOf, gaitSpeed, gaitFor, rigOffset, PACE } = await import('./anim.js');
   const { ROAD } = await import('./economy.js');
   const { footGaits } = await import('./view.js');
-  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
-  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch'], HORSE = ['Idle', 'Trot', 'Gallop'], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Mine', 'Hoe', 'Idle'];
+  const { HORSE_GAITS } = await import('./view.js');
+  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Death_Fwd', 'Hit', 'Hit_2', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
+  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Mine', 'Hoe', 'Idle'];
   const DOG = ['Idle', 'Walk', 'Trot', 'Run', 'Rout', 'Bite', 'Death'];
-  const GAITS = ['Walk', 'Trot', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun'], HORSE_GAITS = ['Trot', 'Gallop'];
+  const GAITS = ['Walk', 'Trot', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed'];
   const noClip = new Set();
   if (!animReady()) noClip.add('assets/anim.json or anim.bin did not load: animated soldiers are left out');
   else for (const key of [...Object.keys(TYPES), 'villager', 'captain', 'lord', 'lady']) {
@@ -721,8 +729,9 @@ async function findAssets() {
       if (clipOf(rig, n) && !(gaitSpeed(rig, n) > 0)) noClip.add(`can't measure the ${rig} '${n}' stride: it plays at its own pace and its feet slide`);
     }
     // every pace a figure moves at has a gait that keeps up (pace.js): a man or dog on foot from a shuffle to a little
-    // past his top speed (shuffling into his place included); a horse from its walk to a little past its run (not the charge's last burst); a villager
-    // from a stroll to running for shelter along a road, carrying or not
+    // past his top speed (shuffling into his place included); a horse from a shuffle into its place to the charge's
+    // last burst (battle.js: half again its run); a villager from a stroll to running for shelter along a road,
+    // carrying or not
     const T = TYPES[key];
     const paces = (rig, gaits, lo, hi) => {
       const slide = [];
@@ -733,7 +742,9 @@ async function findAssets() {
       if (slide.length) noClip.add(`${key}: from ${slide[0].toFixed(1)} to ${slide.at(-1).toFixed(1)} m/s no ${rig} gait keeps pace, so the feet slide`);
     };
     if (T && !a.horse) paces(a.rig, footGaits(a), 0.4, T.speed * 1.25);   // (from the 0.4 m/s a man is drawn moving at: view.js)
-    if (T && a.horse) paces('horse', HORSE_GAITS, walkSpeed(T), T.speed * 1.2);
+    // and stepping back or sideways facing on (view.js stepWay), from a shuffle to a hurried walk
+    if (T && !a.horse && a.rig !== 'wolf') for (const way of ['Back', 'Left', 'Right']) paces(a.rig, footGaits(a, way), 0.4, PACE.foot * 1.6);
+    if (T && a.horse) paces('horse', HORSE_GAITS, 0.4, T.speed * (T.charge ? 1.5 : 1.2));
     if (key === 'villager') for (const g of [['Walk', 'Run'], ['CarryWalk', 'CarryRun']]) paces(a.rig, g, PACE.wander, PACE.foot * 1.6 * ROAD.speed);
   }
   // A lord rides with his bannerman, a second rider in the same model posed by the same clip (bake.js split()).

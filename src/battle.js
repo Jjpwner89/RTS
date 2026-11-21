@@ -2608,6 +2608,7 @@ export class Battle {
   hurt(t, dmg, by = null) {
     if (!t.alive) return;
     t.hp -= dmg;
+    t.hurtAt = this.time;   // anim: he flinches (view.js soldierClip)
     if (t.hp <= 0) this.kill(t, by);
   }
 

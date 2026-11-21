@@ -6,7 +6,7 @@ import { HOMES } from './terrain.js';
 import { unitModel, unitLook, hasLevels, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
-import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor } from './anim.js';
+import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor, gaitSpeed, CADENCE } from './anim.js';
 import { fxFor } from './fx.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
@@ -30,20 +30,61 @@ const WHITE = new THREE.Color('#ffffff');
 // a horse's and its rider's share one clock. Also read by tools/viewer.html, with a stand-in soldier and battle.
 const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // carried upright on the march
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-// The gaits a man (or a war dog) on foot moves in, slowest first, for gaitFor to pick from. Read by checks.js too.
-export const footGaits = info => info.rig === 'wolf' ? ['Walk', 'Trot', 'Run'] : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];
-// Whether a dead man goes down in his skeleton's Death clip; without one (or on a horse) he topples whole (update()).
-export const fallsInClip = (info, s) => !s.alive && !info.horse && !!clipOf(info.rig, 'Death');
+// The gaits a man (or a war dog) on foot moves in, slowest first, for gaitFor to pick from: going on, or stepping
+// back or to his left or right still facing on (`way`: stepWay). Read by checks.js too.
+export const footGaits = (info, way = 'On') => info.rig === 'wolf' ? ['Walk', 'Trot', 'Run'] : way !== 'On' ? ['Step_' + way + (UPRIGHT[info.weapon] ? 'Armed' : '')]
+  : UPRIGHT[info.weapon] ? ['March_Upright', 'WalkArmed', 'RunArmed'] : ['Walk', 'Run'];
+// Which way a man steps against his facing, from how he moves (battle.js vx, vz): 'On', 'Back', 'Left' or 'Right'.
+// He keeps the way he was stepping until he moves 15 degrees past its boundary, so a man jostled on one doesn't
+// flicker between them.
+const KEEP = 0.26;
+export function stepWay(s) {
+  const a = moveAngle(s), A = Math.abs(a), w = s.way || 'On';
+  const side = w === 'Left' || w === 'Right', on = Math.PI / 4 + (w === 'On' ? KEEP : side ? -KEEP : 0), back = 3 * Math.PI / 4 + (w === 'Back' ? -KEEP : side ? KEEP : 0);
+  return A < on ? 'On' : A > back ? 'Back' : a > 0 ? 'Left' : 'Right';
+}
+// Which way a figure moves against his facing, in radians: 0 straight on, +pi/2 to his left (the figure's +x).
+const moveAngle = s => !s.vx && !s.vz ? 0 : wrap(Math.atan2(s.vx, s.vz) - s.yaw);
+const wrap = a => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
+// Where each way of stepping goes (moveAngle), so the body can be turned to step exactly the way he moves.
+const WAY_AT = { On: 0, Left: Math.PI / 2, Right: -Math.PI / 2, Back: Math.PI };
+// The figure is drawn turned `s.lean` from his facing (update()): on the move, by what's left between the way he
+// moves and the way his clip steps, so his planted feet don't skate sideways; eased there and back as he moves and stops.
 export function soldierClip(s, b, info, out) {
+  s.leanTo = 0;
+  const k = pickClip(s, b, info, out);
+  s.lean = (s.lean || 0) + wrap(s.leanTo - (s.lean || 0)) * Math.min(1, (s.animDt || 0) * 8);
+  return k;
+}
+// Whether a dead man goes down in his skeleton's Death clip (a rider thrown as his horse falls in its own); without
+// one he topples whole (update()).
+export const fallsInClip = (info, s) => !s.alive && (info.horse ? !!clipOf('horse', 'Death') && !!clipOf(info.rig, 'Ride_Fall') : !!clipOf(info.rig, 'Death'));
+// The horse's gaits, slowest first: its walk, trot and gallop, and past the gallop's stride a longer one (a light
+// horseman's charge). Read by checks.js too.
+export const HORSE_GAITS = ['Walk', 'Trot', 'Gallop', 'Gallop_Long'];
+// What the rider does in each of his horse's gaits (he sits a walk still, and rides the long gallop as the gallop).
+const RIDE_IN = { Idle: 'Ride_Idle', Walk: 'Ride_Idle', Trot: 'Ride_Trot', Gallop: 'Ride_Gallop', Gallop_Long: 'Ride_Gallop' };
+function pickClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
-  const dt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
+  const dt = s.animDt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
   s.animAt = now;
   s.animT ??= Math.random() * 3;
   out.hc = null; out.ht = 0;
   const show = (name, t) => { out.c = clipOf(rig, name) || clipOf(rig, info.rest); out.t = t; return out; };
   const gait = name => { s.animT += dt; return show(name, s.animT); };
-  // on the move: the slowest of `gaits` that keeps up, at the pace that matches the ground
-  const pace = (gaits, v = s.v) => { const g = gaitFor(rig, gaits, v); s.animT += dt * g.rate; return show(g.name, s.animT); };
+  // on the move: the slowest of `gaits` that keeps up, at the pace that matches the ground. Across a switch he keeps
+  // the gait he is in a little longer either way (a walk hurried or a run slowed by up to 8%), so a man moving at
+  // the switch doesn't flicker; and he keeps his place in the stride from one gait to the next.
+  const pace = (gaits, v = s.v) => {
+    let g = gaitFor(rig, gaits, v);
+    if (g.name !== s.gait && gaits.includes(s.gait) && [gaitFor(rig, gaits, v * 0.92).name, gaitFor(rig, gaits, v * 1.08).name].includes(s.gait)) {
+      g = { name: s.gait, rate: clamp(v / gaitSpeed(rig, s.gait), CADENCE.lo, CADENCE.max) };
+    }
+    const c = clipOf(rig, g.name);
+    s.gait = g.name;
+    s.stride = ((s.stride ?? Math.random()) + dt * g.rate / (c?.duration || 1)) % 1;
+    return show(g.name, s.stride * (c?.duration || 1));
+  };
   // a one-off action timed on an event of its clip: `since` the battle did it, or `left` until it does
   const timed = (name, ev, since, left) => {
     const c = clipOf(rig, name);
@@ -56,8 +97,16 @@ export function soldierClip(s, b, info, out) {
   const close = s.target && Math.hypot(s.target.x - s.x, s.target.z - s.z) < T.reach * 1.2;
 
   if (info.horse) {
-    if (!s.alive) { out.hc = clipOf('horse', 'Idle'); return show('Ride_Idle', 0); }   // he goes down with his horse
-    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', ['Trot', 'Gallop'], s.v), pace = g.name;
+    if (!s.alive) {
+      // the horse falls on its side and throws him clear; with no such clips he goes down with it whole (update())
+      if (!fallsInClip(info, s)) { out.hc = clipOf('horse', 'Idle'); return show('Ride_Idle', 0); }
+      out.hc = clipOf('horse', 'Death'); out.ht = now - (s.diedAt ?? now);
+      return show('Ride_Fall', out.ht);
+    }
+    const g = s.v < 0.4 ? { name: 'Idle', rate: 1 } : gaitFor('horse', HORSE_GAITS.filter(n => clipOf('horse', n)), s.v), pace = g.name;
+    // (a horse turns its body the way it goes, unless it is backing or shoved more than a little aside)
+    const a = moveAngle(s);
+    if (s.v >= 0.4 && Math.abs(a) < Math.PI / 3) s.leanTo = a;
     s.animT += dt * g.rate;
     out.hc = clipOf('horse', pace); out.ht = s.animT;
     const lance = info.weapon === 'lance';
@@ -65,15 +114,19 @@ export function soldierClip(s, b, info, out) {
     s.couchAt = null;
     if (!lance) { const k = timed('Ride_Slash', 'sword-contact', now - (s.struckAt ?? -99), close ? s.cd : null); if (k) return k; }
     // the lance comes down for the charge: galloping at a foe with the charge still in him, or ordered to
-    if (lance && pace === 'Gallop' && ((T.charge && !s.charged && s.target) || now < r.chargeUntil)) return show('Ride_Charge', s.animT);
-    return show('Ride_' + pace, s.animT);
+    if (lance && /^Gallop/.test(pace) && ((T.charge && !s.charged && s.target) || now < r.chargeUntil)) return show('Ride_Charge', s.animT);
+    return show(RIDE_IN[pace], s.animT);
   }
 
-  if (!s.alive) return show('Death', now - (s.diedAt ?? now));
+  // a man dies falling back or pitching forward on his face, each his own way
+  if (!s.alive) { s.death ??= Math.random() < 0.5 && clipOf(rig, 'Death_Fwd') ? 'Death_Fwd' : 'Death'; return show(s.death, now - (s.diedAt ?? now)); }
   // a blow, or the wind-up to one
   const strike = rig === 'wolf' ? ['Bite', 'bite'] : info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
   let k = timed(...strike, now - (s.struckAt ?? -99), close ? s.cd : null);
   if (k) return k;
+  // a blow taken standing: he flinches (on the move he keeps his stride, and only flashes: fx.js)
+  const flinch = (s.hurtAt * 7 | 0) % 2 ? 'Hit_2' : 'Hit';
+  if (s.v < 0.4 && now - (s.hurtAt ?? -99) < (clipOf(rig, flinch)?.duration ?? 0)) return show(flinch, now - s.hurtAt);
   // a shot: bows, crossbows and javelins each their own way, only while he stands: a man walking off mid-reload
   // walks (the battle's reload runs on), and takes up the shot again once he stops (on his feet from 0.4 m/s,
   // still again under 0.2, so a shuffle in the ranks doesn't flicker)
@@ -84,11 +137,15 @@ export function soldierClip(s, b, info, out) {
     k = timed(...shot, now - (s.shotAt ?? -99), loosing ? s.fireCd : null);
     if (k) return k;
   }
-  if (r.routing) return pace(['Rout']);
+  if (r.routing) { if (s.v >= 0.4) s.leanTo = moveAngle(s); return pace(['Rout']); }   // (he turns and runs whichever way he flees)
   if (b.winner === r.side) { s.animT += dt; return show('Cheer', s.animT % 2.6); }
   if (s.v >= 0.4 || s.climb > 0) {
-    // (a climber keeps stepping up his ladder however slowly he rises)
-    return pace(footGaits(info), s.climb > 0 ? Math.max(s.v, 0.8) : s.v);
+    // (a climber keeps stepping up his ladder however slowly he rises; a man shoved back or sideways, or closing up
+    // in a ring that faces out, steps that way facing on)
+    s.way = s.climb > 0 ? 'On' : stepWay(s);
+    const way = clipOf(rig, footGaits(info, s.way)[0]) ? s.way : 'On', lean = wrap(moveAngle(s) - WAY_AT[way]);
+    if (!s.climb && Math.abs(lean) < Math.PI / 3) s.leanTo = lean;
+    return pace(footGaits(info, way), s.climb > 0 ? Math.max(s.v, 0.8) : s.v);
   }
   // standing: spears brace against what's coming, shields close up in a tight line
   const braced = T.braces && info.weapon === 'spear' && (r.formation === 'square' || r.hold || r.engaged > 0);
@@ -605,9 +662,9 @@ export class BattleView {
           const mounted = s.reg.T.mounted, still = !!m.anim && (s.alive || fallsInClip(m.anim, s));
           const walking = s.v > 0.4 && s.alive && !still;
           const bob = walking ? Math.abs(Math.sin(s.phase)) * (mounted ? 0.18 : 0.1) : 0;
-          const fwd = still ? 0 : s.lunge * 0.35, fall = still && !mounted ? 0 : s.fall;
+          const fwd = still ? 0 : s.lunge * 0.35, fall = still ? 0 : s.fall;
           d.position.set(s.x + Math.sin(s.yaw) * fwd, s.y + bob - fall * 0.15, s.z + Math.cos(s.yaw) * fwd);
-          d.rotation.set(-fall * Math.PI / 2 * (mounted ? 0 : 1), s.yaw, mounted ? fall * Math.PI / 2 : 0);
+          d.rotation.set(-fall * Math.PI / 2 * (mounted ? 0 : 1), s.yaw + (s.lean || 0), mounted ? fall * Math.PI / 2 : 0);
           d.scale.setScalar(1);
         }
         d.updateMatrix();
