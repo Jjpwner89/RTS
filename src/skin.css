@@ -313,3 +313,10 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #cards.dense .card.routing { box-shadow: inset 0 -5px 0 var(--bad); }
 #cards.dense .card.selected { transform: translateY(-3px); }
 @media (max-width: 800px), (max-height: 600px) { #cards.dense .card { width: 50px; } #cards.dense .card canvas { width: 18px; height: 18px; } #cards.dense .card { grid-template-columns: 18px 1fr; } }
+
+/* The men count stays on one line in a small window: "N men · enemy N", the full words in its tooltip. */
+#strength .short { display: none; }
+@media (max-width: 800px), (max-height: 600px) {
+  body:not(.mode-world) #top #strength { white-space: nowrap; max-width: none; font-size: 12px; text-align: left; }
+  #strength .long { display: none; } #strength .short { display: inline; }
+}

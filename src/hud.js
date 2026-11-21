@@ -227,8 +227,9 @@ export class Hud {
     const men = side => b.regs.filter(r => r.side === side && !r.gone && !r.routing && !r.regrouping).reduce((n, r) => n + r.alive, 0);
     const strength = document.getElementById('strength');
     strength.innerHTML =
-      `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> men standing &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`
+      `<b style="color:${SIDE_COLORS[0]}">${men(0)}</b> <span class="long">men standing</span><span class="short">men</span> &nbsp;·&nbsp; enemy <b style="color:${SIDE_COLORS[1]}">${men(1)}</b>`
       + (b.weather && b.weather !== 'clear' ? ` &nbsp;·&nbsp; ${WEATHER[b.weather].name}` : '');
+    strength.title = `${men(0)} of your men standing, ${men(1)} enemy`;
     delete strength.dataset.was;   // so the world map's top bar knows to write its own line again
     const m = Math.floor(b.time / 60), s = Math.floor(b.time % 60);
     document.getElementById('clock').textContent = `${m}:${String(s).padStart(2, '0')}`;
