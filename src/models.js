@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TYPES } from './battle.js';
+import { animReady, prepare } from './anim.js';
 
 // Soldiers closer to the camera than this many metres are drawn in full detail, the rest in the light version.
 export const LOD = { camera: null, near: 45 };
@@ -22,6 +23,11 @@ try {
       const f = new Float32Array(c.count * 3);
       for (let i = 0; i < c.count; i++) { f[i * 3] = c.getX(i); f[i * 3 + 1] = c.getY(i); f[i * 3 + 2] = c.getZ(i); }
       o.geometry.setAttribute('color', new THREE.Float32BufferAttribute(f, 3));
+    }
+    // an animated soldier is stored in its bind pose (anim.js); without the clips he can't be posed, so he's left out
+    if (o.geometry.attributes._bones) {
+      if (!animReady()) return;
+      prepare(o.geometry, o.userData.anim);
     }
     o.geometry.computeVertexNormals();
     geos[o.name] = o.geometry;
@@ -52,7 +58,7 @@ export function unitLook(key, { armour, shield } = {}) {
     const list = pieces.map(p => (light && get(`unit.${key}.${p}.${part}.light`)) || get(`unit.${key}.${p}.${part}`)).filter(Boolean);
     return list.length === 1 ? list[0] : mergeGeometries(list.map(g => g.index ? g.toNonIndexed() : g));
   };
-  const look = { gear: join('gear'), cloth: join('cloth'), gearLight: join('gear', true), clothLight: join('cloth', true) };
+  const look = { gear: join('gear'), cloth: join('cloth'), gearLight: join('gear', true), clothLight: join('cloth', true), anim: get(`unit.${key}.base.gear`).userData.anim };
   looks.set(id, look);
   return look;
 }
@@ -61,7 +67,7 @@ export function unitModel(key) {
   if (hasLevels(key)) return unitLook(key);
   const gear = get(`unit.${key}.gear`), cloth = get(`unit.${key}.cloth`);
   if (!gear || !cloth) return null;
-  return { gear, cloth, gearLight: get(`unit.${key}.gear.light`) || gear, clothLight: get(`unit.${key}.cloth.light`) || cloth };
+  return { gear, cloth, gearLight: get(`unit.${key}.gear.light`) || gear, clothLight: get(`unit.${key}.cloth.light`) || cloth, anim: gear.userData.anim };
 }
 
 export const buildingModel = name => get('building.' + name);

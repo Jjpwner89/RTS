@@ -6,6 +6,7 @@ import { HOMES } from './terrain.js';
 import { unitModel, unitLook, hasLevels, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
+import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip } from './anim.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -16,6 +17,73 @@ const lookKey = s => s.look || (s.reg.armour || s.reg.shield === false ? `${s.re
 const BUILT_IN = ['spear', 'sword', 'archer', 'cav', 'militia', 'bandit'];
 
 export const SIDE_COLORS = ['#3d6fd6', '#c8423a'];
+
+// ---- what an animated soldier is doing ----
+
+// The clip (anim.js clipOf) and moment each baked soldier shows, read from the battle: dead, striking, shooting,
+// routing, cheering a win, braced, marching or standing. `info` is the model's (rig, horse, weapon, shield, rest).
+// A strike or shot is lined up so the blow lands, or the arrow leaves, when the battle says it does: the clip
+// winds up while the man's cooldown runs out and plays on from the moment after (battle.js marks both, `// anim:`).
+// Gaits play at the pace the man covers ground, within reason; a horse's and its rider's share one clock.
+const UPRIGHT = { spear: true, sword: true, axe: true, crossbow: true };   // carried upright on the march
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function soldierClip(s, b, info, out) {
+  const r = s.reg, T = r.T, now = b.time, rig = info.rig;
+  const dt = clamp(now - (s.animAt ?? now), 0, 0.25);
+  s.animAt = now;
+  s.animT ??= Math.random() * 3;
+  out.hc = null; out.ht = 0;
+  const show = (name, t) => { out.c = clipOf(rig, name) || clipOf(rig, info.rest); out.t = t; return out; };
+  const gait = (name, speed, lo = 0.6, hi = 1.7) => { s.animT += dt * (speed ? clamp(s.v / speed, lo, hi) : 1); return show(name, s.animT); };
+  // a one-off action timed on an event of its clip: `since` the battle did it, or `left` until it does
+  const timed = (name, ev, since, left) => {
+    const c = clipOf(rig, name);
+    if (!c) return null;
+    const at = c.events?.[ev] ?? c.duration / 2;
+    if (since < c.duration - at) return show(name, at + since);
+    if (left != null && left < at) return show(name, at - left);
+    return null;
+  };
+  const close = s.target && Math.hypot(s.target.x - s.x, s.target.z - s.z) < T.reach * 1.2;
+
+  if (info.horse) {
+    if (!s.alive) { out.hc = clipOf('horse', 'Idle'); return show('Ride_Idle', 0); }   // he goes down with his horse
+    const pace = s.v < 0.4 ? 'Idle' : s.v < 5 || r.routing ? 'Trot' : 'Gallop';
+    s.animT += dt * (pace === 'Idle' ? 1 : clamp(s.v / (pace === 'Trot' ? 3 : 6), 0.6, 1.6));
+    out.hc = clipOf('horse', pace); out.ht = s.animT;
+    const lance = info.weapon === 'lance';
+    if (close && lance) { s.couchAt ??= now; return show('Ride_Couch', now - s.couchAt); }
+    s.couchAt = null;
+    if (!lance) { const k = timed('Ride_Slash', 'sword-contact', now - (s.struckAt ?? -99), close ? s.cd : null); if (k) return k; }
+    if (lance && pace === 'Gallop' && ((T.charge && !s.charged) || now < r.chargeUntil)) return show('Ride_Charge', s.animT);
+    return show('Ride_' + pace, s.animT);
+  }
+
+  if (!s.alive) return show('Death', now - (s.diedAt ?? now));
+  // a blow, or the wind-up to one
+  const strike = info.weapon === 'spear' ? ['Spear_Thrust', 'thrust'] : ['Sword_Slash', 'strike'];
+  let k = timed(...strike, now - (s.struckAt ?? -99), close ? s.cd : null);
+  if (k) return k;
+  // a shot: bows, crossbows and javelins each their own way
+  if (T.range) {
+    const shot = T.javelin ? ['Javelin_Throw', 'release-javelin'] : info.weapon === 'crossbow' ? ['Crossbow_Span', 'shoot'] : ['Bow_Loose', 'loose'];
+    const loosing = !s.target && r.ammo >= 1 && now - (r.lastShot ?? -99) < T.reload * 1.5;
+    k = timed(...shot, now - (s.shotAt ?? -99), loosing ? s.fireCd : null);
+    if (k) return k;
+  }
+  if (r.routing) return gait('Rout', 1.8);
+  if (b.winner === r.side) { s.animT += dt; return show('Cheer', s.animT % 2.6); }
+  if (s.v >= 0.4 || s.climb > 0) {
+    const up = UPRIGHT[info.weapon];
+    return s.v > 3.6 ? gait(up ? 'RunArmed' : 'Run', 2.6) : gait(up ? 'March_Upright' : 'Walk', up ? 2.2 : 1.6);
+  }
+  // standing: spears brace against what's coming, shields close up in a tight line
+  const braced = T.braces && info.weapon === 'spear' && (r.formation === 'square' || r.hold || r.engaged > 0);
+  if (braced) { s.braceAt ??= now; return show('Spear_Brace', now - s.braceAt); }
+  s.braceAt = null;
+  if (info.shield && r.formation === 'tight') return gait('Shield_Wall');
+  return gait(info.rest);
+}
 
 // ---- soldier models, built from primitives facing +z ----
 
@@ -286,6 +354,7 @@ export class BattleView {
     this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.tint = new THREE.Color();
     this.shade = new THREE.Color();
+    this.clip = {};   // soldierClip's answer, reused
     this.base = SIDE_COLORS.map(c => new THREE.Color(c));
     this.capacity = capacity;
     this.meshes = {};
@@ -340,8 +409,11 @@ export class BattleView {
     const baked = chain.map(k => look.includes('|') && hasLevels(k) ? unitLook(k, { armour: armour || undefined, shield: shield !== 'false' }) : unitModel(k)).find(Boolean);
     const builtIn = chain.find(k => BUILT_IN.includes(k)) || key;
     const model = baked || (builtIn === 'cav' ? cavalry() : infantry(builtIn));
-    const inst = geo => {
-      const m = new THREE.InstancedMesh(geo, this.mat, capacity);
+    // a soldier baked with a skeleton plays clips (anim.js): each instance gets its own clip and moment
+    const anim = baked?.anim && animReady() ? baked.anim : null;
+    const inst = (geo, light = false) => {
+      const m = new THREE.InstancedMesh(anim ? animGeometry(geo, capacity) : geo, anim ? animMaterial(this.mat, { light }) : this.mat, capacity);
+      if (anim) m.customDepthMaterial = animDepthMaterial(light);
       m.setColorAt(0, this.tint.setScalar(1));
       m.count = 0;
       m.castShadow = true;
@@ -350,8 +422,8 @@ export class BattleView {
       this.scene.add(m);
       return m;
     };
-    const m = { gear: inst(model.gear), cloth: inst(model.cloth), list: [], darkened: new Set() };
-    if (baked) m.light = { gear: inst(baked.gearLight), cloth: inst(baked.clothLight) };
+    const m = { gear: inst(model.gear), cloth: inst(model.cloth), list: [], darkened: new Set(), anim };
+    if (baked) m.light = { gear: inst(baked.gearLight, true), cloth: inst(baked.clothLight, true) };
     m.all = [m.gear, m.cloth, ...(m.light ? [m.light.gear, m.light.cloth] : [])];
     return m;
   }
@@ -363,6 +435,10 @@ export class BattleView {
     const dead = !s.alive && s.fall >= 1;
     pair.gear.setMatrixAt(i, this.dummy.matrix);
     pair.cloth.setMatrixAt(i, this.dummy.matrix);
+    if (m.anim) {
+      const k = soldierClip(s, this.battle, m.anim, this.clip);
+      for (const g of [pair.gear.geometry, pair.cloth.geometry]) { setClip(g, i, k.c, k.t); setClip(g, i, k.hc, k.ht, true); }
+    }
     pair.cloth.setColorAt(i, dead ? this.shade.copy(s.tint).multiplyScalar(0.55) : s.tint);
     pair.gear.setColorAt(i, dead ? this.shade.copy(s.gearTint).multiplyScalar(0.6) : s.gearTint);
   }
@@ -464,11 +540,13 @@ export class BattleView {
         if (s.gone || s.reg.unseen) {     // unseen: hidden from you in the woods (battle.updateSight)
           d.position.set(0, -50, 0); d.scale.setScalar(0.001);
         } else {
-          const walking = s.v > 0.4 && s.alive;
-          const bob = walking ? Math.abs(Math.sin(s.phase)) * (s.reg.T.mounted ? 0.18 : 0.1) : 0;
-          const fwd = s.lunge * 0.35;
-          d.position.set(s.x + Math.sin(s.yaw) * fwd, s.y + bob - s.fall * 0.15, s.z + Math.cos(s.yaw) * fwd);
-          d.rotation.set(-s.fall * Math.PI / 2 * (s.reg.T.mounted ? 0 : 1), s.yaw, s.reg.T.mounted ? s.fall * Math.PI / 2 : 0);
+          // an animated soldier steps, strikes and falls in his clips; a rider still topples with his horse
+          const mounted = s.reg.T.mounted, still = !!m.anim;
+          const walking = s.v > 0.4 && s.alive && !still;
+          const bob = walking ? Math.abs(Math.sin(s.phase)) * (mounted ? 0.18 : 0.1) : 0;
+          const fwd = still ? 0 : s.lunge * 0.35, fall = still && !mounted ? 0 : s.fall;
+          d.position.set(s.x + Math.sin(s.yaw) * fwd, s.y + bob - fall * 0.15, s.z + Math.cos(s.yaw) * fwd);
+          d.rotation.set(-fall * Math.PI / 2 * (mounted ? 0 : 1), s.yaw, mounted ? fall * Math.PI / 2 : 0);
           d.scale.setScalar(1);
         }
         d.updateMatrix();
@@ -486,7 +564,11 @@ export class BattleView {
       if (m.light) {
         gear.count = cloth.count = counts.full;
         m.light.gear.count = m.light.cloth.count = counts.light;
-        for (const x of m.all) { x.instanceMatrix.needsUpdate = true; if (x.instanceColor) x.instanceColor.needsUpdate = true; }
+        for (const x of m.all) {
+          x.instanceMatrix.needsUpdate = true;
+          if (x.instanceColor) x.instanceColor.needsUpdate = true;
+          if (m.anim) x.geometry.attributes.aAnim.needsUpdate = x.geometry.attributes.aAnimH.needsUpdate = true;
+        }
       } else gear.instanceMatrix.needsUpdate = cloth.instanceMatrix.needsUpdate = true;
     }
 

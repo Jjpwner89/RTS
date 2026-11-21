@@ -167,7 +167,9 @@ const v = new THREE.Vector3();
 // `armour` is a list of layers, each a shell grown over the triangles skinned to its bones, so any body can wear a
 // breastplate and a surcoat over it. A layer's colour may be 'team'.
 // `hold` names holding stances for the arms; `trimHair` tucks the hair in to the skull so helmets cover it.
-async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85, drop = () => false, seated = false, team, tint = {}, flat = {}, armour, hold = [], trimHair = false }) {
+// `skin` names the skeleton the game animates it on (skin.js); the meshes then also carry their bind positions
+// and bone weights, so the bake can be played back in any clip.
+async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85, drop = () => false, seated = false, team, tint = {}, flat = {}, armour, hold = [], trimHair = false, skin }) {
   const { root, clips } = await source(kind, file);
   const o = SkeletonUtils.clone(root);
   const anim = clips.find(a => a.name === clip) || clips.find(a => a.name.endsWith('|' + clip)) || clips.find(a => a.name.includes(clip)) || clips[0];
@@ -175,10 +177,13 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
   o.updateMatrixWorld(true);
   if (seated) seat(o, RIGS[rig]);
   const grips = hold.length ? await stance(o, hold) : {};
+  const SK = skin && await import('./skin.js');
+  if (SK) await SK.load();
+  const sk = SK && SK.begin(skin, o);
   // the head and everything it carries (hair, ears), measured so helmets can be fitted to it
   const headBones = new Set(), headBox = new THREE.Box3(), skull = new THREE.Box3();
   byName(o, RIGS[rig]?.head || '')?.traverse(b => headBones.add(b));
-  const byMat = new Map(), layers = (armour || []).map(a => ({ ...a, tri: [], bones: new Set(a.bones.map(b => b.replace(/[[\].:/]/g, ''))) }));
+  const byMat = new Map(), layers = (armour || []).map(a => ({ ...a, tri: [], sb: [], sw: [], bones: new Set(a.bones.map(b => b.replace(/[[\].:/]/g, ''))) }));
   o.traverse(n => {
     if (!n.isMesh || !n.visible) return;
     for (let p = n; p; p = p.parent) if (p !== o && drop(p.name)) return;
@@ -203,10 +208,15 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
         dom[i] = bone.name.replace(/[[\].:/]/g, '');
       }
     }
+    const extra = sk && n.isSkinnedMesh ? sk.mesh(n, out) : null;
     if (layers.length && n.isSkinnedMesh) {
       const idx = geo.index ? geo.index.array : Array.from({ length: pos.count }, (_, i) => i);
       for (const L of layers) for (let t = 0; t < idx.length; t += 3) {
-        if (L.bones.has(dom[idx[t]]) && L.bones.has(dom[idx[t + 1]]) && L.bones.has(dom[idx[t + 2]])) for (let j = 0; j < 3; j++) L.tri.push(out[idx[t + j] * 3], out[idx[t + j] * 3 + 1], out[idx[t + j] * 3 + 2]);
+        if (L.bones.has(dom[idx[t]]) && L.bones.has(dom[idx[t + 1]]) && L.bones.has(dom[idx[t + 2]])) for (let j = 0; j < 3; j++) {
+          const i = idx[t + j];
+          L.tri.push(out[i * 3], out[i * 3 + 1], out[i * 3 + 2]);
+          if (extra) { L.sb.push(...extra.bones.slice(i * 4, i * 4 + 4)); L.sw.push(...extra.weights.slice(i * 4, i * 4 + 4)); }
+        }
       }
     }
     const mats = [].concat(n.material);
@@ -217,6 +227,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
       g.setAttribute('position', new THREE.BufferAttribute(out, 3));
       if (geo.attributes.uv) g.setAttribute('uv', geo.attributes.uv);
       if (geo.attributes.color) g.setAttribute('color', geo.attributes.color);
+      if (extra) { g.setAttribute('bind', new THREE.BufferAttribute(extra.bind, 3)); g.setAttribute('bones', new THREE.BufferAttribute(extra.bones, 4)); g.setAttribute('weights', new THREE.BufferAttribute(extra.weights, 4)); }
       if (geo.index) g.setIndex(Array.from(geo.index.array.slice(gr.start, gr.start + gr.count)));
       else g.setIndex(Array.from({ length: gr.count }, (_, i) => gr.start + i));
       const mat = mats[gr.materialIndex] || mats[0];
@@ -241,7 +252,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
   const box = new THREE.Box3();
   const parts = [...byMat.values()].map(({ mat, mesh, geos }) => {
     // keep uvs and vertex colours only where every piece has them, so the pieces merge
-    const keep = ['uv', 'color'].filter(a => geos.every(x => x.attributes[a]));
+    const keep = ['uv', 'color', 'bind', 'bones', 'weights'].filter(a => geos.every(x => x.attributes[a]));
     const g = mergeGeometries(geos.map(x => { const y = new THREE.BufferGeometry(); y.setAttribute('position', x.attributes.position); for (const a of keep) y.setAttribute(a, x.attributes[a]); return y; }));
     g.computeBoundingBox(); box.union(g.boundingBox);
     return { mat, mesh, g };
@@ -250,16 +261,22 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
   const toM = p => p.clone().setY(p.y - base).multiplyScalar(k);
   const group = new THREE.Group();
   let tris = 0;
-  const sk = skull.isEmpty() ? null : { c: toM(skull.getCenter(new THREE.Vector3())), r: skull.getSize(new THREE.Vector3()).multiplyScalar(k * 0.5 * 1.06) };
+  const sc = skull.isEmpty() ? null : { c: toM(skull.getCenter(new THREE.Vector3())), r: skull.getSize(new THREE.Vector3()).multiplyScalar(k * 0.5 * 1.06) };
   for (const { mat, mesh, g } of parts) {
     g.translate(0, -base, 0); g.scale(k, k, k);
     // hair outside the skull drops onto it, so a helmet sized to the head covers it
-    if (trimHair && sk && /^Hair/.test(mat.name)) {
-      const p = g.attributes.position, d = new THREE.Vector3();
+    // (an animated figure's hair moves in its bind pose too: skin.js rebind)
+    if (trimHair && sc && /^Hair/.test(mat.name)) {
+      const p = g.attributes.position, d = new THREE.Vector3(), B = g.attributes.bind;
       for (let i = 0; i < p.count; i++) {
-        d.fromBufferAttribute(p, i).sub(sk.c);
-        const e = Math.hypot(d.x / sk.r.x, d.y / sk.r.y, d.z / sk.r.z);
-        if (e > 1) p.setXYZ(i, sk.c.x + d.x / e, sk.c.y + d.y / e, sk.c.z + d.z / e);
+        d.fromBufferAttribute(p, i).sub(sc.c);
+        const e = Math.hypot(d.x / sc.r.x, d.y / sc.r.y, d.z / sc.r.z);
+        if (e <= 1) continue;
+        p.setXYZ(i, sc.c.x + d.x / e, sc.c.y + d.y / e, sc.c.z + d.z / e);
+        if (sk && B) {
+          const q = sk.rebind(d.fromBufferAttribute(p, i), [0, 1, 2, 3].map(j => g.attributes.bones.getComponent(i, j)), [0, 1, 2, 3].map(j => g.attributes.weights.getComponent(i, j)), k, base);
+          B.setXYZ(i, q.x, q.y, q.z);
+        }
       }
     }
     g.computeVertexNormals();
@@ -276,6 +293,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
     for (let i = 0; i < armour.tri.length; i += 3) { armour.tri[i + 1] -= base; for (let j = 0; j < 3; j++) armour.tri[i + j] *= k; }
     let g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(armour.tri, 3));
+    if (sk) { g.setAttribute('bones', new THREE.Float32BufferAttribute(armour.sb, 4)); g.setAttribute('weights', new THREE.Float32BufferAttribute(armour.sw, 4)); }
     g = mergeVertices(g, 1e-4); g.computeVertexNormals();
     const under = facing(armour.tri);
     for (const w of worn) { under.p = Float32Array.from([...under.p, ...w.p]); under.n = Float32Array.from([...under.n, ...w.n]); }
@@ -292,6 +310,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
   for (const b in bones) bones[b] = toM(bones[b]);
   for (const h of Object.values(hands)) { h.p = toM(h.p); h.wrist = toM(h.wrist); }
   const head = headBox.isEmpty() ? null : new THREE.Box3(toM(headBox.min), toM(headBox.max));
+  if (sk) group.userData.skin = sk.finish(k, base);
   return { group, bones, hands, head, k, team, tris: Math.round(tris) };
 }
 
@@ -356,6 +375,7 @@ async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, nati
     if (tint) o.traverse(m => { if (m.isMesh) [].concat(m.material).forEach(x => { if (tint[x.name]) { x.color = teamColour(tint[x.name], fig.team); markTeam(x, tint[x.name]); } }); });
     // the crown sits just above the top of the head
     o.position.set(hc.x, fig.head.max.y + hs.y * 0.06 - b.max.y * k, hc.z).add(new THREE.Vector3(...off));
+    o.userData.attach = 'Head';
     fig.group.add(o);
     fig.tris += C.tris(o);
     return;
@@ -365,6 +385,11 @@ async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, nati
   if (tint) o.traverse(m => { if (m.isMesh) [].concat(m.material).forEach(x => { if (tint[x.name]) { x.color = teamColour(tint[x.name], fig.team); markTeam(x, tint[x.name]); } }); });
   const wrap = new THREE.Group();
   wrap.add(o);
+  // what an animated soldier does with it (skin.js): held in a hand at each clip's grip, measured from where the
+  // item sits now in its wrap, whichever way it was hung
+  o.updateMatrix();
+  const native0 = o.matrix.clone();
+  const held = slot => { if (HELD[item]) { o.updateMatrix(); wrap.userData.prop = { slot, item, canon: heldFrame(item, b, s, k, len).multiply(native0).multiply(o.matrix.clone().invert()) }; } };
   const H = fig.hands?.[hand || shield];
   if (H && hand) {
     const A = H.axis, E = edge ? new THREE.Vector3(...edge) : new THREE.Vector3(0, 1, 0).applyQuaternion(H.q);
@@ -373,6 +398,7 @@ async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, nati
     wrap.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(AX.y, twist * DEG));
     if (grip != null) o.position.y = -(b.min.y + grip * s.y) * k;
     wrap.position.copy(H.p).addScaledVector(A, slide);
+    held(hand === 'R' ? 'R' : /Shield/.test(item) ? 'SHIELD' : 'BOW');
     fig.group.add(wrap);
     fig.tris += C.tris(o);
     return wrap;
@@ -388,6 +414,7 @@ async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, nati
     o.position.sub(new THREE.Vector3(c.x, c.y, ob.min.z));
     wrap.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(up, face), up, face));
     wrap.position.copy(fig.bones['fore' + shield]).lerp(H.wrist, 0.6).addScaledVector(face, 0.05);
+    held('SHIELD');
     fig.group.add(wrap);
     fig.tris += C.tris(o);
     return wrap;
@@ -395,9 +422,29 @@ async function hang(fig, { item, at, off = [0, 0, 0], rot = [0, 0, 0], len, nati
   const p = at === 'chest' ? fig.bones.shL.clone().add(fig.bones.shR).multiplyScalar(0.5) : at === 'helm' ? fig.bones.head.clone() : fig.bones[at].clone();
   wrap.position.copy(p).add(new THREE.Vector3(...off));
   wrap.rotation.set(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'YXZ');
+  if (at === 'R' || at === 'L') held(at === 'R' ? 'R' : /Shield/.test(item) ? 'SHIELD' : 'BOW');
+  else if (at === 'chest') wrap.userData.attach = 'Chest';
+  else if (at === 'helm' || at === 'head') wrap.userData.attach = 'Head';
   fig.group.add(wrap);
   fig.tris += C.tris(o);
   return wrap;
+}
+
+// Held gear in a hand's prop frame (skin.js): +x along the shaft toward the head with the grip at the origin, the
+// blade's width along z; a bow's limbs along x with its back toward +y; a shield facing +y, its top toward +z,
+// standing a little off the hand. `grip` is how far up the shaft the hand holds it (a lance further back).
+const BLADE = new THREE.Matrix4().set(0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1);
+const BOW = new THREE.Matrix4().set(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1);
+const SHIELD = new THREE.Matrix4().set(-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1);
+const HELD = {
+  W_Spear: { basis: BLADE, grip: len => len >= 3 ? 0.28 : 0.35 }, W_Sword: { basis: BLADE }, W_Axe: { basis: BLADE },
+  W_Bow_Wooden: { basis: BOW }, W_Shield_Round: { basis: SHIELD, out: 0.08 }, W_Shield_Heater: { basis: SHIELD, out: 0.08 }, W_Shield_Heater_2: { basis: SHIELD, out: 0.08 },
+};
+function heldFrame(item, box, size, k, len) {
+  const h = HELD[item], m = h.basis.clone();
+  if (h.grip) m.multiply(new THREE.Matrix4().makeTranslation(0, -(box.min.y + h.grip(len) * size.y) * k, 0));
+  if (h.out) m.premultiply(new THREE.Matrix4().makeTranslation(0, h.out, 0));
+  return m;
 }
 
 // Shoulder pads spread across the upper arms of a figure that isn't the knight they were made for.
@@ -508,8 +555,8 @@ function procedural(V, T, role, team) {
 }
 
 // The Quaternius horse carries the rigged riders; the procedural sets bring their own horse.
-async function horse(team) {
-  const h = await bake('fbx', GEAR_DIR + 'Horse.fbx', { clip: 'Idle', height: 1.75 });
+async function horse(team, { skin } = {}) {
+  const h = await bake('fbx', GEAR_DIR + 'Horse.fbx', { clip: 'Idle', height: 1.75, skin: skin && 'horse' });
   // a saddle cloth in team colour, draped over the back and down both flanks
   const geo = new THREE.CylinderGeometry(0.34, 0.34, 0.8, 12, 1, true, -Math.PI * 0.62, Math.PI * 1.24);
   geo.rotateX(-Math.PI / 2);
@@ -1103,4 +1150,4 @@ if (want('economy')) await buildEconomy();
 if (want('upgrades')) await buildUpgrades();
 renderLabels();
 $('#progress').textContent = '';
-window.__roster = { THREE, C, MeshoptSimplifier, mergeGeometries, mergeVertices, FAMILIES, KIT, HELM, ARMOUR, figure, horse, fitPads, rtsModel, mvpModel, flatten, lighten, teamColour, renderer, scene, camera, shot: () => { controls.update(); renderer.render(scene, camera); placeLabels(); }, controls, go, FAMILIES, figure, bake, hang, labels };
+window.__roster = { THREE, C, MeshoptSimplifier, mergeGeometries, mergeVertices, FAMILIES, KIT, HELM, ARMOUR, figure, horse, fitPads, gearModel, rtsModel, mvpModel, flatten, lighten, teamColour, renderer, scene, camera, shot: () => { controls.update(); renderer.render(scene, camera); placeLabels(); }, controls, go, FAMILIES, figure, bake, hang, labels };

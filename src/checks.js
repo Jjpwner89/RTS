@@ -418,6 +418,21 @@ async function findAssets() {
   // Event pictures: every event listed as painted has its picture (world/events.js PAINTED).
   const { PAINTED } = await import('./world/events.js');
   push(`event pictures (${PAINTED.size} painted)`, (await missing([...PAINTED].map(id => `assets/art/events/${id}.png`))).map(f => `missing ${f}`));
+
+  // Clips: the animated soldiers and villagers stand in their bind pose without assets/anim.bin, and play a wrong
+  // clip if their skeleton lacks one the views ask for (view.js soldierClip, townview.js villagerClip).
+  const { animReady, clipOf } = await import('./anim.js');
+  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'March_Upright', 'Death', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
+  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch'], HORSE = ['Idle', 'Trot', 'Gallop'], WORK = ['Walk', 'Run', 'Carry', 'Chop', 'Mine', 'Hoe', 'Idle'];
+  const noClip = new Set();
+  if (!animReady()) noClip.add('assets/anim.json or anim.bin did not load: animated soldiers are left out');
+  else for (const key of [...Object.keys(TYPES), 'villager']) {
+    const a = unitModel(key)?.anim;
+    if (!a) continue;
+    for (const n of key === 'villager' ? WORK : a.horse ? RIDE : FOOT) if (!clipOf(a.rig, n)) noClip.add(`${key}: no '${n}' clip for the ${a.rig} skeleton`);
+    if (a.horse) for (const n of HORSE) if (!clipOf('horse', n)) noClip.add(`no horse '${n}' clip`);
+  }
+  push('soldier and villager clips', [...noClip]);
   return out;
 }
 

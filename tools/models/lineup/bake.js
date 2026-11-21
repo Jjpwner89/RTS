@@ -2,6 +2,7 @@
 // Soldiers split into "gear" (fixed colours) and "cloth" (team parts, stored as grey shades the game tints),
 // each in a full and a light version. Buildings become one vertex-coloured mesh each.
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import * as SK from './skin.js';
 
 const R = window.__roster, { THREE, C, MeshoptSimplifier, mergeGeometries, mergeVertices } = R;
 
@@ -9,28 +10,41 @@ const R = window.__roster, { THREE, C, MeshoptSimplifier, mergeGeometries, merge
 // with its weapons ('base').
 const partOf = m => { for (let p = m; p; p = p.parent) if (p.userData.part) return p.userData.part; return 'base'; };
 // Every part of a figure (or only the meshes of one piece), split by whether its material is a team colour.
+// An animated figure (one baked with skin data, skin.js) keeps each vertex in its bind pose with its bone weights
+// instead of where the bake posed it; the game poses it.
+const figOf = m => { for (let p = m; p; p = p.parent) if (p.userData.skin) return p; return null; };
+const animated = group => { let a = false; group.traverse(o => { if (o.userData.skin) a = true; }); return a; };
 function split(group, want) {
   group.updateMatrixWorld(true);
-  const inv = group.matrixWorld.clone().invert(), out = { gear: [], cloth: [] };
+  const inv = group.matrixWorld.clone().invert(), out = { gear: [], cloth: [] }, anim = animated(group);
   group.traverse(part => {
     if (!part.isMesh || (want && partOf(part) !== want)) return;
     const src = part.geometry, g = src.index ? src.toNonIndexed() : src.clone();
+    let sk = null;
+    if (anim) {
+      const fig = figOf(part);
+      if (!fig) throw new Error(`${part.name || part.parent?.name}: not on an animated figure`);
+      sk = g.attributes.bind ? { bind: g.attributes.bind.array, bones: g.attributes.bones.array, weights: g.attributes.weights.array }
+        : SK.derive(fig, part, g, fig.matrixWorld.clone().invert().multiply(part.matrixWorld));
+    }
     g.applyMatrix4(inv.clone().multiply(part.matrixWorld));
     const mats = [].concat(part.material), n = g.attributes.position.count;
     const groups = Array.isArray(part.material) && src.groups.length ? src.groups : [{ start: 0, count: n, materialIndex: 0 }];
     const vc = g.attributes.color, c = new THREE.Color();
     for (const gr of groups) {
       const m = mats[gr.materialIndex] || mats[0], team = m.userData.team;
-      const end = Math.min(n, gr.start + gr.count), pos = [], col = [];
+      const end = Math.min(n, gr.start + gr.count), pos = [], col = [], bones = [], weights = [];
       for (let i = gr.start; i < end; i++) {
         if (team) c.setScalar(team);
         else { c.copy(m.color); if (vc) c.multiply(new THREE.Color(vc.getX(i), vc.getY(i), vc.getZ(i))); }
-        pos.push(g.attributes.position.getX(i), g.attributes.position.getY(i), g.attributes.position.getZ(i));
+        if (sk) { pos.push(...sk.bind.slice(i * 3, i * 3 + 3)); bones.push(...sk.bones.slice(i * 4, i * 4 + 4)); weights.push(...sk.weights.slice(i * 4, i * 4 + 4)); }
+        else pos.push(g.attributes.position.getX(i), g.attributes.position.getY(i), g.attributes.position.getZ(i));
         col.push(c.r, c.g, c.b);
       }
       const y = new THREE.BufferGeometry();
       y.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       y.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      if (sk) { y.setAttribute('bones', new THREE.Float32BufferAttribute(bones, 4)); y.setAttribute('weights', new THREE.Float32BufferAttribute(weights, 4)); }
       out[team ? 'cloth' : 'gear'].push(y);
     }
   });
@@ -38,26 +52,37 @@ function split(group, want) {
 }
 
 // Indexed, with unused vertices dropped; simplified toward `tris` when given.
+// Bone weights go as bytes, strongest first; a light version keeps only each vertex's two strongest bones.
 function compact(geo, tris) {
   let g = mergeVertices(geo, 1e-4);
   let idx = g.index.array;
   if (tris) idx = MeshoptSimplifier.simplify(new Uint32Array(idx), new Float32Array(g.attributes.position.array), 3, Math.min(idx.length, Math.max(3, Math.round(tris) * 3)), 0.06)[0];
-  const remap = new Map(), pos = [], col = [], P = g.attributes.position, Cc = g.attributes.color;
+  const remap = new Map(), pos = [], col = [], bones = [], weights = [], P = g.attributes.position, Cc = g.attributes.color, B = g.attributes.bones, W = g.attributes.weights;
+  const keep = tris ? 2 : 4;
   const index = Array.from(idx, i => {
-    if (!remap.has(i)) { remap.set(i, remap.size); pos.push(P.getX(i), P.getY(i), P.getZ(i)); col.push(Cc.getX(i), Cc.getY(i), Cc.getZ(i)); }
+    if (!remap.has(i)) {
+      remap.set(i, remap.size); pos.push(P.getX(i), P.getY(i), P.getZ(i)); col.push(Cc.getX(i), Cc.getY(i), Cc.getZ(i));
+      if (B) {
+        const inf = [0, 1, 2, 3].map(j => [B.getComponent(i, j), W.getComponent(i, j)]).sort((a, b) => b[1] - a[1]).slice(0, keep);
+        const sum = inf.reduce((a, x) => a + x[1], 0) || 1, w = inf.map(x => Math.round(x[1] / sum * 255));
+        w[0] += 255 - w.reduce((a, b) => a + b, 0);
+        for (let j = 0; j < 4; j++) { bones.push(j < keep && w[j] ? Math.round(inf[j][0]) : 0); weights.push(j < keep ? w[j] : 0); }
+      }
+    }
     return remap.get(i);
   });
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   // colours as bytes: a third of the space, and plenty for flat colours
   out.setAttribute('color', new THREE.Uint8BufferAttribute(col.map(v => Math.round(Math.min(1, Math.max(0, v)) * 255)), 3, true));
+  if (B) { out.setAttribute('bones', new THREE.Uint8BufferAttribute(bones, 4)); out.setAttribute('weights', new THREE.Uint8BufferAttribute(weights, 4, true)); }
   out.setIndex(index);
   return out;
 }
 const tri = g => g.index.count / 3;
 
 const qmod = R.FAMILIES.find(f => f.id === 'qmod');
-const people = (file, opts) => R.bake('glb', 'assets/qmod/' + file + '.glb', { rig: 'qmod', team: 0, clip: 'Idle', height: 1.8, drop: n => n === 'Backpack' || n === 'Sword', tint: { Green: 'team', LightGreen: 'team2', Blue: 'team' }, ...opts });
+const people = (file, opts) => R.bake('glb', 'assets/qmod/' + file + '.glb', { rig: 'qmod', team: 0, clip: 'Idle', height: 1.8, drop: n => n === 'Backpack' || n === 'Sword', tint: { Green: 'team', LightGreen: 'team2', Blue: 'team' }, skin: SK.rigOf(file), ...opts });
 // The farmer's shirt and neckerchief take the team colour (or a villager's dye).
 const FARMER = { Beige: 'team', Red: 'team3' };
 // The game's unit keys; the four line troops are exactly the lineup's Quaternius people.
@@ -75,7 +100,7 @@ const UNITS = {
     await R.hang(f, R.KIT.villager[0]);
     return f;
   },
-  villager: () => people('Male_Farmer', { tint: FARMER }),
+  villager: async () => { const f = await people('Male_Farmer', { tint: FARMER }); tools(f); return f; },
 };
 const LIGHT = 1500;
 
@@ -245,7 +270,7 @@ const plate = (colour, bones = PLATE_ALL) => [{ ...SURCOAT, bones: ['Abdomen', '
 const teamMat = (shade = 1) => { const m = new THREE.MeshLambertMaterial({ color: '#ffffff' }); m.userData.team = shade; return m; };
 // Seat a rider on the Quaternius horse; the saddle cloth (and a knight's caparison) take the team colour.
 async function mount(fig, { caparison } = {}) {
-  const h = await R.horse(0);
+  const h = await R.horse(0, { skin: !!fig.group.userData.skin });
   h.group.traverse(m => { if (m.isMesh && m.userData.saddleCloth) m.material = teamMat(1); });
   const g = new THREE.Group();
   g.add(h.group);
@@ -270,28 +295,49 @@ async function mount(fig, { caparison } = {}) {
     const p = shell.attributes.position, n = shell.attributes.normal;
     for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * 0.05, p.getY(i) + n.getY(i) * 0.05 - (p.getY(i) < h.saddle.y * 0.8 ? 0.12 : 0), p.getZ(i) + n.getZ(i) * 0.05);
     const cap = new THREE.Mesh(shell, teamMat(0.85));
-    g.add(cap);
+    h.group.add(cap);
   }
   return g;
 }
-// A crossbow in the right hand: a stock with the bow turned crosswise at its front.
-// Held ready in Hold_Crossbow_2H: the right fist at the back of the stock, the barrel forward and a little down (the
-// stance's crossbow line, in model space), the bow lying side to side at the front with its string (the bow
-// model's +x) toward the shooter.
+// A crossbow in the right hand: a stock with the bow turned crosswise at its front. Built in the hand's prop frame
+// (skin.js): the stock along +x from the grip, the bow's limbs along y, its back toward +x.
 async function crossbow(fig) {
-  const grip = fig.hands?.R ? fig.hands.R.p : fig.bones.R, barrel = new THREE.Vector3(0, -0.2, 1).normalize(), across = new THREE.Vector3(1, 0, 0), back = barrel.clone().negate();
-  const bow = await R.hang(fig, { item: 'W_Bow_Wooden', at: 'R', len: 0.62 });
-  bow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(back, across, new THREE.Vector3().crossVectors(back, across)));
-  bow.position.copy(grip).addScaledVector(barrel, 0.46);
-  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.72), new THREE.MeshLambertMaterial({ color: '#6b4a2e' }));
-  stock.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), barrel);
-  stock.position.copy(grip).addScaledVector(barrel, 0.16);
-  fig.group.add(stock);
+  const g = new THREE.Group();
+  g.userData.prop = { slot: 'R', item: 'crossbow', canon: new THREE.Matrix4() };
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.07, 0.07), new THREE.MeshLambertMaterial({ color: '#6b4a2e' }));
+  stock.position.x = 0.22;
+  g.add(stock);
+  const bow = await R.gearModel('W_Bow_Wooden');
+  bow.updateMatrixWorld(true);
+  const s = new THREE.Box3().setFromObject(bow).getSize(new THREE.Vector3());
+  bow.scale.multiplyScalar(0.62 / Math.max(s.x, s.y, s.z));
+  bow.position.x = 0.5;
+  g.add(bow);
+  placeHeld(fig, g, 'R');
+}
+// Until a clip moves it, a held thing made here sits at the hand as the bake posed it (the game redraws it anyway).
+function placeHeld(fig, g, at) { g.position.copy(fig.bones[at]); fig.group.add(g); }
+// A villager's tools, each shown only while its work clip plays (skin.js): an axe, a pick and a hoe, held as the
+// clip review holds them. (What he carries the game draws itself: a crate of the goods, in his arms.)
+function tools(fig) {
+  const wood = plain('#7a5a3a'), iron = plain('#8d979c');
+  const tool = (slot, shaft, head, at) => {
+    const g = new THREE.Group();
+    g.userData.prop = { slot, item: 'tool', canon: new THREE.Matrix4() };
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.019, shaft, 6), wood);
+    s.rotation.z = -Math.PI / 2; s.position.x = shaft * 0.15; g.add(s);
+    head.position.x = at; g.add(head);
+    placeHeld(fig, g, 'R');
+  };
+  tool('AXE', 0.85, new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.045, 0.28), iron), 0.55);
+  tool('PICK', 0.85, new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 4).rotateX(Math.PI / 2), iron), 0.55);
+  tool('HOE', 1.5, new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.15), iron), 1.0);
 }
 const plume = fig => {
   const m = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.34, 5), teamMat(1));
   m.position.set(fig.head.getCenter(new THREE.Vector3()).x, fig.head.max.y + 0.2, fig.head.getCenter(new THREE.Vector3()).z - 0.03);
   m.rotation.x = -0.35;
+  m.userData.attach = 'Head';
   fig.group.add(m);
 };
 const cape = fig => {
@@ -306,29 +352,31 @@ const plain = c => new THREE.MeshLambertMaterial({ color: c });
 const GOLD = '#d8b04a', STEEL = '#b9c0c8';
 const headAt = fig => ({ c: fig.head.getCenter(new THREE.Vector3()), s: fig.head.getSize(new THREE.Vector3()), top: fig.head.max.y });
 const put = (fig, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fig.group.add(m); return m; };
+// headwear moves with the head, rigidly
+const hat = (...a) => { const m = put(...a); m.userData.attach = 'Head'; return m; };
 // A gold circlet with five points, just above the brow.
 const coronet = fig => {
   const { c, s, top } = headAt(fig), r = Math.max(s.x, s.z * 0.9) * 0.52, y = top - s.y * 0.2;
-  put(fig, new THREE.CylinderGeometry(r, r * 0.96, 0.07, 14, 1, true), plain(GOLD), c.x, y, c.z).material.side = THREE.DoubleSide;
+  hat(fig, new THREE.CylinderGeometry(r, r * 0.96, 0.07, 14, 1, true), plain(GOLD), c.x, y, c.z).material.side = THREE.DoubleSide;
   for (let i = 0; i < 5; i++) {
     const a = i / 5 * Math.PI * 2;
-    put(fig, new THREE.ConeGeometry(0.028, 0.1, 4), plain(GOLD), c.x + Math.sin(a) * r, y + 0.08, c.z + Math.cos(a) * r);
+    hat(fig, new THREE.ConeGeometry(0.028, 0.1, 4), plain(GOLD), c.x + Math.sin(a) * r, y + 0.08, c.z + Math.cos(a) * r);
   }
 };
 // A broad-brimmed iron hat.
 const kettleHat = (fig, colour = '#8c939b') => {
   const { c, s, top } = headAt(fig), r = s.x * 0.6;
   const dome = new THREE.SphereGeometry(r, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  put(fig, dome, plain(colour), c.x, top - r * 0.75, c.z);
-  put(fig, new THREE.CylinderGeometry(r * 1.6, r * 1.75, 0.03, 14), plain(colour), c.x, top - r * 0.75, c.z);
+  hat(fig, dome, plain(colour), c.x, top - r * 0.75, c.z);
+  hat(fig, new THREE.CylinderGeometry(r * 1.6, r * 1.75, 0.03, 14), plain(colour), c.x, top - r * 0.75, c.z);
 };
 // A flat-topped great helm over the whole head, with a dark eye slit and a cross of breaths.
 const greatHelm = (fig, colour = STEEL) => {
   const { c, s, top } = headAt(fig), r = Math.max(s.x, s.z) * 0.6, h = s.y * 0.95;
-  put(fig, new THREE.CylinderGeometry(r, r * 1.04, h, 12), plain(colour), c.x, top - h / 2 + 0.03, c.z);
-  put(fig, new THREE.CylinderGeometry(r * 0.9, r, 0.04, 12), plain(colour), c.x, top + 0.04, c.z);
-  put(fig, new THREE.BoxGeometry(r * 1.5, 0.025, 0.04), plain('#1c1c1c'), c.x, top - h * 0.3, c.z + r * 0.98);
-  put(fig, new THREE.BoxGeometry(0.03, h * 0.4, 0.03), plain('#5a6068'), c.x, top - h * 0.62, c.z + r * 1.0);
+  hat(fig, new THREE.CylinderGeometry(r, r * 1.04, h, 12), plain(colour), c.x, top - h / 2 + 0.03, c.z);
+  hat(fig, new THREE.CylinderGeometry(r * 0.9, r, 0.04, 12), plain(colour), c.x, top + 0.04, c.z);
+  hat(fig, new THREE.BoxGeometry(r * 1.5, 0.025, 0.04), plain('#1c1c1c'), c.x, top - h * 0.3, c.z + r * 0.98);
+  hat(fig, new THREE.BoxGeometry(0.03, h * 0.4, 0.03), plain('#5a6068'), c.x, top - h * 0.62, c.z + r * 1.0);
 };
 // A quilted coat over chest, belly and upper arms.
 const GAMBESON = { bones: ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR', 'Hips'], push: 0.035, color: '#b9a98a' };
@@ -352,13 +400,14 @@ function banner(fig, { h = 3.6, at = fig.bones.R } = {}) {
   g.position.copy(at); fig.group.add(g);
 }
 
+// Lords ride with a bannerman at their shoulder, two riders in one model, so they stay posed (not animated).
 async function lordParty(body, tint) {
-  const f = await people(body, { seated: true, hold: ['Hold_Sword_R'], armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
+  const f = await people(body, { seated: true, hold: ['Hold_Sword_R'], skin: false, armour: plate('#e3e6ea', ['Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'UpperArmL', 'UpperArmR']), tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...tint } });
   coronet(f);
   longCloak(f, true);
   await R.hang(f, R.KIT.sword[0]);
   const lord = await mount(f, { caparison: true });
-  const b = await people('Male_Adventurer', { seated: true, armour: [GAMBESON, SURCOAT] });
+  const b = await people('Male_Adventurer', { seated: true, skin: false, armour: [GAMBESON, SURCOAT] });
   kettleHat(b);
   banner(b);
   const bearer = await mount(b);
@@ -821,14 +870,34 @@ for (const k of Object.keys(LEVELLED)) delete UNITS[k];   // baked in pieces ins
 Object.assign(BUILDINGS, MORE_BUILDINGS);
 export const pivots = async () => { const e = await engines(); return { mangonel: e.mangonel.pivot, trebuchet: e.trebuchet.pivot }; };
 
+// What the game needs to animate a figure, saved with each of its meshes: the skeleton, whether it rides, the clip
+// it stands in when nothing moves it, and what it holds (so the game picks the clips that suit the weapon).
+const WEAPONS = { W_Spear: 'spear', W_Sword: 'sword', W_Axe: 'axe', crossbow: 'crossbow' };
+function animInfo(group) {
+  const rigs = new Set(), held = {};
+  group.traverse(o => { if (o.userData.skin) rigs.add(o.userData.skin.rig); if (o.userData.prop) held[o.userData.prop.slot] = o.userData.prop.item; });
+  if (!rigs.size) return null;
+  const horse = rigs.has('horse'), weapon = WEAPONS[held.R] && (horse && held.R === 'W_Spear' ? 'lance' : WEAPONS[held.R]);
+  return { rig: [...rigs].find(r => r !== 'horse'), horse, weapon: weapon || (held.BOW ? 'bow' : held.AXE ? 'tools' : null), shield: !!held.SHIELD, rest: horse ? 'Ride_Idle' : weapon ? 'Stand' : 'Idle' };
+}
+
+// The clip table the game plays the animated soldiers from (skin.js): assets/anim.json and assets/anim.bin.
+export async function bakeAnim() {
+  const { json, bin } = await SK.bakeClips();
+  const a = await fetch('/save/anim.bin', { method: 'PUT', body: bin }), b = await fetch('/save/anim.json', { method: 'PUT', body: JSON.stringify(json) });
+  return { saved: a.ok && b.ok, bytes: bin.byteLength, frames: json.height * json.rowFrames };
+}
+
 // `only` (a RegExp on 'unit.<key>' or 'building.<name>') bakes a subset for a quick look, without saving.
 export async function bakeAll(only) {
   await MeshoptSimplifier.ready;
   const scene = new THREE.Scene(), mat = new THREE.MeshLambertMaterial({ vertexColors: true }), report = {};
-  const add = (name, geo) => { const m = new THREE.Mesh(geo, mat); m.name = name; scene.add(m); };
+  let info = null;
+  const add = (name, geo) => { const m = new THREE.Mesh(geo, mat); m.name = name; if (info) m.userData.anim = info; scene.add(m); };
   for (const [key, make] of Object.entries(UNITS)) {
     if (only && !only.test('unit.' + key)) continue;
     const fig = await make();
+    info = animInfo(fig.isObject3D ? fig : fig.group);
     const { gear, cloth, counts } = split(fig.isObject3D ? fig : fig.group);
     if (!gear || !cloth) throw new Error(`${key}: ${counts} gear/cloth pieces`);
     const full = { gear: compact(gear), cloth: compact(cloth) };
@@ -842,6 +911,7 @@ export async function bakeAll(only) {
     const pieces = {};
     for (const level of ARMOUR_LEVELS) {
       const fig = await soldier(key, level), g = fig.isObject3D ? fig : fig.group;
+      if (level === 'none') info = animInfo(g);
       if (level === 'none') { pieces.base = split(g, 'base'); if (L.shield) pieces.shield = split(g, 'shield'); }
       pieces[level] = split(g, 'armour');
     }
@@ -857,6 +927,7 @@ export async function bakeAll(only) {
     }
     report[key] = Object.keys(pieces).map(p => `${p} ${tris(p)}`).join(', ');
   }
+  info = null;
   for (const [name, recipe] of Object.entries(BUILDINGS)) {
     if (only && !only.test('building.' + name)) continue;
     const geo = await buildingGeo(recipe);
@@ -866,5 +937,5 @@ export async function bakeAll(only) {
   if (only) return { scene, report };
   const glb = await new GLTFExporter().parseAsync(scene, { binary: true });
   const res = await fetch('/save/models.glb', { method: 'PUT', body: glb });
-  return { saved: res.ok, bytes: glb.byteLength, report };
+  return { saved: res.ok, bytes: glb.byteLength, report, anim: await bakeAnim() };
 }

@@ -1406,6 +1406,7 @@ export class Battle {
     const lvl = c => this.duelLevel(c);
     s.cd = 1.2 * (0.8 + this.rand() * 0.4);
     s.lunge = 1;
+    s.struckAt = this.time; // anim
     if (this.rand() < 0.5 + (lvl(s) - lvl(o)) * 0.06) {
       audio.play('clash', s, this); // audio
       this.hurt(o, 5 + lvl(s));
@@ -2035,6 +2036,7 @@ export class Battle {
         if (goal.strike && d < 1.6 && s.cd <= 0) {
           s.cd = T.cooldown * (0.8 + this.rand() * 0.4);
           s.lunge = 1;
+          s.struckAt = this.time; // anim
           s.yaw = turnToward(s.yaw, Math.atan2(goal.strike.x - s.x, goal.strike.z - s.z), 1);
           if (this.hitStructure(goal.strike, T.dmg, 'melee')) { r.targetWall = null; this.event(r.side, `${this.label(r)} broke through!`); }
           r.engaged++;
@@ -2325,6 +2327,7 @@ export class Battle {
     const A = s.reg.T, D = t.reg.T, tr = t.reg, ar = s.reg;
     const FA = FORMATIONS[ar.formation] || FORMATIONS.line, FD = FORMATIONS[tr.formation] || FORMATIONS.line;
     s.lunge = 1;
+    s.struckAt = this.time; // anim
     // Among trees no formation holds together and no charge gathers pace.
     // Water does the same, and men standing in it fight badly.
     const wetA = this.river ? this.river.depthAt(s.x, s.z) : 0, wetD = this.river ? this.river.depthAt(t.x, t.z) : 0;
@@ -2588,6 +2591,7 @@ export class Battle {
     const z1 = o.z + o.vz * T + (this.rand() - 0.5) * 2 * spread;
     s.yaw = Math.atan2(o.x - s.x, o.z - s.z);
     s.lunge = 0.6;
+    s.shotAt = this.time; // anim
     this.arrows.push({
       x0: s.x, y0: s.y + 1.6, z0: s.z, x1, z1, y1: (o.level === 1 ? o.y : this.heightAt(x1, z1)) + 0.9,
       t: 0, T, h: 2 + d * (s.reg.T.pierce ? 0.08 : 0.16), dmg: s.reg.T.arrowDmg, pierce: s.reg.T.pierce || 0, side: s.reg.side, from: s.reg,

@@ -5,8 +5,20 @@ import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, keepModel, keepTop, houseModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
+import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip } from './anim.js';
 import { BUILDINGS } from './economy.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
+
+// anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
+// digging or hoeing at his job, running from raiders, or standing about. `dt` is village time since the last frame.
+const WORK_CLIP = { tree: 'Chop', rock: 'Mine', ore: 'Mine', field: 'Hoe' };
+function villagerClip(v, dt) {
+  v.animT = (v.animT ?? Math.random() * 3) + dt * (v.v ? Math.min(1.7, Math.max(0.6, v.v / 2)) : 1);
+  const work = v.state === 'work' && !v.v && (v.task?.phase === 'gather' || v.task?.phase === 'tend') && v.job?.B.gather;
+  const name = v.v ? (v.state === 'flee' ? 'Run' : v.carry ? 'Carry' : 'Walk')
+    : work ? WORK_CLIP[work.node] || 'Idle' : v.state === 'build' ? 'Chop' : 'Idle';
+  return clipOf('male', name);
+}
 
 const TIMBER = '#8a6a48', SHINGLE = '#6d5a48', ROOF_RED = '#7a4a32', CRATE_WOOD = '#a07a4a', CRATE_BAND = '#5e4228';
 
@@ -168,15 +180,22 @@ export class TownView {
 
     // Villagers: a full and a light pair when the baked villager loaded, handed out by distance each frame.
     const baked = unitModel('villager'), p = baked || peasant();
+    // anim: a baked villager plays clips; each instance carries its own
+    const anim = this.anim = baked?.anim && animReady() ? baked.anim : null;
+    const folk = (geo, light = false) => {
+      const m = new THREE.InstancedMesh(anim ? animGeometry(geo, 600) : geo, anim ? animMaterial(this.mat, { light }) : this.mat, 600);
+      if (anim) m.customDepthMaterial = animDepthMaterial(light);
+      return m;
+    };
     this.people = {
-      gear: new THREE.InstancedMesh(p.gear, this.mat, 600),
-      cloth: new THREE.InstancedMesh(p.cloth, this.mat, 600),
+      gear: folk(p.gear),
+      cloth: folk(p.cloth),
       crate: new THREE.InstancedMesh(crateModel(), this.mat, 600),
       carry: new THREE.InstancedMesh(new THREE.BoxGeometry(0.54, 0.08, 0.38), new THREE.MeshLambertMaterial(), 600),
     };
     if (baked) {
-      this.people.gearLight = new THREE.InstancedMesh(baked.gearLight, this.mat, 600);
-      this.people.clothLight = new THREE.InstancedMesh(baked.clothLight, this.mat, 600);
+      this.people.gearLight = folk(baked.gearLight, true);
+      this.people.clothLight = folk(baked.clothLight, true);
     }
     // each villager keeps one dye for life
     this.dyes = Array.from({ length: 600 }, (_, i) => new THREE.Color(DYES[i % DYES.length]).multiplyScalar(0.85 + rand() * 0.3));
@@ -333,9 +352,12 @@ export class TownView {
     const d = this.dummy, P = this.people, c = this.color || (this.color = new THREE.Color());
     const cam = LOD.camera?.position, near2 = LOD.near * LOD.near;
     let n = 0, nl = 0, k = 0;
+    const dt = Math.min(0.25, Math.max(0, town.time - (this.animAt ?? town.time)));   // anim
+    this.animAt = town.time;
     for (const v of town.villagers) {
       if (v.hidden || v.state === 'soldier' || n + nl >= 600) continue;
-      const bob = Math.abs(Math.sin(v.phase)) * 0.1;
+      const bob = this.anim ? 0 : Math.abs(Math.sin(v.phase)) * 0.1;
+      const clip = this.anim && villagerClip(v, dt);   // anim
       d.position.set(v.x, v.y + bob, v.z);
       d.rotation.set(0, v.yaw, 0);
       d.scale.setScalar(1);
@@ -346,6 +368,7 @@ export class TownView {
         P.clothLight.setMatrixAt(nl, d.matrix);
         P.clothLight.setColorAt(nl, v.state === 'rebel' ? REBEL : this.dyes[i]);
         P.gearLight.setColorAt(nl, this.skins[i]);
+        if (clip) for (const m of [P.gearLight, P.clothLight]) setClip(m.geometry, nl, clip, v.animT);   // anim
         nl++;
       } else {
         const i = v.id % 600;
@@ -353,6 +376,7 @@ export class TownView {
         P.cloth.setMatrixAt(n, d.matrix);
         P.cloth.setColorAt(n, v.state === 'rebel' ? REBEL : this.dyes[i]);
         P.gear.setColorAt(n, this.skins[i]);
+        if (clip) for (const m of [P.gear, P.cloth]) setClip(m.geometry, n, clip, v.animT);   // anim
         n++;
       }
       // Anything carried goes in a crate held in front, its contents showing over the rim.
@@ -371,7 +395,11 @@ export class TownView {
     if (P.gearLight) P.gearLight.count = P.clothLight.count = nl;
     P.crate.count = P.carry.count = k;
     this.updatePiles();
-    for (const m of Object.values(P)) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    for (const m of Object.values(P)) {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      if (m.geometry.attributes.aAnim) m.geometry.attributes.aAnim.needsUpdate = true;   // anim
+    }
   }
 
   updatePiles() {

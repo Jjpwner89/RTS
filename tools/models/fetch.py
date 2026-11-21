@@ -33,7 +33,7 @@ for x in json.loads(get(f'https://api.github.com/repos/{R}/git/trees/main?recurs
 
 # Medieval Village Pack (houses, workshops and props), GLB
 V = 'https://raw.githubusercontent.com/trebeljahr/quaternius-showcase/main/public/glb/medieval_village_pack'
-for n in ['House_1', 'House_2', 'House_4', 'Sawmill', 'Blacksmith', 'Mill', 'Stable', 'Cauldron', 'Barrel', 'Bags', 'Hay', 'Cart', 'Well']:
+for n in ['House_1', 'House_2', 'House_4', 'Sawmill', 'Blacksmith', 'Mill', 'Stable', 'Cauldron', 'Barrel', 'Bags', 'Hay', 'Cart', 'Well', 'Crate']:
     save(f'{V}/{n}.glb', os.path.join(assets, 'qmvp', n + '.glb'))
 # Kenney Castle Kit siege engines (CC0, kenney.nl), kept in this folder
 import shutil
@@ -42,4 +42,9 @@ shutil.copytree(here, os.path.join(assets, 'kenney'), dirs_exist_ok=True)
 # Holding stances for the soldiers, made in this repo (assets/art/3d/wip/stance-motions.mjs)
 os.makedirs(os.path.join(assets, 'stances'), exist_ok=True)
 shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'art', '3d', 'clips-stances.glb'), os.path.join(assets, 'stances', 'clips-stances.glb'))
+# The soldiers' and horses' animation clips (lineup/skin.js samples them into assets/anim.bin), made in this repo too
+art = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'art', '3d')
+os.makedirs(os.path.join(assets, 'clips'), exist_ok=True)
+for f in ['clips-foot.glb', 'clips-riders.glb', 'clips-horse.glb', 'wip/clip-manifest.json']:
+    shutil.copy(os.path.join(art, f), os.path.join(assets, 'clips', os.path.basename(f)))
 print('done')
