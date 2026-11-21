@@ -14,6 +14,7 @@ Second pass, 21 Nov. Played: a river battle on battle.html (seed 11), soldiers a
 |---|---|---|
 | Walk, run and idle animations; feet don't skate | ❓ | Units slid with a bob until the animation wiring (2026-11-20). 21 Nov: stills show spearmen in stride, spears upright, shields on; the clip follows each man's speed (march under 3.6 m/s, run above). Skating needs a visible pane |
 | Attack, block, hit and death animations that read at battle distance | ❓ | |
+| Weapons and kit held the right way round, every unit, in every clip | ❌ | Added 2026-11-21: the creator spotted a second kit-orientation bug by eye. The archer's bow is reversed at Bow_Loose (string on the far side, limbs curved the wrong way); rts-animations is fixing it with a check. QC will look at every unit's weapon in its use clip, in the viewer and in a battle, from several angles |
 | Riders and horses walk, trot and gallop by speed | ❓ | 21 Nov: stills show knights seated with lances, horses mid-stride; trot under 5 m/s and gallop above in the code. Needs a visible pane to judge |
 | Villagers visibly do their job: chop, mine, hoe, carry, build | ❓ | |
 | Corpses or a fall, not units vanishing | ❓ | |
