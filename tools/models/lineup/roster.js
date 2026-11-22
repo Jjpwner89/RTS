@@ -305,7 +305,7 @@ async function bake(kind, file, { rig, clip = 'Idle', time = 0.4, height = 1.85,
     const p = g.attributes.position;
     const m = new THREE.Mesh(g, markTeam(new THREE.MeshStandardMaterial({ color: teamColour(armour.color, team), metalness: armour.metal ? 0.35 : 0, roughness: armour.metal ? 0.42 : 0.85, flatShading: true }), armour.color));
     m.castShadow = m.receiveShadow = true;
-    m.userData.part = 'armour';   // so a bake can keep coats apart from the body (bake.js armour levels)
+    m.userData.part = armour.part || 'armour';   // so a bake can keep coats apart from the body (bake.js armour levels, dress)
     group.add(m);
     tris += g.index ? g.index.count / 3 : p.count / 3;
   }

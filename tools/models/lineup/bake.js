@@ -620,6 +620,45 @@ const HEADS = {
   plate: async (f, L) => { await R.hang(f, { item: L.helm, at: 'head' }); if (L.pads) await R.fitPads(f); },
 };
 const hood = f => R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at: 'head' });
+// Drilled men's dress (battle.js TYPES[key].dress), so they read apart from levies of the kind whose model they
+// borrow: one more piece of that kind (unit.<on>.<dress>), fitted over the armour they're usually raised in.
+const DRESS = {
+  // serjeants: a tabard in the house colour over the mail, a pale cross on breast and back
+  tabard: { on: 'spear', level: 'mail', shells: [{ bones: ['Chest', 'Torso', 'Abdomen', 'Hips'], push: 0.03, color: 'team' }], add: f => paleCross(f) },
+  // yeomen: a hood and short cape in the house colour over the felt cap and leather, a quiver on the right hip
+  yeoman: { on: 'archer', level: 'leather', shells: [{ bones: ['Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: 'team' }], add: f => { cowl(f); hipQuiver(f); } },
+};
+// The cross sits on the tabard (the coat measured, front and back, just below the collar) and rides the chest.
+const paleCross = f => {
+  const sh = f.bones.shL.clone().add(f.bones.shR).multiplyScalar(0.5), y = sh.y - 0.2, coat = f.group.children.filter(c => c.userData.part === 'tabard');
+  let front = -Infinity, back = Infinity;
+  const v = new THREE.Vector3();
+  for (const m of coat) for (let i = 0, P = m.geometry.attributes.position; i < P.count; i++) {
+    v.fromBufferAttribute(P, i);
+    if (Math.abs(v.x - sh.x) < 0.05 && Math.abs(v.y - y) < 0.08) { front = Math.max(front, v.z); back = Math.min(back, v.z); }
+  }
+  for (const [z, s] of [[front, 1], [back, -1]]) for (const [w, h, dy] of [[0.07, 0.34, 0], [0.26, 0.07, 0.06]]) {
+    const m = put(f, new THREE.BoxGeometry(w, h, 0.012), plain('#ece4d0'), sh.x, y + dy, z + s * 0.004);
+    m.userData.attach = 'Chest';
+  }
+};
+// A cloth cowl round the head, open at the face, coming down under the chin.
+const cowl = f => {
+  const { c, s } = headAt(f), r = Math.max(s.x, s.z) * 0.6;
+  const geo = new THREE.SphereGeometry(r, 12, 8, Math.PI / 2 + 0.7, Math.PI * 2 - 1.4, 0, Math.PI * 0.75).scale(0.92, 1.1, 1);
+  hat(f, geo, teamMat(0.9), c.x, c.y + s.y * 0.02, c.z - 0.02).material.side = THREE.DoubleSide;
+};
+// A leather quiver on the right hip (his right is -x), its mouth forward, the fletchings showing.
+const hipQuiver = f => {
+  const g = new THREE.Group(), add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); };
+  add(new THREE.CylinderGeometry(0.05, 0.042, 0.4, 8), plain('#5e4632'), 0, 0, 0);
+  add(new THREE.CylinderGeometry(0.055, 0.055, 0.035, 8), plain('#3b2a1c'), 0, 0.19, 0);
+  for (const [x, z] of [[-0.02, 0.015], [0.02, 0.015], [0, -0.02]]) add(new THREE.BoxGeometry(0.008, 0.09, 0.035), plain('#efe8d8'), x, 0.24, z);
+  g.position.set(f.bones.hips.x - 0.19, f.bones.hips.y - 0.08, f.bones.hips.z + 0.02);
+  g.rotation.set(0.3, 0, -0.12);
+  g.userData.attach = 'Hips';
+  f.group.add(g);
+};
 // `hold` names the holding stances (roster.js) that put the hands on the kit; the shield arm keeps its stance
 // whether or not the shield is carried.
 const LEVELLED = {
@@ -638,14 +677,15 @@ async function tagged(fig, part, fn) {
   await fn();
   for (const c of fig.group.children.slice(n)) c.userData.part = part;
 }
-async function soldier(key, level) {
-  const L = LEVELLED[key];
-  const f = await people(L.file, { seated: !!L.mounted, hold: L.hold, trimHair: true, armour: SHELLS[level](L), ...(L.tint ? { tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...L.tint } } : {}) });
+async function soldier(key, level, dress = null) {
+  const L = LEVELLED[key], D = DRESS[dress];
+  const f = await people(L.file, { seated: !!L.mounted, hold: L.hold, trimHair: true, armour: [...SHELLS[level](L), ...(D ? D.shells.map(l => ({ ...l, part: dress })) : [])], ...(L.tint ? { tint: { Green: 'team', LightGreen: 'team2', Blue: 'team', ...L.tint } } : {}) });
   if (L.hood) await hood(f);
   else await tagged(f, 'armour', () => HEADS[level](f, L));
   for (const g of L.kit) await R.hang(f, g);
   if (L.arm) await L.arm(f);
   if (L.shield) await tagged(f, 'shield', () => R.hang(f, L.shield));
+  if (D) await tagged(f, dress, () => D.add(f));
   return L.mounted ? mount(f) : f;
 }
 
@@ -1042,6 +1082,7 @@ export async function bakeAll(only) {
       if (level === 'none') { pieces.base = split(g, 'base'); if (L.shield) pieces.shield = split(g, 'shield'); }
       pieces[level] = split(g, 'armour');
     }
+    for (const [dress, D] of Object.entries(DRESS)) if (D.on === key) { const fig = await soldier(key, D.level, dress); pieces[dress] = split(fig.isObject3D ? fig : fig.group, dress); }
     const full = {};
     for (const [p, { gear, cloth }] of Object.entries(pieces)) full[p] = { gear: gear && compact(gear), cloth: cloth && compact(cloth) };
     const tris = p => (full[p].gear ? tri(full[p].gear) : 0) + (full[p].cloth ? tri(full[p].cloth) : 0);

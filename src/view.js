@@ -577,8 +577,10 @@ export class BattleView {
   // the distant ones in the far pair, which casts no shadow.
   makeMeshes(look, capacity) {
     const [key, armour, shield] = look.split('|'), chain = lookChain(key);
-    // a kind that borrows another's model (sellswords wear the swordsman) still shows its own armour and shield
-    const baked = chain.map(k => look.includes('|') && hasLevels(k) ? unitLook(k, { armour: armour || undefined, shield: shield !== 'false' }) : unitModel(k)).find(Boolean);
+    // a kind that borrows another's model (sellswords wear the swordsman) still shows its own armour and shield, and
+    // a drilled kind its own dress over them (serjeants a tabard)
+    const dress = TYPES[key]?.dress, levels = look.includes('|') || dress;
+    const baked = chain.map(k => levels && hasLevels(k) ? unitLook(k, { armour: armour || undefined, shield: shield !== 'false', dress }) : unitModel(k)).find(Boolean);
     const builtIn = chain.find(k => BUILT_IN.includes(k)) || key;
     const model = baked || (builtIn === 'cav' ? cavalry() : infantry(builtIn));
     // a soldier baked with a skeleton plays clips (anim.js): each instance gets its own clip and moment

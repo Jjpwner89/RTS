@@ -41,20 +41,22 @@ const get = name => geos[name.replace(/[[\].:/]/g, '')] || null;
 
 // A soldier's look. Spearmen, swordsmen, bowmen and horse come in pieces (a body with its weapons, a piece per
 // armour level, a shield) and are put together here for the armour and shield a regiment has; without them,
-// each wears its kind's usual armour. Every other soldier has one look.
+// each wears its kind's usual armour. A drilled kind borrowing one of them adds its own dress over the armour
+// (battle.js TYPES[key].dress: unit.<key>.<dress>). Every other soldier has one look.
 export const ARMOUR_LEVELS = ['none', 'leather', 'mail', 'plate'];
 export const HAS_SHIELD = { spear: true, sword: true };
 // Whether a kind of soldier is baked in pieces, so it can show any armour level.
 export const hasLevels = key => !!get(`unit.${key}.base.gear`);
 const looks = new Map();
-export function unitLook(key, { armour, shield } = {}) {
+export function unitLook(key, { armour, shield, dress } = {}) {
   if (!hasLevels(key)) return unitModel(key);
   // without armour given, a soldier wears what his kind's kit brings (battle.js TYPES[key].armour)
   const level = ARMOUR_LEVELS.includes(armour) ? armour : ARMOUR_LEVELS.includes(TYPES[key]?.armour) ? TYPES[key].armour : 'none';
   const shielded = HAS_SHIELD[key] && shield !== false;
-  const id = `${key}|${level}|${shielded}`;
+  const worn = dress && (get(`unit.${key}.${dress}.gear`) || get(`unit.${key}.${dress}.cloth`)) ? dress : null;
+  const id = `${key}|${level}|${shielded}|${worn}`;
   if (looks.has(id)) return looks.get(id);
-  const pieces = ['base', level, ...(shielded ? ['shield'] : [])];
+  const pieces = ['base', level, ...(shielded ? ['shield'] : []), ...(worn ? [worn] : [])];
   // a level ('light' or 'far') falls back to the next more detailed one the bake has
   const join = (part, level) => {
     const list = pieces.map(p => (level === 'far' && get(`unit.${key}.${p}.${part}.far`)) || (level && get(`unit.${key}.${p}.${part}.light`)) || get(`unit.${key}.${p}.${part}`)).filter(Boolean);

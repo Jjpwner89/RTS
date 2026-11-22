@@ -11,7 +11,8 @@ import { walkSpeed } from './pace.js';
 // role: what the unit is for, shown on its card. kit: goods each man needs to be raised
 // (the Realm side decides where they come from). gold: the price per man for hired and
 // household troops, who cost no villagers. engine: a siege engine worked by the regiment.
-// look: the model (and banner icon) to borrow when the unit has none of its own.
+// look: the model (and banner icon) to borrow when the unit has none of its own; dress: what a drilled kind wears
+// over that model's armour, so it reads apart from the levies who wear it (models.js unitLook).
 export const TYPES = {
   spear: { key: 'spear', armour: 'none', name: 'Spearmen', role: 'Hold the line; stop horse from the front', count: 80, files: 20, spacing: 1.6, speed: 3.0, hp: 12, atk: 3, def: 5, dmg: 4, reach: 2.4, cooldown: 1.4, morale: 65, shield: true, vsMounted: 0.3, braces: true,
     kit: { spears: 1, shields: 1 } },
@@ -32,9 +33,9 @@ export const TYPES = {
   // Drilled at a barracks from veterans (economy.js DRILLED), from the rank of Lord: serjeants
   // are spearmen in mail who hold where levies break; yeomen shoot further and harder than
   // levy bowmen. Earned, not raised: only men who have fought may drill (creator, 2026-11-22).
-  serjeant: { key: 'serjeant', armour: 'mail', name: 'Serjeants', role: 'Drilled, in mail: hold the line where levies break', count: 60, files: 15, spacing: 1.6, speed: 3.0, hp: 15, atk: 5, def: 6, dmg: 5, reach: 2.4, cooldown: 1.3, morale: 80, shield: true, vsMounted: 0.3, braces: true, look: 'spear',
+  serjeant: { key: 'serjeant', armour: 'mail', dress: 'tabard', name: 'Serjeants', role: 'Drilled, in mail: hold the line where levies break', count: 60, files: 15, spacing: 1.6, speed: 3.0, hp: 15, atk: 5, def: 6, dmg: 5, reach: 2.4, cooldown: 1.3, morale: 80, shield: true, vsMounted: 0.3, braces: true, look: 'spear',
     kit: { spears: 1, shields: 1, mail: 1 } },
-  yeoman: { key: 'yeoman', armour: 'leather', name: 'Yeoman archers', role: 'Drilled archers: shoot further, faster and harder than levies', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 10, atk: 3, def: 2, dmg: 3.5, reach: 1.6, cooldown: 1.3, morale: 65, range: 100, reload: 3.8, arrowDmg: 6, quiver: 30, look: 'archer',
+  yeoman: { key: 'yeoman', armour: 'leather', dress: 'yeoman', name: 'Yeoman archers', role: 'Drilled archers: shoot further, faster and harder than levies', count: 60, files: 20, spacing: 1.7, speed: 3.3, hp: 10, atk: 3, def: 2, dmg: 3.5, reach: 1.6, cooldown: 1.3, morale: 65, range: 100, reload: 3.8, arrowDmg: 6, quiver: 30, look: 'archer',
     kit: { bows: 1, arrows: 12, leatherarmour: 1 } },
   // Villagers with spears and no armour: what a free village can turn out.
   militia: { key: 'militia', armour: 'none', name: 'Militia', role: 'Cheap spears; break easily', count: 40, files: 14, spacing: 1.6, speed: 3.2, hp: 10, atk: 3, def: 3, dmg: 3.5, reach: 2.3, cooldown: 1.4, morale: 45, braces: true,
