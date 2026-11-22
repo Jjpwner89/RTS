@@ -355,3 +355,8 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #gamemenu button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #gamemenu .whyline { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
 @media (max-width: 800px), (max-height: 600px) { #menu-btn .lbl { display: none; } #top #menu-btn { padding: 4px 6px; min-height: 36px; } }
+
+/* Walls tab: what each tool does, and what to do once one is picked (siegeui.js). */
+#build #defences .items small.does { color: var(--dim); font-size: 10.5px; line-height: 1.2; margin-top: 1px; }
+#build #defences .walls-hint { margin: 6px 2px 0; font-size: 12px; line-height: 1.3; color: var(--dim); }
+#build #defences .items button.on small, #build #defences .items button.on small.does { color: #e6dcc0; }

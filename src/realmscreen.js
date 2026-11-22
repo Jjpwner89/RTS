@@ -351,6 +351,9 @@ export class RealmScreen {
       } else {
         const top = FACTIONS.slice(1, w.bandits).filter(h => h.alive && w.knows(h.index)).sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
         text = `No foe marches on us. ${num(yourMen(w))} men stand under your banners${top ? `; ${top.name}, the strongest house we know, is ${w.strength(top.index) > w.strength(0) ? 'stronger than us' : 'weaker than us'}` : ''}.`;
+        // Raids grow with the realm: a wall is the cheap answer, and the one thing the player may not have found.
+        const bare = rows.filter(r => !r.t.battle.walls.any);
+        if (bare.length && rows.length) text += ` ${bare.length === rows.length ? 'No village of ours has a wall' : bare.length === 1 ? `${bare[0].p.name} has no wall` : `${bare.length} of our villages have no wall`}: the Walls tab in a village builds palisades, towers and gates.`;
       }
       out.push({ seat: 'marshal', text, btn });
     }

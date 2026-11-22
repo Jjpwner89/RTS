@@ -17,7 +17,7 @@ const small = () => innerWidth < 1100 || innerHeight < 720;
 // Goods always worth a cell; the rest show once there is some, or a building here makes or uses them.
 const BASIC = new Set(['wood', 'stone', 'food']);
 // What each build tab holds, for its tooltip.
-const TAB_TIPS = { Village: 'Houses, stores, the market and the church', Gather: 'Wood, stone, ore, food and flax', Craft: 'Workshops: planks, iron, bread, arms and armour (leather armour at the tanner, mail and plate at the armourer)', Military: 'Barracks, stables, siege workshop and watchtowers', Walls: 'Palisades, towers, gates and stone walls', Towns: 'Town templates: a whole quarter laid out at once' };
+const TAB_TIPS = { Village: 'Houses, stores, the market and the church', Gather: 'Wood, stone, ore, food and flax', Craft: 'Workshops: planks, iron, bread, arms and armour (leather armour at the tanner, mail and plate at the armourer)', Military: 'Barracks, stables, siege workshop and watchtowers', Walls: 'Palisades, stone walls, towers and gates: they keep raiders off your stores. Drag a line to build one', Towns: 'Town templates: a whole quarter laid out at once' };
 const CLOSE = '<button class="close-t" title="Close" data-key="Esc">×</button>';
 
 const gi = g => ico(GOODS[g].icon, GOODS[g].color, GOODS[g].name.toLowerCase());
@@ -204,6 +204,7 @@ export class TownHud {
     // the open tab, else the tab it is on.
     const at = (sel, tab) => () => { const el = this.buildEl.querySelector(sel); return el && !el.hidden ? el : [this.buildEl.querySelector(`[data-tab="${tab}"]`), true]; };
     watch('towns', () => this.buildEl.querySelector('[data-tab="Towns"]'));
+    watch('tab:walls', () => this.buildEl.querySelector('[data-tab="Walls"]'));
     watch('b:hall', at('[data-build="hall"]', 'Military'));
     watch('drill', at('[data-build="barracks"]', 'Military'));
     watch('b:cathedral', at('[data-build="cathedral"]', 'Village'));
