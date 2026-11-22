@@ -1388,6 +1388,28 @@ async function orderChecks() {
     if (!b.walls.pieces.some(p => p.forced)) out.push(`no gate thrown open in 60 s: ${A.name} at ${at({ x: A.cx, z: A.cz })}, heading for ${A.dest ? at(A.dest) : 'nowhere'}, after ${A.after?.name || 'nobody'}`);
     return out;
   });
+
+  // A place's militia who break in a storm scatter out of it and get away alive, never to
+  // regroup at the keep being stormed and be cut down there (creator, 2026-11-22).
+  await check('a militia that routs in a storm scatters out of the place and gets away, never regrouping', async () => {
+    const { Battle } = await import('./battle.js'), { buildFort } = await import('./walls.js'), { makeHeight } = await import('./terrain.js');
+    const b = new Battle(makeHeight(3), 3, { deploy: false, homes: [{ x: 0, z: 100 }, { x: 0, z: -120 }] });
+    buildFort(b.walls, 1, 0, -120, 44, { material: 'stone', sides: 6, gateAngle: 0 });
+    const F = b.addRegiment(1, 'folk', 0, -112, 0), A = b.addRegiment(0, 'spear', 0, -98, Math.PI);
+    b.step(0.05);
+    b.orderAttack([A], F);
+    let regrouped = false, ran = false;
+    for (let t = 0; t < 90 && !F.gone; t += 0.05) {
+      b.step(0.05);
+      if (!ran && F.alive < F.initial) { ran = true; b.startRout(F); }
+      if (F.regrouping) regrouped = true;
+    }
+    const away = F.soldiers.filter(o => o.alive && !o.captain).length, out = [];
+    if (regrouped) out.push(`${F.name} regrouped at the keep`);
+    if (!F.gone) out.push(`${F.name} still on the field after 90 s at ${at({ x: F.cx, z: F.cz })}, ${F.routing ? 'routing' : 'not routing'}`);
+    else if (!F.disbanded || away === 0) out.push(`${F.name} was wiped out, not got away`);
+    return out;
+  });
 }
 
 // ---- the page as a whole ----
