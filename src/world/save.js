@@ -42,9 +42,19 @@ export function snapshot(w) {
 }
 
 export function saveGame(w) {
-  try { localStorage.setItem(keyOf(w.options.test), JSON.stringify(snapshot(w))); return { ok: true }; }
+  try { localStorage.setItem(keyOf(w.options.test), JSON.stringify(snapshot(w))); markClean(w, Date.now()); return { ok: true }; }
   catch (e) { return { ok: false, reason: 'The browser would not store it' }; }
 }
+
+// ---- unsaved progress ----
+// What the game menu asks about before it quits (ui/menu.js): is the campaign now any different
+// from its last save, or from the moment it was loaded or begun? markClean takes that picture
+// (`at`: when it was saved, wall-clock, or null if never); unsaved compares the campaign to it.
+const stamp = w => JSON.stringify({ ...snapshot(w), savedAt: 0 });
+let clean = null, cleanAt = null;
+export function markClean(w, at = null) { clean = stamp(w); cleanAt = at; }
+export const lastSaved = () => cleanAt;
+export const unsaved = w => clean !== null && stamp(w) !== clean;
 
 export function clearSave(test = false) { try { localStorage.removeItem(keyOf(test)); } catch { /* nothing to clear */ } }
 

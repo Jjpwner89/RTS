@@ -15,6 +15,7 @@ import { RoadView, placeRoad } from './roadview.js';
 import { rng } from './noise.js';
 import { audio } from './audio.js';
 import { attachSiege } from './siegeui.js';
+import { menu } from './ui/menu.js';
 
 const params = new URLSearchParams(location.search);
 const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
@@ -37,6 +38,7 @@ const roadView = new RoadView(scene, town, heightAt);
 
 // Paused behind the opening help until the player presses Start.
 let paused = true, speed = 1, placing = null, hoverAt = null, selected = null;
+menu.use({ pause: { get: () => paused, set: v => { paused = v; } } });   // nothing to save here: Quit just goes
 const road = { roadFrom: null };
 
 const hooks = {

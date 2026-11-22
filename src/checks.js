@@ -1409,12 +1409,92 @@ function pageChecks() {
   results.push({ group, name: 'greyed buttons say why', status: boxed.length ? 'fail' : mute.length ? 'warn' : 'pass', detail: sample(boxed.length ? boxed : mute, 8) });
 }
 
+// ---- the game menu (ui/menu.js) ----
+
+// It opens and shuts again (the game back as it was), and Quit asks only when something would be
+// lost: stub hosts stand in for the campaign's save state so each case can be tried.
+async function menuChecks() {
+  const { menu } = await import('./ui/menu.js');
+  group = 'Menu';
+  await check('a menu button is on screen', () => {
+    const b = document.getElementById('menu-btn'), r = b?.getBoundingClientRect();
+    if (!b) return ['no #menu-btn'];
+    if (!b.offsetParent && getComputedStyle(b).position !== 'fixed') return ["it isn't drawn"];
+    if (!r.width || r.left < -1 || r.right > innerWidth + 1) return [`it sits at ${Math.round(r.left)}–${Math.round(r.right)} in a ${innerWidth}px window`];
+    return r.width < 18 || r.height < 20 ? [`${Math.round(r.width)}×${Math.round(r.height)}px is too small to touch`] : [];
+  });
+  await check('the menu opens, pauses the game and shuts, leaving it as it was', () => {
+    const real = menu.host, was = real.pause?.get(), out = [];
+    menu.open();
+    const veil = document.getElementById('menu-veil');
+    if (!menu.isOpen || !veil?.classList.contains('open') || !document.getElementById('gm-resume')) out.push("it didn't open with Resume in it");
+    if (real.pause && real.pause.get() !== true) out.push("it didn't pause the game");
+    const quit = document.getElementById('gm-quit');
+    if (!quit) out.push('no Quit to main menu');
+    if (real.save && !real.save.ironman && !document.getElementById('gm-save')) out.push('no Save');
+    if (real.save?.ironman && document.getElementById('gm-save')) out.push('Save shown in ironman');
+    menu.close();
+    if (menu.isOpen || veil.classList.contains('open')) out.push("it didn't shut");
+    if (real.pause && real.pause.get() !== was) out.push(`the game was ${was ? 'paused' : 'running'} and is now ${real.pause.get() ? 'paused' : 'running'}`);
+    return out;
+  });
+  await check('Quit asks only when something would be lost, and says what', () => {
+    const real = menu.host, out = [];
+    const sv = o => ({ ironman: false, test: false, can: () => ({ ok: true }), run: () => ({ ok: true }), unsaved: () => false, last: () => Date.now() - 180000, fight: () => null, over: () => false, ...o });
+    const ask = (what, o, want, find) => {
+      menu.use({ ...real, save: sv(o) });
+      const p = menu.plan();
+      if (want === null ? p !== null : !p || (find && !find.test(p.text))) out.push(`${what}: ${p ? `"${p.text}"` : 'no question'}, wanted ${want === null ? 'none' : find}`);
+      return p;
+    };
+    try {
+      menu.use({ ...real, save: undefined });
+      if (menu.plan() !== null) out.push('a page with nothing to save asks');
+      ask('nothing unsaved', {}, null);
+      ask('unsaved progress', { unsaved: () => true }, 1, /Progress since your last save \(3 min ago\) will be lost/);
+      ask('never saved', { unsaved: () => true, last: () => null }, 1, /not been saved yet/);
+      ask('ironman', { ironman: true, unsaved: () => true }, null);
+      ask('the campaign is over', { unsaved: () => true, over: () => true }, null);
+      const f = ask('a battle in progress', { fight: () => 'battle', unsaved: () => true, can: () => ({ ok: false, reason: 'Finish the fight first' }) }, 1, /battle in progress will be lost.*Progress since your last save/);
+      if (f?.canSave) out.push('a battle offers Save and quit');
+      const f2 = ask('a battle with nothing unsaved', { fight: () => 'battle' }, 1, /battle in progress will be lost/);
+      if (f2 && /Progress since/.test(f2.text)) out.push('a battle with nothing unsaved also talks of lost progress');
+      ask('a battle in ironman', { ironman: true, fight: () => 'battle' }, 1, /battle in progress will be lost/);
+      const b = ask('a village fought over', { unsaved: () => true, can: () => ({ ok: false, reason: 'A village is being fought over' }) }, 1, /can't be saved right now: a village is being fought over/);
+      if (b?.canSave) out.push("Save and quit is offered when saving isn't possible");
+    } finally { menu.use(real); }
+    return out;
+  });
+  await check('a closed tab asks too, when something would be lost', () => {
+    const real = menu.host, out = [];
+    const sv = o => ({ ironman: false, test: false, can: () => ({ ok: true }), run: () => ({ ok: true }), unsaved: () => false, last: () => null, fight: () => null, over: () => false, ...o });
+    try {
+      menu.use({ ...real, save: sv({ unsaved: () => true }) });
+      if (!menu.warnsOnUnload()) out.push('no warning with unsaved progress');
+      menu.use({ ...real, save: sv({}) });
+      if (menu.warnsOnUnload()) out.push('a warning with nothing to lose');
+      menu.use({ ...real, save: sv({ unsaved: () => true, test: true }) });
+      if (menu.warnsOnUnload()) out.push('a warning in a test campaign');
+      menu.use({ ...real, save: sv({ ironman: true, unsaved: () => true }) });
+      if (menu.warnsOnUnload()) out.push('a warning in ironman');
+    } finally { menu.use(real); }
+    return out;
+  });
+  const sv = window.game?.world && menu.host.save;
+  if (sv) await check("the campaign's unsaved state follows the menu's question", async () => {
+    const { unsaved } = await import('./world/save.js');
+    const want = sv.fight() || (!sv.ironman && !sv.over() && unsaved(window.game.world));
+    return !!menu.plan() === !!want ? [] : [`plan() says ${menu.plan() ? 'ask' : 'no question'}, the campaign says ${want ? 'unsaved' : 'clean'}`];
+  });
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
   results.length = 0;
   const t0 = performance.now();
   pageChecks();
+  await menuChecks();
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);

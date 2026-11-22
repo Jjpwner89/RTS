@@ -57,7 +57,7 @@ export class WorldControls {
     // A toolbar button keeps focus after a click, and the browser would press it again on Space's
     // key-up, undoing the pause: drop the focus first.
     if (key === ' ') { e.preventDefault(); if (document.activeElement?.tagName === 'BUTTON') document.activeElement.blur(); this.hooks.togglePause(); }
-    if (key === 'escape') this.hooks.select(null);
+    if (key === 'escape') { if (this.hooks.hasSelection?.()) e.escUsed = true; this.hooks.select(null); }
     if (['1', '2', '3'].includes(key)) this.hooks.setSpeed([1, 2, 4][+key - 1]);
   }
 

@@ -337,3 +337,21 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #stock [data-s="gold"] { cursor: help; }
 #stock .taxnote { margin: 2px 0 6px; font-size: 12px; line-height: 1.45; }
 #stock .taxnote b { color: var(--ink, inherit); font-weight: 600; }
+
+/* The game menu (ui/menu.js): a button at the left end of the top bar, and one card on a dim veil
+   over everything but the sound panel (z-index 60). */
+#menu-btn { flex: none; padding: 4px 10px; }
+#menu-btn .ico-menu { font-size: 16px; line-height: 1; }
+#menu-btn.float { position: fixed; top: 10px; left: 10px; z-index: 3; }
+#menu-veil { position: fixed; inset: 0; z-index: 55; background: rgba(24, 14, 4, .5); display: none; }
+#menu-veil.open { display: block; }
+#gamemenu { zoom: var(--hud); width: min(340px, calc((100vw - 32px) / var(--hud))); top: 50%; }
+#gamemenu h2 { margin-bottom: 4px; }
+#gamemenu .gm-text { margin: 0 0 12px; font-size: 15px; }
+#gamemenu .gm-items { display: grid; gap: 8px; }
+#gamemenu .gm-items button { min-height: calc(40px / var(--hud)); font-size: 16px; padding: 6px 16px; cursor: pointer; }
+#gamemenu button.primary { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border, var(--btn-border)); }
+#gamemenu button:disabled { background: var(--btn); color: var(--btn-ink); border: var(--btn-border); opacity: .5; cursor: default; }
+#gamemenu button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#gamemenu .whyline { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
+@media (max-width: 800px), (max-height: 600px) { #menu-btn .lbl { display: none; } #top #menu-btn { padding: 4px 6px; min-height: 36px; } }

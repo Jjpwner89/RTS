@@ -68,7 +68,7 @@
   <p><b>Rival houses</b> start stronger than you, but first settle their own lands, then reach further, and at last play to win. Close the gap on one and it turns on you sooner. Click a house to see what it is about.</p>
   <p><b>Realm</b> (top bar, or Tab) brings the realm together. <b>Realm</b>: what needs you, your council's advice, your vassals' mood and the great houses. <b>Villages</b>: every place side by side (click a column to sort). <b>Supplies</b>: send a wagon of food or building goods from one village to another, see who is short and what is on the road. <b>Vassals</b>: each one's opinion and why, what they want, their power, and everything you can do with them: gifts and honours, dues and levies, council seats, granting or taking back land, demanding gold, calling them to arms, judging feuds and arrest. Watch the warnings: a resentful vassal stops paying, and the discontented band into a faction that rises if refused. <b>Council</b>: a steward, a marshal and an envoy, each best with the right knack. <b>Houses</b> and <b>Treasury</b>: your ties, and where the gold comes from and goes.</p>
   <p><b>Needs you</b>, bottom left of the map, lists what wants your attention, worst first. Click a line to look at it. In a village, a number on the World map button counts the serious ones.</p>
-  <p><b>Win</b> by being crowned: hold Kingsbridge and half the realm, or win every great house to back your claim. <b>M</b> returns to the map from a village, and <b>Space</b> pauses anywhere. The game saves itself every two minutes; <b>Continue</b> on the menu.</p>
+  <p><b>Win</b> by being crowned: hold Kingsbridge and half the realm, or win every great house to back your claim. <b>M</b> returns to the map from a village, and <b>Space</b> pauses anywhere. The game saves itself every two minutes; <b>Continue</b> on the menu. <b>Esc</b> (when it has nothing else to close) or the Menu button opens the game menu: resume, save, sound, quit.</p>
   <p><b>Sound</b>: 🔊 in the top bar sets the volume or mutes. <a href="credits.html" target="_blank">Credits</a> for the music, sound and models.</p>
   </div>
   <button id="help-close">Start</button>
@@ -82,6 +82,7 @@
 <div id="book" class="modal"><h2>The chronicle of your house</h2><div class="pages"></div><button>Close the book</button></div>
 <div id="end" hidden><h2></h2><p></p><button id="again"></button></div>
 
+<script type="module" src="src/ui/menu.js"></script><!-- the game menu: first, so its Esc listener comes before the game's -->
 <script type="module" src="src/checks.js"></script><!-- consistency checks: checks() in the console (HOW_WE_BUILD.md section 4) -->
 <script type="module" src="src/campaign.js"></script>
 <script type="module" src="src/ui/fold.js"></script>

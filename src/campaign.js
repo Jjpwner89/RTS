@@ -28,7 +28,8 @@ import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treas
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { ARRIERE, arrierePlan, callArriere, musterPlace } from './world/arriere.js';
-import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData } from './world/save.js';
+import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved } from './world/save.js';
+import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { turnOut } from './world/militia.js';
 import { KINDS } from './world/realm.js';
@@ -176,6 +177,7 @@ const worldControls = new WorldControls(stage.camera, canvas, worldView, {
   togglePause: () => { paused = !paused; },
   setSpeed: s => { speed = s; paused = false; },
   select: it => { selected = it; },
+  hasSelection: () => !!selected,
   order: p => {
     if (!selected || !selected.units || selected.side !== 0) return;
     // A great house's place you are at peace with: attacking it means war, so ask first.
@@ -1203,7 +1205,7 @@ $('realm-toggle').onclick = () => realm.toggle();
 addEventListener('keydown', e => {
   if (e.target.closest?.('input, select, textarea')) return;
   if (e.key === 'Tab') { e.preventDefault(); if (unlocked(world, 'realm') || realm.open) realm.toggle(); else flash('The Realm screen comes with the rank of Lord: hold a second place.'); }
-  else if (e.key === 'Escape' && realm.open) { e.stopImmediatePropagation(); realm.hide(); }
+  else if (e.key === 'Escape' && realm.open) { e.escUsed = true; e.stopImmediatePropagation(); realm.hide(); }
 }, true);
 $('help-close').onclick = () => { $('help').classList.remove('open'); paused = false; };
 $('to-world').onclick = () => showWorld();
@@ -1418,6 +1420,23 @@ $('save').onclick = () => {
 if (loaded) { $('help').classList.remove('open'); paused = false; }
 // Ironman: no Save button; the campaign saves itself often, and a defeat ends it for good.
 if (world.options.ironman) { $('save').hidden = true; saveGame(world); }
+// The game menu (ui/menu.js) asks before Quit only when something would be lost: what the
+// campaign has done since its last save or since it was loaded, or a battle in progress.
+markClean(world, params.has('continue') ? loaded?.savedAt ?? null : null);
+menu.use({
+  pause: { get: () => paused, set: v => { paused = v; } },
+  flash: (text, good) => flash(text, good),
+  save: {
+    ironman: !!world.options.ironman,
+    test: !!world.options.test,
+    can: () => canSave(world, { busy: mode === 'field' || !!away }),
+    run: () => { const r = saveGame(world); savedAt = world.time; return r; },
+    unsaved: () => unsaved(world),
+    last: lastSaved,
+    fight: () => (mode === 'field' ? 'battle' : null),
+    over: () => world.winner !== null,
+  },
+});
 
 setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);

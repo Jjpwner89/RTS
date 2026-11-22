@@ -100,8 +100,14 @@ export class Controls {
     if (key === ' ') { e.preventDefault(); if (document.activeElement?.tagName === 'BUTTON') document.activeElement.blur(); this.hooks.togglePause(); }
     if (key === 'h') this.battle.orderHalt([...this.selection]);
     if (key === 'f') this.focus(this.selection);
-    if (key === 'escape') document.body.classList.remove('mining');
-    if (key === 'escape' && !this.hooks.cancelPlacement?.()) this.setSelection([]);
+    if (key === 'escape') {
+      // an Esc that did something is not for the game menu (ui/menu.js)
+      const mining = document.body.classList.contains('mining'), had = this.selection.size;
+      document.body.classList.remove('mining');
+      const placed = this.hooks.cancelPlacement?.();
+      if (!placed) this.setSelection([]);
+      if (mining || placed || had) e.escUsed = true;
+    }
     if (key === 'a' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       this.keys.delete('a');

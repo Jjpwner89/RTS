@@ -18,6 +18,7 @@ import { thinkAI } from './ai.js';
 import { audio } from './audio.js';
 import { makeCaptain } from './captains.js';
 import { rng } from './noise.js';
+import { menu } from './ui/menu.js';
 
 const params = new URLSearchParams(location.search);
 const seed = +params.get('seed') || Math.floor(Math.random() * 1e6);
@@ -101,6 +102,7 @@ if (FORT) {
 if (params.get('general')) battle.generals[1] = { trait: params.get('general') };
 
 let paused = mode !== 'field', speed = 1;
+menu.use({ pause: { get: () => paused, set: v => { paused = v; } } });   // nothing to save here: Quit just goes
 const hooks = {
   togglePause: () => { paused = !paused; },
   setSpeed: s => { speed = s; paused = false; },

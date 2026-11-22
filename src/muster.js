@@ -10,6 +10,8 @@ import { TYPES, lookChain } from './battle.js';
 import { WOOD, soldierClip } from './view.js';
 import { animGeometry, animMaterial, animDepthMaterial, setClip } from './anim.js';
 import { PACE } from './pace.js';
+import { menu } from './ui/menu.js';
+menu.use({});   // the parade has nothing to save: Quit just goes
 
 const COLOURS = ['#3d6fd6', '#c8423a', '#d6a93d', '#4f8f4a', '#7a4fa8'];
 const LORDS = {

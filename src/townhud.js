@@ -71,7 +71,7 @@ addEventListener('keydown', e => {
       hud.hooks.startPlacing(kind);
       hud.flash(`Placing: ${BUILDINGS[kind]?.name || 'Paved road'}`);
     }
-    if (key === 'escape') hud.flash('');
+    if (key === 'escape') { e.escUsed = true; hud.flash(''); }
   }
   e.stopImmediatePropagation();
   e.preventDefault();

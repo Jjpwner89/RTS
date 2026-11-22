@@ -58,7 +58,6 @@
 <body>
 <canvas id="view"></canvas>
 <div id="muster-top">
-  <a href="index.html" title="Back to the menu">← Menu</a>
   <span class="title">Muster</span>
   <button id="menu-toggle" title="Show the list of troops">Troops</button>
   <span id="colours"></span>
@@ -66,6 +65,7 @@
 </div>
 <nav id="troops"></nav>
 <div id="card" hidden></div>
+<script type="module" src="src/ui/menu.js"></script><!-- the game menu: first, so its Esc listener comes before the game's -->
 <script type="module" src="src/checks.js"></script><!-- consistency checks: checks() in the console (HOW_WE_BUILD.md section 4) -->
 <script type="module" src="src/muster.js"></script>
 <script type="module" src="src/ui/tooltip.js"></script>
