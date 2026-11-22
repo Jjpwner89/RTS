@@ -625,8 +625,8 @@ const hood = f => R.hang(f, { item: R.HELM.archer[0], tint: R.HELM.archer[1], at
 const DRESS = {
   // serjeants: a tabard in the house colour over the mail, a pale cross on breast and back
   tabard: { on: 'spear', level: 'mail', shells: [{ bones: ['Chest', 'Torso', 'Abdomen', 'Hips'], push: 0.03, color: 'team' }], add: f => paleCross(f) },
-  // yeomen: a hood and short cape in the house colour over the felt cap and leather, a quiver on the right hip
-  yeoman: { on: 'archer', level: 'leather', shells: [{ bones: ['Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: 'team' }], add: f => { cowl(f); hipQuiver(f); } },
+  // yeomen: a hood and short cape in the house colour over the felt cap and leather
+  yeoman: { on: 'archer', level: 'leather', shells: [{ bones: ['Chest', 'ShoulderL', 'ShoulderR'], push: 0.03, color: 'team' }], add: f => cowl(f) },
 };
 // The cross sits on the tabard (the coat measured, front and back, just below the collar) and rides the chest.
 const paleCross = f => {
@@ -647,17 +647,6 @@ const cowl = f => {
   const { c, s } = headAt(f), r = Math.max(s.x, s.z) * 0.6;
   const geo = new THREE.SphereGeometry(r, 12, 8, Math.PI / 2 + 0.7, Math.PI * 2 - 1.4, 0, Math.PI * 0.75).scale(0.92, 1.1, 1);
   hat(f, geo, teamMat(0.9), c.x, c.y + s.y * 0.02, c.z - 0.02).material.side = THREE.DoubleSide;
-};
-// A leather quiver on the right hip (his right is -x), its mouth forward, the fletchings showing.
-const hipQuiver = f => {
-  const g = new THREE.Group(), add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); };
-  add(new THREE.CylinderGeometry(0.05, 0.042, 0.4, 8), plain('#5e4632'), 0, 0, 0);
-  add(new THREE.CylinderGeometry(0.055, 0.055, 0.035, 8), plain('#3b2a1c'), 0, 0.19, 0);
-  for (const [x, z] of [[-0.02, 0.015], [0.02, 0.015], [0, -0.02]]) add(new THREE.BoxGeometry(0.008, 0.09, 0.035), plain('#efe8d8'), x, 0.24, z);
-  g.position.set(f.bones.hips.x - 0.19, f.bones.hips.y - 0.08, f.bones.hips.z + 0.02);
-  g.rotation.set(0.3, 0, -0.12);
-  g.userData.attach = 'Hips';
-  f.group.add(g);
 };
 // `hold` names the holding stances (roster.js) that put the hands on the kit; the shield arm keeps its stance
 // whether or not the shield is carried.

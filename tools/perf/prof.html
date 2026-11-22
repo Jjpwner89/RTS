@@ -60,6 +60,17 @@ f.onload = async () => {
     const set = (k, v) => { const q = w.look.QUALITY[Q], was = q[k]; q[k] = v; w.look.setQuality(Q, { save: false }); return () => { q[k] = was; w.look.setQuality(Q, { save: false }); }; };
     // mN: only N of the men on the field are drawn (an even share of every regiment); interleaved with other counts in one load
     const keepOnly = n => { const live = G.battle.soldiers.filter(s => !s.gone); const frac = n / live.length; let acc = 0; const hid = []; for (const s of live) { acc += frac; if (acc >= 1) acc -= 1; else { s.gone = true; hid.push(s); } } return () => hid.forEach(s => s.gone = false); };
+    // add:serjeant*5+yeoman*5 (or spear.leather*5: in that armour; + as %2B in the url): that many regiments of 60 more
+    // on your side, in front of its lines, gone again after. The view sizes a look's instances for the men it first sees, so men added to
+    // a look already on the field aren't drawn: compare looks new to the field (levies in leather, not bare).
+    const added = {};
+    const addRegs = spec => {
+      const regs = added[spec] ||= spec.split('+').flatMap(p => { const [k, n] = p.split('*'), [key, armour] = k.split('.'); return Array.from({ length: +n || 1 }, () => ({ key, armour })); })
+        .map((u, i) => G.battle.addRegiment(0, u.key, (i % 5 - 2) * 40, 20 + Math.floor(i / 5) * 25, Math.PI, { count: 60, ...(u.armour ? { armour: u.armour } : {}) }));
+      const men = G.battle.soldiers.filter(s => regs.includes(s.reg));
+      men.forEach(s => s.gone = false); regs.forEach(r => r.alive = r.was ?? r.alive);
+      return () => { men.forEach(s => s.gone = true); regs.forEach(r => { r.was = r.alive; r.alive = 0; }); };   // (gone, they're no longer counted: checks)
+    };
     const EX = {
       base: () => () => {},
       m300: () => keepOnly(300), m600: () => keepOnly(600),
@@ -109,7 +120,7 @@ f.onload = async () => {
     await post({ start: true, q: Q, men: men(), ext: !!ext, lodNear: w.__LOD.near, lodFar: w.__LOD.far, blobs: G.view.blobs?.count, menCensus: menCensus(), top: census.filter(c => c.ktris > 20).map(c => `${c.ktris}k${c.kshadow ? 's' : ''}`).join(' ') });
     const SUM = {};
     for (let k = 0; k < ROUNDS; k++) for (const e of EXPS) {
-      const mN = e.match(/^m(\d+)$/), at = e.match(/^at:(\d+)$/), kv = /^(\w+=[\d.]+~?)+$/.test(e), undo = mN ? keepOnly(+mN[1]) : at ? (L => { L.clock = () => +at[1]; return () => L.clock = null; })(w.look.look) : kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed; at:600: the campaign clock stopped at 600 s (look.js seasons and day) await sleep(1200);
+      const mN = e.match(/^m(\d+)$/), at = e.match(/^at:(\d+)$/), kv = /^(\w+=[\d.]+~?)+$/.test(e), add = e.match(/^add:(.+)$/), undo = mN ? keepOnly(+mN[1]) : add ? addRegs(add[1]) : at ? (L => { L.clock = () => +at[1]; return () => L.clock = null; })(w.look.look) : kv ? (u => () => u.reverse().forEach(f => f()))(e.split('~').map(x => x.split('=')).map(([k, v]) => set(k, +v))) : EX[e]();   // a=1~b=2: quality settings changed; at:600: the campaign clock stopped at 600 s (look.js seasons and day) await sleep(1200);
       for (const key in T) delete T[key]; gpuMs.length = 0;
       r.info.autoReset = true;
       const times = []; let last = performance.now();
