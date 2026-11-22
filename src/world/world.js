@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, HOPELESS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, HOPELESS, LEVY_KINDS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -615,7 +615,8 @@ export class World {
   friendlyRoad() { return q => !this.canAttack(0, q); }
 
   bannerPlan(dest) {
-    const BEST = ['knight', 'cav', 'maa', 'crossbow', 'lightcav', 'sword', 'spear', 'archer'];
+    // (the strongest levies first; never a trained kind: economy.js LEVY_KINDS)
+    const BEST = [...LEVY_KINDS].sort((a, b) => value(b) - value(a));
     const KEEP = ['crossbow', 'archer', 'spear', 'sword', 'maa', 'lightcav', 'cav', 'knight'];
     const rankOf = c => c.stays ? -1 : c.retinue ? 99 : KEEP.includes(c.key) ? KEEP.indexOf(c.key) : 50;
     const plan = { dest, villages: [], vassals: [], men: 0, raised: 0, from: 0, guard: BANNER_GUARD };

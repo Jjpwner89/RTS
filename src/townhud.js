@@ -1,7 +1,7 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ROAD, ELITE, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_TAX, TAX_HEAD, TAX_MANOR, MARKET_DUES, devOf, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
+import { ROAD, ELITE, LEVY_KINDS, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_TAX, TAX_HEAD, TAX_MANOR, MARKET_DUES, devOf, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
@@ -490,8 +490,8 @@ export class TownHud {
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
       rows.push(`<p class="kit" data-f="racks"></p>`);
       rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
-      for (const [k, K] of Object.entries(KITS)) {
-        if (ELITE[k] || DRILLED[k]) continue;
+      for (const k of LEVY_KINDS) {
+        const K = KITS[k];
         rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks, and wears what the racks allow</p>`);
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);

@@ -7,7 +7,7 @@
 import { World, FACTIONS } from './world.js';
 import { restoreWorks } from './works.js';
 import { relayOld } from './places.js';
-import { BUILDINGS } from '../economy.js';
+import { BUILDINGS, plainLevy } from '../economy.js';
 
 const KEY = 'rts.campaign.save';
 export const TEST_KEY = 'rts.campaign.test';
@@ -180,7 +180,15 @@ function unpackTown(w, p, s) {
   }
   (s.vets || []).forEach((xp, i) => { if (t.villagers[i]) t.villagers[i].xp = xp; });
   // Regiments stand where they stood; a levy's men are villagers again if it disbands.
-  for (const r of s.regiments) {
+  for (let r of s.regiments) {
+    // (an old save's levy of men-at-arms or knights is a plain levy now, its spare kit racked)
+    const plain = plainLevy(r);
+    if (plain) {
+      r = { ...r, key: plain.key, name: plain.name, levy: plain.key, armour: plain.armour, shield: plain.shield };
+      const racks = t.buildings.find(b => b.kind === 'barracks' && b.state === 'active') || t.keep;
+      for (const [g, n] of Object.entries(plain.spare)) t.put(racks, g, n * r.count);
+      w.madePlain = (w.madePlain || 0) + r.count;
+    }
     const gear = { ...(r.armour ? { armour: r.armour, shield: !!r.shield } : {}), battles: r.battles || 0 };
     const reg = Object.assign(t.battle.addRegiment(0, r.key, r.x, r.z, r.angle, { count: r.count, name: r.name, xp: r.xp || 0, ...gear }), gear);
     reg.retinue = r.retinue;
@@ -271,9 +279,21 @@ export function loadGame(data, hooks) {
   for (const s of data.towns) unpackTown(w, w.pois[s.i], s);
   // places remembered under the old layout rule are laid out anew, once (places.js)
   relayOld(w);
+  // Levies of trained kinds in armies on the map, as in the villages above: plain levies now,
+  // their spare kit sent to the racks at home.
+  for (const a of w.armies) for (const u of a.units || []) {
+    const plain = plainLevy(u);
+    if (!plain) continue;
+    const home = w.home?.town;
+    if (home) for (const [g, n] of Object.entries(plain.spare)) home.put(home.buildings.find(b => b.kind === 'barracks' && b.state === 'active') || home.keep, g, n * u.count);
+    w.madePlain = (w.madePlain || 0) + u.count;
+    Object.assign(u, { key: plain.key, name: plain.name, levy: plain.key, armour: plain.armour, shield: plain.shield });
+  }
   w.encounter = null;
   w.hooks = hooks;
   w.updateVision();
   w.log('Campaign loaded.');
+  if (w.madePlain) w.log(`${w.madePlain} levied men-at-arms and knights are plain levies now: those are trained in a knights' hall, from veterans. Their spare kit is in the racks.`);
+  delete w.madePlain;
   return w;
 }

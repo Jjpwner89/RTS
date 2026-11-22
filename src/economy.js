@@ -310,6 +310,21 @@ export const DRILLED = {
   yeoman: { fee: 20, drill: 25, pay: 1.2 },
 };
 export const DRILL = { batch: 10, cap: 40, veteran: 1 };
+// What a barracks levies: every kind in KITS but the hall's elites and the drilled men, who
+// are trained from veterans, never levied (creator, 2026-11-22: a banner call raised "Levy
+// men-at-arms" in no armour). One list for the barracks panel, the banner call and raise().
+export const LEVY_KINDS = Object.keys(KITS).filter(k => !ELITE[k] && !DRILLED[k]);
+export const levied = key => LEVY_KINDS.includes(key);
+// A levy of a trained kind (an old save's) becomes the plain kind with the same weapons,
+// keeping its men, armour and experience; what the plain kind does not carry goes to the racks.
+const PLAIN = { maa: 'sword', knight: 'cav', serjeant: 'spear', yeoman: 'archer' };
+export function plainLevy(u) {
+  const key = !u.elite && u.levy && PLAIN[u.key];
+  if (!key) return null;
+  const was = weaponKit(u.key), now = weaponKit(key);
+  const spare = Object.fromEntries(Object.entries(was).map(([g, n]) => [g, n - (now[g] || 0)]).filter(([, n]) => n > 0));
+  return { key, name: `Levy ${TYPES[key].name.toLowerCase()}`, armour: u.armour ?? baseArmour(u.key), shield: u.shield ?? canShield(u.key), spare };
+}
 // What a building trains and how: a knights' hall its elites (mail at the least, plate if
 // there is enough), a barracks its drilled men (their kind's armour). One path for both, in
 // your villages (Town.train) and a house's places (World.trainAt).
@@ -954,6 +969,7 @@ export class Town {
   // Kit is taken from this barracks' own racks, so it has to be carried there first.
   // `free` lets a plan ask about hands it has already counted out (World.bannerPlan).
   levyCheck(key, barracks, free = this.villagers.filter(v => v.state !== 'soldier').length) {
+    if (!levied(key)) return { n: 0, ok: false, reason: `${KITS[key]?.name ?? key} are trained from veterans, not levied`, fit: null };
     const kit = KITS[key].kit, have = g => Math.floor(barracks.store[g] || 0);
     const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(have(g) / n)));
     const n = Math.min(this.levyMax?.() || LEVY_MAX, byKit, free);   // a duke's levies come forty strong

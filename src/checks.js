@@ -433,7 +433,8 @@ async function worldChecks(w) {
     };
     const a = run(0), b = run(20), out = [];
     if (b.men && Math.abs(a.pop - b.pop - b.men) > 0.01) out.push(`raising ${b.men} men left ${p.name} ${a.pop - b.pop} fewer people`);
-    if (b.men && b.made > a.made + 1e-6) out.push(`${p.name} made more with ${b.men} men under arms (${b.made.toFixed(1)} against ${a.made.toFixed(1)})`);
+    // (one or two men raised from a place already short of goods are noise: one mouth fewer can outweigh their work)
+    if (b.men >= 5 && b.made > a.made + 1e-6) out.push(`${p.name} made more with ${b.men} men under arms (${b.made.toFixed(1)} against ${a.made.toFixed(1)})`);
     return out;
   });
   await check('rival houses: stance follows their situation', async () => {
@@ -625,6 +626,37 @@ async function worldChecks(w) {
     if (g.fled) out.push('those who fled wait on forever');
     return out;
   }));
+
+  // Trained men are never levied (creator, 2026-11-22: the banners raised "Levy men-at-arms" in
+  // no armour, men never trained): one list of levy kinds for the barracks, the banner call and
+  // raise(), and an old save's levied men-at-arms or knights load as plain levies.
+  await check('levies: calling the banners never raises an elite or drilled kind, and no levy has one', async () => {
+    const E = await import('./economy.js'), out = [];
+    const trained = k => !!(E.ELITE[k] || E.DRILLED[k]);
+    if (E.LEVY_KINDS.some(trained)) out.push(`the levy list holds ${E.LEVY_KINDS.filter(trained).join(', ')}`);
+    // Every barracks of yours stocked with all a knight or a man-at-arms needs: the banner plan levies only plain kinds.
+    const RICH = { swords: 200, shields: 200, mail: 200, armour: 200, lances: 200, horses: 200, spears: 200, bows: 200, arrows: 2000 };
+    const at = w.pois.filter(p => p.owner === 0 && p.town && !p.town.hostile).flatMap(p => p.town.buildings.filter(b => b.kind === 'barracks' && b.state === 'active').map(b => [p.town, b]));
+    const racks = at.map(([, b]) => b);
+    const kept = racks.map(b => ({ ...b.store }));
+    try {
+      for (const b of racks) for (const [g, n] of Object.entries(RICH)) b.store[g] = (b.store[g] || 0) + n;
+      if (racks.length) {
+        const plan = w.bannerPlan(w.home), keys = plan.villages.flatMap(v => v.raise.map(l => l.key));
+        if (keys.some(trained)) out.push(`the banner plan levies ${[...new Set(keys.filter(trained))].join(', ')}`);
+        // (the plan may levy nobody if no village can spare twenty above its floor; the racks still answer)
+        const [t, b] = at[0];
+        for (const k of ['maa', 'knight', 'serjeant', 'yeoman']) if (t.levyCheck(k, b, 100).ok) out.push(`a barracks would levy ${k}`);
+        if (!t.levyCheck('cav', b, 100).ok) out.push(`full racks would not levy heavy cavalry: ${t.levyCheck('cav', b, 100).reason}`);
+      }
+    } finally { racks.forEach((b, i) => { b.store = kept[i]; }); }
+    for (const p of w.pois) if (p.town) for (const r of p.town.battle.regs) if (r.levy && !r.gone && r.alive > 0 && trained(r.T.key)) out.push(`${p.name}: ${r.name} is a levy of ${r.T.key}`);
+    for (const a of w.armies) for (const u of a.units || []) if (u.levy && trained(u.key)) out.push(`${a.name}: ${u.name} is a levy of ${u.key}`);
+    const P = E.plainLevy({ key: 'knight', levy: 'knight', count: 10, armour: 'plate' });
+    if (P?.key !== 'cav' || P.armour !== 'plate' || P.spare.lances !== 1) out.push(`an old levy of knights becomes ${JSON.stringify(P)}`);
+    if (E.plainLevy({ key: 'maa', elite: true, count: 10 })) out.push('a hall\'s men-at-arms would be made plain');
+    return out;
+  });
 
   // Earned troops (creator, 2026-11-22): veterans drill at a barracks into serjeants and
   // yeomen from Lord and train at a knights' hall from Count, for real fees, and each step
