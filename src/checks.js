@@ -125,11 +125,7 @@ function storeProblems(holders, label) {
 // Whether a place's numbers say it is walled. Mirrors World.storm() and campaign.js's
 // warning; when the place generator gives one answer for every view, ask it instead.
 let walledPlace = () => false;   // places.js, loaded with the world checks
-function saysWalled(p) {
-  // your own villages are walled by what you build
-  if (p.town && p.owner === 0 && !p.town.hostile) return wallsOf(p.town.battle, 0) > 0;
-  return walledPlace(p);
-}
+const saysWalled = p => walledPlace(p);
 const wallsOf = (battle, side) => battle.walls.pieces.filter(q => q.side === side && q.state !== 'site').length;
 
 async function battleChecks({ battle, town, label }) {
@@ -882,6 +878,19 @@ async function worldChecks(w) {
     return out;
   });
   group = 'World';
+
+  // There is no free wall: your own places are walled only by what is really built there
+  // (the seat's seeded numbers, a kind or a layout don't apply to them), in every view that asks.
+  await check('your places are walled only by what you built', async () => {
+    const out = [];
+    for (const p of w.pois) {
+      if (p.owner !== 0) continue;
+      const real = p.town ? wallsOf(p.town.battle, 0) : p.mem?.pieces.length || 0, says = walledPlace(p);
+      if (says !== real > 0) out.push(`${p.name}: walledPlace says ${says ? 'walled' : 'bare'}, the town has ${real} wall pieces`);
+      if (p.town && p.mem?.pieces.length) out.push(`${p.name}: remembers ${p.mem.pieces.length} wall pieces while you run it`);
+    }
+    return sample(out, 10);
+  });
 
   // The map draws each place from its layout (places.js, worldview.js miniature); its numbers
   // (eco.walls) say whether it is walled. They must agree.

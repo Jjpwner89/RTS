@@ -72,12 +72,22 @@ const kindOf = p => (p.kind === 'crown' || CAMP.has(p.kind) ? p.kind : p.seat !=
 // Castles, seats and the royal city have a curtain round the keep.
 const hasCastle = p => ['castle', 'seat', 'crown', 'pass'].includes(kindOf(p));
 
-// Whether a place stands behind walls: as remembered if it has been seen up close, else
-// by its numbers, else by its kind.
-export const walledPlace = p => (p.mem ? p.mem.pieces.length > 0 : p.eco?.walls ? p.eco.walls !== 'none'
+// The walls the player really has in a place of theirs: what stands in the village they run
+// (a wall still being raised isn't one yet), else what was remembered of it. A place of the
+// player's is walled by nothing else, whatever its kind, seat or numbers say.
+const ownPieces = p => p.town ? p.town.battle.walls.pieces.filter(q => q.side === 0 && q.state !== 'site')
+  : (p.mem?.pieces || []).map(q => ({ material: q.material, state: q.broken ? 'broken' : 'up' }));
+
+// Whether a place is designed with walls: as remembered if it has been seen up close, else by
+// its numbers, else by its kind. (What the layout planner goes by; not what a player has.)
+const designWalled = p => (p.mem ? p.mem.pieces.length > 0 : p.eco?.walls ? p.eco.walls !== 'none'
   : ['castle', 'crown', 'pass', 'warcamp'].includes(p.kind) || p.seat !== undefined);
+// Whether a place stands behind walls: the player's own by what is really built there, anyone
+// else's by its design.
+export const walledPlace = p => (p.owner === 0 ? ownPieces(p).length > 0 : designWalled(p));
 export const wallMaterial = p => {
-  const m = p.mem?.pieces.find(q => !q.broken) || p.mem?.pieces[0];
+  const own = p.owner === 0 ? ownPieces(p) : [];
+  const m = own.length ? own.find(q => q.state !== 'broken') || own[0] : p.mem?.pieces.find(q => !q.broken) || p.mem?.pieces[0];
   return m ? m.material : p.eco?.walls && p.eco.walls !== 'none' ? p.eco.walls
     : p.kind === 'warcamp' || (p.kind === 'village' && (p.eco?.level ?? 1) < 2) ? 'wood' : 'stone';
 };
@@ -479,7 +489,7 @@ function plan(p, { fresh = false, tally = null, walls = null } = {}) {
 
   // ---- walls round the town ----
   const material = walls && walls !== 'none' ? walls : wallMaterial(p);
-  if (!kept && (walls ? walls !== 'none' : walledPlace(p))) {
+  if (!kept && (walls ? walls !== 'none' : designWalled(p))) {
     const W = t.battle.walls;
     if (castle) ring(t, W, roads, bearing => curtainAt(t, bearing, curtain), material, rand, { gatehouse: true });
     // a seat and the royal city: a walled town round the castle (a castle alone keeps its village outside)
@@ -840,7 +850,7 @@ export function checkPlaces(w) {
     const want = tallyOf(p);
     for (const [k, n] of Object.entries(want)) if ((have[k] || 0) < n) out.push(`${p.name}: ${k} ${have[k] || 0} of ${n} laid out`);
     if (L.unplaced.length) out.push(`${p.name}: no room for ${L.unplaced.join(', ')}`);
-    if (walledPlace(p) !== L.pieces.length > 0) out.push(`${p.name}: walled by its numbers ${walledPlace(p)}, ${L.pieces.length} wall pieces laid out`);
+    if (designWalled(p) !== L.pieces.length > 0) out.push(`${p.name}: walled by its numbers ${designWalled(p)}, ${L.pieces.length} wall pieces laid out`);
     // what is remembered standing and what its numbers say agree (the map and the realm go by both)
     if (p.mem && p.eco?.walls && (p.eco.walls !== 'none') !== p.mem.pieces.length > 0)
       out.push(`${p.name}: its numbers say ${p.eco.walls} walls, ${p.mem.pieces.length} wall pieces remembered`);
