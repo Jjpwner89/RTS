@@ -685,6 +685,12 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
   - Engaged 21 banks 22k by 120, over the "about 20k" bar: 6 places and their market towns (tax 29.7k, workshops 7.9k, wages −18.9k).
   - checks(): Lord 72/0, Count 91/0, King 127/0.
 
+- **A front refills between hosts** (Manager, 2026-11-22, making the code do what the "men stand down once it is over" ruling said). Before, men stood down only from the muster place, only above keepHome + 30 and outside a muster, so a house at war never refilled a drafted front: Varn's Emberley sat at 13–18 of 72 people for 8 minutes after a host left. Now a place drafted below its floor gets its men back once it has been calm for 30 s (`CALM`, no enemy host near): in every calm place, the muster place among them, men above keepHome stand down, home to the places that raised them. Never the men a muster in progress counts on, nor a host that has marched.
+  - Probe, seed 7: a 400-man host held 250 from Emberley for 4 minutes drafts its people from 32 down to 12; after it leaves, they climb back to 19 within 40 s and 27 within 100 s, with Varn at war throughout. The next muster drafts them again, and they refill after it marches.
+  - Sims to minute 120 (other sessions' changes since b0739aa are in these too): passive 7 fell at 70, passive 21 at 62, passive 91 alive at 120. Engaged 7 banked 0 / 0 / 0 at 60 / 90 / 120 and holds 5 places, engaged 21 965 / 5,415 / 12,149, engaged 91 495 / 1,218 / 438. No stalls.
+  - The 6 men drafted and stood down every half minute at a hungry peaceful house aren't from this rule: under people-eat-first, a muster place with no food sends its men home, and the house raises them again. That churn is left as it is.
+  - checks(): Lord 72/0, Count 91/0, King 127/0.
+
 ## Test campaigns (built 2026-11-20)
 
 The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.

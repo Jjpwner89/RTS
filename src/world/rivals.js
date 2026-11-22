@@ -59,6 +59,7 @@ function climb(w, h) {
   }
 }
 const THINK = 8;
+const CALM = 30;                      // seconds with no enemy host near before a drafted place gets its men back
 const SETTLED_RESERVE = 30;           // men a settling house keeps in the field at most
 const GROW = [1500, 900, 240];        // seconds a house rests after taking a free village, by stage
 
@@ -187,12 +188,27 @@ function houseMind(w, h) {
   ai.rear = mine.filter(p => !foes.some(q => dist(p, q) < 400) && !hosts.some(a => dist(p, a) < 400)).map(p => p.id);
   const arming = ai.stance === 'war';
   if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
-  // Building with nothing planned; or places it drafted deep stand hollow, the threat gone and
-  // no muster holding the men.
-  const hollow = mine.some(p => p.eco?.buildings && !p.town && !pressedAt(h, p) && p.eco.pop < keepAtWork(p.eco, false) - 6);
-  if ((!arming && !plan || hollow && plan?.phase !== 'muster') && muster.eco?.buildings) {
+  // Building with nothing planned, it keeps a modest field reserve and sends the rest home.
+  const real = mine.filter(p => p.eco?.buildings && !p.town);
+  if (!arming && !plan && muster.eco?.buildings) {
     const over = headcount(muster.garrison) - (w.keepHome(muster) + SETTLED_RESERVE);
-    if (over > 0) standDown(muster.eco, muster.garrison, Math.min(over, 6), mine.filter(p => p.eco?.buildings && !p.town));
+    if (over > 0) standDown(muster.eco, muster.garrison, Math.min(over, 6), real);
+  }
+  // Once the threat is gone, men stand down to work (Orchestrator, 2026-11-21), at war or not:
+  // a place drafted below its floor, calm for half a minute (no enemy host near it for CALM
+  // seconds, so a host passing by doesn't send men home to call them up again), gets its men
+  // back: in every calm place, the muster place among them, men above what it keeps at home
+  // stand down, home to the places that raised them. Never the men a muster in progress
+  // counts on, nor a host that has marched.
+  const last = ai.lastPressed ||= {};
+  for (const id of ai.pressed) last[id] = w.time;
+  const calm = p => !pressedAt(h, p) && w.time - (last[p.id] ?? -Infinity) >= CALM;
+  if (real.some(p => calm(p) && p.eco.pop < keepAtWork(p.eco, false) - 6)) {
+    for (const p of real.filter(calm)) {
+      if (plan?.phase === 'muster' && p === plan.staging) continue;
+      const over = headcount(p.garrison) - w.keepHome(p);
+      if (over > 0) standDown(p.eco, p.garrison, Math.min(over, 6), real);
+    }
   }
 
   // Food, and kit for an unarmed guard, from its fullest larder to its emptiest (supply.js).
