@@ -1481,6 +1481,7 @@ export class World {
       p.eco.pop = Math.max(5, stay);
       p.eco.fled = away;
       if (p.eco.gold) { H.gold += p.eco.gold * 0.8; p.eco.gold *= 0.2; }
+      this.strongbox(p.eco, H, vassalOf(this, p));   // (fewer people, a smaller box)
     }
     this.removeArmy(a);
     if (p.visible || was === 0 || (H.invader && was !== null)) this.log(`${H.name} has taken ${p.name}.`, was === 0 || H.invader ? 1 : 2);

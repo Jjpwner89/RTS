@@ -7,6 +7,7 @@
 import { World, FACTIONS } from './world.js';
 import { restoreWorks } from './works.js';
 import { relayOld } from './places.js';
+import { vassalOf } from './vassals.js';
 import { BUILDINGS, plainLevy } from '../economy.js';
 
 const KEY = 'rts.campaign.save';
@@ -279,6 +280,8 @@ export function loadGame(data, hooks) {
   for (const s of data.towns) unpackTown(w, w.pois[s.i], s);
   // places remembered under the old layout rule are laid out anew, once (places.js)
   relayOld(w);
+  // A place keeps only its strongbox, as the first tick would leave it (an old save may hold more).
+  for (const p of w.pois) if (p.eco?.buildings && !p.town) w.strongbox(p.eco, p.owner === null ? null : FACTIONS[p.owner], vassalOf(w, p));
   // Levies of trained kinds in armies on the map, as in the villages above: plain levies now,
   // their spare kit sent to the racks at home.
   for (const a of w.armies) for (const u of a.units || []) {
