@@ -522,6 +522,9 @@ async function worldChecks(w) {
     const busy = Object.assign(stub('village', 160), { time: 1000, govDevAt: 940 });
     if (G.develop(busy)) out.push('it builds again a minute after the last');
     if (!G.develop(Object.assign(busy, { govDevAt: 700 }))) out.push('it builds nothing in an undeveloped village');
+    // A workshop only where it can be fed: no tannery without hunters, no more of one with nothing to work.
+    const bare = stub('village', 160); bare.buildings = bare.buildings.filter(b => b.kind !== 'hunter' && b.kind !== 'mine'); bare.stock = {};
+    for (let i = 0; i < 12; i++) { const k = G.develop(Object.assign(bare, { time: i * 200, govDevAt: i * 200 - 200 })); if (!k) break; if (['tanner', 'smelter'].includes(k) || bare.buildings.some(b => b.kind === k)) out.push(`with nothing to feed it, it built a ${k}`); bare.buildings.push({ kind: k, state: 'active' }); }
     for (const q of w.pois) if (q.owner === 0 && q.town && !q.town.hostile && !/^Governor: (on|off|building an? )/.test(G.govText(q.town))) out.push(`${q.name}'s keep says "${G.govText(q.town)}"`);
     return out;
   });

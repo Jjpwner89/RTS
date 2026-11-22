@@ -345,9 +345,11 @@ export function settleTrade(p, dt) {
   p.tradeRate = (p.tradeRate || 0) + (now - (p.tradeRate || 0)) * Math.min(1, dt / TRADE_SPAN);
   p.tradeNew = 0;
 }
+// Gold 300 and 720 (from 500 and 1,200) when tax came to follow a place's buildings, so a raise
+// takes the same minutes of a template-built seat's tax as before (Orchestrator, 2026-11-22).
 export const KEEP_RAISE = [
-  { name: 'great keep', pop: 100, gold: 500, cost: { stone: 80, planks: 30 }, housing: 10, mood: 4 },
-  { name: 'castle keep', pop: 150, gold: 1200, cost: { stone: 160, planks: 40, iron: 10 }, housing: 10, mood: 4 },
+  { name: 'great keep', pop: 100, gold: 300, cost: { stone: 80, planks: 30 }, housing: 10, mood: 4 },
+  { name: 'castle keep', pop: 150, gold: 720, cost: { stone: 160, planks: 40, iron: 10 }, housing: 10, mood: 4 },
 ];
 // A feast: gold for a spell of good feeling, the cure for a village near revolt.
 export const FEAST = { perHead: 2, least: 60, mood: 15, secs: 300, again: 600 };

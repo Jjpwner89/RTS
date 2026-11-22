@@ -11,6 +11,9 @@ const EVERY = 15;
 // until its buildings bring in DEV_SHARE a head (economy.js devOf): a governed 160-person
 // home ends near 45 gold a minute, one built by hand 57-62.
 const DEVELOP_EVERY = 180, DEV_SHARE = 0.075;
+const ESSENTIAL = new Set(['house', 'farm', 'hunter', 'woodcutter']);
+// A second or third workshop only with this much of its input in the stores for each it has.
+const INPUT_EACH = 30;
 
 export function govern(t, dt) {
   if (t.governor === false || t.hostile) return;
@@ -23,9 +26,11 @@ export function govern(t, dt) {
   // seed 7's governed Ashford built nothing from minute 20 on), the next step of its development.
   const kind = wanted(t);
   let b = kind && site(t, kind), dev = null;
-  // (nothing else while hungry with food places standing open: they want hands, not buildings)
-  if (!b && !t.govWait && (dev = develop(t))) b = site(t, dev);
-  if (!b && !t.govWait) { dev = null; const k = spare(t); b = k && site(t, k); }
+  // (nothing else while hungry with food places standing open: they want hands, not buildings;
+  // nor while a home or food place it wants waits on materials, which would go elsewhere)
+  const wait = t.govWait || ESSENTIAL.has(kind);
+  if (!b && !wait && (dev = develop(t))) b = site(t, dev);
+  if (!b && !wait) { dev = null; const k = spare(t); b = k && site(t, k); }
   if (!b) return;
   t.govSite = b;
   if (dev) t.govDevAt = t.time;
@@ -50,7 +55,7 @@ export function develop(t) {
     n('farm') >= 2 && 'mill', n('mill') && 'bakery', t.kind === 'market' && 'market'].filter(k => k && !n(k));
   if (first.length) return first[0];
   const input = { carpenter: 'wood', smelter: 'ore', tanner: 'hides', ropemaker: 'flax', mill: 'food', bakery: 'flour' };
-  const more = Object.keys(input).filter(k => n(k) && n(k) < 3).sort((a, b) => (s[input[b]] || 0) / n(b) - (s[input[a]] || 0) / n(a));
+  const more = Object.keys(input).filter(k => n(k) && n(k) < 3 && (s[input[k]] || 0) >= INPUT_EACH * n(k)).sort((a, b) => (s[input[b]] || 0) / n(b) - (s[input[a]] || 0) / n(a));
   return more[0] || null;
 }
 
