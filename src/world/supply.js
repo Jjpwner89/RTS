@@ -12,6 +12,7 @@ import { FACTIONS, power, headcount } from './world.js';
 import { housing, kits, takeKit, AT_WORK } from './holdings.js';
 import { priceShare, glut } from '../economy.js';
 import { workDone } from './works.js';
+import { rankOf } from './arriere.js';
 
 export const EAT = 1 / 120;        // food per man per second
 export const CARRY = 2;            // food per man the carts hold: four minutes
@@ -246,21 +247,71 @@ export function followCart(w, a) {
 export const cartsNear = (w, a) => w.armies.filter(o => (o.wagon?.trade || o.wagon?.run) && o.side === 0 && !o.gone && Math.hypot(o.x - a.x, o.z - a.z) < 220 && !w.armies.some(e => e.escort === o.id));
 
 // ---- supply runs ----
-// One of your villages sends a wagon of its spare building goods and food, and a few
-// families, to another: mostly to put a place back on its feet after it was taken or
-// burned. Half of each good stays at home. A raider who meets the wagon seizes it.
+// One of your villages sends a wagon of its spare goods, and a few families, to another:
+// mostly to put a place back on its feet after it was taken or burned, or to feed one
+// village's workshops from another's stores. Half of each good stays at home. A raider who
+// meets the wagon seizes it.
 // (2026-11-20) Raised from 40 food, 20 bread, 40 wood, 20 planks, 30 stone and 10 iron, which
 // fed a village of sixty for under a minute; still half of what is spare.
-export const RUN_GOODS = { food: 120, bread: 60, wood: 80, planks: 30, stone: 60, iron: 20 };
+// (Creator, 2026-11-22: "one settlement had all the iron... maybe do building goods and
+// crafting goods separately"; Orchestrator: arms too, since a house's carts carry kit.) What
+// one wagon carries at most of each good, before better wagons (WAGONS): arms for thirty men.
+export const RUN_GOODS = {
+  food: 120, bread: 60, wood: 80, planks: 30, stone: 60,
+  ore: 60, iron: 40, flax: 40, hides: 30, feathers: 40, string: 30, leather: 30, flour: 40,
+  spears: 30, swords: 30, shields: 30, bows: 30, arrows: 300, crossbows: 30, bolts: 300, lances: 10, leatherarmour: 20, mail: 20, armour: 10, horses: 10,
+};
 const RUN_PEOPLE = 4;
-// What a run carries (the Realm screen lets you choose): food, building goods, or both.
-export const RUN_KINDS = { all: 'Food and building goods', food: 'Food only', build: 'Building goods only' };
-const RUN_FOOD = new Set(['food', 'bread']);
+// What a run carries (the Realm screen lets you choose). Everything is all but arms, which
+// go only when you send them.
+export const RUN_GROUPS = {
+  food: ['food', 'bread'],
+  build: ['wood', 'planks', 'stone'],
+  craft: ['ore', 'iron', 'flax', 'hides', 'feathers', 'string', 'leather', 'flour'],
+  arms: ['spears', 'swords', 'shields', 'bows', 'arrows', 'crossbows', 'bolts', 'lances', 'leatherarmour', 'mail', 'armour', 'horses'],
+};
+RUN_GROUPS.all = [...RUN_GROUPS.food, ...RUN_GROUPS.build, ...RUN_GROUPS.craft];
+export const RUN_KINDS = { all: 'Food, building and crafting goods', food: 'Food', build: 'Building goods', craft: 'Crafting goods', arms: 'Arms and armour' };
+// Better wagons for the whole realm, bought once each (Realm > Supplies), the same for a
+// house (houseRuns): bigger loads, and from great wagons two out from a village at once.
+// A bigger load is a bigger prize for a raider.
+export const WAGONS = [
+  { name: 'Carts', size: 1, out: 1 },
+  { name: 'Wagons', size: 2, out: 1, gold: 400, planks: 40, iron: 20, rank: 'Lord' },
+  { name: 'Great wagons', size: 3, out: 2, gold: 1200, planks: 80, iron: 40, rank: 'Count' },
+];
+const RANK_ORDER = ['Reeve', 'Lord', 'Count', 'Duke', 'King'];
+export const wagonsOf = side => WAGONS[FACTIONS[side]?.wagons || 0] || WAGONS[0];
+export const runCap = (side, g) => Math.floor((RUN_GOODS[g] || 0) * wagonsOf(side).size);
+const runsFrom = (w, p) => w.armies.filter(a => a.wagon?.run && !a.wagon.bought && a.wagon.from === p && !a.gone).length;
+// The next better wagons for a side: the price, and where the planks and iron come from
+// (`at`, then the seat). { ok, next, src, why }.
+export function wagonPlan(w, side, at) {
+  const H = FACTIONS[side], next = WAGONS[(H?.wagons || 0) + 1];
+  if (!next) return { ok: false, why: 'The best wagons there are' };
+  const rank = side === 0 ? w.rank : rankOf(w.pois.filter(p => p.owner === side && p.kind !== 'camp').length);
+  if (RANK_ORDER.indexOf(rank) < RANK_ORDER.indexOf(next.rank)) return { ok: false, next, why: `From the rank of ${next.rank}` };
+  if (H.gold < next.gold) return { ok: false, next, why: `Needs ${next.gold} gold` };
+  const store = p => (side === 0 ? p?.town?.stock : p?.eco?.stock);
+  const src = [at, side === 0 ? w.home : H.seat].find(p => p && p.owner === side && store(p) && (store(p).planks || 0) >= next.planks && (store(p).iron || 0) >= next.iron);
+  if (!src) return { ok: false, next, why: `Needs ${next.planks} planks and ${next.iron} iron in ${at && at !== w.home && side === 0 ? `${at.name} or your seat` : 'one place'}` };
+  return { ok: true, next, src };
+}
+export function buyWagons(w, side, at) {
+  const c = wagonPlan(w, side, at);
+  if (!c.ok) return c;
+  const H = FACTIONS[side], { next, src } = c;
+  H.gold -= next.gold;
+  if (side === 0) src.town.spend({ planks: next.planks, iron: next.iron });
+  else { src.eco.stock.planks -= next.planks; src.eco.stock.iron -= next.iron; }
+  H.wagons = (H.wagons || 0) + 1;
+  if (side === 0) w.log(`${next.name} for the realm, for ${next.gold} gold and ${next.planks} planks and ${next.iron} iron from ${src.name}.`);
+  return { ok: true, next, src };
+}
 export function runLoad(from, what = 'all', families = true) {
-  const t = from.town, have = t.stock, goods = {};
-  for (const [g, n] of Object.entries(RUN_GOODS)) {
-    if ((what === 'food' && !RUN_FOOD.has(g)) || (what === 'build' && RUN_FOOD.has(g))) continue;
-    const k = Math.min(n, Math.floor((have[g] || 0) / 2));
+  const t = from.town, have = t.stock, goods = {}, side = from.owner ?? 0;
+  for (const g of RUN_GROUPS[what] || RUN_GROUPS.all) {
+    const k = Math.min(runCap(side, g), Math.floor((have[g] || 0) / 2));
     if (k > 0) goods[g] = k;
   }
   return { goods, people: families && t.population > 20 ? RUN_PEOPLE : 0 };
@@ -268,7 +319,7 @@ export function runLoad(from, what = 'all', families = true) {
 export function runCheck(w, from, to, what, families) {
   if (!from?.town || !to?.town || from.owner !== 0 || to.owner !== 0 || from === to) return { ok: false, why: 'Both ends must be villages of yours' };
   if (from.town.hostile || from.town.underAttack) return { ok: false, why: `${from.name} is being fought over` };
-  if (w.armies.some(a => a.wagon?.run && a.wagon.from === from && !a.gone)) return { ok: false, why: `A wagon from ${from.name} is already on the road` };
+  if (runsFrom(w, from) >= wagonsOf(0).out) return { ok: false, why: wagonsOf(0).out > 1 ? `${wagonsOf(0).out} wagons from ${from.name} are already on the road` : `A wagon from ${from.name} is already on the road` };
   const load = runLoad(from, what, families);
   if (!Object.keys(load.goods).length && !load.people) return { ok: false, why: `${from.name} has nothing to spare` };
   return { ok: true, load, eta: runTime(w, from, to) };
@@ -287,7 +338,7 @@ export function sendRun(w, from, to, what, families) {
     t.villagers = t.villagers.filter(o => o !== v);
   }
   const wag = w.spawnArmy(0, [], from, `Supply run from ${from.name}`, 'wagon');
-  wag.wagon = { run: true, goods: c.load.goods, people: c.load.people, to, from };
+  wag.wagon = { run: true, goods: c.load.goods, people: c.load.people, to, from, tier: FACTIONS[0].wagons || 0 };
   wag.at = null;
   w.log(`A supply run sets out from ${from.name} for ${to.name}: ${loadText(wag.wagon)}.`);
   w.hooks.sound?.('cart'); // audio
@@ -305,9 +356,12 @@ export function houseRuns(w, h) {
   const ai = h.ai;
   if (!ai || w.time < (ai.cartAt ?? 0)) return null;
   ai.cartAt = w.time + HOUSE_RUN.every;
+  // Better wagons, on your rules and at your price (WAGONS), once it can spare twice that.
+  const buy = wagonPlan(w, h.index, w.pois.filter(p => p.owner === h.index && p.eco?.stock).sort((a, b) => (b.eco.stock.iron || 0) - (a.eco.stock.iron || 0))[0]);
+  if (buy.ok && h.gold >= buy.next.gold * 2) buyWagons(w, h.index, buy.src);
   if (w.armies.filter(a => a.side === h.index && a.wagon?.run && !a.gone).length >= HOUSE_RUN.carts) return null;
-  const busy = new Set(w.armies.filter(a => a.wagon?.run && !a.gone).flatMap(a => [a.wagon.from, a.wagon.to]));
-  const safe = p => p.owner === h.index && p.eco?.buildings && !p.town && !p.falling && !busy.has(p) && !w.armies.some(a => !a.gone && a.siege === p);
+  const busy = new Set(w.armies.filter(a => a.wagon?.run && !a.gone).map(a => a.wagon.to)), out = wagonsOf(h.index).out;
+  const safe = p => p.owner === h.index && p.eco?.buildings && !p.town && !p.falling && !busy.has(p) && runsFrom(w, p) < out && !w.armies.some(a => !a.gone && a.siege === p);
   const mine = w.pois.filter(safe).map(p => {
     const men = headcount(p.garrison), perMin = p.eco.pop + men;   // a head a minute, people and men alike (holdings.js)
     return { p, perMin, mins: meals(p.eco.stock) / Math.max(1, perMin), short: w.keepHome(p) - men, kits: kits(p.eco) };
@@ -328,8 +382,12 @@ export function houseRuns(w, h) {
     goods = takeKit(from.p.eco, Math.min(HOUSE_RUN.kitMen, to.short, Math.floor(arms(to)), from.kits - Math.max(0, from.short)));
     if (!Object.keys(goods).length) return null;
   }
+  // A wagon's load, as yours is (RUN_GOODS by its wagons); what it can't take stays home.
+  const st = from.p.eco.stock;
+  for (const g of Object.keys(goods)) { const k = Math.min(goods[g], runCap(h.index, g)); st[g] = (st[g] || 0) + goods[g] - k; if (k > 0) goods[g] = k; else delete goods[g]; }
+  if (!Object.keys(goods).length) return null;
   const cart = w.spawnArmy(h.index, [], from.p, `${h.short} supply cart from ${from.p.name}`, 'wagon');
-  cart.wagon = { run: true, house: true, goods, people: 0, to: to.p, from: from.p };
+  cart.wagon = { run: true, house: true, goods, people: 0, to: to.p, from: from.p, tier: h.wagons || 0 };
   cart.at = null;
   return cart;
 }

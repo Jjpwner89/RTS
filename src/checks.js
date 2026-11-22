@@ -484,6 +484,32 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Caravans (creator, 2026-11-22: "can i unlock better caravans so i can send more goods at
+  // once"): every wagon on the road holds to its caps, yours and a house's cart alike, and no
+  // village has more out than its wagons allow.
+  await check('supplies: a wagon carries no more than its caps, yours and a house\'s alike', async () => {
+    const { RUN_GOODS, WAGONS } = await import('./world/supply.js'), out = [];
+    for (let i = 1; i < WAGONS.length; i++) if (!(WAGONS[i].size > WAGONS[i - 1].size && WAGONS[i].gold > 0)) out.push(`${WAGONS[i].name} are no better than ${WAGONS[i - 1].name}, or free`);
+    for (const h of FACTIONS) if (h && h.wagons != null && !(h.wagons >= 0 && h.wagons < WAGONS.length)) out.push(`${h.name} drives wagons of tier ${h.wagons}`);
+    const from = new Map();
+    for (const a of w.armies) {
+      const W = a.wagon;
+      if (a.gone || !W?.run || W.bought || W.tier == null) continue;   // one loaded before the caps keeps its load
+      for (const [g, n] of Object.entries(W.goods)) if (n > (RUN_GOODS[g] ?? 0) * WAGONS[W.tier].size) out.push(`${a.name} carries ${n} ${g}, past its ${Math.floor((RUN_GOODS[g] ?? 0) * WAGONS[W.tier].size)}`);
+      from.set(W.from, (from.get(W.from) || 0) + 1);
+    }
+    for (const [p, n] of from) if (n > WAGONS[FACTIONS[p.owner]?.wagons || 0].out) out.push(`${n} wagons out from ${p.name}`);
+    return out;
+  });
+  // A house's carts carry food and kit; whatever they carry, you can send too.
+  await check('supplies: you can send every good a house\'s cart carries', async () => {
+    const { RUN_GOODS, RUN_GROUPS } = await import('./world/supply.js'), { RAISE, kitOf } = await import('./world/holdings.js'), out = [];
+    const yours = new Set(Object.values(RUN_GROUPS).flat());
+    for (const g of new Set(['food', 'bread', ...RAISE.flatMap(k => Object.keys(kitOf(k)))])) if (!yours.has(g)) out.push(`a house's cart carries ${g}; you can't send it`);
+    for (const g of yours) if (!(RUN_GOODS[g] > 0)) out.push(`${g} has no wagon load`);
+    return out;
+  });
+
   await check('houses and armies: numbers are sane', () => {
     const out = [];
     for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);

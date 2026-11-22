@@ -51,7 +51,7 @@ export const WEALTH = [
 export const FOCUS_NAMES = { farming: 'farms and families', military: 'arms and men', trade: 'trade and coin', production: 'timber, stone and iron' };
 
 // Kit for the soldiers a place can raise, best first: the goods each man needs.
-const RAISE = ['sword', 'spear', 'archer', 'militia'];
+export const RAISE = ['sword', 'spear', 'archer', 'militia'];
 export const kitOf = k => (TYPES[k].kit ? weaponKit(k) : {});
 
 // ---- making a place ----
