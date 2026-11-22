@@ -166,6 +166,11 @@ export class TownHud {
   }
 
   buildMenu() {
+    // The defences panel (siegeui.js) is one element shared by every village and docked in the Walls
+    // tab. Rebuilding the bar below would throw it away with the old tab, and the next village would
+    // show an empty Walls tab (creator, 2026-11-22): take it out first, update() docks it again.
+    const kept = document.getElementById('defences');
+    if (kept && this.buildEl.contains(kept)) document.body.append(kept);
     // Walls holds the defences panel (siegeui.js), docked here rather than a panel of its own.
     const tabs = [...BUILD_GROUPS, 'Walls', 'Towns'].map(g => `<button class="tab" data-tab="${g}" title="${TAB_TIPS[g] || g}">${g}</button>`).join('');
     const items = Object.entries(BUILDINGS).filter(([, B]) => !B.camp).map(([k, B]) => `

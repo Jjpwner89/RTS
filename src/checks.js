@@ -1590,6 +1590,15 @@ async function menuChecks() {
     } finally { menu.use(real); }
     return out;
   });
+  // Walls: the one shared Defences panel is in the page with all its tools whenever a village of yours is on screen
+  // (it was lost with the old build bar when a second village was entered, and the Walls tab came up empty).
+  const bar = document.getElementById('build');
+  if (bar && bar.getClientRects().length && !document.body.classList.contains('readonly')) await check('the Walls tab holds its tools', () => {
+    const panels = document.querySelectorAll('#defences'), tools = document.querySelectorAll('#defences [data-tool]').length;
+    if (panels.length !== 1) return [`${panels.length} Defences panels in the page`];
+    if (tools < 5) return [`${tools} wall tools in it, not 5`];
+    return bar.querySelector('[data-tab="Walls"]') ? [] : ['no Walls tab'];
+  });
   const sv = window.game?.world && menu.host.save;
   if (sv) await check("the campaign's unsaved state follows the menu's question", async () => {
     const { unsaved } = await import('./world/save.js');
