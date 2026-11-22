@@ -1705,8 +1705,10 @@ export class Town {
       v.checkCd = 0.6;
       if (v.state === 'shelter') {
         const safeHome = !this.nearestEnemy(this.keep, 70);
-        const work = v.job || this.keep;
-        if (safeHome && !this.nearestEnemy(work, 45)) { v.state = v.job ? 'work' : 'idle'; v.hidden = false; v.task = null; }
+        // Back to the job or the site they left (builders came out idle but still on the site's
+        // crew, so a site with all its materials waited for builders for good: creator, 2026-11-21).
+        const work = v.job || v.site || this.keep;
+        if (safeHome && !this.nearestEnemy(work, 45)) { v.state = v.job ? 'work' : v.site ? 'build' : 'idle'; v.hidden = false; v.task = null; }
       } else if (this.nearestEnemy(v, 28)) {
         // Run for the keep, still holding any crate; the trip itself is off.
         const load = v.load;
@@ -1768,6 +1770,8 @@ export class Town {
 
   // Sites get builders first, then empty workplaces fill, nearest first.
   findWork(v) {
+    // Someone idle is on no site's crew: a place counted for them would never be filled.
+    if (v.site || v.job) this.release(v);
     // The prioritised site or workplace first (up to PRIO_BUILDERS builders).
     const P = this.priority;
     if (P && !P.removed) {
