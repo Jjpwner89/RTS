@@ -152,6 +152,17 @@ async function battleChecks({ battle, town, label }) {
     return sample(out);
   });
 
+  // Each man standing has an instance in his look's meshes (view.js syncSoldiers), however late his regiment came.
+  await check(`${label}: every living man on the field is drawn`, async () => {
+    const view = (await import('./view.js')).viewOf.get(battle);
+    if (!view) return null;
+    view.syncSoldiers();   // (what the next frame does: a regiment that joined this moment is handed out first)
+    const lost = {};
+    for (const m of Object.values(view.meshes)) m.list.forEach((s, i) => { if (s.instance !== i) lost[s.reg.name] = (lost[s.reg.name] || 0) + 1; });
+    for (const s of battle.soldiers) if (live(s) && !Object.values(view.meshes).some(m => m.list[s.instance] === s)) lost[s.reg.name] = (lost[s.reg.name] || 0) + 1;
+    return sample(Object.entries(lost).map(([n, k]) => `${n}: ${k} men not drawn`));
+  });
+
   await check(`${label}: nobody lost off the map`, () => {
     const out = [];
     for (const s of battle.soldiers) if (live(s) && (bad(s.x) || bad(s.z) || bad(s.y) || bad(s.hp))) out.push(`${s.reg.name}: a soldier at (${s.x}, ${s.z}) with ${s.hp} hp`);
@@ -1302,6 +1313,22 @@ async function orderChecks() {
       for (const o of A.soldiers) if (live(o)) closest = Math.min(closest, Math.hypot(o.x - men[0].x, o.z - men[0].z));
     }
     return men[0].alive && closest > 4 ? [`after 40 s the nearest of ${A.name} is still ${Math.round(closest)} m from the man on their bank (heading for ${A.dest ? at(A.dest) : 'nowhere'}${A.via ? ', by ' + at(A.via) : ''})`] : [];
+  });
+
+  // Regiments that join a fight late (reinforcements, a muster, a host's later regiments) are drawn, in a look
+  // already on the field (its meshes grow: view.js grow) as in a new one.
+  await check('every man of regiments that join mid-fight is drawn', async () => {
+    const THREE = await import('three'), { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js'), { BattleView } = await import('./view.js');
+    const b = new Battle(makeHeight(3), 3, { deploy: false }), scene = new THREE.Scene();
+    b.addRegiment(0, 'spear', 0, 40, Math.PI, { count: 40 });
+    const view = new BattleView(scene, b, b.heightAt, { keeps: false });
+    view.update(new Set());
+    for (let i = 0; i < 4; i++) b.addRegiment(0, i < 3 ? 'spear' : 'serjeant', (i - 1.5) * 30, 80, Math.PI, { count: 60 });
+    b.step(0.05);
+    view.update(new Set());
+    const drawn = new Set(Object.values(view.meshes).flatMap(m => m.list)), out = [];
+    for (const r of b.regs) { const n = r.soldiers.filter(s => live(s) && !drawn.has(s)).length; if (n) out.push(`${r.name}: ${n} of ${r.alive} men not drawn`); }
+    return out;
   });
 
   // Men inside the enemy's walls (over the ladders) sent at a foe outside: they make for a gate,

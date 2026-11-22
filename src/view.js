@@ -43,6 +43,9 @@ function blobMesh(capacity) {
   return mesh;
 }
 
+// Which view draws a battle (checks.js: every living man is drawn).
+export const viewOf = new WeakMap();
+
 // ---- what an animated soldier is doing ----
 
 // The clip (anim.js clipOf) and moment each baked soldier shows, read from the battle: dead, striking, shooting,
@@ -523,6 +526,7 @@ export class BattleView {
     this.base = SIDE_COLORS.map(c => new THREE.Color(c));
     this.capacity = capacity;
     this.meshes = {};
+    viewOf.set(battle, this);
     this.blobs = blobMesh(Math.max(capacity, battle.soldiers.length) + 256);
     this.blobQ = new THREE.Quaternion(); this.blobS = new THREE.Vector3(); this.blobP = new THREE.Vector3(); this.blobM = new THREE.Matrix4();
     scene.add(this.blobs);
@@ -542,7 +546,7 @@ export class BattleView {
   }
 
   // One pair of instanced meshes per unit type, made the first time that type appears.
-  // Regiments raised later take the next free instances.
+  // Regiments raised later take the next free instances; a look out of room grows (grow) so every man is drawn.
   syncSoldiers() {
     const b = this.battle;
     if (this.version !== b.version) {
@@ -555,7 +559,7 @@ export class BattleView {
       const s = b.soldiers[i], key = lookKey(s);
       let m = this.meshes[key];
       if (!m) m = this.meshes[key] = this.makeMeshes(key, Math.max(this.capacity, b.soldiers.filter(o => lookKey(o) === key).length));
-      if (m.list.length >= m.gear.instanceMatrix.count) continue;   // out of room: not drawn
+      if (m.list.length >= m.gear.instanceMatrix.count && !this.grow(m, key)) continue;
       s.instance = m.list.length;
       m.list.push(s);
       // A little variation in each man's dye keeps the blocks from looking printed.
@@ -568,6 +572,42 @@ export class BattleView {
       m.cloth.instanceColor.needsUpdate = m.gear.instanceColor.needsUpdate = true;
     }
     this.seenSoldiers = b.soldiers.length;
+    // far men's shadow blobs: room for every man
+    if (this.blobs.instanceMatrix.count < b.soldiers.length) this.blobs = this.regrow(this.blobs, b.soldiers.length + 256);
+  }
+
+  // A look out of room (men joining mid-fight: reinforcements, a muster, a host's later regiments) doubles its
+  // instances; whatever stops that is said once, not passed over.
+  grow(m, key) {
+    try {
+      const n = m.gear.instanceMatrix.count * 2;
+      for (const pair of [m, m.light, m.far]) if (pair) { pair.gear = this.regrow(pair.gear, n, !!m.anim); pair.cloth = this.regrow(pair.cloth, n, !!m.anim); }
+      m.all = [m.gear, m.cloth, ...(m.light ? [m.light.gear, m.light.cloth, m.far.gear, m.far.cloth] : [])];
+      return true;
+    } catch (e) {
+      if (!this.growFailed) console.warn(`Could not make room for more men in '${key}': the newest aren't drawn.`, e);
+      this.growFailed = true;
+      return false;
+    }
+  }
+  // An instanced mesh made again at `capacity`, keeping its geometry, materials (no new shaders) and what it holds.
+  regrow(x, capacity, anim = false) {
+    const y = new THREE.InstancedMesh(anim ? animGeometry(x.geometry, capacity) : x.geometry, x.material, capacity);
+    if (anim) for (const k of ['aAnim', 'aAnimH']) y.geometry.attributes[k].array.set(x.geometry.attributes[k].array);
+    y.customDepthMaterial = x.customDepthMaterial;
+    y.castShadow = x.castShadow;
+    y.frustumCulled = false;
+    y.renderOrder = x.renderOrder;
+    y.count = x.count;
+    y.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    y.instanceMatrix.array.set(x.instanceMatrix.array);
+    if (x.instanceColor) { y.setColorAt(0, this.tint.setScalar(1)); y.instanceColor.array.set(x.instanceColor.array); }
+    this.scene.remove(x);
+    this.scene.add(y);
+    x.dispose();
+    // the old clip buffers go with it; the model's own attributes stay, shared with the new one
+    if (anim) { const g = x.geometry; for (const k of Object.keys(g.attributes)) if (k !== 'aAnim' && k !== 'aAnimH') g.deleteAttribute(k); g.setIndex(null); g.dispose(); }
+    return y;
   }
 
   // A side's colour: the battle can set its own (`battle.sideColors`), so a house's defenders wear the house colour.
