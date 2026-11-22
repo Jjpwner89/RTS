@@ -1205,6 +1205,35 @@ export async function kitProblems(keys, unitModel) {
   return bad;
 }
 
+// ---- how orders play out, in a battle of their own (nothing on the page is touched) ----
+
+// An attack on the last few men of a regiment, split by a river: one stands on our bank by the
+// water, two on the far bank. The attack goes for the man it can get at, not round by a ford
+// for the regiment's middle in the water (creator, 2026-11-21: the men stood and never closed).
+async function orderChecks() {
+  group = 'Orders';
+  await check('an attack on 3 men split by a river closes on the one this side within 40 s', async () => {
+    const { Battle } = await import('./battle.js'), { makeRiver, carveRiver } = await import('./battlefield.js'), { makeHeight } = await import('./terrain.js');
+    const river = makeRiver(5, { force: true }), b = new Battle(carveRiver(makeHeight(5), river), 5, { deploy: false });
+    b.setRiver(river);
+    const x0 = -35, n = 1 / Math.sqrt(1 + river.slope(x0) ** 2);
+    const spot = (along, across) => ({ x: x0 + along - across * river.slope(x0) * n, z: river.zAt(x0) + across * n });
+    const half = river.half, us = spot(-10, half + 55), them = spot(2, half + 2);
+    const A = b.addRegiment(0, 'spear', us.x, us.z, Math.atan2(them.x - us.x, them.z - us.z));
+    const E = b.addRegiment(1, 'spear', them.x, them.z, 0, { count: 3 });
+    const where = [spot(0, half + 1.5), spot(2, -half - 2), spot(4, -half - 2)], men = E.soldiers.filter(o => !o.captain);
+    const pin = () => men.forEach((o, i) => { if (o.alive) { o.x = where[i].x; o.z = where[i].z; } });
+    pin();
+    b.orderAttack([A], E);
+    let closest = Infinity;
+    for (let t = 0; t < 40 && men[0].alive; t += 0.05) {
+      b.step(0.05); pin();
+      for (const o of A.soldiers) if (live(o)) closest = Math.min(closest, Math.hypot(o.x - men[0].x, o.z - men[0].z));
+    }
+    return men[0].alive && closest > 4 ? [`after 40 s the nearest of ${A.name} is still ${Math.round(closest)} m from the man on their bank (heading for ${A.dest ? at(A.dest) : 'nowhere'}${A.via ? ', by ' + at(A.via) : ''})`] : [];
+  });
+}
+
 // ---- the page as a whole ----
 
 function pageChecks() {
@@ -1233,6 +1262,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);
+  if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();
     if (window.game?.world) await saveChecks(window.game.world);

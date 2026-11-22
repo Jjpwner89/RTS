@@ -279,6 +279,7 @@ export class Battle {
       if (R.bank(r.exit.x, r.exit.z) === b && Math.hypot(r.exit.x - r.x, r.exit.z - r.z) > 2) return r.exit;
       r.exit = null;
     }
+    if (r.soldiers) r.crossingBy = null;   // the card's "Crossing by the ford", while it goes round
     if (a === b) return null;
     if (!r.soldiers && r.reg.swim) return null;
     // A regiment that has started to swim, chasing a foe that moves, swims on rather than
@@ -313,6 +314,7 @@ export class Battle {
     }
     // A regiment lines up on the middle of the crossing first, so its outer files don't step off.
     const tol = (best.ref.half || 3) * 0.7, lined = Math.abs(r.x - best.x) < (r.soldiers ? Math.min(tol, 1.6) : tol) && Math.abs(R.across(r.x, r.z)) < R.half + 6;
+    if (r.soldiers) r.crossingBy = best.kind;
     if (!lined) return best.end(a);
     // A regiment marches its whole column clear; a man only needs to get his feet dry.
     r.exit = { x: best.x, z: R.zAt(best.x) + b * (R.half + (r.soldiers ? 16 : 3)) };
@@ -992,6 +994,25 @@ export class Battle {
       if (this.nav.any && this.breachFor(r, target, gate)) gate = r.targetWall || gate;
       else if (gate && this.shoots(r) && !this.reaches(r, target) && Math.hypot(target.cx - r.cx, target.cz - r.cz) > this.rangeOf(r)) this.coverGate(r, gate, target);
     }
+  }
+
+  // Where an attack (or charge) on t heads, chosen afresh each tick as men die or move: the middle
+  // of the men of t that r can get at (on its own bank of a river, and not behind a wall it can't
+  // pass), which is the regiment's middle while it stands together. Not the middle of them all:
+  // the last few men of a broken regiment, some over a river, have their middle in the water or
+  // on the far bank while a man of theirs stands on this one, and the attack went off round by a
+  // ford past him (creator, 2026-11-21). With nobody to get at, its nearest man, by the crossing
+  // or the breach.
+  aimPoint(r, t) {
+    const R = this.river, bank = R && R.bank(r.cx, r.cz), walled = this.nav.any;
+    let sx = 0, sz = 0, n = 0, near = null, nd = Infinity;
+    for (const s of t.soldiers) {
+      if (!live(s) || s.captain) continue;
+      if ((!R || R.bank(s.x, s.z) === bank) && (!walled || this.nav.reachable(r.side, r.cx, r.cz, s.x, s.z))) { sx += s.x; sz += s.z; n++; }
+      const d = Math.hypot(s.x - r.cx, s.z - r.cz);
+      if (d < nd) { nd = d; near = s; }
+    }
+    return n ? { x: sx / n, z: sz / n } : near ? { x: near.x, z: near.z } : { x: t.cx, z: t.cz };
   }
 
   // Can r walk to t (a regiment, or a spot to move to)? Men manning a wall are got at from inside
@@ -1837,14 +1858,14 @@ export class Battle {
       const t = r.targetReg;
       if (t.gone) { r.targetReg = null; r.x = r.cx; r.z = r.cz; this.assignSlots(r); }
       else {
-        const dx = t.cx - r.cx, dz = t.cz - r.cz, d = Math.hypot(dx, dz) || 1;
+        const p = this.aimPoint(r, t), dx = p.x - r.cx, dz = p.z - r.cz, d = Math.hypot(dx, dz) || 1;
         const ang = Math.atan2(dx, dz);
         const range = this.shoots(r) ? T.range : r.engine?.range;
         // In range mid-swim, bowmen swim on out of the water onto the far bank before they halt.
         if (range && d <= range * 0.9 && r.swim) r.dest = this.swimOut(r, ang);
         else if (range && d <= range * 0.9 && d >= (r.engine?.min || 0)) r.dest = null;
-        else if (range) r.dest = { x: t.cx - dx / d * range * 0.8, z: t.cz - dz / d * range * 0.8, angle: ang };
-        else r.dest = { x: t.cx, z: t.cz, angle: ang };
+        else if (range) r.dest = { x: p.x - dx / d * range * 0.8, z: p.z - dz / d * range * 0.8, angle: ang };
+        else r.dest = { x: p.x, z: p.z, angle: ang };
         if (!r.dest) r.angle = turnToward(r.angle, ang, dt * 1.2);
       }
     }
@@ -2969,6 +2990,7 @@ export class Battle {
     if (r.targetWall) return 'Attacking the wall';
     if (r.burnBridge) return 'Burning the bridge';
     if (r.swim) return 'Swimming';
+    if (r.crossingBy && r.dest && r.via) return `Crossing by the ${r.crossingBy}`;
     if (r.mine && !r.mine.done && !r.mine.lost) return r.mine.side === r.side ? `Digging a mine ${Math.floor(r.mine.progress * 100)}%` : 'Counter-mining';
     if (r.seen === false) return r.hiddenBy === 'woods' ? 'Hidden in the woods' : r.hiddenBy === 'night' ? 'Hidden by the dark' : `Hidden by the ${r.hiddenBy}`;   // the enemy can't see them: said from our side
     if (r.hold) return 'Holding';
