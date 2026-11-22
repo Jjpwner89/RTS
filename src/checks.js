@@ -1232,6 +1232,28 @@ async function orderChecks() {
     }
     return men[0].alive && closest > 4 ? [`after 40 s the nearest of ${A.name} is still ${Math.round(closest)} m from the man on their bank (heading for ${A.dest ? at(A.dest) : 'nowhere'}${A.via ? ', by ' + at(A.via) : ''})`] : [];
   });
+
+  // Men inside the enemy's walls (over the ladders) sent at a foe outside: they make for a gate,
+  // throw it open from within and go out to him, rather than stand with "can't find a way"
+  // (QC, 2026-11-21: a storm of Aldbury Abbey).
+  await check('men inside enemy walls sent at a foe outside throw a gate open within 60 s, unwarned', async () => {
+    const { Battle } = await import('./battle.js'), { buildFort } = await import('./walls.js'), { makeHeight } = await import('./terrain.js');
+    const b = new Battle(makeHeight(3), 3, { deploy: false });
+    buildFort(b.walls, 1, 0, -120, 44, { material: 'stone', sides: 6, gateAngle: 0 });
+    const A = b.addRegiment(0, 'sword', 4, -116, 0), E = b.addRegiment(1, 'maa', 0, -200, 0);
+    E.hold = true;
+    const said = [], warn = console.warn;
+    console.warn = (...a) => { said.push(a.join(' ')); };
+    try {
+      b.step(0.05);
+      b.orderAttack([A], E);
+      for (let t = 0; t < 60 && !b.walls.pieces.some(p => p.forced); t += 0.05) b.step(0.05);
+    } finally { console.warn = warn; }
+    const out = [];
+    if (said.length) out.push(`warned: ${said[0]}`);
+    if (!b.walls.pieces.some(p => p.forced)) out.push(`no gate thrown open in 60 s: ${A.name} at ${at({ x: A.cx, z: A.cz })}, heading for ${A.dest ? at(A.dest) : 'nowhere'}, after ${A.after?.name || 'nobody'}`);
+    return out;
+  });
 }
 
 // ---- the page as a whole ----

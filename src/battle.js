@@ -1057,6 +1057,26 @@ export class Battle {
     }
     const say = r.side === 0 && !(this.time - this.saidBreach < 3);
     if (say) this.saidBreach = this.time;
+    // Inside the walls already (over the ladders) with the foe outside: out by the nearest gate.
+    // Men standing just within it throw it open (the gate loop in wallsTick), then go on (r.after).
+    // They used to stand where they were, with only "can't find a way" (QC, 2026-11-21, a storm).
+    if (!best && !E) {
+      let gate = null, gs = Infinity, spot = null;
+      for (const p of this.walls.pieces) {
+        if (!p.gate || p.side === r.side || p.state !== 'up' || p.forced) continue;
+        const out = this.walls.outward(p, this.fortHome(p.side)), q = { x: p.x - out.x * 5, z: p.z - out.z * 5, angle: Math.atan2(out.x, out.z) };
+        if (!this.nav.reachable(r.side, r.cx, r.cz, q.x, q.z)) continue;
+        const sc = Math.hypot(q.x - r.cx, q.z - r.cz) + Math.hypot(t.cx - p.x, t.cz - p.z);
+        if (sc < gs) { gs = sc; gate = p; spot = q; }
+      }
+      if (gate) {
+        r.targetReg = null;
+        r.dest = spot;
+        r.after = t;
+        if (say) this.event(0, `${this.label(r)} make for the gate, to throw it open from inside.`);
+        return true;
+      }
+    }
     if (!best) {
       if (say) this.event(0, r.T.mounted ? `${this.label(r)} can't ride ${t.move ? 'in' : 'at men'} behind a wall: break a gate first.` : `${this.label(r)} can't find a way in${t.move ? '' : ' to them'}.`);
       // Once for each foe, not again every second the order is tried.
