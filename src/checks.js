@@ -493,6 +493,39 @@ async function worldChecks(w) {
     return out;
   });
 
+  // A governor develops a place for tax (Orchestrator, 2026-11-22): one building every few
+  // minutes from its own stores, by what is gathered there, a market only in a market town,
+  // never a military one; a governed home of 160 ends near 45 a minute, under one built by hand.
+  await check('governor: develops a place for tax, slowly, by what it gathers', async () => {
+    const E = await import('./economy.js'), G = await import('./world/governor.js'), out = [];
+    const rate = Object.getOwnPropertyDescriptor(E.Town.prototype, 'taxRate').get.call({ taxes: 2, mood: 70 });
+    const GATHER = [['woodcutter', 4], ['quarry', 2], ['mine', 1], ['hunter', 2], ['farm', 10], ['storehouse', 3], ['market', 1], ['monastery', 1]];
+    // A stand-in village run for two hours of governor turns: what it builds, and when.
+    const stub = (kind, pop) => ({ kind, population: pop, time: 0, devCounts: E.Town.prototype.devCounts, stock: { wood: 200, ore: 80, hides: 40, food: 400, flour: 20 },
+      buildings: GATHER.flatMap(([k, n]) => Array.from({ length: n }, () => ({ kind: k, state: 'active' }))) });
+    const run = (kind, pop) => {
+      const t = stub(kind, pop), built = [];
+      for (; t.time < 7200; t.time += 15) { const k = G.develop(t); if (k) { built.push([k, t.time]); t.buildings.push({ kind: k, state: 'active' }); t.govDevAt = t.time; } }
+      return { t, built };
+    };
+    const v = run('village', 160), m = run('market', 160);
+    for (const [k, at] of [...v.built, ...m.built]) {
+      if (E.BUILDINGS[k].group === 'Military' || ['weaponsmith', 'armourer', 'bowyer', 'barracks'].includes(k)) out.push(`it built a ${k}`);
+      if (E.BUILDINGS[k].cost.gold) out.push(`a ${k} costs gold`);
+    }
+    const gaps = v.built.slice(1).map(([, at], i) => at - v.built[i][1]);
+    if (gaps.some(g => g < 120)) out.push(`two buildings ${Math.min(...gaps)} s apart`);
+    if (v.built.filter(([k]) => k === 'market').length) out.push('a village got a market');
+    if (!m.built.length) out.push('a market town got nothing');
+    const gold = E.devTax(160, v.t.devCounts(), 3) * rate;
+    if (gold < 40 || gold > 50) out.push(`a governed village of 160 (keep 3) pays ${gold.toFixed(1)} a minute, not 40 to 50 (${v.built.map(b => b[0]).join(', ')})`);
+    const busy = Object.assign(stub('village', 160), { time: 1000, govDevAt: 940 });
+    if (G.develop(busy)) out.push('it builds again a minute after the last');
+    if (!G.develop(Object.assign(busy, { govDevAt: 700 }))) out.push('it builds nothing in an undeveloped village');
+    for (const q of w.pois) if (q.owner === 0 && q.town && !q.town.hostile && !/^Governor: (on|off|building an? )/.test(G.govText(q.town))) out.push(`${q.name}'s keep says "${G.govText(q.town)}"`);
+    return out;
+  });
+
   // Earned troops (creator, 2026-11-22): veterans drill at a barracks into serjeants and
   // yeomen from Lord and train at a knights' hall from Count, for real fees, and each step
   // draws more pay than the one before; the hall shows greyed at Lord.

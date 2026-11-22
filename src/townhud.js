@@ -7,6 +7,7 @@ const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
 import { TYPES } from './battle.js';
 import { watch } from './ui/news.js';
+import { govText } from './world/governor.js';
 
 // Folds and the "about" notes are the player's choice, kept between visits and sessions.
 const pref = (k, d) => { try { const v = localStorage.getItem(`rts.ui.${k}`); return v === null ? d : v === '1'; } catch { return d; } };
@@ -435,7 +436,7 @@ export class TownHud {
         `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`,
         `<h4>The village's mood</h4><p class="note" data-f="mood"></p>`,
         `<h4>Newcomers</h4><p class="note" data-f="settlers"></p>`,
-        `<button data-act="governor" class="wide"><span data-f="gov"></span><small>builds houses, farms and the like while you are away</small></button>`,
+        `<button data-act="governor" class="wide"><span data-f="gov"></span><small>builds houses, farms and the like while you are away, and now and then a workshop to raise the tax</small></button>`,
         `<h4>Spend gold</h4>`,
         `<button data-act="feast" class="wide"><span>Hold a feast</span><small></small></button>`,
         ...(this.can('greatkeep') ? [`<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`] : []),
@@ -531,7 +532,7 @@ export class TownHud {
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'keepraise') { const K = KEEP_RAISE[this.town.keepBought || 0]; return K ? `Raise a ${K.name}` : ''; }
-    if (f === 'gov') return this.town.governor === false ? 'Governor: off' : 'Governor: on';
+    if (f === 'gov') return govText(this.town);
     if (f === 'workers') {
       const t = this.town, want = t.staffed(b), room = t.jobs(b);
       return `${b.B.haul ? 'Haulers' : 'Workers'}: ${b.workers.length} of ${want} wanted${want < room ? ` (room for ${room})` : ''}`;
