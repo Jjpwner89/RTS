@@ -271,7 +271,7 @@ export const RUN_GROUPS = {
   arms: ['spears', 'swords', 'shields', 'bows', 'arrows', 'crossbows', 'bolts', 'lances', 'leatherarmour', 'mail', 'armour', 'horses'],
 };
 RUN_GROUPS.all = [...RUN_GROUPS.food, ...RUN_GROUPS.build, ...RUN_GROUPS.craft];
-export const RUN_KINDS = { all: 'Food, building and crafting goods', food: 'Food', build: 'Building goods', craft: 'Crafting goods', arms: 'Arms and armour' };
+export const RUN_KINDS = { all: 'Everything but arms', food: 'Food', build: 'Building goods', craft: 'Crafting goods', arms: 'Arms and armour' };
 // Better wagons for the whole realm, bought once each (Realm > Supplies), the same for a
 // house (houseRuns): bigger loads, and from great wagons two out from a village at once.
 // A bigger load is a bigger prize for a raider.
@@ -294,7 +294,7 @@ export function wagonPlan(w, side, at) {
   if (H.gold < next.gold) return { ok: false, next, why: `Needs ${next.gold} gold` };
   const store = p => (side === 0 ? p?.town?.stock : p?.eco?.stock);
   const src = [at, side === 0 ? w.home : H.seat].find(p => p && p.owner === side && store(p) && (store(p).planks || 0) >= next.planks && (store(p).iron || 0) >= next.iron);
-  if (!src) return { ok: false, next, why: `Needs ${next.planks} planks and ${next.iron} iron in ${at && at !== w.home && side === 0 ? `${at.name} or your seat` : 'one place'}` };
+  if (!src) return { ok: false, next, why: `Needs ${next.planks} planks and ${next.iron} iron in ${side !== 0 ? 'one place' : at && at !== w.home ? `${at.name} or your seat` : 'your seat'}` };
   return { ok: true, next, src };
 }
 export function buyWagons(w, side, at) {
@@ -305,7 +305,7 @@ export function buyWagons(w, side, at) {
   if (side === 0) src.town.spend({ planks: next.planks, iron: next.iron });
   else { src.eco.stock.planks -= next.planks; src.eco.stock.iron -= next.iron; }
   H.wagons = (H.wagons || 0) + 1;
-  if (side === 0) w.log(`${next.name} for the realm, for ${next.gold} gold and ${next.planks} planks and ${next.iron} iron from ${src.name}.`);
+  if (side === 0) w.log(`Your realm now drives ${next.name.toLowerCase()}, for ${next.gold} gold, with ${next.planks} planks and ${next.iron} iron from ${src.name}.`);
   return { ok: true, next, src };
 }
 export function runLoad(from, what = 'all', families = true) {
@@ -319,7 +319,7 @@ export function runLoad(from, what = 'all', families = true) {
 export function runCheck(w, from, to, what, families) {
   if (!from?.town || !to?.town || from.owner !== 0 || to.owner !== 0 || from === to) return { ok: false, why: 'Both ends must be villages of yours' };
   if (from.town.hostile || from.town.underAttack) return { ok: false, why: `${from.name} is being fought over` };
-  if (runsFrom(w, from) >= wagonsOf(0).out) return { ok: false, why: wagonsOf(0).out > 1 ? `${wagonsOf(0).out} wagons from ${from.name} are already on the road` : `A wagon from ${from.name} is already on the road` };
+  if (runsFrom(w, from) >= wagonsOf(0).out) return { ok: false, why: wagonsOf(0).out > 1 ? `${from.name} already has two wagons on the road` : `${from.name} already has a wagon on the road` };
   const load = runLoad(from, what, families);
   if (!Object.keys(load.goods).length && !load.people) return { ok: false, why: `${from.name} has nothing to spare` };
   return { ok: true, load, eta: runTime(w, from, to) };

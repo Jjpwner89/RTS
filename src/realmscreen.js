@@ -37,6 +37,8 @@ const opClass = n => n >= 5 ? 'good' : n > -10 ? 'warn' : 'bad';
 const shield = v => `<i class="shield" style="background:${v.color}"></i>`;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const cap = s => s[0].toUpperCase() + s.slice(1);
+// A wagon tier in a few words: "twice the load, one out per village".
+const loadSize = t => `${t.size === 1 ? 'the plain load' : `${t.size === 2 ? 'twice' : 'three times'} the load`}, ${t.out === 1 ? 'one' : 'two'} out per village`;
 
 // One of your places, measured. A vassal's place is measured from its tally.
 export function villageRow(w, p) {
@@ -184,7 +186,7 @@ export class RealmScreen {
       // Better wagons for the realm, their planks and iron from the village sending, or your seat.
       const r = buyWagons(w, 0, w.byId[this.run.from]);
       if (!r.ok) return this.refuse(r.why);
-      this.hooks.flash?.(`${r.next.name} for the realm: ${r.next.size} times the load${r.next.out > 1 ? `, and ${r.next.out} out from a village at once` : ''}.`, true);
+      this.hooks.flash?.(`Your realm now drives ${r.next.name.toLowerCase()}: ${loadSize(r.next)}.`, true);
       return this.update(true);
     }
     if (act === 'v') {
@@ -425,13 +427,13 @@ export class RealmScreen {
       <label class="check"><input type="checkbox" data-set="fam" ${R.fam ? 'checked' : ''}> and four families, if it can spare them</label></div>
       <p class="${c.ok ? '' : 'warn'}">${c.ok ? `It would carry ${loadText(c.load)}: about ${clock(c.eta)} on the road.` : esc(c.why)}</p>
       <button data-act="run" class="on" ${c.ok ? '' : 'disabled'}>${ico('caravan')} Send the wagon</button>
-      <p class="note">A village sends half of what it has spare of each good, and keeps the rest. ${wagonsOf(0).out > 1 ? `${wagonsOf(0).out} wagons` : 'One wagon'} from a village at a time. A raider who meets it on the road takes the lot; one of your armies can ride with it.</p></section>`;
+      <p class="note">A village sends half of what it has spare of each good, and keeps the rest. ${wagonsOf(0).out > 1 ? 'Two wagons' : 'One wagon'} out from a village at once. A raider who meets it on the road takes the lot; one of your armies can ride with it.</p></section>`;
     // Better wagons, bought once for the whole realm, as a keep is raised.
     const tier = wagonsOf(0), plan = wagonPlan(w, 0, from), nx = plan.next;
-    const wagons = `<section class="box"><h4>${ico('caravan')} Wagons</h4><p>Your realm drives <b>${esc(tier.name.toLowerCase())}</b>: ${tier.size > 1 ? `${tier.size} times the load` : 'the plain load'}${tier.out > 1 ? `, ${tier.out} out from a village at once` : ', one out from a village at a time'}.</p>
-      ${nx ? `<button data-act="wagons" ${plan.ok ? '' : 'disabled'} title="${esc(plan.ok ? `Planks and iron from ${plan.src.name}` : plan.why)}">${ico('caravan')} ${esc(nx.name)}: ${nx.gold} gold, ${nx.planks} planks, ${nx.iron} iron</button>
-      <p class="${plan.ok ? 'note' : 'warn'}">${plan.ok ? `${nx.size} times the load${nx.out > 1 ? `, and ${nx.out} out from a village at once` : ''}. The planks and iron come from ${esc(plan.src.name)}.` : esc(plan.why)}</p>` : '<p class="note">The best wagons there are.</p>'}
-      <p class="note">A bigger load is a bigger prize for a raider.</p></section>`;
+    const wagons = `<section class="box"><h4>${ico('caravan')} Wagons</h4><p>Your realm drives <b>${esc(tier.name.toLowerCase())}</b>: ${loadSize(tier)}.</p>
+      ${nx ? `<button data-act="wagons" ${plan.ok ? '' : 'disabled'} title="${esc(plan.ok ? `Planks and iron from ${plan.src.name}` : plan.why)}">${ico('caravan')} Buy ${esc(nx.name.toLowerCase())}: ${nx.gold} gold, ${nx.planks} planks, ${nx.iron} iron</button>
+      <p class="${plan.ok ? 'note' : 'warn'}">${plan.ok ? `${cap(loadSize(nx))}. The planks and iron come from ${esc(plan.src.name)}.` : esc(plan.why)}</p>` : '<p class="note">These are the best wagons there are.</p>'}
+      <p class="note">A bigger load tempts raiders more.</p></section>`;
 
     const rows = runs.map(p => villageRow(w, p));
     const short = [];
@@ -452,12 +454,12 @@ export class RealmScreen {
       return `<div class="line"><span class="grow"><b>${esc(W.from.name)} → ${esc(W.to.name)}</b>: ${loadText(W)}<br><small>${W.bought ? 'Bought at market' : 'Supply run'} · ${clock(left)} to go${guard ? ` · guarded by ${esc(guard.name)}` : ' · unguarded'}</small></span><span class="acts"><button data-act="army:${a.id}">Find</button></span></div>`;
     }).join('') : '<p class="note">No wagons on the road.</p>'}</section>`;
 
-    const spare = `<section class="box wide"><h4>What each village can spare</h4><table><thead><tr><th>Village</th><th>Food</th><th>Wood</th><th>Planks</th><th>Stone</th><th>Ore</th><th>Iron</th><th>Other crafting</th><th>Arms</th><th>Families</th><th></th></tr></thead><tbody>${runs.map(p => {
+    const spare = `<section class="box wide"><h4>What each village can spare</h4><table><thead><tr><th>Village</th>${[['Food', 'food'], ['Wood', 'wood'], ['Planks', 'planks'], ['Stone', 'stone'], ['Ore', 'ore'], ['Iron', 'iron']].map(([h, g]) => `<th title="A wagon takes at most ${runCap(0, g)}">${h}</th>`).join('')}<th title="Flax, hides, feathers, string, leather and flour">Other crafting</th><th title="A wagon takes arms for at most ${runCap(0, 'spears')} men">Arms</th><th title="A wagon takes four families">Families</th><th></th></tr></thead><tbody>${runs.map(p => {
       const L = runLoad(p), A = runLoad(p, 'arms'), n = g => L.goods[g] || 0, sum = G => Object.values(G).reduce((k, v) => k + v, 0);
       const other = RUN_GROUPS.craft.filter(g => g !== 'ore' && g !== 'iron').reduce((k, g) => k + n(g), 0), busy = w.armies.filter(a => a.wagon?.run && !a.wagon.bought && a.wagon.from === p && !a.gone).length >= tier.out;
       return `<tr><th><b>${esc(p.name)}</b></th><td>${n('food') + n('bread')}</td><td>${n('wood')}</td><td>${n('planks')}</td><td>${n('stone')}</td><td>${n('ore')}</td><td>${n('iron')}</td><td>${other}</td><td>${sum(A.goods)}</td><td>${L.people || '<small>none</small>'}</td>
         <td class="acts">${busy ? '<small>wagon out</small>' : `<button data-act="supply:${p.id}">Send from here</button>`}</td></tr>`;
-    }).join('')}</tbody></table><p class="note">What one wagon would carry: half of what is in store, and at most ${['food', 'wood', 'planks', 'stone', 'ore', 'iron'].map(g => `${runCap(0, g)} ${g}`).join(', ')}, and arms for ${runCap(0, 'spears')} men.</p></section>`;
+    }).join('')}</tbody></table><p class="note">A wagon takes half of what a village has spare, up to a limit on each good (hover a heading).</p></section>`;
     return `<div class="boxes">${form}${wagons}${shortBox}${road}</div>${spare}`;
   }
 
