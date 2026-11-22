@@ -296,7 +296,7 @@ export class TownHud {
     set('tax', t.readOnly ? `${TAXES[t.taxes].name}, set by ${t.readOnly.name}` : TAXES[t.taxes].name);
     // A keep taxes only so many heads; past its reach each pays a sixth (economy.js KEEP_REACH).
     const reach = KEEP_REACH[keepLevel(t)], over = t.population > reach;
-    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.taxed * t.taxRate * 60).toFixed(0)}/min${over ? ` <small>(keep taxes ${reach} people)</small>` : ''}`);
+    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.taxed * t.taxRate * 60).toFixed(0)}/min${over ? ` <small>(keep taxes ${reach} in full)</small>` : ''}`);
     this.stockEl.querySelector('[data-s="gold"]').title = `The keep taxes up to ${reach} people in full; past that each pays a third. A bigger keep taxes more.`;
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
@@ -448,7 +448,7 @@ export class TownHud {
     }
     if (b.B.hall && b.state === 'active') {
       rows.push(`<h4>Train elite men</h4><p class="note">Only veterans may train: villagers who fought as levies and came home (${this.town.veterans().length} in the village). A few at a time, for their kit, a fee and minutes of drill each. The hall keeps ${HALL.cap} men at most.${this.hooks.companies ? ` On campaign they draw pay from your treasury: ${ELITE.maa.pay} gold a minute for a man-at-arms, ${ELITE.knight.pay} for a knight.` : ''}</p>`);
-      for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${Math.round(E.drill / 60 * 10) / 10} min of drill</p>`);
+      for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
     }
     if (b.kind === 'barracks' && b.state === 'active') {
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
@@ -459,8 +459,8 @@ export class TownHud {
         rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks, and wears what the racks allow</p>`);
       }
       if (this.can('drill')) {
-        rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and minutes of drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
-        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${Math.round(E.drill / 60 * 10) / 10} min of drill</p>`);
+        rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and some drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
+        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
