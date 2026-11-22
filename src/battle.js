@@ -129,6 +129,8 @@ export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
 // once in blows or within `near` m (plus half its front); men go up to `reach` m for a foe,
 // counting each mate already on one as `crowd` m further off.
 const SWARM = { narrower: 0.6, near: 30, reach: 40, crowd: 3 };
+// A chase gives up once nobody is within SWARM.reach of a router for `lost` s, or after `most` s.
+const CHASE = { lost: 3, most: 30 };
 
 // How many files a regiment of `count` men of type T stands in.
 export const filesFor = (T, count) => count > T.count ? Math.min(count, Math.max(T.files, Math.round(Math.sqrt(count * T.files * T.files / T.count))))
@@ -1859,10 +1861,11 @@ export class Battle {
   // fights as a line; when the band dies or routs, the men fall back in on their regiment.
   swarmFoe(s) {
     const r = s.reg, t = r.targetReg;
-    if (!t || t.gone || t.routing || t.posts || this.shoots(r)) return null;
+    if (!t || t.gone || t.posts || this.spared(t) || this.shoots(r)) return null;
+    // (a routing foe is chased by everyone, whatever its size, until it has outrun us)
     const front = g => Math.max(1, Math.min(g.files, g.alive)) * g.T.spacing;
-    if (front(t) > front(r) * SWARM.narrower) return null;
-    if (!(r.engagedWas > 0) && Math.hypot(r.cx - t.cx, r.cz - t.cz) > SWARM.near + front(t) / 2) return null;
+    if (!t.routing && front(t) > front(r) * SWARM.narrower) return null;
+    if (!t.routing && !(r.engagedWas > 0) && Math.hypot(r.cx - t.cx, r.cz - t.cz) > SWARM.near + front(t) / 2) return null;
     if (r._onAt !== this.time) {
       r._onAt = this.time; r._on = new Map();
       for (const o of r.soldiers) if (o.target && live(o)) r._on.set(o.target, (r._on.get(o.target) || 0) + 1);
@@ -1918,7 +1921,20 @@ export class Battle {
     // Through the wall (or ladders up): on at the foe it was sent for. And a foe that has
     // gone behind walls is looked for a way in to, once a second.
     // Villagers who have thrown down their tools (spared) are let go, whoever sent the attack.
-    if (r.targetReg && this.spared(r.targetReg)) { r.targetReg = null; r.dest = null; }
+    if (r.targetReg && this.spared(r.targetReg)) { r.targetReg = null; r.dest = null; this.tell(r, "They've thrown down their arms; we let them go"); }
+    // A chase (an attack on a routing foe: the whole regiment runs after it, swarmFoe) ends once
+    // they have outrun us, nobody of ours within reach of any of them for a few seconds, or
+    // after a long run; the men re-form where they stand.
+    if (r.targetReg?.routing && !r.targetReg.gone) {
+      const t = r.targetReg;
+      r.chaseFrom ??= this.time;
+      const close = r.soldiers.some(m => live(m) && t.soldiers.some(e => live(e) && (e.x - m.x) ** 2 + (e.z - m.z) ** 2 < SWARM.reach ** 2));
+      if (close) r.chaseLost = null; else r.chaseLost ??= this.time;
+      if (this.time - r.chaseFrom > CHASE.most || (r.chaseLost != null && this.time - r.chaseLost > CHASE.lost)) {
+        r.targetReg = null; r.dest = null; r.chaseFrom = r.chaseLost = null;
+        this.tell(r, "They've outrun us");
+      }
+    } else r.chaseFrom = r.chaseLost = null;
     if (r.runOnce && !r.dest && !r.targetReg && !r.targetWall && !r.after) r.runOnce = false;   // that run is over
     // Covering a gate (coverGate): until it is down, or some other way in opens.
     if (r.cover && (r.reachCd = (r.reachCd || 0) - dt) <= 0) {
@@ -2287,7 +2303,7 @@ export class Battle {
       const engageR = this.shoots(r) ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
       // (a man who went for a smaller band's man (swarmFoe) keeps after him further, until that band routs)
       const holdR = s.swarm ? SWARM.reach : engageR;
-      if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.swarm && s.target.reg.routing) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (holdR + 2) ** 2
+      if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.swarm && s.target.reg.routing && s.target.reg !== r.targetReg) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (holdR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
@@ -3082,8 +3098,15 @@ export class Battle {
   }
 
   // What a regiment is up to, for its card.
+  // A word on a regiment's card for a few seconds, and in the events: why it stopped.
+  tell(r, text) {
+    r.note = { text, until: this.time + 8 };
+    if (r.side === this.viewer) this.event(r.side, `${this.label(r)}: ${text.charAt(0).toLowerCase() + text.slice(1)}.`);
+  }
+
   doingLabel(r) {
     if (r.gone || r.routing || r.regrouping) return '';
+    if (r.note && this.time < r.note.until) return r.note.text;
     const E = r.engine;
     if (E?.kind === 'ladder' && r.targetWall) return E.raising > 0 ? 'Raising ladders' : 'Carrying ladders';
     if (E && r.targetWall) return r.dest ? 'Moving up' : E.ready < (E.setup || 0) ? 'Setting up' : 'Battering';

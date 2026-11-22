@@ -1700,6 +1700,71 @@ async function orderChecks() {
     return out;
   });
 
+  // ... and the whole regiment closes on a tougher small band: not a drip of men stepping one by
+  // one into dead men's slots while the rest wait (creator, 2026-11-22: "they just ran up two at a
+  // time after the last group got killed").
+  await check('a regiment fighting a tougher small band keeps 80% of its men in the fight while the band stands', async () => {
+    const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
+    const out = [];
+    for (const [key, n, foe, fn] of [['spear', 60, 'maa', 12], ['spear', 80, 'household', 15]]) {
+      const b = new Battle(makeHeight(4), 4, { deploy: false });
+      const A = b.addRegiment(0, key, 0, 35, Math.PI, { count: n }), E = b.addRegiment(1, foe, 0, 0, 0, { count: fn });
+      b.orderAttack([A], E); b.orderAttack([E], A);
+      const man = s => live(s) && !s.captain;
+      let contact = null, low = 1, at = 0;
+      for (let t = 0; t < 60 && !E.routing && E.alive > 0 && !A.routing; t += 0.05) {
+        b.step(0.05);
+        const es = E.soldiers.filter(man), ms = A.soldiers.filter(man);
+        if (contact === null && ms.some(s => es.some(e => Math.hypot(e.x - s.x, e.z - s.z) < A.T.reach + 1))) contact = t;
+        if (contact === null || t - contact < 3) continue;
+        const share = ms.filter(s => es.some(e => Math.hypot(e.x - s.x, e.z - s.z) < 6) || b.time - (s.struckAt ?? -9) < 1.5).length / ms.length;
+        if (share < low) { low = share; at = t - contact; }
+      }
+      if (contact === null) out.push(`${n} ${key}s never reached ${fn} ${foe}`);
+      else if (low < 0.8) out.push(`${n} ${key}s against ${fn} ${foe}: only ${Math.round(low * 100)}% of them in the fight ${Math.round(at)} s after the first blow, the band still standing`);
+    }
+    return out;
+  });
+
+  // An attack on a routing foe is a chase by the whole regiment (battle.js swarmFoe): horse ride
+  // the routers down; foot that can't catch them give up and say so; and village folk who have
+  // thrown down their arms are let go, with the reason on the card (creator, 2026-11-22: "only two
+  // guys chased when given the order").
+  await check('an attack on routers is a chase by the whole regiment, given up when outrun; spared folk are let go', async () => {
+    const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
+    const out = [], man = s => live(s) && !s.captain;
+    const field = (key, n, foe, fn, d) => {
+      const b = new Battle(makeHeight(4), 4, { deploy: false });
+      const A = b.addRegiment(0, key, 0, d, Math.PI, { count: n }), E = b.addRegiment(1, foe, 0, 0, 0, { count: fn });
+      b.startRout(E); b.orderAttack([A], E);
+      return { b, A, E };
+    };
+    {
+      const { b, A, E } = field('cav', 40, 'spear', 20, 30);
+      let most = 0;
+      for (let t = 0; t < 20; t += 0.05) {
+        b.step(0.05);
+        if (t < 5) { const es = E.soldiers.filter(man), ms = A.soldiers.filter(man); most = Math.max(most, ms.filter(s => s.target?.reg === E || es.some(e => Math.hypot(e.x - s.x, e.z - s.z) < 6)).length / ms.length); }
+      }
+      if (most < 0.7) out.push(`40 horse sent after 20 routing spearmen: at most ${Math.round(most * 100)}% of them went after the routers in 5 s`);
+      if (E.alive > 10) out.push(`40 horse sent after 20 routing spearmen cut down only ${20 - E.alive} in 20 s`);
+    }
+    {
+      const { b, A, E } = field('spear', 60, 'bandit', 15, 20);
+      let said = null;
+      for (let t = 0; t < 40 && said === null; t += 0.05) { b.step(0.05); if (A.targetReg !== E) said = b.doingLabel(A); }
+      if (said === null) out.push('60 spearmen were still chasing 15 routing bandits, faster than them, 40 s on');
+      else if (said !== "They've outrun us") out.push(`60 spearmen stopped chasing faster bandits with "${said}" on their card, not "They've outrun us"`);
+    }
+    {
+      const { b, A } = field('spear', 60, 'folk', 20, 20);
+      b.step(0.05);
+      if (A.targetReg) out.push('an attack on routing village folk stands');
+      else if (b.doingLabel(A) !== "They've thrown down their arms; we let them go") out.push(`an attack on routing village folk was dropped with "${b.doingLabel(A)}" on the card`);
+    }
+    return out;
+  });
+
   // ... and against a line about as wide as its own, a regiment fights as a line: nobody leaves
   // his place to swarm (the rear ranks step into the gaps, as before).
   await check('60 spears against 60 spears fight as lines: nobody swarms', async () => {
