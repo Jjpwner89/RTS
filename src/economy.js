@@ -2523,11 +2523,11 @@ export class Town {
     }
     // Those who fled when it changed hands come home while it is fed, safe and has room (world/militia.js).
     if (this.fled) {
-      this.fledBack = (this.fledBack || 0) + driftHome(this, dt, !this.hungry && !this.underAttack && this.population < this.housing);
+      this.fledBack = (this.fledBack || 0) + driftHome(this, dt, !this.hungry && !this.underAttack && (this.fled.from || this.population < this.housing));
       for (; this.fledBack >= 1; this.fledBack--) {
         const a = this.rand() * Math.PI * 2;
         this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120).wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
-        this.event('One of those who fled has come home.');
+        this.event(this.fled?.from ? `One of those who fled ${this.fled.from} has come to us.` : 'One of those who fled has come home.');
       }
     }
     this.keep.status = this.keep.workers.length ? this.haulStatus(this.keep) : 'No haulers';
@@ -2743,10 +2743,10 @@ export class Town {
   // always the village's enemy here, so the defenders are on that side). Nothing is built
   // or worked until it is yours. Your men can put its buildings to the torch.
 
-  holdKeep(specs, entryAngle, { house = 1 } = {}) {
+  holdKeep(specs, entryAngle, { house = 1, flee = null } = {}) {
     const b = this.battle, n = specs.length;
     b.homes[0] = this.edgePoint(entryAngle);            // your broken men run back down the road
-    b.homes[1] = this.edgePoint(entryAngle + Math.PI);  // theirs out the far side
+    b.homes[1] = this.edgePoint(flee ?? entryAngle + Math.PI);  // theirs toward their house's next place (world.js kinOf), or out the far side
     const ranged = key => ['archer', 'yeoman', 'crossbow', 'hiredxbow'].includes(key);
     const regs = specs.map((sp, i) => {
       const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));

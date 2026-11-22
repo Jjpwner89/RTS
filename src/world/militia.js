@@ -41,8 +41,10 @@ function people(p) {
 
 // Of a place's people, the share who stay on when it changes hands, for every house and
 // for you alike: seven in ten when it is taken by storm, nearly nine in ten when it yields.
-// The rest have fled, not died: they drift home over a few minutes while the place is fed
-// and safe (driftHome), and after ten minutes those still away have settled elsewhere.
+// The rest have fled, not died. A house's people (yours too) go to its nearest other place
+// and join its people there (world.js leave, takeIn). Free folk, or a house with nowhere
+// else, drift home over a few minutes while the place is fed and safe (driftHome), and
+// after ten minutes those still away have settled elsewhere.
 export const STAY = { storm: 0.7, yielded: 0.88 };
 const BACK = 180, GONE = 600;
 
@@ -51,6 +53,14 @@ const BACK = 180, GONE = 600;
 export function handOver(pop, how) {
   const stay = Math.round(pop * STAY[how]), fled = Math.max(0, Math.round(pop) - stay);
   return { stay, fled, away: fled >= 1 ? { n: fled, rate: fled / BACK, left: GONE } : null };
+}
+
+// Those who fled a lost place to their house's next one, `holder` (a town or a holding's
+// eco): they come in over a few minutes while it is fed and safe, crowded or not (they have
+// nowhere else), and join its people.
+export function takeIn(holder, n, from) {
+  const m = (holder.fled?.n || 0) + n;
+  holder.fled = { n: m, rate: m / BACK, left: GONE, from };
 }
 
 // Those who fled coming home: how many this step (a fraction; a town counts whole people).

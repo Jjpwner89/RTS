@@ -656,6 +656,69 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // A house's lost place sends its men and some of its people to the house's nearest other
+  // place (creator, 2026-11-22: "TO THEIR NEAREST FRIENDLY VILLAGE... obviously some still
+  // stay"); free folk have nowhere to go, so their men stay on as its people.
+  await check('flee to kin: a lost place\'s garrison and fled people go to its house\'s nearest place; free folk stay', () => scratch(async (make, FACTIONS) => {
+    const { headcount } = await import('./world/world.js'), out = [];
+    const near = (x, lo, hi, what) => { if (!(x >= lo && x <= hi)) out.push(`${what}: ${x}, not ${lo} to ${hi}`); };
+    const MEN = () => [{ key: 'spear', count: 15, name: 'Hollwick spears' }];
+    const band = (s, side) => s.armies.filter(x => x.side === side && !x.gone && x.retreating);
+    // You take a house's village of 60 by storm, and a rival takes another on terms.
+    for (const [label, how, take] of [['you storm', 'storm', (s, p, a) => s.capture(p, a, 'storm', MEN())], ['a rival takes on terms', 'yielded', (s, p, a) => s.tookBy(a, p, 'yielded', MEN())]]) {
+      const s = make(), p = village60(s, 'Hollwick');
+      p.owner = 2;
+      const kin = s.kinOf(2, p);
+      if (!kin || kin.owner !== 2) { out.push(`${label}: house ${FACTIONS[2].name} has no place to flee to`); continue; }
+      const road = q => s.route(p, q, s.safeFor(2)).length, nearest = s.pois.filter(q => q !== p && q.owner === 2 && (q.town || q.eco)).sort((x, y) => road(x) - road(y))[0];
+      if (kin !== nearest) out.push(`${label}: they flee to ${kin.name}, not the nearest by road, ${nearest.name}`);
+      const before = (kin.town || kin.eco).fled?.n || 0;
+      take(s, p, s.spawnArmy(label === 'you storm' ? 0 : 1, FAIR(), p.links[0], 'Host', 'march'));
+      const g = band(s, 2)[0];
+      if (!g || headcount(g.units) !== 15 || g.target !== kin) out.push(`${label}: its 15 spearmen ${g ? `march to ${g.target?.name} with ${headcount(g.units)}` : 'did not march'}, not to ${kin.name}`);
+      else if (g.path.slice(0, -1).some(q => !s.safeFor(2)(q))) out.push(`${label}: its band's road runs through ${g.path.find(q => !s.safeFor(2)(q)).name}, an enemy's place`);
+      const kept = p.town ? p.town.population : Math.round(p.eco.pop), went = Math.round((kin.town || kin.eco).fled?.n || 0) - before;
+      near(kept, how === 'storm' ? 40 : 51, how === 'storm' ? 44 : 55, `${label}: of 60 it keeps`);
+      near(went, how === 'storm' ? 16 : 5, how === 'storm' ? 20 : 9, `${label}: of 60, fled to ${kin.name}`);
+      if ((p.town || p.eco).fled) out.push(`${label}: those who fled ${p.name} still drift back to it`);
+    }
+    // A free village: its men stay on as its people, and those who fled drift back.
+    {
+      const s = make(), p = village60(s, 'Redgate');
+      p.owner = null;
+      const had = s.armies.length;
+      s.capture(p, s.spawnArmy(0, FAIR(), p.links[0], 'Host', 'march'), 'storm', MEN());
+      if (s.armies.slice(had).some(x => x.side !== 0)) out.push('a free village\'s men marched off');
+      near(p.town.population, 51, 54, 'a free village of 60 with 15 men left: it keeps');
+      near(Math.round(p.town.fled?.n || 0), 21, 24, 'a free village of 60 with 15 men left: drifting back');
+    }
+    // Stormed by hand, its broken men run off the field toward that place.
+    {
+      const s = make(), p = village60(s, 'Hollwick');
+      p.owner = 2;
+      const kin = s.kinOf(2, p), a = s.spawnArmy(0, FAIR(), p.links[0], 'Host', 'march'); a.last = p.links[0];
+      if (!kin) { out.push(`stormed, ${p.name} has no place to flee to`); return out; }
+      s.storm({ kind: 'assault', army: a, poi: p, defenders: p.garrison });
+      const h = p.town.battle.homes[1], want = s.angle(p, kin), d = Math.abs(Math.atan2(Math.sin(Math.atan2(h.x, h.z) - want), Math.cos(Math.atan2(h.x, h.z) - want)));
+      if (d > 0.05) out.push(`stormed, ${p.name}'s broken men run ${Math.round(d * 57)}° off the way to ${kin.name}`);
+    }
+    // Your village falls with another of yours near: your men and those who flee go there.
+    {
+      const s = make(), home = s.home, t = home.town, q = village60(s, 'Hollwick');
+      q.owner = 0;
+      for (let i = t.population; i < 60; i++) t.addVillager(Math.sin(i) * 10, Math.cos(i) * 10);
+      t.attackers = [{ regs: [], mode: 'assault' }];
+      const men = headcount(t.garrison().filter(r => r.alive > 0 && !r.T.militia).map(r => ({ count: r.alive })));
+      s.fall(home);
+      const g = band(s, 0)[0];
+      if (men && (!g || g.target !== q)) out.push(`your fallen village's ${men} men ${g ? `march to ${g.target?.name}` : 'did not march'}, not to ${q.name}`);
+      near(Math.round(home.eco.pop), 40, 44, 'your village of 60 falls: it keeps');
+      near(Math.round(q.eco.fled?.n || 0), 16, 20, `your village of 60 falls: fled to ${q.name}`);
+      if (home.eco.fled) out.push('those who fled your fallen village drift back to it');
+    }
+    return out;
+  }));
+
   // Trained men are never levied (creator, 2026-11-22: the banners raised "Levy men-at-arms" in
   // no armour, men never trained): one list of levy kinds for the barracks, the banner call and
   // raise(), and an old save's levied men-at-arms or knights load as plain levies.

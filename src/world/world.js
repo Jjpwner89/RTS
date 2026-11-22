@@ -16,7 +16,7 @@ import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } 
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal, foodLeft, homeland, QUARTERED } from './supply.js';
 import { govern } from './governor.js';
-import { turnOut, yields, standsOrYields, handOver, driftHome, fledWord, mourn, sendHome } from './militia.js';
+import { turnOut, yields, standsOrYields, handOver, takeIn, driftHome, fledWord, mourn, sendHome } from './militia.js';
 import { tickEvents } from './events.js';
 import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
@@ -271,7 +271,8 @@ export class World {
       if (p.town || !p.eco) continue;
       const K = KINDS[p.kind], e = p.eco, h = p.owner === null ? null : FACTIONS[p.owner];
       // Those who fled when it changed hands come home while it is fed, safe and has room (militia.js).
-      if (e.fled) e.pop += driftHome(e, dt, !e.hungry && !p.siegeFood && e.pop < this.popCap(p) && !this.armies.some(a => a.at === p && !a.gone && a.side !== p.owner));
+      // (those fled here from a lost place come in crowded or not: they have nowhere else)
+      if (e.fled) e.pop += driftHome(e, dt, !e.hungry && !p.siegeFood && (e.fled.from || e.pop < this.popCap(p)) && !this.armies.some(a => a.at === p && !a.gone && a.side !== p.owner));
       if (e.buildings) { this.tickEconomy(p, dt, K, e, h); continue; }
       // Camps and the northern host: people grow toward what the place holds, and arms
       // come at a rough rate (the north is a war machine and keeps its own pace).
@@ -547,9 +548,10 @@ export class World {
     const came = a.last;
     a.last = to;
     a.path.shift();
-    // Marching on through friendly or peaceful places; a hostile one stops the army.
+    // Marching on through friendly or peaceful places; a hostile one stops the army. A free
+    // one stops only yours, and not when falling back.
     if (a.path.length && !this.canAttack(a.side, to)) return;
-    if (a.path.length && a.side !== 0 && to.owner === null && a.target !== to) return;
+    if (a.path.length && (a.side !== 0 || a.retreating) && to.owner === null && a.target !== to) return;
     a.at = to;
     this.arrive(a, to, came);
   }
@@ -1078,19 +1080,51 @@ export class World {
     this.encounter = null;
     a.halted = false;
     this.log(`${p.name} cannot hold against ${a.name} and yields on terms.`);
-    const was = p.owner, men = p.garrison;
+    const men = p.garrison;
     p.garrison = [];
-    this.capture(p, a, 'yielded');
-    this.marchOut(p, was, men);
+    this.capture(p, a, 'yielded', men);
     this.checkEnd();
   }
-  // A yielding garrison marches out under arms to its lord, once the place has changed
-  // hands, wherever its house still stands.
-  marchOut(p, was, garrison) {
-    const men = garrison.filter(u => u.count >= 3);
-    if (was === null || !FACTIONS[was]?.alive || !men.length || !this.pois.some(q => q.owner === was)) return;
-    this.retreat(this.spawnArmy(was, men, p, `${FACTIONS[was].short} garrison`));
-    if (p.visible || was === 0) this.log(`The garrison of ${p.name} marches out under arms.`);
+
+  // A house's nearest other place with people (yours too), by a road that passes no enemy's
+  // place, which would stop its men (moveArmy): where a lost place's garrison and those who flee it go (creator, 2026-11-22: "TO
+  // THEIR NEAREST FRIENDLY VILLAGE... the people are running from me, their rival lord").
+  // None for free folk, outlaws and the north, or a place cut off from the rest.
+  safeFor(side) { return q => q.owner === side || q.owner === null || !this.canAttack(side, q); }
+  kinOf(side, p) {
+    const H = side === null ? null : FACTIONS[side];
+    if (!H?.alive || H.bandit || H.invader) return null;
+    const road = new Map(this.pois.filter(q => q !== p && q.owner === side && (q.town || q.eco)).map(q => [q, this.route(p, q, this.safeFor(side)).length]));
+    return [...road.keys()].filter(q => Number.isFinite(road.get(q))).sort((a, b) => road.get(a) - road.get(b))[0] || null;
+  }
+
+  // `p` has changed hands `how` ('storm' or 'yielded'), taken from `was`: how many of its
+  // `pop` stay (militia.js handOver), and where the rest go. The same for every house and
+  // for you. With a house's place to go to (kinOf), its garrison men who got away (`men`:
+  // routed out, beaten off or marching out on terms) go there as a band on the map that
+  // joins its garrison, and those who fled walk there and join its people. With none, free
+  // folk's men (or a house's with nowhere else) stay on as its people, and those who fled
+  // drift back while it is fed and safe. Your last place lost, your men are lost with it.
+  // Call it once the place has changed hands. Returns { stay, away, word }: the people who
+  // stay, the record of those drifting back, and what to tell you.
+  leave(p, was, pop, how, men = [], name = null) {
+    const kin = this.kinOf(was, p), got = headcount(men), H = was === null ? null : FACTIONS[was];
+    if (!kin && was !== 0 && !H?.bandit && !H?.invader) pop += got;
+    const { stay, fled, away } = handOver(pop, how);
+    const band = kin ? men.filter(u => u.count >= 3) : [];
+    const goers = kin ? fled + got - headcount(band) : 0;
+    if (band.length) {
+      const g = this.spawnArmy(was, band, p, name || `${H.short} garrison`);
+      if (this.order(g, kin, this.safeFor(was))) g.retreating = true; else this.retreat(g);
+    }
+    if (goers > 0) takeIn(kin.town || kin.eco, goers, p.name);
+    const loud = p.visible || was === 0 || p.owner === 0;
+    const word = !loud ? null
+      : kin && how === 'yielded' && band.length ? `The garrison of ${p.name} marches out under arms to ${kin.name}${goers > 0 ? `, and ${goers} of its people go with it` : ''}.`
+      : kin && goers > 0 ? `${goers} of ${p.name}'s people fled to ${kin.name}${band.length ? ' with its garrison' : ''}.`
+      : kin && band.length ? `The garrison of ${p.name} falls back to ${kin.name}.`
+      : away ? fledWord(fled, p.name) : null;
+    return { stay, away: kin ? null : away, word };
   }
 
   // The outcome of a fight the player was in, fought or auto-resolved.
@@ -1107,7 +1141,7 @@ export class World {
     const was = enc.poi ? enc.poi.name : 'the road';
     if (enc.kind === 'assault') {
       const p = enc.poi;
-      if (won) { this.log(`You have taken ${p.name}!`); this.capture(p, a); }
+      if (won) { this.log(`You have taken ${p.name}!`); this.capture(p, a, 'storm', theirs); }
       else { p.garrison = theirs; this.log(`The attack on ${p.name} failed.`, 1); note(this, p.owner, 'lostField'); this.retreat(a); }
     } else {
       const e = enc.enemy;
@@ -1145,18 +1179,19 @@ export class World {
     this.log(`You found ${g} gold in ${p.name}.`);
   }
 
-  // `how` it was taken, 'storm' or 'yielded', sets how many of its people stay (militia.js).
-  capture(p, a, how = 'storm') {
+  // `how` it was taken, 'storm' or 'yielded', sets how many of its people stay, and `men`
+  // are its garrison who got away (leave).
+  capture(p, a, how = 'storm', men = []) {
     const was = p.owner;
     note(this, was, 'tookPlace');
     grudge(this, was, 'took', p.name);
     this.takePlace(p, 0);
-    const pop = p.eco?.pop ?? 20, { stay, fled, away } = handOver(pop, how);
+    const { stay, away, word } = this.leave(p, was, p.eco?.pop ?? 20, how, men);
     const lvl = p.eco?.level ?? 1;
     const town = this.makeTown(p, { villagers: Math.max(6, stay), retinue: false,
       stock: storesOf(p, lvl, 60) });
     town.fled = away;
-    if (away) this.log(fledWord(fled, p.name));
+    if (word) this.log(word);
     layPlace(town, p, 0);
     p.mem = null;
     grownLevels(town, p.eco);
@@ -1261,7 +1296,8 @@ export class World {
     const H = owner === null ? NEUTRAL : FACTIONS[owner];
     town.hostile = { owner, pop, eco: p.eco, color: H.color, name: H.name, army: a.name, entry: came, folk, where: p.name };
     town.flagColor = H.color;
-    town.holdKeep(defenders, came, { house: owner ?? 1 });
+    const kin = this.kinOf(owner, p);
+    town.holdKeep(defenders, came, { house: owner ?? 1, flee: kin ? this.angle(p, kin) : null });
     // Its people are about the place, all but those who turned out to fight.
     town.townsfolk(Math.max(0, Math.min(80, Math.round(pop - folk.reduce((n, u) => n + u.count, 0)))));
     this.seatCaptain(town.battle, 0, captainOf(this, a), town.addTroops(a.units, came, { stand: 100 }));
@@ -1321,7 +1357,12 @@ export class World {
     // those left, seven in ten stay on when it is taken by storm, nearly nine in ten under terms;
     // the rest have fled, and come home while it is fed and safe (militia.js handOver).
     if (h.folk?.length) h.pop = Math.max(5, h.pop - Math.round(Math.max(0, h.folk.reduce((n, u) => n + u.count, 0) - folkLeft(t.battle)) / 3));
-    const { stay, fled, away } = handOver(h.pop, h.yielded ? 'yielded' : 'storm');
+    // Its garrison men who got away (routed off the field toward their house's next place,
+    // or marching out on terms) go on there, and some of its people with them (leave).
+    const held = t.attackers.find(g => g.mode === 'hold')?.regs || [];
+    const got = r => r.soldiers.filter(s => s.alive && (s.gone || r.routing)).length;
+    const men = h.yielded || held.filter(r => !r.T.militia && got(r) > 0).map(r => ({ ...unit(r.T.key, got(r), r.name), ...carry(r) }));
+    const { stay, away, word } = this.leave(p, was, h.pop, h.yielded ? 'yielded' : 'storm', men);
     t.claim({ villagers: Math.max(6, stay) });
     t.fled = away;
     t.flagColor = null;
@@ -1331,13 +1372,9 @@ export class World {
     p.garrison = [];
     // The village's own fighting goes on: no winner, no more terms.
     Object.assign(t.battle, { winner: null, surrendered: null, terms: null, termsAllowed: false });
-    if (h.yielded) {
-      const men = h.yielded.filter(u => u.count >= 3);
-      if (was !== null && FACTIONS[was]?.alive && men.length) this.retreat(this.spawnArmy(was, men, p, `${FACTIONS[was].short} garrison`));
-      this.log(`${p.name} yields on terms; its garrison marches out under arms.`);
-    }
+    if (h.yielded) this.log(`${p.name} yields on terms.`);
     this.log(`You have taken ${p.name}!`);
-    if (away) this.log(fledWord(fled, p.name));
+    if (word) this.log(word);
     this.hooks.stormEnded?.(p, true);
     this.hooks.captured(p, was);
     this.checkBroken(was);
@@ -1454,16 +1491,14 @@ export class World {
     // Against hopeless odds it yields: its garrison marches out and more of its people stay.
     if (yields(p, a.units, FACTIONS[p.owner])) {
       if (p.visible || was === 0) this.log(`${p.name} cannot hold against ${a.name} and yields on terms.`, 2);
-      const men = p.garrison;
-      this.tookBy(a, p, 'yielded');
-      return this.marchOut(p, was, men);
+      return this.tookBy(a, p, 'yielded', p.garrison);
     }
     // Its people turn out if the keep itself is in danger (militia.js).
     const folk = turnOut(p, a.units, FACTIONS[p.owner]);
     const r = this.resolve(a.units, [...p.garrison, ...folk], this.defenceBonus(p));
     r.D = sendHome(p, folk, r.D);
     a.units = r.A;
-    if (r.attackerWins) this.tookBy(a, p, 'storm');
+    if (r.attackerWins) this.tookBy(a, p, 'storm', r.D);
     else {
       p.garrison = r.D;
       this.retreat(a);
@@ -1471,13 +1506,14 @@ export class World {
   }
 
   // A rival's army takes a place, by storm or on terms: the same share of its people stay
-  // as when you take one (militia.js handOver).
-  tookBy(a, p, how) {
+  // as when you take one, and its garrison who got away (`men`) and those who flee go to
+  // their house's next place (leave).
+  tookBy(a, p, how, men = []) {
     const was = p.owner, H = FACTIONS[a.side];
     this.takePlace(p, a.side);
     p.garrison = a.units;
+    const { stay, away, word } = this.leave(p, was, p.eco?.pop ?? 0, how, men);
     if (p.eco) {
-      const { stay, away } = handOver(p.eco.pop, how);
       p.eco.pop = Math.max(5, stay);
       p.eco.fled = away;
       if (p.eco.gold) { H.gold += p.eco.gold * 0.8; p.eco.gold *= 0.2; }
@@ -1485,6 +1521,7 @@ export class World {
     }
     this.removeArmy(a);
     if (p.visible || was === 0 || (H.invader && was !== null)) this.log(`${H.name} has taken ${p.name}.`, was === 0 || H.invader ? 1 : 2);
+    if (word) this.log(word, was === 0 ? 1 : 2);
     this.checkBroken(was);
     this.checkEnd();
   }
@@ -1528,12 +1565,13 @@ export class World {
     p.mem = remember(t, 0, this.time);
     // The north and outlaws keep their rough reckoning; a house runs what it took.
     // (as many stay as when you take a place: fewer by storm than on terms, militia.js handOver)
-    const { stay, away } = handOver(pop, t.yieldedOurs ? 'yielded' : 'storm');
+    // (your men and those who flee make for your nearest other place, as a house's do: leave)
+    const { stay, away, word } = this.leave(p, 0, pop, t.yieldedOurs ? 'yielded' : 'storm', ours, t.yieldedOurs ? `Garrison of ${p.name}` : `Survivors of ${p.name}`);
     const eco = FACTIONS[side].invader || FACTIONS[side].bandit ? { pop: Math.max(10, stay), level: 1, arms: 0 } : fromTown(t, { pop: stay });
     eco.fled = away;
     Object.assign(p, { town: null, garrison: theirs.length ? theirs : [unit('spear', 10, `${FACTIONS[side].short} spearmen`)], eco });
     this.log(`${p.name} has fallen to ${FACTIONS[side].name}.`, 1);
-    if (ours.length) this.retreat(this.spawnArmy(0, ours, p, t.yieldedOurs ? `Garrison of ${p.name}` : `Survivors of ${p.name}`));
+    if (word) this.log(word, 1);
     this.hooks.fell(p);
     this.checkEnd();
   }
