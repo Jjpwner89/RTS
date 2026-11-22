@@ -5,7 +5,7 @@
 // to break. Each unit carries the time it goes home (u.until, r.until in a village), through
 // joins, garrisons, fights and saves. The league raises them too (diplomacy.js raiseHost).
 // State: w.arriere = { until, rest } while it serves and rests.
-import { FACTIONS, headcount, unit } from './world.js';
+import { FACTIONS, headcount, unit, mergeInto, roughly, ARMY_CAP } from './world.js';
 import { EAT, capacity, takeFood } from './supply.js';
 
 export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 600, rest: 300, key: 'militia' };
@@ -107,6 +107,31 @@ export function houseBan(w, h, room, from = w.time) {
     const st = p.eco?.stock, k = st ? Math.min(food, st[g] || 0) : 0;
     if (k) { st[g] -= k; food -= k; }
   }
+  return men;
+}
+
+// A house calls its arrière-ban as you call yours (Orchestrator, 2026-11-22): when its host
+// gathers, to the muster place, or when a foe's host comes near, to the place it threatens.
+// houseBan takes the gold and food; each place's men march to `dest` as a column and join
+// its garrison there (a place with no road keeps its own at home); they go home when their
+// time is up (tickArriere). As many as a host of its rank holds, less what stands at `dest`.
+export function houseCall(w, h, dest) {
+  const places = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling);
+  const room = (ARMY_CAP[rankOf(places.length)] || 0) - headcount(dest.garrison);
+  const men = houseBan(w, h, room);
+  if (!men) return 0;
+  const until = h.arriere.until, per = Math.floor(men / places.length);
+  let left = men;
+  for (const [i, p] of places.entries()) {
+    const n = i === places.length - 1 ? left : Math.min(left, per);
+    if (n <= 0) continue;
+    left -= n;
+    const units = [{ ...unit(ARRIERE.key, n, `${h.short} arrière-ban`), until }];
+    if (p === dest) { mergeInto(p.garrison, units); continue; }
+    const col = w.spawnArmy(h.index, units, p, `${h.short} arrière-ban`, 'column');
+    if (!w.order(col, dest)) { w.removeArmy(col); mergeInto(p.garrison, units); }
+  }
+  if (dest.visible || w.knows(h.index)) w.log(`${h.name} calls its arrière-ban to ${dest.name}: about ${roughly(men)} men of the countryside.`, 2);
   return men;
 }
 

@@ -771,6 +771,55 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // A house calls its arrière-ban by your rules (Orchestrator, 2026-11-22; arriere.js houseCall):
+  // its rank's men a place, 3 gold a man, as many as its purse pays, home after ten minutes, and
+  // not again until the countryside has rested.
+  await check('arrière-ban: a house calls its countryside by your rules: its rank\'s men a place, paid, home on time', () => scratch(async (make, FACTIONS) => {
+    const AR = await import('./world/arriere.js'), { headcount } = await import('./world/world.js'), out = [];
+    const s = make(), h = FACTIONS.find(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.filter(p => p.owner === x.index).length >= 2);
+    const places = s.pois.filter(p => p.owner === h.index && p.kind !== 'camp'), dest = places[0];
+    const per = AR.ARRIERE.per[AR.rankOf(places.length)], want = per * places.length;
+    h.gold = 10000;
+    const levy = () => s.armies.filter(a => a.side === h.index && !a.gone).reduce((n, a) => n + headcount(a.units.filter(AR.isLevy)), 0)
+      + s.pois.filter(p => p.owner === h.index).reduce((n, p) => n + headcount(p.garrison.filter(AR.isLevy)), 0);
+    const men = AR.houseCall(s, h, dest);
+    if (men !== want) out.push(`${h.name} with ${places.length} places (${AR.rankOf(places.length)}) called ${men} men, not ${want}`);
+    if (10000 - h.gold !== men * AR.ARRIERE.gold) out.push(`${men} men cost it ${10000 - h.gold} gold, not ${men * AR.ARRIERE.gold}`);
+    if (levy() !== men) out.push(`${men} called, ${levy()} on the map`);
+    if (AR.houseCall(s, h, dest)) out.push('it called them again while they served');
+    s.time += AR.ARRIERE.serve + 1;
+    AR.tickArriere(s);
+    if (levy()) out.push(`${levy()} of its levies still under arms after ten minutes`);
+    if (AR.houseCall(s, h, dest)) out.push('it called them again before the countryside had rested');
+    // A thin purse sends fewer.
+    const s2 = make(), h2 = FACTIONS[h.index];
+    s2.time = 0; h2.arriere = null; h2.gold = 30;
+    const few = AR.houseCall(s2, h2, s2.pois.find(p => p.owner === h2.index && p.kind !== 'camp'));
+    if (few !== 10) out.push(`with 30 gold it called ${few} men, not 10`);
+    return out;
+  }));
+
+  // A house at war hires companies as you may (Orchestrator, 2026-11-22: no house-only limit),
+  // while its income still covers every wage it pays (companies.js rivalHire).
+  await check('companies: a house at war hires as many as its income pays the wages of, no more', () => scratch(async (make, FACTIONS) => {
+    const C = await import('./world/companies.js'), { wagesOf } = await import('./world/treasury.js'), out = [];
+    const s = make(), hs = FACTIONS.filter(x => x.index > 0 && x.ai && !x.bandit && !x.invader && x.trait !== 'merchant' && s.pois.some(p => p.owner === x.index));
+    const h = hs[0], seat = s.pois.find(p => p.owner === h.index && p.kind !== 'camp');
+    s.declareWar(h.index, hs[1].index);
+    s.companies = C.makeCompanies(s);
+    for (const c of s.companies) c.home = null;
+    h.gold = 100000;
+    const mine = () => s.companies.filter(c => c.employer === h.index).length;
+    for (let i = 0; i < 3; i++) C.rivalHire(s, h, seat, 0);
+    if (mine()) out.push(`with no income to pay them it hired ${mine()} companies`);
+    for (let i = 0; i < 8; i++) C.rivalHire(s, h, seat, wagesOf(s, h.index).gold + 1000);
+    if (mine() < 3) out.push(`with gold and income to spare it hired only ${mine()} of ${s.companies.length} companies (a house-only limit?)`);
+    const had = mine();
+    C.rivalHire(s, h, seat, wagesOf(s, h.index).gold + 1);
+    if (mine() > had) out.push('it hired past its income');
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.

@@ -10,6 +10,7 @@
 import { FACTIONS, headcount, unit } from './world.js';
 import { TYPES } from '../battle.js';
 import { live } from './events.js';
+import { wagesOf } from './treasury.js';
 
 const NAMES = ['the Grey Company', 'the Black Lanterns', 'the Red Hounds', 'the Salt Brothers', 'the White Ash Company', 'the Ninefold',
   'the Hollow Crowns', 'the Iron Wake'];
@@ -213,15 +214,17 @@ export function tickCompanies(w, dt) {
 }
 
 // A rival with gold to spare, at war, hires a free company (the merchant house even at
-// peace, and up to two at once).
-export function rivalHire(w, h, muster) {
+// peace): as many as you could, one a think, while its purse pays the price and keeps a few
+// minutes' pay in hand, and its `income` a minute still covers every wage it pays, the new
+// company's too (Orchestrator, 2026-11-22: no house-only limit on how many).
+export function rivalHire(w, h, muster, income = Infinity) {
   w.companies ??= makeCompanies(w);
-  const merchant = h.trait === 'merchant', have = w.companies.filter(c => c.employer === h.index).length;
-  if (have >= (merchant ? 2 : 1)) return false;
+  const merchant = h.trait === 'merchant';
   const atWar = FACTIONS.some(o => o.alive && !o.bandit && o !== h && w.atWar(h.index, o.index));
   if (!atWar && !merchant) return false;
   const free = w.companies.filter(c => c.employer === null && offer(w, c, h.index).ok);
-  const c = free.find(c => h.gold > hirePrice(c) + wage(c) * (merchant ? 4 : 8));
+  const paid = wagesOf(w, h.index).gold;
+  const c = free.find(c => h.gold > hirePrice(c) + wage(c) * (merchant ? 4 : 8) && paid + fullWage(c) <= income);
   if (!c) return false;
   hire(w, c, h.index, muster);
   if (muster.visible || w.knows(h.index)) w.log(`${h.name} has hired ${c.name} at ${muster.name}.`, 2);

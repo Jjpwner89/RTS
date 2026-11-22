@@ -11,7 +11,10 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit } from './world.js';
+import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit, TAX } from './world.js';
+import { KINDS } from './realm.js';
+import { devTax } from '../economy.js';
+import { houseCall } from './arriere.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight, wouldJoin, callToArms } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { standDown, keepAtWork, pressedAt } from './holdings.js';
@@ -85,6 +88,14 @@ export function thinkHouses(w, dt) {
 }
 
 const held = (w, h) => w.pois.filter(p => p.owner === h.index);
+// A house's income a minute: its places' taxes as World.update and tickEconomy take them
+// (trade aside), for what wages it can carry (rivalHire).
+export const incomeOf = (w, h, mine = held(w, h)) => mine.reduce((n, p) => {
+  const K = KINDS[p.kind] || {}, e = p.eco;
+  if (!e || p.town) return n;
+  if (!e.buildings) return n + e.pop * TAX * 60 * (K.gold ?? 1);
+  return n + (devTax(e.pop, Object.entries(e.buildings), e.level) + w.duesOf(p)) * (K.gold ?? 1) * (h.trait === 'merchant' ? 1.5 : 1);
+}, 0);
 const spareAt = (w, p) => power(p.garrison) - w.keepHome(p);
 
 // The men a house could put in the field: those its places can spare, and as many more as it
@@ -188,6 +199,13 @@ function houseMind(w, h) {
   const hosts = w.armies.filter(a => !a.gone && !a.wagon && a.side !== h.index && w.atWar(h.index, a.side));
   ai.rear = mine.filter(p => !foes.some(q => dist(p, q) < 400) && !hosts.some(a => dist(p, a) < 400)).map(p => p.id);
   const arming = ai.stance === 'war';
+  // Its arrière-ban, on your rules (arriere.js houseCall): to its muster while a host gathers
+  // against a place, or to the place of its that a foe's host is nearest.
+  if (!h.bandit && !h.invader && arming) {
+    const near = mine.filter(p => ai.pressed.includes(p.id)).sort((p, q) => Math.min(...foeHosts.map(a => dist(p, a))) - Math.min(...foeHosts.map(a => dist(q, a))))[0];
+    const to = plan?.phase === 'muster' && plan.staging?.owner === h.index ? plan.staging : near;
+    if (to) houseCall(w, h, to);
+  }
   if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
   // Building with nothing planned, it keeps a modest field reserve and sends the rest home.
   const real = mine.filter(p => p.eco?.buildings && !p.town);
@@ -219,7 +237,7 @@ function houseMind(w, h) {
 
   // A rich lord at war hires a mercenary company rather than sit on his gold, and pays
   // its wages from then on (companies.js). Not while the house is still settling.
-  if (!h.bandit && stage > 0 && w.time > (ai.hiredAt ?? -Infinity) + 300 && rivalHire(w, h, muster)) ai.hiredAt = w.time;
+  if (!h.bandit && stage > 0 && rivalHire(w, h, muster, incomeOf(w, h, mine))) ai.hiredAt = w.time;
 
   // Send men beyond what each place keeps at home to the muster place.
   for (const p of mine) {
