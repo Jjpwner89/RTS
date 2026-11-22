@@ -840,6 +840,24 @@ export class WorldView {
     return centre;
   }
 
+  // Walls drawn to read at map scale: thicker and taller than the shrunk place around them, towers a little bigger,
+  // timber lighter against the grass and stone paler (the models' own colours, lifted).
+  static WALL = { thick: 2, tall: 1.5, tower: 1.3, tint: { wood: [1.55, 1.35, 1.1], stone: [1.3, 1.28, 1.24] } };
+  wallMat(material) {
+    const t = WorldView.WALL.tint[material];
+    if (!t) return this.mat;
+    return ((this.wallMats ||= {})[material] ||= Object.assign(this.mat.clone(), { color: new THREE.Color(...t) }));
+  }
+  // one wall piece or gate at map scale, its length `len` (map units) along its x
+  wallPiece(put, kind, material, x, z, yaw, s, len) {
+    const m = put(buildingModel(`${kind}.${material}`), x, z, yaw, s, this.wallMat(material));
+    if (m) m.scale.set(len / 10, s * WorldView.WALL.tall, s * WorldView.WALL.thick);
+    return m;
+  }
+  tower(put, material, x, z, yaw, s) {
+    return put(buildingModel(`tower.${material}`), x, z, yaw, s * WorldView.WALL.tower, this.wallMat(material));
+  }
+
   // Wall pieces between points (already in the place's own map units), towers on their nodes.
   wallPieces(put, pieces, towers, s = 0.6) {
     for (const q of pieces) {
@@ -849,10 +867,9 @@ export class WorldView {
       // the model's length runs along its x; its outer face (-z) looks away from the keep
       let yaw = Math.atan2(-dz, dx);
       if (Math.sin(yaw) * mx + Math.cos(yaw) * mz > 0) yaw += Math.PI;
-      const m = put(buildingModel(`${q.gate ? 'gate' : 'wall'}.${q.material}`), mx, mz, yaw, s);
-      if (m) m.scale.x = len / 10 * 1.04;
+      this.wallPiece(put, q.gate ? 'gate' : 'wall', q.material, mx, mz, yaw, s, len * 1.04);
     }
-    for (const t of towers) if (!t.broken) put(buildingModel(`tower.${t.material}`), t.x, t.z, Math.atan2(t.x, t.z), s);
+    for (const t of towers) if (!t.broken) this.tower(put, t.material, t.x, t.z, Math.atan2(t.x, t.z), s);
   }
 
   // A ring of walls and towers round a place, stone or timber, with a gate wherever a road comes in.
@@ -862,9 +879,8 @@ export class WorldView {
     for (let i = 0; i < n; i++) {
       const a = i / n * Math.PI * 2, x = Math.sin(a) * R, z = Math.cos(a) * R;
       // the outer face points away from the city
-      const m = put(buildingModel(gates.has(i) ? `gate.${mat}` : `wall.${mat}`), x, z, a + Math.PI);
-      if (m) m.scale.x = len / 10 * 1.02;
-      if (i % every === Math.floor(every / 2)) { const b = (i + 0.5) / n * Math.PI * 2; put(buildingModel(`tower.${mat}`), Math.sin(b) * R, Math.cos(b) * R, b, 0.8); }
+      this.wallPiece(put, gates.has(i) ? 'gate' : 'wall', mat, x, z, a + Math.PI, 1, len * 1.02);
+      if (i % every === Math.floor(every / 2)) { const b = (i + 0.5) / n * Math.PI * 2; this.tower(put, mat, Math.sin(b) * R, Math.cos(b) * R, b, 0.8); }
     }
   }
 
