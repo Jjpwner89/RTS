@@ -20,7 +20,7 @@ export function govern(t, dt) {
   t.govClock = (t.govClock ?? EVERY) - dt;
   if (t.govClock > 0) return;
   t.govClock = EVERY;
-  if (t.underAttack) { if (desperate(t) && t.muster().ok) t.event('The governor has called out the militia to hold the keep.', 1); return; }
+  if (t.underAttack) { if (desperate(t) && !t.hopeless() && t.muster().ok) t.event('The governor has called out the militia to hold the keep.', 1); return; }
   if (t.buildings.some(b => b.state === 'site')) return;
   // What it wants first, though once the basics stand a building for the tax takes its turn
   // every few minutes ahead of the rest (QC, 2026-11-22: well, market, chapel, mill and bakery

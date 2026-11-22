@@ -252,6 +252,7 @@ export class Battle {
     this.pours = [];           // boiling oil poured: { x, z, y, time }, for the view
     this.hunger = [0, 0];      // 0 fed .. 1 starving (setHunger)
     this.termsAllowed = false; // a garrison may ask for terms (checkTerms)
+    this.holder = null;        // the side holding a place, walled or not: { side, hopeless() } (world.js)
     this.terms = null;         // { side, time } while an offer waits for an answer
     this.surrendered = null;   // the side that yielded on terms
     if (deploy) for (let side = 0; side < 2; side++) this.deploy(side, scale, hosts[side] === 'norrhold' ? NORRHOLD : LAYOUT);
@@ -1445,19 +1446,24 @@ export class Battle {
   }
 
   // A garrison (the side with walls) that can't win asks for terms: few men left against
-  // many with the walls breached, or hunger. Only where termsAllowed. onTerms(offer) lets
-  // the campaign attach conditions; the player answers with acceptTerms or refuseTerms.
+  // many with the walls breached, or hunger. The side holding a place (this.holder, walled
+  // or not) also asks when its hopeless() says so: under a third of the other's strength
+  // (economy.js HOPELESS). Only where termsAllowed. onTerms(offer) lets the campaign
+  // attach conditions; the player answers with acceptTerms or refuseTerms.
   checkTerms() {
     if (this.terms || this.winner !== null || this.surrendered !== null) return;
     for (const side of [0, 1]) {
-      if (!this.walls.structures().some(s => s.side === side)) continue;
+      const walled = this.walls.structures().some(s => s.side === side), H = this.holder?.side === side ? this.holder : null;
+      if (!walled && !H) continue;
       if (this.time < ((this.termsWait ||= [0, 0])[side])) continue;
       const men = k => this.regs.filter(r => r.side === k && this.usable(r)).reduce((n, r) => n + r.alive, 0);
       const mine = men(side), theirs = men(1 - side);
-      if (!theirs || !mine) continue;
+      // (a held place with no soldiers left can still yield: its people are spared)
+      if (!theirs || (!mine && !H)) continue;
       const breached = this.walls.pieces.some(p => p.side === side && (p.state === 'broken' || p.forced));
       const h = this.hunger[side], odds = mine / theirs;
-      if (odds < 0.2 + h * 0.4 && (breached || h >= 0.5 || odds < 0.1)) {
+      const hopeless = H?.hopeless();
+      if (hopeless || (walled && odds < 0.2 + h * 0.4 && (breached || h >= 0.5 || odds < 0.1))) {
         this.terms = { side, time: this.time };
         this.event(side, side ? 'The garrison asks for terms.' : 'Our garrison cannot hold: we could yield on terms.');
         this.onTerms?.(this.terms);
@@ -1779,6 +1785,7 @@ export class Battle {
       this.answerFoes();
       if (this.duel && !this.duel.over) this.duelTick();
       if (this.walls.any) this.wallsTick();
+      else if (this.termsAllowed && this.holder) this.checkTerms();   // (an unwalled place may yield too)
     }
   }
 

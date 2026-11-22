@@ -525,6 +525,107 @@ async function worldChecks(w) {
     return out;
   });
 
+  // A hopeless place runs or yields and survives (creator, 2026-11-22: "they should run and
+  // survive rather than all stay to get massacred"): one rule for your places, a rival's and
+  // the free folk's. Played on throwaway worlds of seed 7; the houses of this one are put back.
+  const scratch = async fn => {
+    const { World, FACTIONS } = await import('./world/world.js'), mine = [...FACTIONS];
+    try {
+      const make = () => { const s = new World(7, {}, { size: 'normal', aggression: 'normal' }); s.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k in o ? o[k] : () => {}) }); s.log = () => {}; return s; };
+      return await fn(make, FACTIONS);
+    } finally { FACTIONS.length = 0; FACTIONS.push(...mine); }
+  };
+  const HOST = () => [{ key: 'spear', count: 120, name: 'Ban' }, { key: 'maa', count: 20, name: 'Guard' }, { key: 'knight', count: 20, name: 'Lances' }, { key: 'crossbow', count: 30, name: 'Crossbows' }];
+  const FAIR = () => [{ key: 'spear', count: 40, name: 'Spears' }, { key: 'archer', count: 12, name: 'Bows' }];
+  const village60 = (s, name) => { const p = s.pois.find(q => q.name === name); p.eco.pop = 60; p.garrison = [{ key: 'spear', count: 20, name: `${name} spears` }]; return p; };
+
+  await check('militia: a place\'s people turn out when outnumbered, and stay home against hopeless odds', async () => {
+    const M = await import('./world/militia.js'), E = await import('./economy.js'), out = [];
+    const p = { name: 'Testby', kind: 'village', eco: { pop: 60 }, garrison: [{ key: 'spear', count: 20 }] };
+    const fair = M.turnOut(p, FAIR(), null), big = M.turnOut(p, HOST(), null);
+    if (fair.reduce((n, u) => n + u.count, 0) !== 60) out.push(`against a fair fight ${fair.reduce((n, u) => n + u.count, 0)} of 60 turned out`);
+    if (big.length) out.push(`against a host five times its strength ${big.reduce((n, u) => n + u.count, 0)} turned out`);
+    if (!M.yields(p, HOST(), null) || M.yields(p, FAIR(), null)) out.push(`yields: ${M.yields(p, HOST(), null)} to the host, ${M.yields(p, FAIR(), null)} to a fair fight`);
+    // Your own village by the same test: everyone who could be called out, and its soldiers.
+    const regs = units => units.map(u => ({ T: { key: u.key }, alive: u.count, side: 1 }));
+    const town = g => ({ attackers: [{ mode: 'assault', regs: regs(g) }], battle: { regs: [{ T: { key: 'spear' }, alive: 20, side: 0 }] }, musterCheck: () => ({ ok: true, n: 60 }), strength: E.Town.prototype.strength });
+    if (!E.Town.prototype.hopeless.call(town(HOST())) || E.Town.prototype.hopeless.call(town(FAIR()))) out.push('your village\'s hopeless() does not match the rivals\' test');
+    if (!/hopeless\(\)/.test((await import('./world/governor.js')).govern.toString())) out.push('the governor musters without asking whether it is hopeless');
+    return out;
+  });
+
+  await check('yield: an unwalled place yields on terms against hopeless odds, yours too, and its garrison marches out', () => scratch(async (make, FACTIONS) => {
+    const { headcount } = await import('./world/world.js'), out = [];
+    // You storm an unwalled rival village: it asks for terms within a second of the fight.
+    for (const [label, army, want] of [['a host', HOST, true], ['a fair force', FAIR, false]]) {
+      const s = make(), p = village60(s, 'Redgate');
+      p.owner = 1;
+      const a = s.spawnArmy(0, army(), p.links[0], 'Host', 'march'); a.last = p.links[0];
+      s.storm({ kind: 'assault', army: a, poi: p, defenders: p.garrison });
+      const b = p.town.battle;
+      if (b.walls.structures().some(q => q.side === 1)) { out.push('Redgate is walled: pick another'); break; }
+      b.beginBattle();
+      for (let i = 0; i < 30 && !b.terms; i++) b.step(0.05);
+      if (!!b.terms !== want) out.push(`stormed by ${label}, Redgate ${b.terms ? 'asked' : 'did not ask'} for terms`);
+      if (want && b.terms) {
+        b.acceptTerms();
+        for (let i = 0; i < 10 && p.owner !== 0; i++) { b.step(0.05); s.checkStorm(p); }
+        if (p.owner !== 0) out.push('Redgate accepted terms but is not yours');
+        if (!s.armies.some(x => x.side === 1 && headcount(x.units) >= 15)) out.push('its garrison did not march out to House ' + FACTIONS[1].name);
+      }
+    }
+    // A rival's host on a rival's village: it yields, and its garrison marches out.
+    {
+      const s = make(), p = village60(s, 'Hollwick');
+      p.owner = 2;
+      const a = s.spawnArmy(1, HOST(), p.links[0], 'Host', 'march');
+      s.autoAssault(a, p);
+      if (p.owner !== 1) out.push('a rival\'s host did not take Hollwick');
+      if (!s.armies.some(x => x.side === 2 && headcount(x.units) >= 15)) out.push('Hollwick\'s garrison did not march out under arms');
+    }
+    // Your own unwalled home: its people stay in, and the yield is offered.
+    {
+      const s = make(), p = s.home, t = p.town;
+      for (let i = 0; i < 48; i++) t.addVillager(Math.sin(i) * 10, Math.cos(i) * 10);
+      const a = s.spawnArmy(1, HOST(), p.links[0], 'Host', 'march'); a.mode = 'march';
+      s.attackTown(a, p, p.links[0]);
+      for (let i = 0; i < 40 && !t.battle.terms; i++) s.update(0.05);
+      if (t.militia.length) out.push('your home\'s people turned out against a host five times its strength');
+      if (t.battle.terms?.side !== 0) out.push('your unwalled home was not offered a yield');
+    }
+    return out;
+  }));
+
+  await check('capture: the same share of people stay for every house, by storm or on terms, and the fled come home', () => scratch(async make => {
+    const M = await import('./world/militia.js'), out = [];
+    const near = (x, lo, hi, what) => { if (!(x >= lo && x <= hi)) out.push(`${what}: ${x}, not ${lo} to ${hi}`); };
+    for (const how of ['storm', 'yielded']) {
+      const [lo, hi] = how === 'storm' ? [40, 44] : [51, 55];
+      const s = make(), p = village60(s, 'Hollwick'), q = village60(s, 'Langford');
+      const a = s.spawnArmy(0, FAIR(), p.links[0], 'Host', 'march'); a.last = p.links[0];
+      s.capture(p, a, how);
+      near(p.town.population, lo, hi, `you take a village of 60 (${how}): it keeps`);
+      q.owner = 2;
+      s.tookBy(s.spawnArmy(1, FAIR(), q.links[0], 'Host', 'march'), q, how);
+      near(Math.round(q.eco.pop), lo, hi, `a rival takes a village of 60 (${how}): it keeps`);
+      const home = s.home;
+      for (let i = home.town.population; i < 60; i++) home.town.addVillager(Math.sin(i) * 10, Math.cos(i) * 10);
+      if (how === 'yielded') home.town.yieldedOurs = [];
+      home.town.attackers = [{ regs: [], mode: 'assault' }];
+      s.fall(home);
+      near(Math.round(home.eco.pop), lo, hi, `your village of 60 falls (${how}): it keeps`);
+    }
+    // Those who fled come home in a few minutes while fed and safe, and not otherwise.
+    const f = { fled: M.handOver(60, 'storm').away }, g = { fled: M.handOver(60, 'storm').away };
+    let back = 0, none = 0;
+    for (let t = 0; t < 200; t++) { back += M.driftHome(f, 1, true); none += M.driftHome(g, 1, false); }
+    near(Math.round(back), 17, 18, 'in 200 s fed and safe, of 18 who fled, back');
+    if (none) out.push(`${none.toFixed(1)} came home to an unsafe place`);
+    for (let t = 0; t < 500; t++) M.driftHome(g, 1, false);
+    if (g.fled) out.push('those who fled wait on forever');
+    return out;
+  }));
+
   // Earned troops (creator, 2026-11-22): veterans drill at a barracks into serjeants and
   // yeomen from Lord and train at a knights' hall from Count, for real fees, and each step
   // draws more pay than the one before; the hall shows greyed at Lord.

@@ -11,6 +11,7 @@ import { PACE } from './pace.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
 import { TYPES, vetRank, VET_RANKS } from './battle.js';
+import { driftHome } from './world/militia.js';
 
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
@@ -259,6 +260,10 @@ export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
 export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
 // A band's or a garrison's strength, the sum auto-resolve and the attack ask reckon with (world.js).
 export const power = units => units.reduce((n, u) => n + u.count * value(u.key) * armourWeight(u), 0);
+// Hopeless odds: under a third of the other side's strength. A place's people won't turn
+// out against them, and the place may yield on terms (world/militia.js).
+export const HOPELESS = 1 / 3;
+export const outmatched = (mine, theirs) => power(mine) < power(theirs) * HOPELESS;
 // A barracks' rule for its racks. Raising picks the armour for the whole regiment from it.
 export const POLICIES = {
   best: { name: 'Best available', about: 'Each levy wears the best armour the racks hold enough of for every man, with shields if there are enough.' },
@@ -1124,10 +1129,15 @@ export class Town {
     // two together are clearly weaker, they keep to the keep and meet it there, not in the open;
     // they go out when they are on the stronger side again.
     const theirs = this.strength(foes), stand = this.strength(mine.filter(r => !r.T.militia)), total = stand + this.strength(mine.filter(r => r.T.militia));
+    // Against hopeless odds (under a third of them, everyone out: HOPELESS) they stay in
+    // their homes instead, as a rival's people do (world/militia.js), and the place may yield.
     if (!this.calledOut && stand < theirs * 1.1 && !this.militia.length && this.musterCheck().ok) {
       this.calledOut = true;
-      this.say('Outnumbered: the whole village is called out.', 1);
-      this.muster();
+      if (this.hopeless()) this.say(`Too many to fight: the people of ${this.placeName || 'the village'} shelter in their homes rather than be cut down.`, 1);
+      else {
+        this.say('Outnumbered: the whole village is called out.', 1);
+        this.muster();
+      }
     }
     if (!this.fallingBack && total < theirs * 0.8) this.fallingBack = true;
     else if (this.fallingBack && total > theirs * 1.0) this.fallingBack = false;
@@ -1184,6 +1194,12 @@ export class Town {
   }
 
   // A side's strength in the field, reckoned as auto-resolve reckons it (world.js resolve).
+  // Would even everyone called out be under a third of an assault (or a raid) on the place?
+  hopeless() {
+    const foes = this.attackers.filter(g => !g.leaving && g.mode !== 'hold').flatMap(g => g.regs);
+    const mine = this.battle.regs.filter(r => r.side === 0 && !r.routing && !r.T.engine), n = this.musterCheck().n || 0;
+    return this.strength(mine) + power([{ key: 'folk', count: n }]) < this.strength(foes) * HOPELESS;
+  }
   strength(regs) { return power(regs.filter(r => !r.gone && r.alive > 0).map(r => ({ key: r.T.key, count: r.alive, armour: r.armour, shield: r.shield }))); }
 
   // What the village's defence says: here, and in the world's log if you are not watching.
@@ -2490,6 +2506,15 @@ export class Town {
       const v = this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120);
       v.wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
       this.event('A newcomer has settled in the village.');
+    }
+    // Those who fled when it changed hands come home while it is fed, safe and has room (world/militia.js).
+    if (this.fled) {
+      this.fledBack = (this.fledBack || 0) + driftHome(this, dt, !this.hungry && !this.underAttack && this.population < this.housing);
+      for (; this.fledBack >= 1; this.fledBack--) {
+        const a = this.rand() * Math.PI * 2;
+        this.addVillager(Math.sin(a) * 120, Math.cos(a) * 120).wander = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 };
+        this.event('One of those who fled has come home.');
+      }
     }
     this.keep.status = this.keep.workers.length ? this.haulStatus(this.keep) : 'No haulers';
     if (this.keep.hp < this.keep.B.hp && !this.nearestEnemy(this.keep, 50)) this.keep.hp = Math.min(this.keep.B.hp, this.keep.hp + dt * 5);

@@ -337,14 +337,14 @@ export function standDown(e, garrison, n, places = null) {
 
 // A village you ran becomes a holding as it stands: what was built and not burned, its
 // people and what was left in its stores (the victors carry some of it off).
-export function fromTown(t, { kept = 0.6 } = {}) {
+export function fromTown(t, { kept = 0.6, pop: stay = null } = {}) {
   const buildings = {};
   for (const b of t.buildings) if (b.state === 'active' && BUILDINGS[b.kind]) buildings[b.kind] = (buildings[b.kind] || 0) + 1;
   const stock = {};
   for (const [g, q] of Object.entries(t.stock || {})) if (q > 0) stock[g] = q * kept;
   const focus = (buildings.weaponsmith || 0) + (buildings.barracks || 0) >= 2 ? 'military' : buildings.market ? 'trade'
     : (buildings.mine || 0) + (buildings.smelter || 0) >= 2 ? 'production' : 'farming';
-  const pop = Math.max(10, t.villagers.filter(v => v.state !== 'soldier').length * 0.7);
+  const pop = Math.max(10, stay ?? t.villagers.filter(v => v.state !== 'soldier').length * 0.7);
   const e = { pop, level: 1, focus, wealth: 1, buildings, stock, gold: 0, planAt: PLANS[focus].length, grown: 0, buildCd: BUILD_EVERY, arms: 0,
     raised: 0, maxPop: Math.max(100, Math.round(pop * 1.5)), maxBuilt: Math.max(34, Object.values(buildings).reduce((n, k) => n + k, 0) + 8),
     walls: wallsOf(t.battle.walls, 0) };

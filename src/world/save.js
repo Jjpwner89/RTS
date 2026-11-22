@@ -141,7 +141,7 @@ function packTown(t) {
     walls: { nodes, pieces, centre: W.centre[0] },
     state: { taxes: t.taxes, mood: t.mood, grief: t.grief, governor: t.governor, hungry: t.hungry, time: t.time, territory: t.territory,
       nextMeal: t.nextMeal, nextArrival: t.nextArrival, earned: t.earned, keepLevel: t.keepLevel, keepPeak: t.keepPeak, keepBought: t.keepBought, feastAt: t.feastAt, feastUntil: t.feastUntil, masonsUntil: t.masonsUntil, flagColor: t.flagColor, misery: t.misery, rebelCool: t.rebelCool,
-      settling: t.settling, game: t.game, cold: t.cold, lastRaid: t.lastRaid },
+      settling: t.settling, fled: t.fled, fledBack: t.fledBack, game: t.game, cold: t.cold, lastRaid: t.lastRaid },
   };
 }
 

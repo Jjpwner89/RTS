@@ -695,7 +695,9 @@ function nextAsk() {
     // The odds, said plainly (world.autoOdds): both sides' numbers, and what auto-resolve would likely do.
     const o = world.autoOdds(enc), tenths = Math.round(o.chance * 10);
     const word = o.chance >= 0.95 ? 'all but certain to win' : o.chance >= 0.65 ? 'likely to win' : o.chance >= 0.35 ? 'a gamble' : o.chance >= 0.05 ? 'likely to fail' : 'all but certain to fail';
-    box.querySelector('p').textContent += ` Your ${us} against about ${o.them}. Auto-resolve: ${word}${tenths > 0 && tenths < 10 ? ` (about ${tenths} in 10)` : ''}${o.chance >= 0.05 ? `, and a win would cost about ${Math.max(1, Math.round(us * o.winLoss))} men` : ''}.`;
+    // (against hopeless odds it yields without a fight: militia.js yields)
+    if (o.yields) box.querySelector('p').textContent += ` Against so many it cannot hold: left to auto-resolve, it yields on terms. Its garrison marches out, and nearly nine in ten of its people stay; stormed, seven in ten.`;
+    else box.querySelector('p').textContent += ` Your ${us} against about ${o.them}. Auto-resolve: ${word}${tenths > 0 && tenths < 10 ? ` (about ${tenths} in 10)` : ''}${o.chance >= 0.05 ? `, and a win would cost about ${Math.max(1, Math.round(us * o.winLoss))} men` : ''}.`;
     buttons.push([enc.kind === 'assault' ? 'Storm it' : 'Fight it', () => {
       // A place is fought for in the place itself; armies on the road meet in the open.
       if (enc.kind === 'assault') { world.storm(enc); enterTown(enc.poi); } else startField(enc);
