@@ -109,7 +109,7 @@ const MOON = { i: 0.34, sun: '#93acdf', hemi: 0.62, sky: '#5f81d0', zenith: '#09
 const DAYKEYS = [
   { d: 0, ...MOON },
   { d: 0.12, ...MOON },
-  { d: 0.145, i: 0.36, sun: '#c48f8a', hemi: 0.66, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 14, night: 0.7 },
+  { d: 0.145, i: 0.46, sun: '#c48f8a', hemi: 0.78, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 22, night: 0.7 },
   { d: 0.175, i: 0.72, sun: '#ff9a5c', hemi: 0.74, zenith: '#5d72a4', horizon: '#f4ae7e', haze: '#d9a588', elev: 7, night: 0.15 },
   { d: 0.21, i: 0.95, sun: '#ffd2a6', hemi: 0.94, elev: 17, night: 0 },
   { d: 0.32, i: 1, hemi: 1, elev: 28, night: 0 },
@@ -117,7 +117,7 @@ const DAYKEYS = [
   { d: 0.7, i: 1, hemi: 1, elev: 26, night: 0 },
   { d: 0.785, i: 0.95, hemi: 0.95, elev: 16, night: 0 },
   { d: 0.815, i: 0.74, sun: '#ff8a4c', hemi: 0.74, zenith: '#53659c', horizon: '#f39a62', haze: '#d6936f', elev: 6, night: 0.15 },
-  { d: 0.85, i: 0.38, sun: '#d0787a', hemi: 0.66, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 14, night: 0.7 },
+  { d: 0.85, i: 0.46, sun: '#d0787a', hemi: 0.78, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 22, night: 0.7 },
   { d: 0.88, ...MOON },
   { d: 1, ...MOON },
 ];
@@ -461,8 +461,9 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
 // ---- lamps ----
 // Warm lights that come on as night falls (NIGHT): lit windows and hearths in villages, fires in camps, torches
 // carried by regiments. Each is a glow facing the camera, a bright core in a soft halo, drawn a little toward the
-// camera (push, metres) so a lamp set inside a house shows on the wall you see. They come on one by one through
-// dusk and flicker. Cheap: one draw for all of a view's lamps, and none by day.
+// camera (push, metres) so a lamp set inside a house shows on the wall you see. They come on one by one late in
+// dusk, small and dim while the sky is still light, and grow to full by night (creator, 2026-11-22: dusk was hard
+// to see for all the torches); they flicker. Cheap: one draw for all of a view's lamps, and none by day.
 const LAMP_VS = /* glsl */`
 attribute float aSize, aPush, aSeed;
 uniform float uNight, uTime, uH;
@@ -471,9 +472,10 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.);
   mv.xyz += normalize(-mv.xyz) * aPush;
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = min(320., aSize * projectionMatrix[1][1] * uH * .5 / -mv.z);
+  float dark = uNight * uNight;
+  gl_PointSize = min(320., aSize * (.4 + .6 * dark) * projectionMatrix[1][1] * uH * .5 / -mv.z);
   float flick = .86 + .14 * sin(uTime * (6. + aSeed * 5.) + aSeed * 40.) * sin(uTime * 2.3 + aSeed * 17.);
-  vA = smoothstep(.15 + aSeed * .5, .3 + aSeed * .5, uNight) * flick;
+  vA = smoothstep(.45 + aSeed * .4, .6 + aSeed * .4, uNight) * (.35 + .65 * dark) * flick;
 }`;
 const LAMP_FS = /* glsl */`
 uniform vec3 uColor;
@@ -501,7 +503,7 @@ export function lamps(scene, color = '#ffa04a') {
   let n = 0;
   // shown only after dark (checked each frame by the scene's own drawing)
   const was = scene.onBeforeRender;
-  scene.onBeforeRender = function (...a) { was.apply(this, a); points.visible = n > 0 && NIGHT.value > 0.15; };
+  scene.onBeforeRender = function (...a) { was.apply(this, a); points.visible = n > 0 && NIGHT.value > 0.45; };
   return {
     points,
     set(list) {

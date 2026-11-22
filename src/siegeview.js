@@ -341,10 +341,13 @@ export class SiegeView {
   }
 
   updateTorches() {
-    // a night battle, or night falling on the campaign's clock (look.js)
-    const night = this.battle.weather === 'night' || NIGHT.value > 0.4;
+    // a night battle, or night falling on the campaign's clock (look.js): lit late in dusk, the glow small and faint
+    // while the sky is still light and full by night
+    const k = this.battle.weather === 'night' ? 1 : Math.min(1, Math.max(0, (NIGHT.value - 0.6) / 0.4)), night = k > 0;
     this.torchGlow.visible = night;
     if (!night) { this.torchFlames.count = 0; return; }
+    this.torchGlow.material.opacity = 0.3 + 0.7 * k;
+    this.torchGlow.material.size = 9 * (0.45 + 0.55 * k);
     if (this.torchVersion !== this.battle.walls.version) { this.torchVersion = this.battle.walls.version; this.placeTorches(); }
     const d = this.dummy, t = this.battle.time;
     d.rotation.set(0, 0, 0);
