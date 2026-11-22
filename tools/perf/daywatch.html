@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Day stopwatch</title>
+<style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style>
+<iframe id="f"></iframe>
+<script type="module">
+// Times a whole day on the campaign's own clock, in a headless Chrome, by the wall clock:
+//   PAGE=daywatch.html sh tools/perf/runprof.sh 'test=lord&speed=1&secs=250' 300
+// Plays the test save at that speed and, every quarter second, reads the dial's name (look.js dayDial) and how
+// dark it is (NIGHT). Posts each change of the dial's name with the wall-clock and game seconds, how long each
+// part lasted, and when it was full dark (NIGHT 1) and full day (NIGHT 0), then done.
+const P = new URLSearchParams(location.search);
+const SINK = P.get('sink') || 8733;
+const post = o => fetch(`http://127.0.0.1:${SINK}/prof.json`, { method: 'POST', body: JSON.stringify(o) });
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const f = document.getElementById('f');
+f.src = '../../' + (P.get('page') || `world.html?test=${P.get('test') || 'lord'}`);
+try {
+  await new Promise(r => f.onload = r);
+  const w = f.contentWindow, errs = [];
+  w.addEventListener('error', e => errs.push(e.message));
+  for (let i = 0; i < 120 && !(w.game && w.checks); i++) await sleep(250);
+  await sleep(2000);
+  w.document.querySelector(`[data-speed="${P.get('speed') || 1}"]`).click();
+  const G = w.game, secs = +(P.get('secs') || 250), t0 = performance.now(), g0 = G.world.time;
+  let name = null, since = 0, gsince = 0, dark = null;
+  const parts = [], dial = () => w.document.getElementById('daydial')?.textContent.trim();
+  while (performance.now() - t0 < secs * 1000) {
+    const s = (performance.now() - t0) / 1000, g = G.world.time - g0, n = dial(), v = w.look.NIGHT.value;
+    const d = v >= 0.999 ? 'dark' : v <= 0.001 ? 'day' : 'between';
+    if (n !== name) { if (name) parts.push({ part: name, wall: +(s - since).toFixed(2), game: +(g - gsince).toFixed(2) }); post({ at: +s.toFixed(2), game: +g.toFixed(2), dial: n }); name = n; since = s; gsince = g; }
+    if (d !== dark) { post({ at: +s.toFixed(2), game: +g.toFixed(2), light: d }); dark = d; }
+    await sleep(250);
+  }
+  await post({ parts, wall: secs, game: +(G.world.time - g0).toFixed(2) });
+  await post({ done: true, errs });
+} catch (e) { await post({ error: String(e.stack || e) }); }
+</script>

@@ -5,11 +5,11 @@
 <iframe id="f"></iframe>
 <script type="module">
 // Shots of a page at given times of day (look.js), in a headless Chrome, optionally with checks() at each:
-//   PAGE=dayshots.html sh tools/perf/runprof.sh 'test=lord&at=world:30,world:105,town:105&checks=1'
-//   PAGE=dayshots.html sh tools/perf/runprof.sh 'page=battle.html&at=here:30,here:105&checks=1'
+//   PAGE=dayshots.html sh tools/perf/runprof.sh 'test=lord&at=world:30,world:150,town:150&checks=1'
+//   PAGE=dayshots.html sh tools/perf/runprof.sh 'page=battle.html&at=here:30,here:150&checks=1'
 // page: the page to load (default world.html?test=<test>); at: view:seconds, where view is world or town (the
 // campaign goes there first) or here; each stops the clock at that many seconds, waits, and PUTs a jpg to the
-// shot sink. width=527 narrows the page and reports whether the top bar fits. Posts each result, then done.
+// shot sink (look.js day: noon 30, dusk 120 to 132, midnight 150, dawn 168 to 180). width=527 narrows the page and reports whether the top bar fits. Posts each result, then done.
 const P = new URLSearchParams(location.search);
 const SINK = P.get('sink') || 8733, SHOTS = P.get('shotport') || 8732;
 const post = o => fetch(`http://127.0.0.1:${SINK}/prof.json`, { method: 'POST', body: JSON.stringify(o) });
@@ -25,7 +25,7 @@ try {
   for (let i = 0; i < 120 && !(w.game && w.checks); i++) await sleep(250);
   const G = w.game;
   await sleep(2500);
-  for (const shot of (P.get('at') || 'world:105').split(',')) {
+  for (const shot of (P.get('at') || 'world:150').split(',')) {
     const [view, t] = shot.split(':');
     if (view === 'town' && G.mode !== 'town') { G.enterTown(G.world.pois.find(p => p.town && p.owner === 0) || G.world.pois.find(p => p.town)); await sleep(3000); }
     if (view === 'world' && G.mode !== 'world') { G.showWorld(); await sleep(2000); }

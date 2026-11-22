@@ -73,7 +73,7 @@ const WEATHER = {
 // ---- the year and the day ----
 // On the campaign's clock a year is 1200 seconds (world.js season) and a day DAY seconds. Without a clock (a
 // battle on its own) nothing turns: late spring at midday, as the game always looked.
-export const YEAR = 1200, DAY = 150;
+export const YEAR = 1200, DAY = 240;
 // The grass's season, for the ground and the grass tufts (scenery.js): a tint and how much winter frost pales it.
 export const SEASON = { uGrass: { value: new THREE.Color(1, 1, 1) }, uFrost: { value: 0 } };
 // The leaves' season, for trees (terrain.js): a tint for broadleaves (pines keep theirs) and whether birches are bare.
@@ -102,23 +102,24 @@ function turnYear(t) {
 // and haze, how high the sun (or by night the moon) stands (degrees), and how dark it is (night: lamps, torches and
 // stars). Dawn and dusk are warm and low; the night is a dark moonlit blue, and regiments read by their banners,
 // torches and rings (view.js), not by a bright world (lifted a little, creator 2026-11-21: "slightly brighter"). d: 0 midnight, 0.5 noon. Keys without colours keep the weather's.
-// The creator's ruling (2026-11-21, "night should not last as long as day"): of each day about 60% is day, 8% dusk,
-// 24% full dark and 8% dawn (PARTS), with dusk and dawn still clearly seen. The sounds of the hour follow (audio.js).
-export const PARTS = { dawn: [0.12, 0.2], dusk: [0.8, 0.88] };
+// The creator's rulings: night is shorter than day (2026-11-21), and the day longer while night, dusk and dawn keep
+// their length (2026-11-22). Of each DAY = 240 s, 180 s is daylight, 12 s dusk, 36 s full dark and 12 s dawn (PARTS),
+// with dusk and dawn still clearly seen. The sounds of the hour follow (audio.js).
+export const PARTS = { dawn: [0.075, 0.125], dusk: [0.875, 0.925] };
 const MOON = { i: 0.34, sun: '#93acdf', hemi: 0.62, sky: '#5f81d0', zenith: '#09132b', horizon: '#1e2d4e', haze: '#1c2a48', elev: 42, night: 1 };
 const DAYKEYS = [
   { d: 0, ...MOON },
-  { d: 0.12, ...MOON },
-  { d: 0.145, i: 0.46, sun: '#c48f8a', hemi: 0.78, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 22, night: 0.7 },
-  { d: 0.175, i: 0.72, sun: '#ff9a5c', hemi: 0.74, zenith: '#5d72a4', horizon: '#f4ae7e', haze: '#d9a588', elev: 7, night: 0.15 },
-  { d: 0.21, i: 0.95, sun: '#ffd2a6', hemi: 0.94, elev: 17, night: 0 },
-  { d: 0.32, i: 1, hemi: 1, elev: 28, night: 0 },
+  { d: 0.075, ...MOON },
+  { d: 0.0906, i: 0.46, sun: '#c48f8a', hemi: 0.78, sky: '#7d88b6', zenith: '#1d2a52', horizon: '#9a6f78', haze: '#5a4f62', elev: 22, night: 0.7 },
+  { d: 0.1094, i: 0.72, sun: '#ff9a5c', hemi: 0.74, zenith: '#5d72a4', horizon: '#f4ae7e', haze: '#d9a588', elev: 7, night: 0.15 },
+  { d: 0.1313, i: 0.95, sun: '#ffd2a6', hemi: 0.94, elev: 17, night: 0 },
+  { d: 0.275, i: 1, hemi: 1, elev: 28, night: 0 },
   { d: 0.5, i: 1, hemi: 1, elev: 40, night: 0 },
-  { d: 0.7, i: 1, hemi: 1, elev: 26, night: 0 },
-  { d: 0.785, i: 0.95, hemi: 0.95, elev: 16, night: 0 },
-  { d: 0.815, i: 0.74, sun: '#ff8a4c', hemi: 0.74, zenith: '#53659c', horizon: '#f39a62', haze: '#d6936f', elev: 6, night: 0.15 },
-  { d: 0.85, i: 0.46, sun: '#d0787a', hemi: 0.78, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 22, night: 0.7 },
-  { d: 0.88, ...MOON },
+  { d: 0.75, i: 1, hemi: 1, elev: 26, night: 0 },
+  { d: 0.8656, i: 0.95, hemi: 0.95, elev: 16, night: 0 },
+  { d: 0.8844, i: 0.74, sun: '#ff8a4c', hemi: 0.74, zenith: '#53659c', horizon: '#f39a62', haze: '#d6936f', elev: 6, night: 0.15 },
+  { d: 0.9063, i: 0.46, sun: '#d0787a', hemi: 0.78, sky: '#7d88b6', zenith: '#1c2550', horizon: '#93576a', haze: '#55445e', elev: 22, night: 0.7 },
+  { d: 0.925, ...MOON },
   { d: 1, ...MOON },
 ];
 // The time of day for the top bar: a little dial with the sun (by day) or the moon (by night) climbing over the
@@ -139,8 +140,8 @@ export function dayDial(t) {
 // How dark it is, 0 by day to 1 at night: lamps and torches light, stars come out (lamps(), siegeview.js torches).
 export const NIGHT = { value: 0 };
 const AZIMUTH = Math.atan2(SUN_DIR.z, SUN_DIR.x), tmp = new THREE.Color();
-// the campaign starts in the morning
-export const dayOf = t => ((t / DAY + 0.3) % 1 + 1) % 1;
+// the campaign starts in the morning, and noon falls 30 s in
+export const dayOf = t => ((t / DAY + 0.375) % 1 + 1) % 1;
 function turnDay(s, t) {
   const L = s.userData.look, d = dayOf(t), step = Math.floor(d * 1200);
   if (step === L.dayStep && L.dayWeather === L.weather) return;

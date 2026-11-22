@@ -8,7 +8,7 @@
 // scope) for an event, audio.tick(name, pos, dt, rate, scope) for steady work sounds.
 // `scope` is the Battle the sound belongs to, so villages nobody is watching stay quiet.
 
-import { look, dayOf, PARTS } from './look.js';
+import { look, dayOf, PARTS, DAY } from './look.js';
 
 const ROOT = new URL('../assets/audio/', import.meta.url).href;
 
@@ -292,15 +292,15 @@ export function tick(name, pos, dt, rate, scope) {
 // ---- the hour ----
 
 // The campaign's day (look.js dayOf: 0 midnight, 0.5 noon) as sound: dark is 1 at night and fades
-// through dusk and dawn (look.js PARTS: 0.8 to 0.88, 0.12 to 0.2); dawn peaks as the birds start up. With no
+// through dusk and dawn (look.js PARTS); dawn peaks as the birds start up. With no
 // campaign clock (the test pages) it is always noon.
 function hour() {
   const t = look.clock?.();
   if (t == null) return { dark: 0, dawn: 0, day: 0 };
   const d = dayOf(t), ramp = (a, b, x) => Math.min(1, Math.max(0, (x - a) / (b - a)));
   const dark = d < 0.5 ? 1 - ramp(...PARTS.dawn, d) : ramp(...PARTS.dusk, d);
-  const dawn = Math.sin(Math.PI * ramp(PARTS.dawn[0], PARTS.dawn[0] + 0.2, d)) ** 2 * (d < 0.5 ? 1 : 0);
-  return { dark, dawn, d, day: Math.floor(t / 150 + 0.3) };
+  const dawn = Math.sin(Math.PI * ramp(PARTS.dawn[0], PARTS.dawn[0] + 30 / DAY, d)) ** 2 * (d < 0.5 ? 1 : 0);
+  return { dark, dawn, d, day: Math.floor(t / DAY + 0.375) };
 }
 
 // ---- ambient beds ----
