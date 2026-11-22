@@ -30,6 +30,9 @@ try {
     if (view === 'town' && G.mode !== 'town') { G.enterTown(G.world.pois.find(p => p.town && p.owner === 0) || G.world.pois.find(p => p.town)); await sleep(3000); }
     if (view === 'world' && G.mode !== 'world') { G.showWorld(); await sleep(2000); }
     w.look.look.clock = () => +t;
+    // near=metres: on a battle or town page, look at your first regiment from that close (side=1: the enemy's)
+    const C = G.controls?.cam, r = G.battle?.regs.find(q => q.side === +(P.get('side') || 0) && !q.gone);
+    if (P.get('near') && C && r) Object.assign(C, { x: r.cx, z: r.cz, dist: +P.get('near') });
     await sleep(1500);
     // notorch=1: no glows (lamps, torches), to compare
     if (P.get('notorch')) (G.stage || w.stage).current().traverse(o => { if (o.isPoints) o.material.visible = false; });
@@ -40,7 +43,7 @@ try {
       st.renderer.render(st.current(), st.camera); const c2 = document.createElement('canvas'); c2.width = 1024; c2.height = Math.round(1024 * cv.height / cv.width);
       c2.getContext('2d').drawImage(cv, 0, 0, c2.width, c2.height);
       const blob = await new Promise(res => c2.toBlob(res, 'image/jpeg', 0.88));
-      await fetch(`http://127.0.0.1:${SHOTS}/day-${view}-${t}${P.get('width') ? '-w' + P.get('width') : ''}${P.get('notorch') ? '-dark' : ''}.jpg`, { method: 'PUT', body: blob });
+      await fetch(`http://127.0.0.1:${SHOTS}/day-${view}-${t}${P.get('width') ? '-w' + P.get('width') : ''}${P.get('notorch') ? '-dark' : ''}${P.get('near') ? '-near' : ''}.jpg`, { method: 'PUT', body: blob });
     }
     const out = { shot, night: w.look.NIGHT.value, dial: w.document.getElementById('daydial')?.textContent };
     // hide=sel: leave something out of the page first, to compare (hide=%23daydial)

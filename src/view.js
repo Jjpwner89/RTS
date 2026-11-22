@@ -8,7 +8,7 @@ import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor, gaitSpeed, CADENCE } from './anim.js';
 import { fxFor } from './fx.js';
-import { SUN_DIR, NIGHT, lamps } from './look.js';
+import { SUN_DIR, NIGHT, lamps, torchPools } from './look.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -536,7 +536,9 @@ export class BattleView {
     this.syncSoldiers();
     this.buildArrows();
     this.syncBanners();
-    this.torches = lamps(scene, '#ffb25e');   // by night each regiment carries a torch by its banner
+    // by night a few men in each regiment carry torches, lighting the ground round them
+    this.torches = lamps(scene, '#ffb25e');
+    this.torchPools = torchPools(scene, heightAt);
     this.torchCount = 0;
     if (keeps) buildKeeps(scene, heightAt);
     this.outlines = new THREE.Group();
@@ -852,19 +854,35 @@ export class BattleView {
     this.fx.battle(b, this, selection);   // fx
   }
 
-  // A torch beside each regiment's banner, so a regiment reads by night (none for the gone or unseen).
+  // A few torches carried in each regiment's ranks, by night: small flames at head height on living men spread
+  // along its front (one for every fifteen or so, up to four, six metres apart at least), and a soft warm pool on the ground round the regiment,
+  // so the men read by their own light (none for the gone or unseen).
   carryTorches() {
-    const T = this.torches;
+    const T = this.torches, PER = 4;
     if (this.torchCount !== this.banners.length) {
       this.torchCount = this.banners.length;
-      T.set(this.banners.map(() => ({ x: 0, y: -1e4, z: 0, size: 9 })));
+      T.set(Array.from({ length: this.banners.length * PER }, () => ({ x: 0, y: -1e4, z: 0, size: 2.2 })));
     }
+    const pools = [];
     this.banners.forEach((bn, i) => {
-      const r = bn.r, p = bn.sprite.position;
-      if (r.gone || r.unseen) T.move(i, 0, -1e4, 0);
-      else T.move(i, p.x + 1.2, p.y - 3.2, p.z);
+      const r = bn.r, men = r.gone || r.unseen ? [] : r.soldiers.filter(s => s.alive && !s.gone);
+      const lift = r.T.mounted ? 3.1 : 2.1;
+      // the torches go evenly along the regiment's front: to the man nearest each spot across it
+      const ax = Math.cos(r.angle), az = -Math.sin(r.angle), along = s => (s.x - r.cx) * ax + (s.z - r.cz) * az;
+      let far = 0, lo = Infinity, hi = -Infinity;
+      for (const s of men) { far = Math.max(far, (s.x - r.cx) ** 2 + (s.z - r.cz) ** 2); const t = along(s); lo = Math.min(lo, t); hi = Math.max(hi, t); }
+      // and at least six metres apart, so a tight crew (an engine's) carries one, not a cluster
+      const k = men.length ? Math.min(PER, Math.ceil(men.length / 15), 1 + Math.floor((hi - lo) / 6)) : 0;
+      for (let j = 0; j < PER; j++) {
+        let s = null, best = Infinity;
+        const want = lo + (hi - lo) * (j + 0.5) / k;
+        if (j < k) for (const m of men) { const d = Math.abs(along(m) - want); if (d < best) { best = d; s = m; } }
+        if (s) T.move(i * PER + j, s.x, this.heightAt(s.x, s.z) + lift, s.z); else T.move(i * PER + j, 0, -1e4, 0);
+      }
+      if (k) pools.push({ x: r.cx, z: r.cz, radius: Math.min(16, Math.max(5, Math.sqrt(far))) + 3 });
     });
     T.update();
+    this.torchPools.set(pools);
   }
 
   // Marks on the ground: where selected regiments stand, where they are heading, and whom they attack. Each is a

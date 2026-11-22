@@ -525,4 +525,62 @@ export function lamps(scene, color = '#ffa04a') {
   };
 }
 
+// Warm pools of torchlight on the ground (regiments by night, view.js): set([{ x, z, radius }]) each frame. Each pool
+// is a small grid laid on the ground (heightAt) and added to what is there, faint at its edge, fading in with the
+// lamps as night falls.
+const POOL_VS = /* glsl */`
+attribute float aR;
+varying float vR;
+void main() { vR = aR; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
+const POOL_FS = /* glsl */`
+uniform vec3 uColor;
+uniform float uNight;
+varying float vR;
+void main() {
+  float a = smoothstep(.45, .6, uNight) * (.35 + .65 * smoothstep(.85, 1., uNight)), f = 1. - clamp(vR, 0., 1.);
+  gl_FragColor = vec4(uColor * a * f * f, 1.);
+}`;
+export function torchPools(scene, heightAt, color = '#ff9a4a') {
+  const N = 7, geo = new THREE.BufferGeometry();
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uNight: NIGHT, uColor: { value: new THREE.Color(color).multiplyScalar(0.22) } },
+    vertexShader: POOL_VS, fragmentShader: POOL_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, fog: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 9;
+  mesh.visible = false;
+  scene.add(mesh);
+  let room = 0, pos, rr;
+  // one grid's triangles, repeated for each pool
+  const cell = [];
+  for (let i = 0; i < N - 1; i++) for (let j = 0; j < N - 1; j++) { const a = i * N + j; cell.push(a, a + 1, a + N, a + 1, a + N + 1, a + N); }
+  return {
+    mesh,
+    set(list) {
+      mesh.visible = list.length > 0 && NIGHT.value > 0.45;
+      if (!mesh.visible) return;
+      if (list.length > room) {
+        room = Math.max(list.length, room * 2, 8);
+        pos = new Float32Array(room * N * N * 3); rr = new Float32Array(room * N * N);
+        const idx = new Uint32Array(room * cell.length);
+        for (let p = 0; p < room; p++) cell.forEach((v, k) => { idx[p * cell.length + k] = v + p * N * N; });
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('aR', new THREE.BufferAttribute(rr, 1));
+        geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      }
+      list.forEach((l, p) => {
+        for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+          const u = i / (N - 1) * 2 - 1, v = j / (N - 1) * 2 - 1, x = l.x + u * l.radius, z = l.z + v * l.radius, k = p * N * N + i * N + j;
+          pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, z) + 0.15; pos[k * 3 + 2] = z;
+          rr[k] = Math.hypot(u, v);
+        }
+      });
+      geo.setDrawRange(0, list.length * cell.length);
+      geo.attributes.position.needsUpdate = geo.attributes.aR.needsUpdate = true;
+    },
+  };
+}
+
 if (typeof window !== 'undefined') window.look = { bench, quality, setQuality, setWeather, look, QUALITY, GRADE, PALETTE, SEASON, year, dayOf, NIGHT };

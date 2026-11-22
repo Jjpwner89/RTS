@@ -277,11 +277,11 @@ export class TownView {
   // A lamp in each standing building, a little above the door, shown on the side the camera sees; three in the keep.
   placeLights() {
     const list = [], k = this.keep, kr = k.geometry.boundingSphere || (k.geometry.computeBoundingSphere(), k.geometry.boundingSphere);
-    for (const [dx, dz] of [[0, 0], [2, 1], [-2, 1]]) list.push({ x: k.position.x + dx, y: k.position.y + 2.4 + Math.abs(dx), z: k.position.z + dz, size: 7, push: kr.radius * 0.7 });
+    for (const [dx, dz] of [[0, 0], [2, 1], [-2, 1]]) list.push({ x: k.position.x + dx, y: k.position.y + 2.4 + Math.abs(dx), z: k.position.z + dz, size: 4, push: kr.radius * 0.7 });
     for (const [b, o] of this.meshes) {
       if (b.state !== 'active') continue;
       const g = o.mesh.geometry, r = (g.boundingSphere || (g.computeBoundingSphere(), g.boundingSphere)).radius;
-      list.push({ x: b.x, y: o.mesh.position.y + Math.min(2.2, r * 0.45), z: b.z, size: 4 + r * 0.6, push: r * 0.75 });
+      list.push({ x: b.x, y: o.mesh.position.y + Math.min(2.2, r * 0.45), z: b.z, size: 3 + r * 0.3, push: r * 0.75 });   // window-sized, not orbs
     }
     this.lights.set(list);
   }

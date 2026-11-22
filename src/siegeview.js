@@ -347,8 +347,8 @@ export class SiegeView {
     this.torchGlow.visible = night;
     if (!night) { this.torchFlames.count = 0; return; }
     const x = Math.min(1, Math.max(0, (n - 0.85) / 0.15)), k = x * x * (3 - 2 * x);
-    this.torchGlow.material.opacity = 0.3 + 0.7 * k;
-    this.torchGlow.material.size = 9 * (0.45 + 0.55 * k);
+    this.torchGlow.material.opacity = 0.2 + 0.5 * k;   // a halo round the flame, not an orb hiding the wall
+    this.torchGlow.material.size = 4.5 * (0.45 + 0.55 * k);
     if (this.torchVersion !== this.battle.walls.version) { this.torchVersion = this.battle.walls.version; this.placeTorches(); }
     const d = this.dummy, t = this.battle.time;
     d.rotation.set(0, 0, 0);
