@@ -462,8 +462,8 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
 // Warm lights that come on as night falls (NIGHT): lit windows and hearths in villages, fires in camps, torches
 // carried by regiments. Each is a glow facing the camera, a bright core in a soft halo, drawn a little toward the
 // camera (push, metres) so a lamp set inside a house shows on the wall you see. They come on one by one late in
-// dusk, small and dim while the sky is still light, and grow to full by night (creator, 2026-11-22: dusk was hard
-// to see for all the torches); they flicker. Cheap: one draw for all of a view's lamps, and none by day.
+// dusk, small and dim while any light is left in the sky, and grow to full only in the last of it (creator,
+// 2026-11-22: dusk was hard to see for all the torches; QC: still blobs at NIGHT 0.85); they flicker. Cheap: one draw for all of a view's lamps, and none by day.
 const LAMP_VS = /* glsl */`
 attribute float aSize, aPush, aSeed;
 uniform float uNight, uTime, uH;
@@ -472,7 +472,7 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.);
   mv.xyz += normalize(-mv.xyz) * aPush;
   gl_Position = projectionMatrix * mv;
-  float dark = uNight * uNight;
+  float dark = smoothstep(.85, 1., uNight);
   gl_PointSize = min(320., aSize * (.4 + .6 * dark) * projectionMatrix[1][1] * uH * .5 / -mv.z);
   float flick = .86 + .14 * sin(uTime * (6. + aSeed * 5.) + aSeed * 40.) * sin(uTime * 2.3 + aSeed * 17.);
   vA = smoothstep(.45 + aSeed * .4, .6 + aSeed * .4, uNight) * (.35 + .65 * dark) * flick;
