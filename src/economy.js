@@ -10,7 +10,7 @@ import { RoadNet } from './roadnet.js';
 import { PACE } from './pace.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
-import { TYPES, vetRank, VET_RANKS } from './battle.js';
+import { TYPES, FORMATIONS, vetRank, VET_RANKS } from './battle.js';
 import { driftHome } from './world/militia.js';
 
 export const GOODS = {
@@ -2888,11 +2888,138 @@ export class Town {
           v.state = 'soldier'; v.soldier = s; s.villager = v; v.xp = sp.xp || 0;
         });
       }
-      // up the road toward the keep, on the nearest open ground (a town's houses front its streets)
-      const stand = this.openGround(Math.sin(angle) * standAt, Math.cos(angle) * standAt, Math.min(22, 5 + Math.sqrt(sp.count) * 1.3));
-      r.dest = { x: stand.x, z: stand.z, angle: Math.atan2(stand.x, stand.z) };
     }
+    // up the road toward the keep, to form up together beside it (`formUp`)
+    this.formUp(added, angle, standAt);
     return added;
+  }
+
+  // A regiment's block standing at (x, z) facing `angle`: half its width, and how far its
+  // ranks reach behind the front (battle.js slot), with a man's room round the edge.
+  block(r, x, z, angle) {
+    const F = FORMATIONS[r.formation] || FORMATIONS.line, n = Math.max(1, r.alive ?? r.count);
+    const files = Math.max(1, Math.min(r.files, n));
+    return { x, z, angle, w: (files - 1) * r.T.spacing * F.spacing / 2 + 1,
+      back: (Math.ceil(n / files) - 1) * (r.T.depth || r.T.spacing) * F.depth + 1 + (r.T.engineLen || 0) };
+  }
+  // Where a regiment stands, or is going to stand, as a block.
+  standing(r) {
+    const d = r.dest;
+    return d && d.angle != null ? this.block(r, d.x, d.z, d.angle) : this.block(r, r.x, r.z, r.angle);
+  }
+  // Points over a block, a man's spacing apart, in the world.
+  blockPoints(k, pad = 0) {
+    const sin = Math.sin(k.angle), cos = Math.cos(k.angle), pts = [];
+    const nx = Math.max(1, Math.ceil((k.w + pad) * 2 / 1.5)), nz = Math.max(1, Math.ceil((k.back + 1 + pad * 2) / 1.5));
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+      const lx = -k.w - pad + i * (k.w + pad) * 2 / nx, lz = 1 + pad - j * (k.back + 1 + pad * 2) / nz;
+      pts.push({ x: k.x + cos * lx + sin * lz, z: k.z - sin * lx + cos * lz });
+    }
+    return pts;
+  }
+  // Whether world point p is inside block k, grown by `pad` all round.
+  inBlock(k, p, pad = 0) {
+    const dx = p.x - k.x, dz = p.z - k.z, sin = Math.sin(k.angle), cos = Math.cos(k.angle);
+    const lx = dx * cos - dz * sin, lz = dx * sin + dz * cos;
+    return Math.abs(lx) <= k.w + pad && lz <= 1 + pad && lz >= -k.back - pad;
+  }
+  // The tracks and lanes villagers walk, and the paved roads: (x, z) is on one, give or take `pad`.
+  onWay(x, z, pad = 0) {
+    for (const a of this.roadAngles || []) {
+      const along = x * Math.sin(a) + z * Math.cos(a), across = x * Math.cos(a) - z * Math.sin(a);
+      if (along > 0 && Math.abs(across) < 3 + pad) return true;
+    }
+    for (const l of this.lanes || []) for (let i = 1; i < l.pts.length; i++) {
+      const a = { x: l.pts[i - 1][0], z: l.pts[i - 1][1] }, b = { x: l.pts[i][0], z: l.pts[i][1] };
+      if (segDist({ x, z }, a, b) < (l.width || 3) / 2 + pad) return true;
+    }
+    return this.roads.some(o => segDist({ x, z }, o.a, o.b) < ROAD.width / 2 + pad);
+  }
+  // What standing block k there costs: Infinity unless it is its own ground, clear of
+  // buildings, the keep, walls and the blocks in `taken` (a few strides round each), and off
+  // the roads and lanes if `roads`; otherwise how many of the standing `trees` it stands
+  // among (a wooded village has little else near it, but open ground is better).
+  groundCost(k, taken, trees, roads) {
+    const GAP = 3, R = k.w + k.back + 4, blds = this.buildings.concat([this.keep]).filter(b => Math.hypot(b.x - k.x, b.z - k.z) < b.B.radius + R);
+    const others = taken.filter(o => Math.hypot(o.x - k.x, o.z - k.z) < o.w + o.back + k.w + k.back + GAP * 2);
+    const free = this.blockPoints(k, 0.5).every(p => !blds.some(b => Math.hypot(b.x - p.x, b.z - p.z) < b.B.radius + 1)
+      && !others.some(o => this.inBlock(o, p, GAP)) && !this.battle.walls.pieceAt(p.x, p.z, null, 1.5) && !(roads && this.onWay(p.x, p.z, 1)));
+    if (!free) return Infinity;
+    let n = 0;
+    for (const t of trees) if (Math.abs(t.x - k.x) < R && Math.abs(t.z - k.z) < R && this.inBlock(k, t, 1)) n++;
+    return n;
+  }
+  // The blocks of your other regiments, standing or on their way.
+  takenGround(but) {
+    return this.battle.regs.filter(o => !but.includes(o) && o.side === 0 && !o.gone && !o.routing).map(o => this.standing(o));
+  }
+  // An army arriving by road forms up beside it, facing out along it: its regiments side by
+  // side, a few strides apart, in lines of up to ~90 m on one side of the road, the next line
+  // further out. The whole block goes where every regiment of it has its own place
+  // (`groundCost`), off the road and lanes, as near the stand as it can and out of the
+  // trees where it can; later arrivals find theirs the same way round the blocks already
+  // there. If there is no such ground, each regiment finds the nearest place of its own
+  // (`standSlot`).
+  formUp(regs, angle, standAt, taken = this.takenGround(regs)) {
+    if (!regs.length) return;
+    const sin = Math.sin(angle), cos = Math.cos(angle), GAP = 3, ROW = 90, TREE = 3;
+    const trees = this.nodes.tree.filter(t => t.standing);
+    // lines across the road: [{ regs, w (the whole line's width), back }]
+    const lines = [];
+    for (const r of regs) {
+      const k = this.block(r, 0, 0, angle), last = lines.at(-1), w = k.w * 2 + GAP * 2;
+      if (last && last.w + w <= ROW) { last.regs.push([r, k]); last.w += w; last.back = Math.max(last.back, k.back); }
+      else lines.push({ regs: [[r, k]], w, back: k.back });
+    }
+    // the whole block with its front line `along` the road, `off` metres to one side of it
+    const place = (along0, side, off, most) => {
+      const plan = [];
+      let along = along0, cost = 0;
+      for (const [n, l] of lines.entries()) {
+        if (n) along += l.back + 1 + GAP * 2;
+        let across = side * (3 + 1 + off);
+        for (const [r, k] of l.regs) {
+          across += side * (k.w + GAP);
+          const b = this.block(r, sin * along + cos * across, cos * along - sin * across, angle);
+          cost += this.groundCost(b, taken.concat(plan.map(p => p.b)), trees, true) * TREE;
+          if (cost >= most) return null;
+          plan.push({ r, b });
+          across += side * (k.w + GAP);
+        }
+      }
+      return { plan, cost };
+    };
+    const tries = [];
+    for (let d = 0; d <= 80; d += 4) for (const da of d ? [d, -d] : [0]) for (let off = 0; off <= 40; off += 2) for (const side of [1, -1]) {
+      const along = standAt + da;
+      if (along > 8 && along < 180) tries.push({ along, side, off, cost: off + Math.abs(da) * (da < 0 ? 1.5 : 0.7) });
+    }
+    tries.sort((a, b) => a.cost - b.cost);
+    let best = null;
+    for (const t of tries) {
+      if (best && t.cost >= best.cost) break;
+      const got = place(t.along, t.side, t.off, best ? best.cost - t.cost : Infinity);
+      if (got) best = { plan: got.plan, cost: t.cost + got.cost };
+    }
+    if (best) { for (const { r, b } of best.plan) r.dest = { x: b.x, z: b.z, angle }; return; }
+    for (const r of regs) r.dest = this.standSlot(r, angle, standAt, taken.concat(regs.filter(o => o.dest).map(o => this.standing(o))));
+  }
+  // One regiment's own place near the road it came in by: the nearest free ground off the
+  // roads, else the nearest free ground at all, else (with a warning) the nearest open ground.
+  standSlot(r, angle, standAt, taken = this.takenGround([r])) {
+    const sin = Math.sin(angle), cos = Math.cos(angle), spots = [];
+    for (let along = 10; along < 180; along += 3) for (let across = -60; across <= 60; across += 3) {
+      spots.push({ x: sin * along + cos * across, z: cos * along - sin * across, cost: Math.abs(across) + Math.abs(along - standAt) * 1.2 });
+    }
+    spots.sort((a, b) => a.cost - b.cost);
+    for (const roads of [true, false]) for (const s of spots) {
+      const k = this.block(r, s.x, s.z, angle);
+      if (this.groundCost(k, taken, [], roads) < Infinity) return { x: k.x, z: k.z, angle };
+    }
+    const stand = this.openGround(sin * standAt, cos * standAt, Math.min(22, 5 + Math.sqrt(r.alive) * 1.3));
+    console.warn(`standSlot: no free ground for ${r.name}; it stands at the nearest open ground`);
+    this.event(`No room left for the ${r.name} to form up on their own: they stand where they can.`);
+    return { x: stand.x, z: stand.z, angle };
   }
 
   // The nearest point to (x, z) with room for a body of men `r` across: clear of buildings,

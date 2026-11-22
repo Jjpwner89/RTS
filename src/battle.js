@@ -119,6 +119,10 @@ export function lookChain(key) {
 }
 
 // Formations: spacing and depth multiply the unit's own; the rest change the fight.
+// How many files a regiment of `count` men of type T stands in.
+export const filesFor = (T, count) => count > T.count ? Math.min(count, Math.max(T.files, Math.round(Math.sqrt(count * T.files * T.files / T.count))))
+  : Math.min(T.files, Math.max(T.engine ? 1 : 4, Math.ceil(count / 2)));
+
 export const FORMATIONS = {
   line: { name: 'Line', key: 'n', spacing: 1, depth: 1, speed: 1, def: 0, morale: 1 },
   tight: { name: 'Tight', key: 't', spacing: 0.78, depth: 0.85, speed: 0.85, def: 0.08, morale: 0.8, desc: 'Shoulder to shoulder: harder to break, slower, an easy target for arrows' },
@@ -453,8 +457,7 @@ export class Battle {
     const T = TYPES[key];
     count = Math.max(1, Math.round(count || T.count));
     const n = this.counts[side][key] = (this.counts[side][key] || 0) + 1;
-    const files = count > T.count ? Math.min(count, Math.max(T.files, Math.round(Math.sqrt(count * T.files * T.files / T.count))))
-      : Math.min(T.files, Math.max(T.engine ? 1 : 4, Math.ceil(count / 2)));
+    const files = filesFor(T, count);
     const r = {
       id: this.regs.length, side, T, name: name || (T.engine ? `${T.name} ${n}` : `${ORDINAL(n)} ${T.name}`),
       x, z, angle, files, dest: null, targetReg: null, morale: T.morale, routing: false, routedAt: 0, rallied: false, regrouping: false,

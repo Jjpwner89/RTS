@@ -437,6 +437,7 @@ export class World {
     const battle = new Battle(heightAt, p.seed, { deploy: false, homes: [{ x: 0, z: 0 }, { x: 0, z: -225 }], disbandAtHome: [false, true] });
     const town = new Town(battle, heightAt, trees, rng(p.seed + 7), { kind: p.kind, ...opts });
     town.purse = FACTIONS[0];
+    town.roadAngles = roadAngles;   // so arrivals form up off its roads (economy.js standSlot)
     town.onFall = () => { p.falling = true; };
     town.placeName = p.name;
     // What the village's defence says reaches the world's log when you are not there to see it.

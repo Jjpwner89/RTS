@@ -308,6 +308,35 @@ async function battleChecks({ battle, town, label }) {
     return sample(out);
   });
 
+  // An army marching into a village forms up beside the road it came in by, each regiment on
+  // its own ground (economy.js formUp): not inside another regiment, on a building, the
+  // keep, a wall, a road or a lane. A Count's host of 270 men by every road, then a second
+  // host after it, laid out on this village as it stands; nothing is added to it.
+  if (town && !town.hostile) await check(`${label}: armies marching in form up, each regiment on its own ground`, async () => {
+    const { TYPES, filesFor } = await import('./battle.js');
+    const host = [['knight', 20], ['cav', 20], ['spear', 60], ['sword', 60], ['archer', 40], ['crossbow', 40], ['maa', 30]];
+    const make = () => host.map(([key, count]) => ({ T: TYPES[key], name: `${count} ${TYPES[key].name.toLowerCase()}`, count, alive: count, files: filesFor(TYPES[key], count), formation: 'line', side: 0 }));
+    const overlap = (a, b) => town.blockPoints(a).some(p => town.inBlock(b, p, 1)) || town.blockPoints(b).some(p => town.inBlock(a, p, 1));
+    const out = [];
+    for (const angle of town.roadAngles?.length ? town.roadAngles : [0]) {
+      const road = `the road at ${Math.round(angle * 180 / Math.PI)}°`;
+      let taken = town.takenGround([]);
+      for (const n of [1, 2]) {
+        const regs = make();
+        town.formUp(regs, angle, 40, taken);
+        const blocks = regs.map(r => town.block(r, r.dest.x, r.dest.z, r.dest.angle));
+        blocks.forEach((k, i) => {
+          const r = regs[i];
+          if (town.groundCost(k, [], [], true) === Infinity) out.push(`host ${n} by ${road}: the ${r.name} stand on a building, the keep, a wall, a road or a lane`);
+          if (taken.some(o => overlap(k, o))) out.push(`host ${n} by ${road}: the ${r.name} stand in a regiment already there`);
+          for (let j = 0; j < i; j++) if (overlap(k, blocks[j])) out.push(`host ${n} by ${road}: the ${r.name} stand in the ${regs[j].name}`);
+        });
+        taken = taken.concat(blocks);
+      }
+    }
+    return sample(out);
+  });
+
   // At peace a save can be made, and a save keeps neither soldiers outside a regiment nor
   // a routing regiment (save.js snapshot): such villagers would be lost.
   if (town) await check(`${label}: at peace, every soldier villager stands in a regiment`, () => {
