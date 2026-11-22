@@ -125,6 +125,11 @@ const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, band
   crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
 export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
 
+// Swarming a smaller band (Battle.swarmFoe): its front under `narrower` of the regiment's;
+// once in blows or within `near` m (plus half its front); men go up to `reach` m for a foe,
+// counting each mate already on one as `crowd` m further off.
+const SWARM = { narrower: 0.6, near: 30, reach: 40, crowd: 3 };
+
 // How many files a regiment of `count` men of type T stands in.
 export const filesFor = (T, count) => count > T.count ? Math.min(count, Math.max(T.files, Math.round(Math.sqrt(count * T.files * T.files / T.count))))
   : Math.min(T.files, Math.max(T.engine ? 1 : 4, Math.ceil(count / 2)));
@@ -1765,7 +1770,7 @@ export class Battle {
     // constrain() puts him back there if he ends the step in a wall or the deep channel.
     for (const s of this.soldiers) { s.lx = s.x; s.lz = s.z; }
     for (const r of this.regs) this.updateRegiment(r, dt);
-    for (const r of this.regs) { r.engaged = 0; r._lagSum = 0; r._lagN = 0; if (r.pinch) this.queuePinch(r); }
+    for (const r of this.regs) { r.engagedWas = r.engaged; r.engaged = 0; r._lagSum = 0; r._lagN = 0; if (r.pinch) this.queuePinch(r); }
     for (const s of this.soldiers) if (live(s)) this.updateSoldier(s, dt);
     else if (!s.alive && s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5);
     this.separate();
@@ -1846,6 +1851,34 @@ export class Battle {
   // Villagers called out (folk) who break and run have thrown down their tools: nobody cuts them
   // down or shoots after them, so taking a place doesn't empty it of its people.
   spared(r) { return r.routing && r.T.key === 'folk'; }
+
+  // A regiment sent at a band much narrower than itself, once it is at it (in blows, or within
+  // ~30 m), wraps round and swarms it rather than hold its slots and let the few men nearest
+  // do the fighting: a man with nobody in reach goes for the nearest man of that band within
+  // 40 m, one fewer of his mates are already on. Against a line about as wide as its own it
+  // fights as a line; when the band dies or routs, the men fall back in on their regiment.
+  swarmFoe(s) {
+    const r = s.reg, t = r.targetReg;
+    if (!t || t.gone || t.routing || t.posts || this.shoots(r)) return null;
+    const front = g => Math.max(1, Math.min(g.files, g.alive)) * g.T.spacing;
+    if (front(t) > front(r) * SWARM.narrower) return null;
+    if (!(r.engagedWas > 0) && Math.hypot(r.cx - t.cx, r.cz - t.cz) > SWARM.near + front(t) / 2) return null;
+    if (r._onAt !== this.time) {
+      r._onAt = this.time; r._on = new Map();
+      for (const o of r.soldiers) if (o.target && live(o)) r._on.set(o.target, (r._on.get(o.target) || 0) + 1);
+    }
+    let best = null, bs = Infinity;
+    for (const e of t.soldiers) {
+      if (!live(e) || e.level !== 0 || e.climb) continue;
+      const d = Math.hypot(e.x - s.x, e.z - s.z);
+      if (d > SWARM.reach) continue;
+      const score = d + SWARM.crowd * (r._on.get(e) || 0);
+      if (score < bs) { bs = score; best = e; }
+    }
+    if (!best || (this.nav.any && !this.nav.clear(r.side, s.x, s.z, best.x, best.z))) return null;
+    r._on.set(best, (r._on.get(best) || 0) + 1);
+    return best;
+  }
 
   // Who a soldier can come to blows with. On the ground: men on the ground, with no wall between.
   // On the wall: men on the walkway, climbers on ladders, and anyone at the foot of the wall.
@@ -2252,13 +2285,16 @@ export class Battle {
       s.searchCd -= dt;
       // Men holding their ground only fight whoever reaches them.
       const engageR = this.shoots(r) ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
-      if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (engageR + 2) ** 2
+      // (a man who went for a smaller band's man (swarmFoe) keeps after him further, until that band routs)
+      const holdR = s.swarm ? SWARM.reach : engageR;
+      if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.swarm && s.target.reg.routing) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (holdR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
         const near = this.findTarget(s, Math.max(engageR, s.level === 1 ? POUR_REACH : 0));
-        if (near) s.target = near;
+        if (near) { s.target = near; s.swarm = false; }
         else if (s.target && s.level === 1 && s.target.level !== 1) s.target = null;
+        else if (!s.target && r.targetReg && !r.hold && !r.posts && !s.captain && s.level === 0) { const t = this.swarmFoe(s); if (t) { s.target = t; s.swarm = true; } }
       }
       if (s.target) {
         r.engaged++;

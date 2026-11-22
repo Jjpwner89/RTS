@@ -1673,6 +1673,50 @@ async function orderChecks() {
     return men[0].alive && closest > 4 ? [`after 40 s the nearest of ${A.name} is still ${Math.round(closest)} m from the man on their bank (heading for ${A.dest ? at(A.dest) : 'nowhere'}${A.via ? ', by ' + at(A.via) : ''})`] : [];
   });
 
+  // A regiment sent at a much smaller band swarms it (battle.js swarmFoe): it wraps round the
+  // band, rather than hold its slots while the few men nearest do the fighting (creator,
+  // 2026-11-22: "only like 4 guys attacked").
+  await check('60 spears sent at 8 bandits swarm them: 70% close in or strike within 8 s, and the band breaks', async () => {
+    const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
+    const out = [];
+    for (const d of [15, 40]) {
+      const b = new Battle(makeHeight(4), 4, { deploy: false });
+      const A = b.addRegiment(0, 'spear', 0, d, Math.PI, { count: 60 }), E = b.addRegiment(1, 'bandit', 0, 0, 0, { count: 8 });
+      b.orderAttack([A], E);
+      const man = s => live(s) && !s.captain;
+      let contact = null, best = 0, broke = null;
+      for (let t = 0; t < 40 && broke === null; t += 0.05) {
+        b.step(0.05);
+        const es = E.soldiers.filter(man), ms = A.soldiers.filter(man);
+        const near = s => es.some(e => Math.hypot(e.x - s.x, e.z - s.z) < 6);
+        if (contact === null && ms.some(s => es.some(e => Math.hypot(e.x - s.x, e.z - s.z) < A.T.reach + 1))) contact = t;
+        if (contact !== null && t - contact <= 8) best = Math.max(best, ms.filter(s => near(s) || b.time - (s.struckAt ?? -9) < 1.5).length / ms.length);
+        if (E.routing || E.alive === 0) broke = t;
+      }
+      if (contact === null) { out.push(`from ${d} m the spears never reached the bandits in 40 s`); continue; }
+      if (best < 0.7) out.push(`from ${d} m at most ${Math.round(best * 100)}% of the spears closed in on the bandits or struck within 8 s of the first blow`);
+      if (broke === null || broke - contact > 15) out.push(`from ${d} m the bandits still stood ${Math.round(40 - contact)} s after the first blow`);
+    }
+    return out;
+  });
+
+  // ... and against a line about as wide as its own, a regiment fights as a line: nobody leaves
+  // his place to swarm (the rear ranks step into the gaps, as before).
+  await check('60 spears against 60 spears fight as lines: nobody swarms', async () => {
+    const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
+    const b = new Battle(makeHeight(4), 4, { deploy: false });
+    const A = b.addRegiment(0, 'spear', 0, 30, Math.PI, { count: 60 }), E = b.addRegiment(1, 'spear', 0, 0, 0, { count: 60 });
+    b.orderAttack([A], E); b.orderAttack([E], A);
+    let swarmed = 0, fought = false;
+    for (let t = 0; t < 20; t += 0.05) {
+      b.step(0.05);
+      swarmed = Math.max(swarmed, [...A.soldiers, ...E.soldiers].filter(s => live(s) && s.swarm).length);
+      fought ||= A.engaged > 0;
+    }
+    if (!fought) return ['the two lines never came to blows, so nothing was tested'];
+    return swarmed ? [`${swarmed} men left the line to swarm a line as wide as their own`] : [];
+  });
+
   // Villagers who break are let go (battle.js spared): no man stays locked on one, no regiment
   // keeps an attack on them, and nobody is cut down after the rout.
   await check('routing village militia are let go: no man or regiment stays on them, none die after', async () => {
