@@ -19,11 +19,12 @@ const BASIC = new Set(['wood', 'stone', 'food']);
 const TAB_TIPS = { Village: 'Houses, stores, the market and the church', Gather: 'Wood, stone, ore, food and flax', Craft: 'Workshops: planks, iron, bread, arms and armour (leather armour at the tanner, mail and plate at the armourer)', Military: 'Barracks, stables, siege workshop and watchtowers', Walls: 'Palisades, towers, gates and stone walls', Towns: 'Town templates: a whole quarter laid out at once' };
 const CLOSE = '<button class="close-t" title="Close" data-key="Esc">×</button>';
 
-const gi = g => ico(GOODS[g].icon, GOODS[g].color);
+const gi = g => ico(GOODS[g].icon, GOODS[g].color, GOODS[g].name.toLowerCase());
 // Writes HTML only when it changed, so icons are not rebuilt every frame.
 const put = (el, html) => { if (el.dataset.was !== html) { el.dataset.was = html; el.innerHTML = html; } };
 
-const goldIco = () => ico('gold', '#e8c45a');
+const BEYOND_SHARE = ({ 2: 'half', 3: 'a third', 4: 'a quarter', 5: 'a fifth', 6: 'a sixth' })[Math.round(1 / BEYOND_REACH)] || `1/${Math.round(1 / BEYOND_REACH)}`;
+const goldIco = () => ico('gold', '#e8c45a', 'gold');
 const moodWord = m => m >= 80 ? 'Joyful' : m >= 62 ? 'Content' : m >= 45 ? 'Settled' : m >= 30 ? 'Uneasy' : m >= 18 ? 'Unhappy' : 'Miserable';
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 // What draws newcomers, in a sentence.
@@ -297,7 +298,7 @@ export class TownHud {
     // A keep taxes only so many heads; past its reach each pays a sixth (economy.js KEEP_REACH).
     const reach = KEEP_REACH[keepLevel(t)], over = t.population > reach;
     set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.taxed * t.taxRate * 60).toFixed(0)}/min${over ? ` <small>(keep taxes ${reach} in full)</small>` : ''}`);
-    this.stockEl.querySelector('[data-s="gold"]').title = `The keep taxes up to ${reach} people in full; past that each pays a third. A bigger keep taxes more.`;
+    this.stockEl.querySelector('[data-s="gold"]').title = `The keep taxes up to ${reach} people in full; past that each pays ${BEYOND_SHARE}. A bigger keep taxes more.`;
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
     this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);
@@ -448,19 +449,20 @@ export class TownHud {
     }
     if (b.B.hall && b.state === 'active') {
       rows.push(`<h4>Train elite men</h4><p class="note">Only veterans may train: villagers who fought as levies and came home (${this.town.veterans().length} in the village). A few at a time, for their kit, a fee and minutes of drill each. The hall keeps ${HALL.cap} men at most.${this.hooks.companies ? ` On campaign they draw pay from your treasury: ${ELITE.maa.pay} gold a minute for a man-at-arms, ${ELITE.knight.pay} for a knight.` : ''}</p>`);
-      for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
+      for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText(KITS[k].kit)}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
     }
     if (b.kind === 'barracks' && b.state === 'active') {
+      // Drilled men first: they are the better troops, and the levy list is long.
+      if (this.can('drill')) {
+        rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and some drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
+        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
+      }
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
       rows.push(`<p class="kit" data-f="racks"></p>`);
       rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
       for (const [k, K] of Object.entries(KITS)) {
         if (ELITE[k] || DRILLED[k]) continue;
         rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks, and wears what the racks allow</p>`);
-      }
-      if (this.can('drill')) {
-        rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and some drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
-        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
@@ -496,6 +498,8 @@ export class TownHud {
     return rows.join('');
   }
 
+  // The same in words, for a tooltip (touch has no hover over the icons).
+  goodsText(goods) { return Object.entries(goods).map(([g, n]) => `${n} × ${GOODS[g].name.toLowerCase()}`).join(' + '); }
   goodsList(goods) { return Object.entries(goods).map(([g, n]) => `${n} ${gi(g)}`).join(' + '); }
 
   field(f) {

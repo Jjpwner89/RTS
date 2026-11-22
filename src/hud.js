@@ -107,6 +107,13 @@ export class Hud {
     // The orders bar rides just above the cards, however many rows they take.
     const h = this.cardsEl.offsetHeight;
     if (h && h !== this.cardsH) { this.cardsH = h; this.ordersEl.style.bottom = `${h + 24}px`; }
+    // In a village in a small window the bar rides under whatever panels are on top (skin.css).
+    let top = '';
+    if (sel.length && innerWidth <= 800 && document.body.matches('.town, .campaign.mode-town')) {
+      const y = Math.max(0, ...['stock', 'info'].map(id => document.getElementById(id)).filter(e => e?.offsetParent).map(e => e.getBoundingClientRect().bottom));
+      if (y) top = `${Math.round((y + 4) / (parseFloat(getComputedStyle(this.ordersEl).zoom) || 1))}px`;
+    }
+    if (this.ordersEl.style.top !== top) this.ordersEl.style.top = top;
     if (!sel.length) return;
     for (const btn of this.ordersEl.querySelectorAll('[data-f]')) {
       const f = btn.dataset.f;

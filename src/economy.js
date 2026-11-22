@@ -1333,7 +1333,7 @@ export class Town {
       const T = hall.training, S = T && trainsAt(hall);
       if (!T || !S || hall.state !== 'active') continue;
       T.left -= dt;
-      hall.status = `${S.elite ? 'Training' : 'Drilling'} ${T.n} ${KITS[T.key].name.toLowerCase()}: ${Math.ceil(T.left / 60)} min left`;
+      hall.status = `${S.elite ? 'Training' : 'Drilling'} ${T.n} ${KITS[T.key].name.toLowerCase()}: ${Math.max(1, Math.round(T.left / 60))} min left`;
       if (T.left > 0) continue;
       hall.training = null;
       hall.status = '';

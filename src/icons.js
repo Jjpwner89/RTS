@@ -5,8 +5,9 @@
 // Full addresses, since a url() in a CSS variable resolves against the stylesheet.
 const DIR = new URL('../assets/icons/', import.meta.url).href;
 
-export const ico = (name, color) =>
-  `<i class="ico" style="--i:url(${DIR}${name}.svg)${color ? `;color:${color}` : ''}"></i>`;
+// A label makes it an image for screen readers, and a tooltip.
+export const ico = (name, color, label) =>
+  `<i class="ico"${label ? ` role="img" aria-label="${label}" title="${label}"` : ''} style="--i:url(${DIR}${name}.svg)${color ? `;color:${color}` : ''}"></i>`;
 
 // The icon as an image for canvas textures, tinted one colour; calls back once loaded.
 const cache = {};
