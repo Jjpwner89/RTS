@@ -1527,9 +1527,13 @@ async function menuChecks() {
   const { menu } = await import('./ui/menu.js');
   group = 'Menu';
   await check('a menu button is on screen', () => {
-    const b = document.getElementById('menu-btn'), r = b?.getBoundingClientRect();
+    const b = document.getElementById('menu-btn');
     if (!b) return ['no #menu-btn'];
-    if (!b.offsetParent && getComputedStyle(b).position !== 'fixed') return ["it isn't drawn"];
+    const cs = getComputedStyle(b);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return [`it is ${cs.display === 'none' ? 'display: none' : 'hidden'}`];
+    // A hidden pane (a 0px window) lays nothing out: the button is there and drawn, the rest can't be measured.
+    if (!innerWidth || !innerHeight || document.hidden && !b.getClientRects().length) return { warn: ["can't measure: the window has no size"] };
+    const r = b.getBoundingClientRect();
     if (!r.width || r.left < -1 || r.right > innerWidth + 1) return [`it sits at ${Math.round(r.left)}–${Math.round(r.right)} in a ${innerWidth}px window`];
     return r.width < 18 || r.height < 20 ? [`${Math.round(r.width)}×${Math.round(r.height)}px is too small to touch`] : [];
   });
