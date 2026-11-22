@@ -665,6 +665,26 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
     - Mostly 30–49%, up from 14–55% (mostly about 30%).
   - checks(): Lord 71/0, Count 90/0, King 126/0.
 
+- **War by the odds** (creator's ruling, 2026-11-21: "the AI should declare war if it thinks it can win. But it's okay for the AI to declare war if it's pretty even... It shouldn't try to do a suicidal war"). rivals.js thinkWars still finds prey by preyScore over PREY_BAR, then weighs the house's free men (fieldOf less what it has committed) against the target's defence + 20: the odds (`ODDS`, `oddsAt`). The same for you as for any house.
+  - **The line by temper:** raider and hothead go at 0.8 (somewhat worse than even), schemer at 1, builder at 1.2, merchant and turtler at 1.3 (a clear edge). At 1.25 or better the house reckons on winning; below that, about even.
+  - **Bold:** with no target over its line, a house rarely takes a long shot by temper (hothead 12%, raider 10%, schemer 4%, others 2% a think), and only at 0.5 or better: never a hopeless one.
+  - **Cornered:** a house with no good war, squeezed by one at least 1.5× its places that borders it and either holds a grudge from it or has a host near its places, counts its own free men plus those of every house that would join a league against the squeezer (diplomacy.js `wouldJoin`). With hope of 0.5 or better it declares on the squeezer and calls the houses to arms (`callToArms`, 10 minutes; once in 15). A call is a reason to league (leagueReason, weighed as a grudge), so formLeagues can take it up.
+  - The war line says what the house saw: "reckons on winning, at about 2 to 1", "reckons the odds about even", "takes a long shot", "Hard pressed by ..., ... calls on the other houses to join the fight." It goes in the log and, for war on you, the herald.
+  - Wars on a passive player still come mostly from a refused tribute demand (diplomacy.js `TRIBUTE`: a raider or schemer house at 1.8× your strength asks, and half of refusals mean war). Those have no odds line; the demand is the reason.
+  - **Seeds 7/21/91 to minute 120.** Wars declared through thinkWars: 57 to win, 21 about even, 1 bold, 7 cornered (leagues followed some calls, e.g. seed 91 passive at 65: Varn and Carrow against Penhallow).
+
+  | Run | First war on you | Banked 60 / 90 / 120 | Wage share to 120 | Fell |
+  |---|---|---|---|---|
+  | Engaged 7 | none | 720 / 844 / 0 | 101% | alive |
+  | Engaged 21 | Stonemere 108 (to win, about 2 to 1), Penhallow 109 | 1,326 / 8,280 / 22,164 | 54% | alive |
+  | Engaged 91 | none | 588 / 1,561 / 1,710 | 92% | alive |
+  | Passive 7 | Varn 13, Wyndham 25 (tribute refused) | n/a | n/a | 55 |
+  | Passive 21 | Varn 24, Wyndham 77 (tribute refused) | n/a | n/a | 106 |
+  | Passive 91 | Varn 63 (tribute refused) | n/a | n/a | alive |
+
+  - Engaged 21 banks 22k by 120, over the "about 20k" bar: 6 places and their market towns (tax 29.7k, workshops 7.9k, wages −18.9k).
+  - checks(): Lord 72/0, Count 91/0, King 127/0.
+
 ## Test campaigns (built 2026-11-20)
 
 The creator tests by playing the campaign and wanted a save at each rank to try templates and diplomacy. The title page's **Test campaigns** card offers Lord, Count and Duke (testsaves.js). Each is made fresh rather than stored, so it never goes stale when the save format changes: a seed-7 campaign is played forward quietly (fights reckoned, settlers taken in, the governor running Ashford), taking a village every few minutes, then topped up and loaded through the normal save path.

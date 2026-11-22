@@ -12,7 +12,7 @@
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit } from './world.js';
-import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight } from './diplomacy.js';
+import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight, wouldJoin, callToArms } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { standDown, keepAtWork, pressedAt } from './holdings.js';
 import { houseRuns } from './supply.js';
@@ -270,15 +270,73 @@ function thinkWars(w, h, B, stage) {
     const score = preyScore(w, h, B, p, field) * (1 + Math.min(0.5, grudgeWeight(w, h, i) / 40)) * (FACTIONS[i].gold > 5000 ? 1.2 : 1) * (bigger[i] ? THREAT : 1);
     if (score > (best.get(i)?.score ?? 0)) best.set(i, { i, p, score });
   }
-  const pick = [...best.values()].sort((a, b) => b.score - a.score)[0];
-  // Another war on top of those it has (Orchestrator, 2026-11-21, a judgement, not a cap): the
-  // men it has free, its field less what its wars tie up, must beat the new target's defence
-  // by its temper's margin, as a host must before it marches (runPlan).
+  // The odds (creator, 2026-11-21: "declare war if it thinks it can win, but it's okay if it's
+  // pretty even; aggressive at times, never suicidal"): the men it has free, its field less
+  // what its wars already tie up, against what holds the place, its men and walls. It goes to
+  // war where it expects to win or the odds are about even, the line set by its temper (a
+  // raider takes somewhat worse than even, a merchant or turtler wants a clear edge); now and
+  // then, rarely and by temper, on a long shot, but never a hopeless one. Of those, the best
+  // prize names the war. The same for you as for any house.
   const free = field - committed(w, h, mine, B);
-  if (pick && pick.score * B.war > PREY_BAR && (!enemies.length || free >= w.defence(pick.p) * B.need + 20) && w.rand() < 0.7) {
-    w.declareWar(h.index, pick.i);
+  const worth = [...best.values()].filter(o => o.score * B.war > PREY_BAR).map(o => ({ ...o, odds: oddsAt(w, free, o.p) })).sort((a, b) => b.score - a.score);
+  const line = ODDS.line[h.trait] ?? 1;
+  let pick = worth.find(o => o.odds >= line), kind = pick && (pick.odds >= ODDS.win ? 'win' : 'even');
+  if (!pick && w.rand() < (ODDS.bold[h.trait] ?? 0.03)) { pick = worth.find(o => o.odds >= ODDS.longShot); kind = 'bold'; }
+  if (pick && (kind === 'bold' || w.rand() < 0.7)) {
+    w.declareWar(h.index, pick.i, false, oddsLine(h, kind, pick.odds));
     ai.warsSince[pick.i] = w.time;
+    w.hooks.war?.({ by: h.index, on: pick.i, kind, odds: pick.odds, at: w.time });
+    return;
   }
+  if (!pick) cornered(w, h, mine, free, own, count);
+}
+
+// Odds of winning a place (thinkWars): free men against its men and walls, so 1 is even.
+export const ODDS = {
+  line: { raider: 0.8, hothead: 0.8, schemer: 1, merchant: 1.3, builder: 1.2, turtler: 1.3 },
+  bold: { raider: 0.1, hothead: 0.12, schemer: 0.04, merchant: 0.02, builder: 0.02, turtler: 0.02 },
+  win: 1.25,         // better than this, it expects to win
+  longShot: 0.5,     // worse than this is hopeless, and no house goes
+  hope: 0.5,         // a cornered house goes only with this much, allies counted
+  call: 600,         // seconds its call to arms stands
+  again: 900,        // before a cornered house calls again
+};
+const oddsAt = (w, free, p) => Math.max(0, free) / (w.defence(p) + 20);
+const ratio = r => (r >= 1 ? `${(Math.round(r * 2) / 2).toFixed(1).replace('.0', '')} to 1` : `1 to ${(Math.round(2 / Math.max(0.01, r)) / 2).toFixed(1).replace('.0', '')}`);
+function oddsLine(h, kind, r) {
+  if (kind === 'win') return `${h.lord} reckons on winning, at about ${ratio(r)}.`;
+  if (kind === 'even') return `${h.lord} reckons the odds about even.`;
+  if (kind === 'bold') return `${h.lord} takes a long shot, at about ${ratio(r)}.`;
+  return '';
+}
+
+// Cornered (creator, 2026-11-21: "an AI cornered, out of options, declares war and tries to
+// get allies to join it"): with no war worth making, a house squeezed by a bigger neighbour,
+// one holding half as many places again on its border that has wronged it (a place taken, a
+// claim) or has a host at its places, makes a desperate war on it and calls the other houses
+// to arms against it (diplomacy.js callToArms, a reason formLeagues weighs). Not suicidal: only
+// when its own odds, with the men of the houses that would answer, give it some hope.
+function cornered(w, h, mine, free, own, count) {
+  const ai = h.ai;
+  if (w.time < (ai.calledAt ?? -Infinity) + ODDS.again) return false;
+  const near = (i, d) => w.pois.some(p => p.owner === i && p.kind !== 'camp' && mine.some(q => dist(p, q) < d));
+  const hosts = i => w.armies.some(a => a.side === i && !a.gone && !a.wagon && mine.some(p => dist(a, p) < 400));
+  const R = FACTIONS.filter(o => o !== h && o.alive && !o.bandit && !o.invader && count(o.index) >= own * 1.5 && near(o.index, 420)
+    && !(o.index === 0 && protectedFrom(w, 0, h.index)) && (grudgeWeight(w, h, o.index) > 0 || hosts(o.index)))
+    .sort((a, b) => count(b.index) - count(a.index))[0];
+  if (!R) return false;
+  const target = w.pois.filter(p => p.owner === R.index && p.kind !== 'camp').sort((a, b) => Math.min(...mine.map(q => dist(a, q))) - Math.min(...mine.map(q => dist(b, q))))[0];
+  const allies = FACTIONS.filter(o => o !== h && o !== R && o.alive && !o.bandit && !o.invader && o.index !== 0 && wouldJoin(w, o, R.index));
+  const hope = oddsAt(w, free + allies.reduce((n, o) => n + fieldOf(w, o), 0), target);
+  if (hope < ODDS.hope) return false;
+  ai.calledAt = w.time;
+  if (!w.atWar(h.index, R.index)) {
+    w.declareWar(h.index, R.index, false, `Hard pressed by ${R.index === 0 ? 'you' : R.name}, ${h.lord} calls on the other houses to join the fight.`);
+    ai.warsSince[R.index] = w.time;
+  }
+  callToArms(w, h, R, ODDS.call);
+  w.hooks.war?.({ by: h.index, on: R.index, kind: 'cornered', odds: oddsAt(w, free, target), hope, allies: allies.length, at: w.time });
+  return true;
 }
 
 // How tempting a place is: the men the house could field against what it would take to win

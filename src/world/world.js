@@ -180,7 +180,8 @@ export class World {
   // An army of side `s` may attack place p: free villages and anyone at war with it.
   canAttack(s, p) { return p.owner !== s && (p.owner === null || this.atWar(s, p.owner)); }
 
-  declareWar(i, j, quiet = false) {
+  // `why`: the odds the house saw, or that it is cornered (rivals.js thinkWars), said with it.
+  declareWar(i, j, quiet = false, why = '') {
     if (i === j || this.atWar(i, j)) return;
     this.wars.add(this.warKey(i, j));
     (this.warBy ||= {})[this.warKey(i, j)] = i;   // who started it (diplomacy.js leagueReason)
@@ -191,14 +192,14 @@ export class World {
       this.chron(`${a.name} went to war with you.`);
       if (quiet) return;
       const line = tauntFor(this, a);
-      this.log(`${a.name} has declared war on you!`, 1);
+      this.log(`${a.name} has declared war on you!${why ? ` ${why}` : ''}`, 1);
       this.hooks.sound?.('boom'); // audio
-      this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: line ? `“${line}”` : '' });
+      this.hooks.herald?.({ house: a, title: `${a.lord} declares war`, text: [line ? `“${line}”` : '', why].filter(Boolean).join('\n\n') });
     } else if (i === 0) {
       this.log(`You have declared war on ${b.name}.`);
       this.chron(`You declared war on ${b.name}.`);
     } else if (this.knows(i) || this.knows(j)) {
-      this.log(`${a.name} has gone to war with ${b.name}.`, 2);
+      this.log(`${a.name} has gone to war with ${b.name}.${why ? ` ${why}` : ''}`, 2);
     }
   }
 

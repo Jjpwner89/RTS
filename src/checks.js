@@ -473,6 +473,17 @@ async function worldChecks(w) {
     return out;
   });
 
+  // War by the odds (creator, 2026-11-21): a bold house never goes below a long shot, a cautious
+  // temper wants better odds than a hot one, and no temper's line is a long shot itself.
+  await check('wars: houses go to war by the odds, by temper, never on a hopeless one', async () => {
+    const { ODDS } = await import('./world/rivals.js'), out = [];
+    for (const [t, l] of Object.entries(ODDS.line)) if (l <= ODDS.longShot) out.push(`${t} goes to war at ${l}, a long shot`);
+    if (!(ODDS.line.merchant > ODDS.line.raider && ODDS.line.turtler > ODDS.line.hothead)) out.push('a cautious temper takes worse odds than a hot one');
+    if (Object.values(ODDS.bold).some(b => b > 0.2)) out.push('a temper takes long shots more often than one think in five');
+    for (const c of w.calls || []) if (!FACTIONS[c.against]?.alive && c.until > w.time) out.push(`a call to arms stands against a fallen house (${c.against})`);
+    return out;
+  });
+
   await check('houses and armies: numbers are sane', () => {
     const out = [];
     for (const h of FACTIONS) if (h && (bad(h.gold) || h.gold < -1e-6)) out.push(`${h.name}: ${h.gold} gold`);

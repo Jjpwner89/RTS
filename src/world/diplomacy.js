@@ -138,6 +138,14 @@ const great = () => FACTIONS.filter(H => H.index !== 0 && !H.bandit && !H.invade
 // Returns { why, n, d }: the reason as the coalition's herald says it to you, its rank, and
 // how near the side's lands are; or nothing.
 const LEAGUE_WHY = [null, 'your lands border theirs', 'you have wronged them', 'you hold what they claim', 'you made war on them'];
+// A cornered house's call to arms (rivals.js cornered): for its time, a reason to league
+// against the side it names, ranked with a wrong, for the caller and any house that answers.
+export function callToArms(w, h, R, secs) {
+  w.calls = (w.calls || []).filter(c => c.until > w.time && c.by !== h.index);
+  w.calls.push({ by: h.index, against: R.index, until: w.time + secs });
+  if (R.index === 0 || w.knows(h.index)) w.log(`${h.name} calls on the other houses to rise against ${R.index === 0 ? 'you' : R.name}.`, R.index === 0 ? 1 : 2);
+}
+const called = (w, side) => (w.calls || []).find(c => c.against === side && c.until > w.time && FACTIONS[c.by]?.alive);
 function leagueReason(w, H, side) {
   const theirs = w.pois.filter(p => p.owner === side && p.kind !== 'camp'), mine = w.pois.filter(p => p.owner === H.index && p.kind !== 'camp');
   if (!theirs.length || !mine.length) return null;
@@ -148,9 +156,17 @@ function leagueReason(w, H, side) {
   const n = w.atWar(side, H.index) && (w.warBy?.[w.warKey(side, H.index)] ?? side) === side ? 4
     : theirs.some(p => wantsBack(w, H, p)) ? 3
     : grudgeWeight(w, H, side) > 0 ? 2
+    : called(w, side) ? -2
     : theirs.length > mine.length && d < LEAGUE_BORDER ? 1 : 0;
+  if (n === -2) { const c = called(w, side); return { why: c.by === H.index ? 'they called the houses to arms against you' : `they answer ${FACTIONS[c.by].name}'s call to arms`, n: 2, d }; }
   return n ? { why: LEAGUE_WHY[n], n, d } : null;
 }
+// Whether a house would answer a call to arms against a side (rivals.js cornered weighs its
+// allies so): free of any league, arming and able to pay, and not a friend of yours if the call
+// is against you. The call itself is its reason (leagueReason).
+const friendlyToYou = (w, H) => { const d = w.dip[H.index]; return d.allied || d.married || d.vassal || d.backs || d.opinion >= 25 || d.paidUntil > w.time; };
+export const wouldJoin = (w, H, side) => !leagued(w, H.index) && !(w.leagues || []).some(L => L.members.includes(H.index))
+  && leagueReady(w, H) && !(side === 0 && friendlyToYou(w, H));
 // Of a house's reasons, the one it acts on: the strongest, and of equals the nearer side.
 // The same for you and every house: nobody comes first for being you.
 export const strongestReason = rs => rs.filter(Boolean).sort((a, b) => b.n - a.n || a.d - b.d)[0] || null;
@@ -269,7 +285,7 @@ function formLeagues(w, C) {
   const busy = H => leagued(w, H.index) || w.leagues.some(L => L.members.includes(H.index));
   const you = !C?.members.length && !w.crowned && w.time >= (C?.rest ?? 1200);
   // Peace, a marriage, an alliance or tribute keeps a house out of a league against you, as before.
-  const friendly = H => { const d = w.dip[H.index]; return d.allied || d.married || d.vassal || d.backs || d.opinion >= 25 || d.paidUntil > w.time; };
+  const friendly = H => friendlyToYou(w, H);
   const open = R => R.index === 0 ? you : !w.leagues.some(L => L.target === R.index) && (R.ai?.leagueRest ?? 1200) <= w.time;
   const free = great().filter(H => !busy(H) && leagueReady(w, H));
   const sides = [FACTIONS[0], ...great()].filter(open);
