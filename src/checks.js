@@ -1611,6 +1611,47 @@ async function menuChecks() {
   });
 }
 
+// ---- houses sworn to you ----
+
+// A house that has bent the knee lights the map and can be looked round like a knight's village, and the
+// Realm screen lists it (world.sworn / overseer, realmscreen houseVassals).
+async function houseChecks(w) {
+  const { FACTIONS } = await import('./world/world.js');
+  const sworn = FACTIONS.filter(h => w.sworn(h.index));
+  group = 'Sworn houses';
+  await check('a sworn house lights its places and its armies', () => {
+    if (!sworn.length) return null;
+    const out = [];
+    for (const h of sworn) {
+      const dark = w.pois.filter(p => p.owner === h.index && !p.visible).map(p => p.name);
+      if (dark.length) out.push(`${h.name}: ${dark.length} of its places are in the fog (${dark.slice(0, 3).join(', ')})`);
+      const hidden = w.armies.filter(a => a.side === h.index && !a.gone && !a.visible).length;
+      if (hidden) out.push(`${h.name}: ${hidden} of its armies are out of sight`);
+    }
+    return out;
+  });
+  await check("a sworn house's places can be looked round, and are not yours to run", () => {
+    if (!sworn.length) return null;
+    const out = [];
+    for (const h of sworn) for (const p of w.pois.filter(q => q.owner === h.index && q.eco && !q.town)) if (w.overseer(p)?.index !== h.index) out.push(`${p.name} (${h.name}) can't be looked round`);
+    for (const p of w.pois.filter(q => q.owner !== 0 && q.eco && !q.town && !sworn.some(h => h.index === q.owner))) if (w.overseer(p)) out.push(`${p.name} can be looked round though its owner is not sworn to you`);
+    return sample(out, 6);
+  });
+  await check('the Realm screen lists each sworn house with its terms and a way in', async () => {
+    if (!sworn.length) return null;
+    const { RealmScreen } = await import('./realmscreen.js');
+    const html = RealmScreen.prototype.houseVassals.call({ w });
+    const out = [];
+    for (const h of sworn) {
+      if (!html.includes(h.name)) out.push(`${h.name} is not listed`);
+      const p = w.pois.find(q => q.owner === h.index && q.eco && !q.town);
+      if (p && !html.includes(`data-act="visit:${p.id}"`)) out.push(`no Look round for ${p.name}`);
+    }
+    if (!/gold a minute/.test(html)) out.push('the terms are not stated');
+    return out;
+  });
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -1621,6 +1662,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);
+  if (window.game?.world?.sworn) await houseChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();

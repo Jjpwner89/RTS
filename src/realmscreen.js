@@ -19,6 +19,7 @@ import { wagesOf, HOME_GUARD } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GROUPS, wagonsOf, wagonPlan, buyWagons, runCap } from './world/supply.js';
 import { alerts } from './world/alerts.js';
+import { VASSAL_TRIBUTE } from './world/diplomacy.js';
 import { ROAD_UPKEEP, decreed } from './world/decrees.js';
 import { ico } from './icons.js';
 import { claimOn, isGreat, CLAIM, GREAT } from './world/claims.js';
@@ -283,7 +284,7 @@ export class RealmScreen {
       : `<p>${order.filter(k => groups[k]).map(k => `<span class="chip ${k === 'Devoted' || k === 'Loyal' || k === 'Content' ? 'good' : k === 'Wary' ? 'warn' : 'bad'}">${groups[k]} ${k.toLowerCase()}</span>`).join(' ')}</p>`
         + this.factionLine(fv)
         + vs.map(v => [v, outlook(w, v)]).sort((a, b) => a[1].now - b[1].now).slice(0, 6).map(([v, o]) => `<div class="line">${shield(v)}<span class="grow">${esc(v.name)}<br><small>${v.refusing ? '<b class="bad">Refuses dues and men</b>' : o.warn ? `<b class="warn">${esc(o.warn)}</b>` : `${WANTS[v.want]?.met(w, v) ? 'Has' : 'Wants'} ${esc(WANTS[v.want]?.text || '')}`}</small></span><span class="${opClass(o.now)}">${signed(o.now)} ${vassalWord(o.now)}</span><span class="acts"><button data-act="pick:${v.id}">Deal</button></span></div>`).join('')
-        + (vs.length > 6 ? `<p class="note"><button data-act="tab:vassals">All ${vs.length} vassals</button></p>` : '')}</section>`;
+        + (vs.length > 6 ? `<p class="note"><button data-act="tab:vassals">All ${vs.length} vassals</button></p>` : '')}${this.houseVassals(true)}</section>`;
 
     const met = FACTIONS.slice(1, w.bandits).filter(h => h.alive && w.knows(h.index));
     const war = met.filter(h => w.atWar(0, h.index)), friends = met.filter(h => w.dip[h.index].allied || w.dip[h.index].married || w.dip[h.index].vassal);
@@ -468,11 +469,28 @@ export class RealmScreen {
 
   // ---- Vassals ----
 
+  // Great houses that have bent the knee: the same list as your knights, with their terms and a look round each
+  // place (world.overseer / campaign.visitVassal: read-only, the way a knight's village is shown).
+  houseVassals(compact = false) {
+    const w = this.w, hs = FACTIONS.filter(h => w.sworn(h.index));
+    if (!hs.length) return '';
+    const rows = hs.map(h => {
+      const places = w.pois.filter(p => p.owner === h.index).sort((a, b) => (b === h.seat) - (a === h.seat));
+      const men = places.reduce((n, p) => n + (p.town ? p.town.garrison().reduce((k, r) => k + r.alive, 0) : headcount(p.garrison || [])), 0)
+        + w.armies.filter(a => a.side === h.index && !a.gone).reduce((n, a) => n + headcount(a.units), 0);
+      const terms = `Peace with you · ${VASSAL_TRIBUTE} gold a minute while its coffers last${h.gold > 0 ? ` (${Math.round(h.gold)} in them)` : ' (empty now)'} · backs your claim · its places and armies light your map`;
+      const look = places.slice(0, compact ? 2 : 6).map(p => `<button data-act="visit:${p.id}" title="Look round ${esc(p.name)}: you can look, not build or give orders">${ico('village')} ${esc(p.name)}</button>`).join('');
+      return `<div class="line"><span class="grow"><b style="color:${h.color}">${esc(h.name)}</b> <span class="chip good">sworn to you</span><br><small>${esc(h.lord)} · ${places.length} place${places.length === 1 ? '' : 's'} · ${num(men)} men</small>${compact ? '' : `<br><small>${terms}</small>`}</span>
+        <span class="acts">${look}<button data-act="house:${h.index}" title="Their lord, and everything you can do with them">Deal</button></span></div>`;
+    }).join('');
+    return `<section class="box${compact ? '' : ' wide'}"><h4>${ico('castle')} ${compact ? 'Houses sworn to you' : 'Houses sworn to you, with their terms'}</h4>${rows}</section>`;
+  }
+
   tab_vassals() {
     const w = this.w;
     if (w.rank === 'Reeve') return `<p class="note">From the rank of Lord (two places) you can give a village to a vassal: select it on the map and choose "Give it to a new vassal". They run it, pay you dues and send men to your banners.</p>`;
     const vs = living(w), jail = prisoners(w);
-    if (!vs.length && !jail.length) return `<p class="note">No vassals yet. Select one of your villages on the map (not your seat) and choose "Give it to a new vassal": they run it on the same rules as you, pay you dues and send men to your banners. Captains who have served well can be knighted and given one.</p>`;
+    if (!vs.length && !jail.length) return `${this.houseVassals()}<p class="note">${w.sworn && FACTIONS.some(h => w.sworn(h.index)) ? 'No knights hold villages for you yet. ' : ''}No vassals yet. Select one of your villages on the map (not your seat) and choose "Give it to a new vassal": they run it on the same rules as you, pay you dues and send men to your banners. Captains who have served well can be knighted and given one.</p>`;
     const all = [...vs, ...jail];
     if (!all.some(v => v.id === this.pick)) this.pick = (vs.map(v => [v, opinion(w, v).total]).sort((a, b) => a[1] - b[1])[0]?.[0] || all[0]).id;
     const card = v => {
@@ -486,7 +504,7 @@ export class RealmScreen {
     const fv = factionView(w);
     const top = this.factionLine(fv);
     const v = all.find(o => o.id === this.pick);
-    return `${top}<div class="split"><div class="vlist">${vs.map(card).join('')}${jail.length ? `<h4>In your dungeon</h4>${jail.map(card).join('')}` : ''}</div>
+    return `${top}${this.houseVassals()}<div class="split"><div class="vlist">${vs.map(card).join('')}${jail.length ? `<h4>In your dungeon</h4>${jail.map(card).join('')}` : ''}</div>
       <div class="vdetail">${v.prison ? this.prisoner(v) : this.vassal(v)}</div></div>`;
   }
 

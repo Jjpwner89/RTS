@@ -359,6 +359,7 @@ const TRIBUTE_PEACE = 900;    // and none this soon after making peace with you
 const TRIBUTE_GAP = 600;      // nor this soon after any house's demand
 // (120 from 150 when taxes came to follow a place's buildings, 2026-11-22: the opening purse
 // fills more slowly, and a demand waits on it.)
+export const VASSAL_TRIBUTE = 36;   // gold a minute a vassal house pays you while its coffers last (world.js)
 export const TRIBUTE = { gold: 120, buys: 1200 };   // what a demand asks, and the peace paying it buys
 function offerFrom(w, H, d) {
   const h = H.index, mine = w.strength(0), theirs = w.strength(h);
@@ -537,7 +538,10 @@ export function act(w, h, id, theirs = false) {
     w.chron(`${H.lord} bent the knee, and ${H.name} became your vassal.`);
     d.opinion = Math.max(d.opinion, 20);
     H.vassalOf = 0;
-    w.hooks.herald?.({ house: H, title: `${H.name} bends the knee`, text: `${H.lord} is now your vassal and backs your claim.` });
+    // Said plainly, wherever it shows (creator, 2026-11-22: a fast click on the offer left them unsure it had happened).
+    const terms = `${H.name} is now your vassal: peace, a share of its taxes (${VASSAL_TRIBUTE} gold a minute while its coffers last), its backing for your claim, and its lands and host in your sight.`;
+    w.log(terms, 1);
+    w.hooks.herald?.({ house: H, title: `${H.name} is now your vassal`, text: `${H.lord} has bent the knee. ${terms}` });
     w.checkEnd();
     return yes(`${H.name} is now your vassal.`);
   }

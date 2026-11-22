@@ -436,7 +436,7 @@ export class WorldView {
       const spy = w.spies?.find(o => o.at === p.id), back = spy ? Math.max(0, Math.ceil(spy.back - w.time)) : 0;
       const spyLine = spy ? `<small class="spy">${ico('watchtower')} your spy · back in ${Math.floor(back / 60)}:${String(back % 60).padStart(2, '0')}</small>` : '';
       const html = !p.seen ? `<b style="color:${own.color}">${ico(K.icon)} ${p.name}</b><small>unexplored</small>`
-        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>${spyLine}`;
+        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : p.visible && w.sworn(shown) ? `${own.name} · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>${spyLine}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       o.label.classList.toggle('hover', this.hovered === p);
@@ -1000,7 +1000,8 @@ export class WorldView {
   updateFog() {
     const f = this.fog, w = this.world;
     // only redraw when what you can see has changed
-    const key = w.pois.map(p => (p.visible ? 2 : p.seen ? 1 : 0)).join('') + w.armies.filter(a => a.side === 0).map(a => `${Math.round(a.x / 15)},${Math.round(a.z / 15)}`).join(';');
+    // (a sworn house lights the map like you do: world.sightOf)
+    const key = w.pois.map(p => (p.visible ? 2 : p.seen ? 1 : 0)).join('') + FACTIONS.map(h => (w.sworn(h.index) ? 1 : 0)).join('') + w.armies.filter(a => w.sightOf(a.side)).map(a => `${Math.round(a.x / 15)},${Math.round(a.z / 15)}`).join(';');
     if (key === f.key) return;
     f.key = key;
     const { ctx, N, size } = f, k = N / size, at = v => (v + size / 2) * k;
@@ -1017,8 +1018,8 @@ export class WorldView {
     };
     // sight as in world.js: 250 round your places, 190 round your armies
     for (const p of w.pois) if (p.seen && !p.visible) clear(p.x, p.z, 170, 0.6);
-    for (const p of w.pois) if (p.owner === 0) clear(p.x, p.z, 250, 1);
-    for (const a of w.armies) if (a.side === 0) clear(a.x, a.z, 190, 1);
+    for (const p of w.pois) if (w.sightOf(p.owner)) clear(p.x, p.z, 250, 1);
+    for (const a of w.armies) if (w.sightOf(a.side)) clear(a.x, a.z, 190, 1);
     f.tex.needsUpdate = true;
   }
 

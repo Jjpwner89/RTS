@@ -22,7 +22,7 @@ import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { tickArriere, rankOf } from './arriere.js';
-import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor } from './diplomacy.js';
+import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
 // the World so drawing code can look owners up without holding the world.
@@ -1546,14 +1546,19 @@ export class World {
 
   // ---- what you can see ----
 
+  // A house that has bent the knee is yours to see: its places and its armies light the map as your own do,
+  // for as long as it stays your vassal. (Knights' villages are yours outright, so they were always lit.)
+  sworn(h) { return h > 0 && !!this.dip?.[h]?.vassal && !!FACTIONS[h]?.alive; }
+  sightOf(owner) { return owner === 0 || this.sworn(owner); }
+
   updateVision() {
     const eyes = [
-      ...this.pois.filter(p => p.owner === 0).map(p => ({ x: p.x, z: p.z, r: SIGHT.place + lookouts(p) })),
-      ...this.armies.filter(a => a.side === 0).map(a => ({ x: a.x, z: a.z, r: SIGHT.army })),
+      ...this.pois.filter(p => this.sightOf(p.owner)).map(p => ({ x: p.x, z: p.z, r: SIGHT.place + lookouts(p) })),
+      ...this.armies.filter(a => this.sightOf(a.side)).map(a => ({ x: a.x, z: a.z, r: SIGHT.army })),
     ];
     const sees = o => eyes.some(e => dist(e, o) < e.r);
     for (const p of this.pois) {
-      p.visible = p.owner === 0 || sees(p);
+      p.visible = this.sightOf(p.owner) || sees(p);
       if (p.visible) {
         p.seen = true;
         p.known = { owner: p.owner, men: p.town ? null : headcount(p.garrison), level: p.eco?.level ?? null };
@@ -1562,7 +1567,7 @@ export class World {
     // How much you can make out: far off, only that an army is there (1); nearer, how big it is (2);
     // close, which troops (3).
     const know = o => eyes.reduce((k, e) => { const f = dist(e, o) / e.r; return Math.max(k, f < 0.45 ? 3 : f < 0.75 ? 2 : f < 1 ? 1 : 0); }, 0);
-    for (const a of this.armies) { a.know = a.side === 0 ? 3 : know(a); a.visible = a.know > 0; }
+    for (const a of this.armies) { a.know = this.sightOf(a.side) ? 3 : know(a); a.visible = a.know > 0; }
   }
 
   // ---- the end ----
@@ -1772,13 +1777,20 @@ export class World {
     return true;
   }
 
+  // Who holds a place you may look round but not run: a knight vassal of yours, or a house sworn to you.
+  overseer(p) {
+    if (!p?.eco || p.town) return null;
+    if (p.owner === 0) return vassalOf(this, p);
+    return this.sworn(p.owner) ? FACTIONS[p.owner] : null;
+  }
+
   // A look round a vassal's village, read-only: laid out from his tally on your
   // remembered streets, and that layout kept as the place's own (the layout rule), so
   // what you saw is what you get back if you ever take it back. The village itself goes on
   // being run as numbers; the town returned here is a picture of it, thrown away after.
   viewTown(p) {
-    const v = vassalOf(this, p), e = p.eco;
-    if (!v || !e || p.town) return null;
+    const v = this.overseer(p), e = p.eco;
+    if (!v || !e) return null;
     const keep = { town: p.town, heightAt: p.heightAt, trees: p.trees, garrison: p.garrison, aiClock: p.aiClock, pruneClock: p.pruneClock, onRoad: p.onRoad };
     const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(e.pop))), retinue: false, stock: stores(e) });
     const look = { town, heightAt: p.heightAt, trees: p.trees, onRoad: p.onRoad };
@@ -1973,7 +1985,7 @@ export class World {
       settleTrade(p, dt);
       me.gold += dt * this.taxOf(p);
     }
-    for (const h of FACTIONS) if (this.dip?.[h.index]?.vassal && h.alive) { const n = Math.min(h.gold, dt * 0.6); h.gold -= n; me.gold += n; }
+    for (const h of FACTIONS) if (this.dip?.[h.index]?.vassal && h.alive) { const n = Math.min(h.gold, dt * VASSAL_TRIBUTE / 60); h.gold -= n; me.gold += n; }
   }
 
   updateTown(p, dt) {

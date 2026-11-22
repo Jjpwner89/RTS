@@ -17,7 +17,7 @@ export const UNLOCKS = {
   drill: { when: rank('Lord'), intro: 'New: a barracks drills your veterans into serjeants and yeoman archers.' },
   'b:cathedral': { when: rank('Count'), intro: 'New: a cathedral, the showpiece of a realm, in a village of 100 people.' },
   // The Realm screen's tabs arrive with what they are about (the Realm screen itself comes at Lord).
-  'tab:vassals': { when: w => (w.vassals || []).length > 0, intro: 'New: Vassals: each one\'s mood, wants and dues.' },
+  'tab:vassals': { when: w => (w.vassals || []).length > 0 || (w.dip || []).some((d, i) => i > 0 && d.vassal), intro: 'New: Vassals: each one\'s mood, wants and dues.' },
   'tab:houses': { when: w => w.met?.size > 0 || w.pois.some(p => p.owner > 0 && p.seen), intro: 'New: Houses: gifts, peace and marriage with the great houses.' },
   'tab:council': { when: rank('Count'), intro: 'New: Council: seat vassals as steward, marshal and envoy.' },
   // The Walls tab is always there; it wears its seal once raids are near (outlaws come in the first quarter hour), or at Lord.

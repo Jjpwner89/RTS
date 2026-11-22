@@ -193,6 +193,8 @@ const worldControls = new WorldControls(stage.camera, canvas, worldView, {
 // ---- your villages ----
 
 // look: a vassal's village to look round (world.viewTown), not kept between visits.
+// A knight's village is "Sir X's village"; a sworn house's place is "held by House Y".
+const heldBy = r => (r.index !== undefined ? `held by ${r.name}` : `${r.name}'s village`);
 function townBundle(p, look = null) {
   const old = !look && bundles.get(p);
   if (old && old.town === p.town) return old;
@@ -212,7 +214,7 @@ function townBundle(p, look = null) {
   const st = { placing: null, hoverAt: null, selected: null, roadFrom: null };
   const b = { kind: 'town', poi: p, town, scene, view, townView, roadView: new RoadView(scene, town, heightAt), st, heightAt, look: !!look,
     // short, to fit the top bar; who holds it is in the panel and the tooltip
-    title: look ? `${p.name} · looking round` : null, holder: look ? `${p.name}, ${town.readOnly.name}'s village: you may look, not build or give orders` : null };
+    title: look ? `${p.name} · looking round` : null, holder: look ? `${p.name}, ${heldBy(town.readOnly)}: you may look, not build or give orders` : null };
   b.hooks = {
     togglePause: () => { paused = !paused; },
     setSpeed: s => { speed = s; paused = false; },
@@ -277,7 +279,7 @@ function dropBundle(p) {
 }
 
 function enterTown(p) {
-  if (!p.town && p.vassal && p.owner === 0) return visitVassal(p);
+  if (world.overseer(p)) return visitVassal(p);   // a knight's village or a sworn house's place: look, not run
   if (!p.town) { selected = p; return; }
   setMode('town', townBundle(p));
 }
@@ -603,8 +605,15 @@ function say(reasons) {
   if (el.textContent !== text) el.textContent = text;
   el.hidden = !text;
 }
+// Big decisions between houses (an offer, a declaration of war, an event put to you) ignore clicks for a moment
+// after they open, with a bar filling under the text: a quick click on "offers to bend the knee" must not
+// decide it before it is read (creator, 2026-11-22).
+const ARM_MS = 800;
+let armUntil = 0;
+const armed = () => performance.now() >= armUntil;
 let shown = [];   // the open box's [button, choice] pairs: re-read every frame, as the purse changes
 function nextAsk() {
+  if (armUntil && armed()) { armUntil = 0; $('prompt').classList.remove('arming'); }
   for (const [btn, c] of shown) {
     const off = !c.ok, tip = off ? c.why || '' : '';
     if (btn.textContent !== c.label) btn.textContent = c.label;   // a petition's "(you have N)"
@@ -731,9 +740,12 @@ function nextAsk() {
     btn.disabled = !!off;
     if (off && why) btn.title = why;
     if (choice) shown.push([btn, choice]);
-    btn.onclick = () => { box.classList.remove('open'); softAsk = null; fn(); };
+    btn.onclick = () => { if (!armed()) return; box.classList.remove('open', 'arming'); softAsk = null; fn(); };
     row.append(btn);
   }
+  const arm = a.kind === 'offer' || a.kind === 'war' || (a.kind === 'choice' && !isSoft(a));
+  armUntil = arm ? performance.now() + ARM_MS : 0;
+  box.classList.toggle('arming', arm);
   say(buttons.filter(b => b[2] && b[3]).map(b => b[3]));
   box.classList.add('open');
 }
@@ -928,7 +940,7 @@ function worldPanel() {
   if (it?.house) return housePanel(el, it.house);
   const company = waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).length : 0;
   const carts = own && it.units && !it.wagon && !it.escort ? cartsNear(world, it) : [];
-  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}:${carts.map(c => c.id)}:${it.escort || ''}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}:${world.pois.filter(q => q.owner === 0 && q.town).length}:${it.vassal || ''}:${living(world).map(v => v.id).join('.')}`;
+  const key = !it ? `none:${world.home?.owner}:${world.rank}` : it.units ? `a${it.id}:${!!waitingAt}:${it.retreating}:${company}:${carts.map(c => c.id)}:${it.escort || ''}` : `p${it.id}:${it.owner}:${!!it.town}:${world.rank}:${world.pois.filter(q => q.owner === 0 && q.town).length}:${it.vassal || ''}:${world.overseer(it) ? 'look' : ''}:${living(world).map(v => v.id).join('.')}`;
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div><div class="decrees" data-f="decrees"></div>`
@@ -966,6 +978,7 @@ function worldPanel() {
           <button data-act="deal" class="wide" title="Opinion and its reasons, wants, power, the council, land, demands, calling to arms and arrest">${ico('crown', '#e8c45a')} Deal with them in the Realm screen</button>
           <button data-act="visit" class="wide" title="See their village as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button>
           <div class="row"><button data-act="revoke" class="warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button></div>`
+        : world.overseer(it) ? `<button data-act="visit" class="wide" title="See it as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button><p class="note">${FACTIONS[it.owner].name} is sworn to you: its places and armies light the map for you.</p><div data-f="intel" class="intel"></div>`
         : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Select one of your armies, then right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
@@ -1171,7 +1184,7 @@ $('wpanel').onclick = e => {
   if (act === 'revoke' && it && world.revoke(it)) panelKey = null;
   if (act === 'deal' && it?.vassal) realm.show('vassals', it.vassal);
   if (act?.startsWith('pardon:')) { world.pardon(world.vassals.find(v => v.id === +act.split(':')[1])); panelKey = null; }
-  if (act === 'visit' && it?.vassal) return visitVassal(it);
+  if (act === 'visit' && it && world.overseer(it)) return visitVassal(it);
   if (act === 'muster') {
     const regs = it.town.garrison().filter(r => !r.routing && !r.regrouping);
     const a = regs.length ? world.muster(it, regs) : null;
@@ -1200,7 +1213,7 @@ $('help-toggle').onclick = () => $('help').classList.toggle('open');
 const realm = new RealmScreen(world, {
   enter: p => enterTown(p),
   select: it => { if (mode === 'field') return; showWorld(); selected = it; if (!it.house) worldControls.lookAt(it); },
-  visit: p => { if (mode !== 'field' && p?.vassal) visitVassal(p); },
+  visit: p => { if (mode !== 'field' && world.overseer(p)) visitVassal(p); },
   flash: (text, good) => flash(text, good),
 });
 $('realm-toggle').onclick = () => realm.toggle();
