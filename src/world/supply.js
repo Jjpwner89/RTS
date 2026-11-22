@@ -10,7 +10,7 @@
 
 import { FACTIONS, power, headcount } from './world.js';
 import { housing, kits, takeKit, AT_WORK } from './holdings.js';
-import { priceShare, glut } from '../economy.js';
+import { priceShare, glut, noteTrade } from '../economy.js';
 import { workDone } from './works.js';
 import { rankOf } from './arriere.js';
 
@@ -224,6 +224,7 @@ export function tickTrade(w, dt) {
     if (side === null || side === undefined) continue;
     const cart = w.spawnArmy(side, [], p, `Caravan from ${p.name}`, 'wagon');
     cart.wagon = { gold, to: dest, from: p, trade: true };
+    noteTrade(p, gold);   // trade done at its market, for its dues (World.duesOf)
     cart.at = null;
     if (side === 0) w.log(`A caravan with ${gold} gold sets out from ${p.name} for ${dest.name}.`);
   }
@@ -449,6 +450,7 @@ function moveCaravan(w, cart, dt) {
   const full = W.gold;
   W.gold = Math.round(full * priceShare(to.glut, 'caravan', w.time));
   glut(to.glut ??= {}, 'caravan', full, w.time);
+  noteTrade(to, W.gold);
   pay(cart.side, W.gold);
   if (to.owner !== cart.side) pay(to.owner, Math.round(W.gold / 2));
   if (cart.side === 0) w.log(`The caravan from ${W.from.name} reached ${to.name}: ${W.gold} gold.`);

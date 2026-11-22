@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, taxedHeads, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -295,9 +295,11 @@ export class World {
     const pace = h?.trait === 'builder' ? 1.15 : h?.trait === 'raider' || h?.trait === 'hothead' ? 1.05 : 1;
     const traded = runEconomy(p, dt, { pace, now: this.time });
     const v = vassalOf(this, p);
-    // Rival lords tax as you do at fair taxes, the merchant house half as much again; a
-    // vassal at a middling mood.
-    const taxes = dt * taxedHeads(e.pop, e.level) * K.gold * TAX * (v ? 0.9 : h?.trait === 'merchant' ? 1.5 : 1);
+    noteTrade(p, traded);
+    settleTrade(p, dt);
+    // Rival lords tax by the same development as you (economy.js devTax) at fair taxes and a
+    // middling mood, the merchant house half as much again; a vassal a little less.
+    const taxes = dt / 60 * (devTax(e.pop, Object.entries(e.buildings), e.level) + this.duesOf(p)) * K.gold * (v ? 0.9 : h?.trait === 'merchant' ? 1.5 : 1);
     // A vassal keeps what his village earns, less your dues.
     if (v) FACTIONS[0].gold += share(this, v, taxes + traded);
     else if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
@@ -1880,17 +1882,30 @@ export class World {
     }
   }
 
-  // Your taxes: every villager pays a little, more in market towns and fords; vassals
-  // send a share of theirs.
+  // Your taxes, from what each village has built (Town.taxBase) and its market's dues, at its
+  // rate and mood; more in fords and the royal seat; vassals send a share of theirs.
   // Tax gold a second from one of the villages you run: the tithe and your steward add to it.
   taxOf(p) {
     const t = p.town;
-    return t ? t.taxed * t.taxRate * KINDS[p.kind].gold * (decreed(this, 'tithe') ? 1.25 : 1) * (1 + seatPower(this, 'steward')) : 0;
+    return t ? (t.taxBase + this.duesOf(p)) / 60 * t.taxRate * KINDS[p.kind].gold * (decreed(this, 'tithe') ? 1.25 : 1) * (1 + seatPower(this, 'steward')) : 0;
+  }
+  // A market's dues: a share of the trade done there (economy.js noteTrade), gold a minute.
+  duesOf(p) {
+    const market = p.town ? p.town.buildings.some(b => b.kind === 'market' && b.state === 'active') : !!p.eco?.buildings?.market;
+    return market ? MARKET_DUES * (p.tradeRate || 0) : 0;
   }
 
   collectTaxes(dt) {
     const me = FACTIONS[0];
-    for (const p of this.pois) if (p.owner === 0 && p.town && !p.town.hostile) me.gold += dt * this.taxOf(p);
+    for (const p of this.pois) {
+      if (p.owner !== 0 || !p.town || p.town.hostile) continue;
+      // What its market sold since the last tick (Town.earned) is trade done there.
+      const sold = p.town.earned || 0;
+      noteTrade(p, Math.max(0, sold - (p.soldSeen ?? sold)));
+      p.soldSeen = sold;
+      settleTrade(p, dt);
+      me.gold += dt * this.taxOf(p);
+    }
     for (const h of FACTIONS) if (this.dip?.[h.index]?.vassal && h.alive) { const n = Math.min(h.gold, dt * 0.6); h.gold -= n; me.gold += n; }
   }
 

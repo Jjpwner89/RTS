@@ -524,7 +524,7 @@ The target is that a peaceful player banks a few thousand by minute 120, not 14,
   | 91 | 18,400 | 9,900 | 4,200 | 0 | −12,900 | 19,200 |
 
 - **A strongbox, not a treasury** (World.tickEconomy, `COFFER` = 5 gold a head). A place keeps at most 5 gold a head of its people. A house's place sends the rest to its lord, and a free place spends it. Before, a market town banked half its trade all game: one taken at minute 88 held 7,050 gold. Plunder over 120 minutes fell to 0.8k–1.7k.
-- **A keep's reach** (economy.js `KEEP_REACH`, `taxedHeads`, `Town.taxed`). A keep taxes in full only as far as it reaches, and each head beyond pays a third (`BEYOND_REACH`). Reach by keep level: 20, 40, 60, 90, 130 (now 20, 40, 50, 55, 60 and a sixth beyond: see "Slower midgame gold, and troops you earn"). So a village that has outgrown its keep pays less a head until a greater keep is raised (500 and 1,200 gold), which makes those raises pay. A house's place uses its own level. Its effect on rival places is small, because few of them outgrow their level. The town panel's tax and the Realm screen use it.
+- **A keep's reach** (economy.js `KEEP_REACH`, `taxedHeads`, `Town.taxed`). A keep taxes in full only as far as it reaches, and each head beyond pays a third (`BEYOND_REACH`). Reach by keep level: 20, 40, 60, 90, 130 (gone since 2026-11-22: tax now follows what a place has built; see "Tax from what a place has built"). So a village that has outgrown its keep pays less a head until a greater keep is raised (500 and 1,200 gold), which makes those raises pay. A house's place uses its own level. Its effect on rival places is small, because few of them outgrow their level. The town panel's tax and the Realm screen use it.
 - **Wages ×2.5** (in the same order, for you and the houses). Gold a man a minute:
 
   | Levy | Foot | Mail or horse | Household | Sellsword | Crossbowman | Man-at-arms | Knight |
@@ -1003,16 +1003,7 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
 
 The creator: "midgame nothing for that much gold. it should be slower to get", and "at 160 people i wanted to make more soldiers that can take nearby settlements. i would want more and better troops. you gotta earn those in the game, but its fun." Ashford made about 100 gold a minute at 160 people; wages didn't pinch, because troops don't stay in the field long. Kept as they were: becoming Lord, town templates, growth speeding up, early raids, the barracks arriving in time, and the see-saw of shortages.
 
-- **A flatter tax curve** (economy.js `KEEP_REACH` 20, 40, 50, 55, 60 by keep level; `BEYOND_REACH` 1/6). The first 40 heads pay as before, so the opening and the Lord step are no slower. Past that, reach grows little and each head beyond it pays a sixth (it was a third), so a big village pays far less a head. Growth, newcomers and food are untouched. Rival places use the same `taxedHeads`.
-
-  | Fair taxes, mood 70 | Old gold a minute | New |
-  |---|---|---|
-  | 20 people, keep 1 | 17 | 17 |
-  | 40 people, keep 2 | 33 | 33 |
-  | 100 people, keep 3 / 4 | 61 / 78 | 49 / 52 |
-  | 160 people, keep 3 / 4 / 5 | 78 / 95 / 117 | 57 / 61 / 64 |
-
-  A greater keep now adds only a few gold a minute; it is bought for its homes and mood.
+- **A flatter tax curve** (a keep's reach of 20, 40, 50, 55, 60 heads, a sixth beyond): replaced the same day by tax from development (see "Tax from what a place has built" below).
 - **Drilled men, from Lord** (battle.js `serjeant`, `yeoman`; economy.js `DRILLED`, `DRILL`, `trainsAt`). Veterans drill at a barracks, in batches of up to 10, with 40 drilled men a barracks:
   - **Serjeants**: spearmen in mail who brace and hold (hp 15, atk 5, def 6, morale 80; levy spearmen are 12, 3, 5, 65). Each needs a spear, mail and a shield if there is one, 20 gold and 25 s of drill.
   - **Yeoman archers**: bowmen in leather who shoot further, faster and harder (range 100, reload 3.8, arrow 6, quiver 30; levy archers are 85, 4.5, 5, 24). Each needs a bow, 12 arrows, leather armour, 20 gold and 25 s.
@@ -1023,9 +1014,9 @@ The creator: "midgame nothing for that much gold. it should be slower to get", a
 - **Knights' hall fees are real money**: a man-at-arms 60 gold (was 8) and a knight 150 (was 20). The hall still needs Count and a keep of level 3.
 - **The next step in sight.** At Lord the knights' hall is shown greyed on the Military tab, labelled "From the rank of Count" (ui/unlocks.js `ahead`, `why`; townhud `soon`). It can't be clicked until Count.
 - **Test saves**: every rank's barracks gets 10 veterans, 10 mail and 10 leather armour to try the drill.
-- checks(): "treasury: the first forty heads pay in full, and 160 people bring in about 60 a minute" and "training: drilled men and elites cost real gold, earn more pay, and wait for their rank" (fees, pay order, what each building trains, the greyed hall by rank, and each barracks of yours refusing to drill before Lord).
+- checks(): "training: drilled men and elites cost real gold, earn more pay, and wait for their rank" (fees, pay order, what each building trains, the greyed hall by rank, and each barracks of yours refusing to drill before Lord).
 
-**Sims** (seeds 7, 21, 91 to minute 120; your gold / tax a minute / wages a minute):
+**Sims under the keep's reach** (seeds 7, 21, 91 to minute 120; your gold / tax a minute / wages a minute; for the sims under tax from development, see the next section):
 
 | Run | Minute 60 | Minute 90 | Minute 120 | Notes |
 |---|---|---|---|---|
@@ -1041,3 +1032,44 @@ The creator: "midgame nothing for that much gold. it should be slower to get", a
 
 - Before (fca1c77), the engaged bot banked 405 / 487 / 11 (seed 7), 858 / 4,371 / 10,061 (seed 21) and 175 / 1,235 / 1,574 (seed 91) at minutes 60 / 90 / 120. The bot adds free spearmen up to 30 a place (more at home), so where tax can't pay them, wages stand them down: gold sets the army's size. Seed 21's two market towns (gold ×1.5) pay for theirs and bank.
 - The houses still pay their armies: in about 100 snapshots of house purses at minutes 60, 90 and 120, four were empty for a while.
+
+### Tax from what a place has built (2026-11-22, the creator's second word on gold)
+
+The creator: "i think early game gold needs to be nerfed more than anything. i think that early taxes are too lucrative. think like ck2 taxes... places like markets should allow you to get more taxes but not so much passively." Their starter village paid about 24 a minute, nearly enough for the household guard (30 a minute). This replaces the keep's reach above. Kept as they were: the time to Lord, the opening raids, the barracks in time, the see-saw of shortages, growth speeding up, and workshop sales at glut prices.
+
+- **One rule for every place** (economy.js `devTax`): a tenth of a gold a head (`TAX_HEAD`), 7 for the manor's dues (`TAX_MANOR`), and what each building adds (`DEV_TAX`): gatherers and farms 0.25, a storehouse 0.3, workshops and mills 0.8, the weaponsmith and armourer 1.2, a stable or monastery 1, a market 2.5 and a cathedral 6. A second of a kind adds half as much again, and so does each further one; each upgrade level counts as half a building (`Town.devCounts`). Then the keep multiplies the whole (`KEEP_TAX` ×1, 1.05, 1.1, 1.2, 1.3 by level 1–5), and the tax rate and mood (`Town.taxRate`), the kind of place, the tithe and the steward as before. A captured place keeps its buildings, so a developed town is a prize.
+- **Market dues ride on trade** (`MARKET_DUES` 15%, `noteTrade`, `settleTrade`, World.`duesOf`). A place with a market takes 15% of the trade done there as tax: its own sales at the market (Town.earned), caravans leaving and arriving (supply.js), and a house's workshop sales. The trade is a running rate over about four minutes. A market town is no longer ×1.5 gold (realm.js KINDS.market now ×1); a market that sells nothing adds only its 2.5.
+- **The houses use the same rule**, from their places' building counts, at fair taxes and a middling mood (the merchant house ×1.5, a vassal ×0.9). Measured on seed 21 before dues, their places together paid 23% less than the old tax at minute 10 and 13% less at minute 30; market dues win some of it back.
+- **Tribute is 120 gold** (diplomacy.js `TRIBUTE`, was 150). A house only demands it once your purse holds that much, and every war on a passive player in the sims began as refused tribute. With the slower purse, 150 came 5–20 minutes later and the passive player outlived two seeds. At 120 the demands come at the old minutes.
+- **The tax tooltip** on the stores' gold line lists people, the manor's dues, the buildings, the keep, trade at the market, the tax rate and mood and the kind of place, then "Build workshops, a market and a greater keep to raise it." (townhud `taxWhy`).
+
+| Gold a minute, fair taxes | Before (keep's reach) | Now |
+|---|---|---|
+| Starter village at minute 0 (12 people) | 9 | 9 |
+| Starter village at minute 10, engaged bot (14 people) | 8 | 8 |
+| Starter village at minute 20, engaged bot (23–25 people) | 16 | 13–14 |
+| Starter village at minute 30, engaged bot (38–45 people) | 32–34 | 17–18 |
+| Lord-stage home, 60 people, keep 3, built up (carpenter, smithy, mill, bakery, market and the rest), mood 70 | about 43 | 31 |
+| The Lord test save's Ashford: 35 people, few buildings | | 14 |
+| 160 people, keep 4 / 5, built up with a market, mood 70 | 61 / 64 | 57 / 62 |
+| 160 people, keep 4, gatherers and farms only | 61 | 32 |
+| The bot's home at 160 people (governor-built) | 57 | 33 |
+| Market Wolcombe taken on the Count save (57 people as the house's, 29 after) | | 38–39 |
+
+- **Time to Lord**, engaged bot: minutes 28 / 28 / 38 on seeds 7 / 21 / 91 (before: 28 / 38 / 38). The Lord step costs no gold of its own, so nothing needed lowering.
+- **Sims** (seeds 7, 21, 91 to minute 120; your gold / tax a minute / wages a minute; the fighter bot plays as the engaged one until about minute 90):
+
+  | Run | Minute 60 | Minute 90 | Minute 120 | Notes |
+  |---|---|---|---|---|
+  | Passive 7 | fell at 42 | | | before: fell at 40 |
+  | Passive 21 | fell at 52 | | | before: fell at 76 |
+  | Passive 91 | | | alive, no men, at war with Varn, nobody near at 110 | before: alive |
+  | Engaged 7 | 178 / 73 / 136 | 59 / 94 / 179 | 3 / 130 / 292 | before 373 / 98 / 139, 0 / 117 / 227, 2 / 132 / 261 |
+  | Engaged 21 | 340 / 81 / 129 | 1,402 / 181 / 228 | 3,944 / 246 / 281 | before 519 / 149, 4,895 / 298, 13,849 / 368 |
+  | Engaged 91 | 131 / 93 / 147 | 13 / 150 / 257 | 0 / 181 / 361 | before 23 / 96, 0 / 98, 0 / 124 |
+  | Fighter 7 | as engaged | as engaged | 3 / 176 / 318 | before 2 / 138 / 362; at war with Penhallow at 110 |
+  | Fighter 21 | as engaged | as engaged | 3,697 / 252 / 231 | before 15,057 / 423 / 333 |
+  | Fighter 91 | as engaged | as engaged | 225 / 246 / 414 | before 0 / 132 / 304 |
+
+  The houses still pay their armies: across the nine runs, no house purse was empty at minutes 60, 90 or 120 (lowest 70; Penhallow, Varn and Wyndham banked 2–4.6k).
+- checks(): "treasury: tax comes from what a place has built, more than from its people" (the starter village 8–10, a built-up Lord-stage home 25–35 and a built-up 160 town 55–65, a bare 160 town well under it, a second mill adding half, trade leaving a trace, and each village of yours paying what its buildings say).

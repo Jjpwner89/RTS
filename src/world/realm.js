@@ -40,8 +40,9 @@ export const KINDS = {
   mine: { name: 'Mining village', icon: 'mine', about: 'Rich in stone and iron ore: arms come faster.', pop: 0.8, gold: 1, arms: 1.7, defence: 1 },
   ford: { name: 'Ford', icon: 'ford', about: 'Holds the river crossing: tolls, and a strong place to defend.', pop: 0.8, gold: 1.4, arms: 1, defence: 1.3 },
   monastery: { name: 'Abbey', icon: 'monastery', about: 'Monks, granaries and learning: people grow quickly and stay content.', pop: 1.2, gold: 1.2, arms: 0.5, defence: 1 },
-  // Gold 1.5 (Orchestrator, 2026-11-21: was 2; a peaceful player holding four market towns banked 26,000 by minute 120).
-  market: { name: 'Market town', icon: 'market', about: 'Trade and gold.', pop: 1.1, gold: 1.5, arms: 0.8, defence: 1 },
+  // Gold 1 (creator, 2026-11-22: a market should pay more, "but not so much passively"; was 1.5,
+  // and 2 before 2026-11-21): its tax now rides on the trade done at its market (World.duesOf).
+  market: { name: 'Market town', icon: 'market', about: 'Trade and gold.', pop: 1.1, gold: 1, arms: 0.8, defence: 1 },
   crown: { name: 'Royal seat', icon: 'crown', about: 'The old royal city. Hold it, and most of the realm, to be crowned.', pop: 1.5, gold: 2, arms: 1.2, defence: 1.8, garrison: 2 },
   pass: { name: 'Mountain gate', icon: 'pass', about: 'Where the northern host pours through. While they hold it, more keep coming.', pop: 0.5, gold: 0.4, arms: 2, defence: 2, garrison: 3 },
   warcamp: { name: 'War camp', icon: 'warcamp', about: 'A great camp of the northern host: stockades, tents and fighting men.', pop: 0.4, gold: 0.3, arms: 2.5, defence: 1.3, garrison: 2 },

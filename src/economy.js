@@ -316,15 +316,35 @@ export const trainsAt = b => (b.B?.hall || b === 'hall') ? { kinds: ELITE, ...HA
 const byPeople = n => n >= 150 ? 5 : n >= 100 ? 4 : n >= 60 ? 3 : n >= 30 ? 2 : 1;
 export const keepCap = t => 3 + (t.keepBought || 0);
 export const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)) : Math.min(keepCap(t), Math.max(t.keepPeak || 1, byPeople(t.population)));
-// A keep's reach (Orchestrator, 2026-11-21: tax outran the people and the army it paid): a
-// keep collects in full from so many heads and a third from each beyond, so a village that
-// has outgrown its keep pays less a head until a greater keep is raised (KEEP_RAISE). The
-// same for a house's places by their level (World.tickEconomy). Slower midgame gold (creator,
-// 2026-11-22: "midgame nothing for that much gold"; Ashford made about 100 a minute at 160
-// people): the first 40 heads pay as before, but reach grows little past that and each head
-// beyond pays a sixth, so 160 people bring in about 60 a minute, not 100.
-export const KEEP_REACH = [0, 20, 40, 50, 55, 60], BEYOND_REACH = 1 / 6;
-export const taxedHeads = (n, level) => { const r = KEEP_REACH[Math.max(1, Math.min(5, level))]; return n <= r ? n : r + (n - r) * BEYOND_REACH; };
+// Tax comes from what a place has built, not from its heads (creator, 2026-11-22: "early taxes
+// are too lucrative. think like ck2 taxes"; the starter village paid 24 a minute). Every head
+// pays a little and the manor its dues; each building adds to it, the first of its kind in
+// full and each more of that kind half as much (an upgraded one counts half again a level);
+// the keep raises the whole. A bare village pays little, a built-up one well, and a built-up
+// place taken is a prize. A market adds a share of the trade done at it (World.taxOf,
+// MARKET_DUES), not a flat bonus. Gold a minute at fair taxes and a middling mood: your
+// villages weigh it by their tax rate and mood (Town.taxRate), a house's places pay it as it is.
+// It replaces the keep's reach (2026-11-21), which taxed heads.
+export const TAX_HEAD = 0.1, TAX_MANOR = 7;
+export const DEV_TAX = {
+  woodcutter: 0.25, quarry: 0.25, mine: 0.25, hunter: 0.25, farm: 0.25, flax: 0.25, storehouse: 0.3,
+  carpenter: 0.8, ropemaker: 0.8, smelter: 0.8, bowyer: 0.8, tanner: 0.8, mill: 0.8, bakery: 0.8,
+  weaponsmith: 1.2, armourer: 1.2, stable: 1, market: 2.5, monastery: 1, cathedral: 6,
+};
+export const KEEP_TAX = [1, 1, 1.05, 1.1, 1.2, 1.3];
+export const MARKET_DUES = 0.15;     // the share of a market's trade that comes to its lord as tax
+// What each kind of building adds: n of a kind (levels counted) pay as 1 + (n - 1) / 2.
+export const devOf = counts => counts.reduce((g, [k, n]) => g + (DEV_TAX[k] || 0) * (n > 1 ? 1 + (n - 1) / 2 : n), 0);
+export const devTax = (pop, counts, level) => (TAX_HEAD * pop + TAX_MANOR + devOf(counts)) * KEEP_TAX[Math.max(1, Math.min(5, level))];
+// Trade done at a place, in gold a minute, smoothed over a few minutes: sales at its market and
+// caravans setting out and arriving (noteTrade as it happens, settleTrade every tick).
+const TRADE_SPAN = 240;
+export const noteTrade = (p, gold) => { p.tradeNew = (p.tradeNew || 0) + gold; };
+export function settleTrade(p, dt) {
+  const now = (p.tradeNew || 0) / dt * 60;
+  p.tradeRate = (p.tradeRate || 0) + (now - (p.tradeRate || 0)) * Math.min(1, dt / TRADE_SPAN);
+  p.tradeNew = 0;
+}
 export const KEEP_RAISE = [
   { name: 'great keep', pop: 100, gold: 500, cost: { stone: 80, planks: 30 }, housing: 10, mood: 4 },
   { name: 'castle keep', pop: 150, gold: 1200, cost: { stone: 160, planks: 40, iron: 10 }, housing: 10, mood: 4 },
@@ -1588,10 +1608,17 @@ export class Town {
     }
   }
 
-  // Gold for each villager each second at this tax rate, weighed by the mood.
-  get taxRate() { return 0.012 * TAXES[this.taxes].gold * (0.6 + this.mood / 125); }
-  // The heads that pay it, as far as the keep reaches (taxedHeads).
-  get taxed() { return taxedHeads(this.population, keepLevel(this)); }
+  // The tax rate weighed by the mood: what the village's development pays (taxBase) is
+  // multiplied by it; 1 at fair taxes and a middling mood.
+  get taxRate() { return TAXES[this.taxes].gold * (0.6 + this.mood / 125); }
+  // Standing buildings by kind, each upgrade counting half again (economy.js devTax).
+  devCounts() {
+    const n = {};
+    for (const b of this.buildings) if (b.state === 'active' && DEV_TAX[b.kind]) n[b.kind] = (n[b.kind] || 0) + 1 + ((b.level || 1) - 1) / 2;
+    return Object.entries(n);
+  }
+  // Gold a minute from its people, its buildings and its keep, before the rate.
+  get taxBase() { return devTax(this.population, this.devCounts(), keepLevel(this)); }
 
   // ---- simulation ----
 

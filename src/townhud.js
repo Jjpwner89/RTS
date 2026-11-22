@@ -1,7 +1,7 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ROAD, ELITE, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_REACH, BEYOND_REACH, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
+import { ROAD, ELITE, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_TAX, TAX_HEAD, TAX_MANOR, MARKET_DUES, devOf, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
@@ -23,7 +23,6 @@ const gi = g => ico(GOODS[g].icon, GOODS[g].color, GOODS[g].name.toLowerCase());
 // Writes HTML only when it changed, so icons are not rebuilt every frame.
 const put = (el, html) => { if (el.dataset.was !== html) { el.dataset.was = html; el.innerHTML = html; } };
 
-const BEYOND_SHARE = ({ 2: 'half', 3: 'a third', 4: 'a quarter', 5: 'a fifth', 6: 'a sixth' })[Math.round(1 / BEYOND_REACH)] || `1/${Math.round(1 / BEYOND_REACH)}`;
 const goldIco = () => ico('gold', '#e8c45a', 'gold');
 const moodWord = m => m >= 80 ? 'Joyful' : m >= 62 ? 'Content' : m >= 45 ? 'Settled' : m >= 30 ? 'Uneasy' : m >= 18 ? 'Unhappy' : 'Miserable';
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -207,6 +206,20 @@ export class TownHud {
     watch('b:cathedral', at('[data-build="cathedral"]', 'Village'));
   }
 
+  // What raises the village's tax, line by line (economy.js devTax, World.taxOf).
+  taxWhy(t, tax) {
+    const r = n => Math.round(n * 10) / 10, lvl = keepLevel(t);
+    return ['Taxes come from what the village has built more than from its people:',
+      `· ${t.population} people: ${r(t.population * TAX_HEAD)} a minute`,
+      `· the manor's dues: ${TAX_MANOR}`,
+      `· its buildings: ${r(devOf(t.devCounts()))} (workshops, smithies, mills and a market add most; each more of a kind adds half as much; upgrades add too)`,
+      `· the keep, level ${lvl}: ×${KEEP_TAX[lvl]}`,
+      ...(tax.dues > 0.05 ? [`· trade at its market: ${r(tax.dues)} (${Math.round(MARKET_DUES * 100)}% of what is sold and carried there)`] : []),
+      `· ${TAXES[t.taxes].name.toLowerCase()} and the mood: ×${r(t.taxRate)}`,
+      ...(tax.kind !== 1 ? [`· the kind of place: ×${tax.kind}`] : []),
+      'Build workshops, a market and a greater keep to raise it.'].join('\n');
+  }
+
   // The stores folded to one strip: people, gold and the goods in hand, nothing else.
   fold(on) {
     this.stockEl.classList.toggle('folded', on);
@@ -295,10 +308,11 @@ export class TownHud {
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
     set('tax', t.readOnly ? `${TAXES[t.taxes].name}, set by ${t.readOnly.name}` : TAXES[t.taxes].name);
-    // A keep taxes only so many heads; past its reach each pays a sixth (economy.js KEEP_REACH).
-    const reach = KEEP_REACH[keepLevel(t)], over = t.population > reach;
-    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.taxed * t.taxRate * 60).toFixed(0)}/min${over ? ` <small>(keep taxes ${reach} in full)</small>` : ''}`);
-    this.stockEl.querySelector('[data-s="gold"]').title = `The keep taxes up to ${reach} people in full; past that each pays ${BEYOND_SHARE}. A bigger keep taxes more.`;
+    // Tax comes from what the village has built (economy.js devTax); on the campaign, with its market's dues.
+    const tax = this.hooks.tax?.() ?? { gold: t.taxBase * t.taxRate, dues: 0, kind: 1 };
+    set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${tax.gold.toFixed(0)}/min`);
+    const gt = this.stockEl.querySelector('[data-s="gold"]'), why = this.taxWhy(t, tax);
+    if (gt.title !== why) gt.title = why;
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
     this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);

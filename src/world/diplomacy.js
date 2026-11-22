@@ -357,7 +357,9 @@ const OFFER_GAP = 120;        // seconds between any two houses' proposals
 const TRIBUTE_EVERY = 1800;   // one house's tribute demands, at most this often
 const TRIBUTE_PEACE = 900;    // and none this soon after making peace with you
 const TRIBUTE_GAP = 600;      // nor this soon after any house's demand
-export const TRIBUTE = { gold: 150, buys: 1200 };   // what a demand asks, and the peace paying it buys
+// (120 from 150 when taxes came to follow a place's buildings, 2026-11-22: the opening purse
+// fills more slowly, and a demand waits on it.)
+export const TRIBUTE = { gold: 120, buys: 1200 };   // what a demand asks, and the peace paying it buys
 function offerFrom(w, H, d) {
   const h = H.index, mine = w.strength(0), theirs = w.strength(h);
   // One house's proposal at a time across the realm: a second waits for its next turn.

@@ -444,14 +444,10 @@ async function worldChecks(w) {
     return out;
   });
 
-  // Gold as a limit (Orchestrator, 2026-11-21): a keep taxes in full only as far as it reaches,
-  // a greater keep reaches further, and no place hoards more coin than its strongbox holds.
-  await check('treasury: a keep taxes in full only as far as it reaches, and places keep only a strongbox', async () => {
+  // Gold as a limit (Orchestrator, 2026-11-21): a glutted market pays less, and no place hoards
+  // more coin than its strongbox holds.
+  await check('treasury: markets glut and places keep only a strongbox', async () => {
     const E = await import('./economy.js'), { COFFER } = await import('./world/world.js'), out = [];
-    const r3 = E.KEEP_REACH[3];
-    if (E.taxedHeads(r3, 3) !== r3) out.push(`a village of ${r3} under a level-3 keep pays for ${E.taxedHeads(r3, 3)} heads`);
-    if (Math.abs(E.taxedHeads(r3 + 30, 3) - (r3 + 30 * E.BEYOND_REACH)) > 1e-9) out.push(`thirty heads past a level-3 keep pay as ${E.taxedHeads(r3 + 30, 3) - r3}`);
-    if (!(E.taxedHeads(150, 4) > E.taxedHeads(150, 3))) out.push('a greater keep does not raise the tax of a village of 150');
     // A glutted market pays less, and mends within a few minutes.
     const G = {};
     E.glut(G, 'wood', E.GLUT.half, 0);
@@ -461,15 +457,27 @@ async function worldChecks(w) {
     return out;
   });
 
-  // Slower midgame gold (creator, 2026-11-22): the first 40 heads pay as before, and a home
-  // village of 160 at fair taxes brings in about 60 a minute, whatever its keep, not 100.
-  await check('treasury: the first forty heads pay in full, and 160 people bring in about 60 a minute', async () => {
-    const E = await import('./economy.js'), out = [];
-    for (const [n, lvl] of [[20, 1], [40, 2]]) if (E.taxedHeads(n, lvl) !== n) out.push(`${n} people under a level-${lvl} keep pay for ${E.taxedHeads(n, lvl).toFixed(1)} heads`);
-    const rate = Object.getOwnPropertyDescriptor(E.Town.prototype, 'taxRate').get.call({ taxes: 2, mood: 65 }) * 60;
-    for (const lvl of [3, 4, 5]) {
-      const a = E.taxedHeads(160, lvl) * rate;
-      if (a < 50 || a > 72) out.push(`160 people under a level-${lvl} keep at fair taxes pay ${a.toFixed(0)} gold a minute`);
+  // Tax from development, not heads (creator, 2026-11-22: "think like ck2 taxes"): the starter
+  // village pays 8 to 10 a minute, a built-up Lord's home 25 to 35, a built-up town of 160 with
+  // a market 55 to 65; a bare village of 160 far less; each more of a kind adds half; a market
+  // pays on its trade; and every village of yours pays what its buildings say.
+  await check('treasury: tax comes from what a place has built, more than from its people', async () => {
+    const E = await import('./economy.js'), { KINDS } = await import('./world/realm.js'), out = [];
+    const rate = mood => Object.getOwnPropertyDescriptor(E.Town.prototype, 'taxRate').get.call({ taxes: 2, mood });
+    const say = (what, gold, lo, hi) => { if (gold < lo || gold > hi) out.push(`${what} pays ${gold.toFixed(1)} a minute, not ${lo} to ${hi}`); };
+    const LORD = [['woodcutter', 2], ['quarry', 1], ['mine', 1], ['hunter', 1], ['farm', 4], ['storehouse', 2], ['carpenter', 1], ['smelter', 1], ['weaponsmith', 1], ['mill', 1], ['bakery', 1], ['tanner', 1], ['bowyer', 1], ['market', 1], ['monastery', 1]];
+    const TOWN = [['woodcutter', 3], ['quarry', 2], ['mine', 2], ['hunter', 1], ['farm', 8], ['flax', 1], ['storehouse', 3], ['carpenter', 2], ['ropemaker', 1], ['smelter', 2], ['bowyer', 1], ['tanner', 1], ['mill', 2], ['bakery', 2], ['weaponsmith', 2], ['armourer', 1], ['stable', 1], ['market', 1], ['monastery', 1]];
+    say('the starter village (12 people, two houses, mood 60)', E.devTax(12, [], 1) * rate(60), 8, 10);
+    say('a built-up Lord\'s home (60 people, keep 3, mood 70)', E.devTax(60, LORD, 3) * rate(70), 25, 35);
+    say('a built-up town of 160 with a market (keep 4, mood 70)', E.devTax(160, TOWN, 4) * rate(70), 55, 65);
+    if (!(E.devTax(160, [], 4) < E.devTax(160, TOWN, 4) * 0.6)) out.push('a bare village of 160 pays as much as a built-up one');
+    if (Math.abs(E.devOf([['mill', 3]]) - 2 * E.DEV_TAX.mill) > 1e-9) out.push(`three mills add ${E.devOf([['mill', 3]])}, not twice one`);
+    const p = {};
+    E.noteTrade(p, 100); E.settleTrade(p, 60);
+    if (!(p.tradeRate > 0)) out.push('trade done at a market leaves no trace for its dues');
+    for (const q of w.pois) if (q.owner === 0 && q.town && !q.town.hostile) {
+      const t = q.town, want = (E.devTax(t.population, t.devCounts(), E.keepLevel(t)) + w.duesOf(q)) / 60 * t.taxRate * KINDS[q.kind].gold;
+      if (w.taxOf(q) + 1e-9 < want) out.push(`${q.name} pays ${(w.taxOf(q) * 60).toFixed(1)} a minute, under its development's ${(want * 60).toFixed(1)}`);
     }
     return out;
   });
