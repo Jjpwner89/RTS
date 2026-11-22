@@ -101,11 +101,11 @@ function turnYear(t) {
 // The day, through the weather: the sun's strength (i) and colour, the sky's light (hemi) and its colour, the sky
 // and haze, how high the sun (or by night the moon) stands (degrees), and how dark it is (night: lamps, torches and
 // stars). Dawn and dusk are warm and low; the night is a dark moonlit blue, and regiments read by their banners,
-// torches and rings (view.js), not by a bright world. d: 0 midnight, 0.5 noon. Keys without colours keep the weather's.
+// torches and rings (view.js), not by a bright world (lifted a little, creator 2026-11-21: "slightly brighter"). d: 0 midnight, 0.5 noon. Keys without colours keep the weather's.
 // The creator's ruling (2026-11-21, "night should not last as long as day"): of each day about 60% is day, 8% dusk,
 // 24% full dark and 8% dawn (PARTS), with dusk and dawn still clearly seen. The sounds of the hour follow (audio.js).
 export const PARTS = { dawn: [0.12, 0.2], dusk: [0.8, 0.88] };
-const MOON = { i: 0.27, sun: '#8fa8dc', hemi: 0.5, sky: '#5a7ccc', zenith: '#070f24', horizon: '#1a2846', haze: '#18243f', elev: 42, night: 1 };
+const MOON = { i: 0.34, sun: '#93acdf', hemi: 0.62, sky: '#5f81d0', zenith: '#09132b', horizon: '#1e2d4e', haze: '#1c2a48', elev: 42, night: 1 };
 const DAYKEYS = [
   { d: 0, ...MOON },
   { d: 0.12, ...MOON },
