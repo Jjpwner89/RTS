@@ -16,6 +16,7 @@ import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight, wouldJoin,
 import { rivalHire } from './companies.js';
 import { standDown, keepAtWork, pressedAt } from './holdings.js';
 import { houseRuns } from './supply.js';
+import { thinkWalls } from './walling.js';
 import { TYPES } from '../battle.js';
 
 export const STAGES = ['Settling', 'Expanding', 'Contending'];
@@ -213,6 +214,8 @@ function houseMind(w, h) {
 
   // Food, and kit for an unarmed guard, from its fullest larder to its emptiest (supply.js).
   houseRuns(w, h);
+  // Walls where it is threatened, stone at its seat, as it can pay for them (walling.js).
+  thinkWalls(w, h, mine);
 
   // A rich lord at war hires a mercenary company rather than sit on his gold, and pays
   // its wages from then on (companies.js). Not while the house is still settling.

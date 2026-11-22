@@ -18,7 +18,7 @@ import { Battle } from '../battle.js';
 import { Town, BUILDINGS } from '../economy.js';
 import { makeHeight, plantTrees } from '../terrain.js';
 import { rng } from '../noise.js';
-import { MATERIALS } from '../walls.js';
+import { MATERIALS, WALL_COSTS, PIECE_MAX, addCost } from '../walls.js';
 
 const TAU = Math.PI * 2;
 const KEEP_CLEAR = 17;    // the keep's model reaches about 16 m out at level 5 (economy KEEP.radius is 11)
@@ -835,6 +835,32 @@ function relayOne(p, old) {
   const { unplaced, ms, ...mem } = L;
   p.mem = { ...mem, at: old.at, v: LAYOUT };
   return lost;
+}
+
+// ---- a house raising walls (world/walling.js) ----
+
+// The walls place p would have in `material`: laid out now, round its streets as they stand,
+// so what they cost and the work in them are known before a stone is laid. `cost` is what
+// yours cost (WALL_COSTS) for every stretch, gate and tower; `work` the seconds one crew of
+// masons needs (walls.js build).
+export function wallsFor(p, material) {
+  const L = plan(p, { fresh: true, walls: material }), M = MATERIALS[material], C = WALL_COSTS[material];
+  let cost = {}, work = 0;
+  for (const q of L.pieces) {
+    const a = L.nodes[q.a], b = L.nodes[q.b], len = hyp(a.x - b.x, a.z - b.z);
+    cost = addCost(cost, Object.fromEntries(Object.entries(C.wall).map(([g, n]) => [g, n * len / PIECE_MAX])));
+    if (q.gate) cost = addCost(cost, C.gate);
+    work += M.build * Math.max(4, len) / PIECE_MAX;
+  }
+  for (const n of L.nodes) if (n.tower) { cost = addCost(cost, C.tower); work += M.build * 14 / PIECE_MAX; }
+  for (const g of Object.keys(cost)) cost[g] = Math.ceil(cost[g]);
+  return { plan: L, cost, work };
+}
+
+// They stand: in its numbers and, if it is remembered, in what is remembered of it.
+export function wallsUp(p, material, L) {
+  p.eco.walls = material;
+  if (p.mem) { const { unplaced, ms, ...mem } = L; p.mem = { ...mem, at: p.mem.at, v: LAYOUT }; }
 }
 
 // ---- checking ----

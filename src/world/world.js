@@ -18,6 +18,7 @@ import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision,
 import { govern } from './governor.js';
 import { turnOut, yields, standsOrYields, handOver, takeIn, driftHome, fledWord, mourn, sendHome } from './militia.js';
 import { tickEvents } from './events.js';
+import { tickWalls } from './walling.js';
 import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
@@ -273,6 +274,7 @@ export class World {
       // Those who fled when it changed hands come home while it is fed, safe and has room (militia.js).
       // (those fled here from a lost place come in crowded or not: they have nowhere else)
       if (e.fled) e.pop += driftHome(e, dt, !e.hungry && !p.siegeFood && (e.fled.from || e.pop < this.popCap(p)) && !this.armies.some(a => a.at === p && !a.gone && a.side !== p.owner));
+      if (e.walling) tickWalls(this, p, dt);
       if (e.buildings) { this.tickEconomy(p, dt, K, e, h); continue; }
       // Camps and the northern host: people grow toward what the place holds, and arms
       // come at a rough rate (the north is a war machine and keeps its own pace).

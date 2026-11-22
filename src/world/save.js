@@ -39,7 +39,7 @@ export function readSave(test = false) {
 
 // The campaign as save data, without storing it.
 export function snapshot(w) {
-  return { version: VERSION, seed: w.seed, savedAt: Date.now(), ...pack(w) };
+  return { version: VERSION, seed: w.seed, savedAt: Date.now(), boxed: true, ...pack(w) };
 }
 
 export function saveGame(w) {
@@ -280,8 +280,10 @@ export function loadGame(data, hooks) {
   for (const s of data.towns) unpackTown(w, w.pois[s.i], s);
   // places remembered under the old layout rule are laid out anew, once (places.js)
   relayOld(w);
-  // A place keeps only its strongbox, as the first tick would leave it (an old save may hold more).
-  for (const p of w.pois) if (p.eco?.buildings && !p.town) w.strongbox(p.eco, p.owner === null ? null : FACTIONS[p.owner], vassalOf(w, p));
+  // A place keeps only its strongbox, as the first tick would leave it: a save made before
+  // strongboxes (no `boxed`) may hold thousands. A newer one loads as it was, a few heads'
+  // gold over where men were armed after the tick's count, and its next tick settles it.
+  if (!data.boxed) for (const p of w.pois) if (p.eco?.buildings && !p.town) w.strongbox(p.eco, p.owner === null ? null : FACTIONS[p.owner], vassalOf(w, p));
   // Levies of trained kinds in armies on the map, as in the villages above: plain levies now,
   // their spare kit sent to the racks at home.
   for (const a of w.armies) for (const u of a.units || []) {

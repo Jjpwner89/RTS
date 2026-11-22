@@ -719,6 +719,61 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
+  // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
+  // built by its people over time; turtlers soon, raiders rarely.
+  await check('walls: a house raises a palisade where threatened and stone at its seat, at your costs, over time; a raider rarely', () => scratch(async (make, FACTIONS) => {
+    const WL = await import('./world/walling.js'), P = await import('./world/places.js'), out = [];
+    const setUp = (s, trait) => {
+      const h = FACTIONS.find(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.filter(p => p.owner === x.index && p.eco?.buildings).length >= 2);
+      h.trait = trait;
+      const mine = s.pois.filter(p => p.owner === h.index);
+      for (const q of mine) if (q.eco?.stock) Object.assign(q.eco.stock, { wood: 0, stone: 0 });
+      h.seat = mine.find(q => q.eco?.buildings);
+      const p = mine.find(q => q.eco?.buildings && q !== h.seat);
+      p.eco.walls = 'none'; p.eco.stock.wood = 2000;
+      h.ai.pressed = [p.id];
+      return { h, mine, p };
+    };
+    // A turtler's threatened place with wood to spare: a palisade, paid as yours, built over time.
+    {
+      const s = make(), { h, mine, p } = setUp(s, 'turtler');
+      s.rand = () => 0;
+      const want = P.wallsFor(p, 'wood'), before = p.eco.stock.wood;
+      WL.thinkWalls(s, h, mine);
+      if (p.eco.walling?.material !== 'wood') out.push(`a turtler's threatened ${p.name} with ${before} wood did not start a palisade`);
+      else {
+        if (before - p.eco.stock.wood !== want.cost.wood) out.push(`its palisade cost ${before - p.eco.stock.wood} wood, not ${want.cost.wood} (WALL_COSTS for ${want.plan.pieces.length} stretches)`);
+        let t = 0;
+        for (; t < 3600 && p.eco.walling; t += 5) WL.tickWalls(s, p, 5);
+        if (p.eco.walls !== 'wood' || !P.walledPlace(p) || !P.layoutOf(p).pieces.length) out.push(`after ${t} s ${p.name} is not walled (${p.eco.walls})`);
+        else if (t < 30 || t > 900) out.push(`its palisade took ${t} s to raise`);
+      }
+    }
+    // Stone at its seat once it has the stone and its lord the gold.
+    {
+      const s = make(), { h, mine } = setUp(s, 'builder'), seat = h.seat;
+      s.rand = () => 0;
+      Object.assign(seat.eco.stock, { stone: 5000, wood: 2000 });
+      seat.eco.walls = 'wood'; h.gold = 5000;
+      const want = P.wallsFor(seat, 'stone');
+      WL.thinkWalls(s, h, mine);
+      if (seat.eco.walling?.material !== 'stone') out.push(`a builder's seat with 5000 stone and 5000 gold did not start stone walls`);
+      else if (5000 - h.gold !== (want.cost.gold || 0) || 5000 - seat.eco.stock.stone !== want.cost.stone) out.push(`its stone walls cost ${5000 - seat.eco.stock.stone} stone and ${5000 - h.gold} gold, not ${want.cost.stone} and ${want.cost.gold}`);
+    }
+    // A raider rarely: the same chance that sets a turtler building leaves a raider idle.
+    {
+      const s = make(), { h, mine, p } = setUp(s, 'raider');
+      s.rand = () => 0.1;
+      WL.thinkWalls(s, h, mine);
+      if (p.eco.walling) out.push('a raider walled at a one-in-ten roll');
+      h.trait = 'turtler';
+      WL.thinkWalls(s, h, mine);
+      if (!p.eco.walling) out.push('a turtler did not wall at a one-in-ten roll');
+    }
+    return out;
+  }));
+
   // Trained men are never levied (creator, 2026-11-22: the banners raised "Levy men-at-arms" in
   // no armour, men never trained): one list of levy kinds for the barracks, the banner call and
   // raise(), and an old save's levied men-at-arms or knights load as plain levies.
