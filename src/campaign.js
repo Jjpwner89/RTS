@@ -234,7 +234,7 @@ function townBundle(p, look = null) {
     dismissCompany: r => { const c = (world.companies || []).find(o => o.employer === 0 && o.name === r.name); if (c) release(world, c, 'dismissed'); },
     findDeposit: n => { Object.assign(b.controls.cam, { x: n.x, z: n.z, dist: Math.min(b.controls.cam.dist, 70) }); townView.markDeposit(n); },
     // The village's tax as the campaign reckons it (World.taxOf): with its market's dues and the kind of place.
-    tax: () => ({ gold: world.taxOf(p) * 60, dues: world.duesOf(p), kind: KINDS[p.kind].gold }),
+    tax: () => ({ gold: world.taxOf(p) * 60, ...world.taxMultipliers(p) }),
     findBuilding: g => { Object.assign(b.controls.cam, { x: g.x, z: g.z, dist: Math.min(b.controls.cam.dist, 70) }); b.controls.setSelection([]); st.selected = g; },
     findAttackers: () => b.controls.focus(town.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.routing)),
     place: (g, e) => {

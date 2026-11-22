@@ -211,7 +211,7 @@ export class TownHud {
   // What raises the village's tax, line by line (economy.js devTax, World.taxOf): the hint
   // to build first, then each part with its number leading. { hint, lines }.
   taxWhy(t, tax) {
-    const r = n => Math.round(n * 10) / 10, lvl = keepLevel(t);
+    const r = n => Math.round(n * 10) / 10, f = n => Math.round(n * 100) / 100, lvl = keepLevel(t);
     return {
       hint: 'Raise it with workshops, mills, a market or a greater keep.',
       lines: [`+${r(t.population * TAX_HEAD)} · ${t.population} people`,
@@ -219,8 +219,10 @@ export class TownHud {
         `+${r(devOf(t.devCounts()))} · buildings (a second of a kind adds half)`,
         ...(KEEP_TAX[lvl] !== 1 ? [`×${KEEP_TAX[lvl]} · the keep, level ${lvl}`] : []),
         ...(tax.dues > 0.05 ? [`+${r(tax.dues)} · trade at the market (${Math.round(MARKET_DUES * 100)}% of sales)`] : []),
-        `×${r(t.taxRate)} · ${TAXES[t.taxes].name.toLowerCase()} and the mood`,
-        ...(tax.kind !== 1 ? [`×${tax.kind} · the kind of place`] : [])] };
+        `×${f(t.taxRate)} · ${TAXES[t.taxes].name.toLowerCase()} and the mood`,
+        ...(tax.kind !== 1 ? [`×${f(tax.kind)} · the kind of place`] : []),
+        ...(tax.tithe > 1 ? [`×${tax.tithe} · the tithe decree`] : []),
+        ...(tax.steward > 1 ? [`×${f(tax.steward)} · your steward`] : [])] };
   }
 
   // The stores folded to one strip: people, gold and the goods in hand, nothing else.
@@ -312,7 +314,7 @@ export class TownHud {
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
     set('tax', t.readOnly ? `${TAXES[t.taxes].name}, set by ${t.readOnly.name}` : TAXES[t.taxes].name);
     // Tax comes from what the village has built (economy.js devTax); on the campaign, with its market's dues.
-    const tax = this.hooks.tax?.() ?? { gold: t.taxBase * t.taxRate, dues: 0, kind: 1 };
+    const tax = this.hooks.tax?.() ?? { gold: t.taxBase * t.taxRate, dues: 0, kind: 1, tithe: 1, steward: 1 };
     set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${tax.gold.toFixed(0)}/min`);
     // The same in words under the line when it is tapped, for touch.
     const gt = this.stockEl.querySelector('[data-s="gold"]'), W = this.taxWhy(t, tax), why = [W.hint, ...W.lines].join('\n');

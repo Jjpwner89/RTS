@@ -1887,7 +1887,13 @@ export class World {
   // Tax gold a second from one of the villages you run: the tithe and your steward add to it.
   taxOf(p) {
     const t = p.town;
-    return t ? (t.taxBase + this.duesOf(p)) / 60 * t.taxRate * KINDS[p.kind].gold * (decreed(this, 'tithe') ? 1.25 : 1) * (1 + seatPower(this, 'steward')) : 0;
+    if (!t) return 0;
+    const m = this.taxMultipliers(p);
+    return (t.taxBase + m.dues) / 60 * t.taxRate * m.kind * m.tithe * m.steward;
+  }
+  // What multiplies a village's tax beyond its own rate, for the HUD's breakdown to read too.
+  taxMultipliers(p) {
+    return { dues: this.duesOf(p), kind: KINDS[p.kind].gold, tithe: decreed(this, 'tithe') ? 1.25 : 1, steward: 1 + seatPower(this, 'steward') };
   }
   // A market's dues: a share of the trade done there (economy.js noteTrade), gold a minute.
   duesOf(p) {
