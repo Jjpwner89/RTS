@@ -81,7 +81,7 @@ export const fledWord = (n, where) => `${n} of ${where}'s people fled; they will
 // `share` is the part of the rest who died rather than scattered.
 export function mourn(p, turned, left, share = 1) {
   const dead = Math.round(Math.max(0, count(turned) - left) * share);
-  if (dead && p.eco) p.eco.pop = Math.max(5, p.eco.pop - dead);
+  if (dead && p.eco) p.eco.pop = Math.max(Math.min(5, p.eco.pop), p.eco.pop - dead);
   return dead;
 }
 

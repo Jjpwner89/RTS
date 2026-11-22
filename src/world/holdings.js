@@ -4,7 +4,7 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, GLUT, priceShare, glut, saleGood } from '../economy.js';
+import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
 import { TYPES } from '../battle.js';
 
 const EFF = 0.4;            // share of a hard-driven village's output a steward gets
@@ -160,11 +160,12 @@ export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
   e.cold = (s.wood || 0) < fire;
   s.wood = Math.max(0, (s.wood || 0) - fire);
   // Newcomers on your villages' rules: spare food, mood and the place's name; houses only make room.
-  if (e.hungry) e.pop = Math.max(6, e.pop - dt / 60);
-  else if (e.pop < housing(e)) {
+  // (the hungry die off no lower than six, and a place already smaller loses nobody to it)
+  if (e.hungry) e.pop = Math.max(Math.min(6, e.pop), e.pop - dt / 60);
+  if ((!e.hungry || e.pop < FEW) && e.pop < housing(e)) {
     const name = ['monastery', 'market', 'well'].reduce((n, k) => n + (B[k] ? REPUTE[k] : 0), 1 + (e.cold ? REPUTE.cold : 0));
     const larder = ((s.food || 0) + (s.bread || 0)) / Math.max(1, e.pop);
-    e.pop = Math.min(housing(e), e.pop + dt / 60 * settleRate(larder, STEWARD_MOOD, name));
+    e.pop = Math.min(housing(e), e.pop + dt / 60 * settleRate(larder, STEWARD_MOOD, name, e.pop < FEW));
   }
   // Building: one thing at a time, from its own goods.
   e.buildCd -= dt;
@@ -344,7 +345,7 @@ export function fromTown(t, { kept = 0.6, pop: stay = null } = {}) {
   for (const [g, q] of Object.entries(t.stock || {})) if (q > 0) stock[g] = q * kept;
   const focus = (buildings.weaponsmith || 0) + (buildings.barracks || 0) >= 2 ? 'military' : buildings.market ? 'trade'
     : (buildings.mine || 0) + (buildings.smelter || 0) >= 2 ? 'production' : 'farming';
-  const pop = Math.max(10, stay ?? t.villagers.filter(v => v.state !== 'soldier').length * 0.7);
+  const pop = stay ?? t.villagers.filter(v => v.state !== 'soldier').length * 0.7;
   const e = { pop, level: 1, focus, wealth: 1, buildings, stock, gold: 0, planAt: PLANS[focus].length, grown: 0, buildCd: BUILD_EVERY, arms: 0,
     raised: 0, maxPop: Math.max(100, Math.round(pop * 1.5)), maxBuilt: Math.max(34, Object.values(buildings).reduce((n, k) => n + k, 0) + 8),
     walls: wallsOf(t.battle.walls, 0) };

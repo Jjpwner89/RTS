@@ -905,7 +905,7 @@ export class World {
       if (!p || p.owner === 0 || a.at !== p || a.path.length || a.retreating || p.town) { this.liftSiege(a, p); continue; }
       p.siegeFood -= dt;
       if (p.siegeFood > 0) continue;
-      if (p.eco) { p.eco.hungry = true; p.eco.pop = Math.max(8, p.eco.pop * (1 - 0.004 * dt)); }
+      if (p.eco) { p.eco.hungry = true; p.eco.pop = Math.max(Math.min(8, p.eco.pop), p.eco.pop * (1 - 0.004 * dt)); }
       // Hungry men slip over the wall at night.
       for (const u of p.garrison) u.count = Math.floor(u.count * (1 - 0.006 * dt));
       p.garrison = p.garrison.filter(u => u.count >= 3);
@@ -934,7 +934,7 @@ export class World {
     a.halted = false;
     if (e?.stock) { e.stock.food = Math.floor((e.stock.food || 0) * 0.3); e.stock.bread = Math.floor((e.stock.bread || 0) * 0.5); }
     if (e?.buildings) burn(e, ['farm', 'farm', 'mill']);
-    if (e) e.pop = Math.max(8, e.pop * 0.9);
+    if (e) e.pop = Math.max(Math.min(8, e.pop), e.pop * 0.9);
     if (p.siegeFood) p.siegeFood *= 0.4;
     for (const u of a.units) u.count = Math.max(1, Math.round(u.count * 0.97));
     grudge(this, p.owner, 'burned', p.name);
@@ -968,7 +968,7 @@ export class World {
     const kept = p.garrison || [];   // (makeTown clears it)
     this.takePlace(p, 0);
     const pop = p.eco?.pop ?? 20, lvl = p.eco?.level ?? 1;
-    const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(pop))), retinue: false, stock: storesOf(p, lvl) });
+    const town = this.makeTown(p, { villagers: Math.min(80, Math.round(pop)), retinue: false, stock: storesOf(p, lvl) });
     layPlace(town, p, 0);
     p.mem = null;
     grownLevels(town, p.eco);
@@ -1190,7 +1190,7 @@ export class World {
     this.takePlace(p, 0);
     const { stay, away, word } = this.leave(p, was, p.eco?.pop ?? 20, how, men);
     const lvl = p.eco?.level ?? 1;
-    const town = this.makeTown(p, { villagers: Math.max(6, stay), retinue: false,
+    const town = this.makeTown(p, { villagers: stay, retinue: false,
       stock: storesOf(p, lvl, 60) });
     town.fled = away;
     if (word) this.log(word);
@@ -1358,14 +1358,14 @@ export class World {
     // Of the townsfolk struck down, most were hurt, not killed, and come home: a third are lost. Of
     // those left, seven in ten stay on when it is taken by storm, nearly nine in ten under terms;
     // the rest have fled, and come home while it is fed and safe (militia.js handOver).
-    if (h.folk?.length) h.pop = Math.max(5, h.pop - Math.round(Math.max(0, h.folk.reduce((n, u) => n + u.count, 0) - folkLeft(t.battle)) / 3));
+    if (h.folk?.length) h.pop = Math.max(Math.min(5, h.pop), h.pop - Math.round(Math.max(0, h.folk.reduce((n, u) => n + u.count, 0) - folkLeft(t.battle)) / 3));
     // Its garrison men who got away (routed off the field toward their house's next place,
     // or marching out on terms) go on there, and some of its people with them (leave).
     const held = t.attackers.find(g => g.mode === 'hold')?.regs || [];
     const got = r => r.soldiers.filter(s => s.alive && (s.gone || r.routing)).length;
     const men = h.yielded || held.filter(r => !r.T.militia && got(r) > 0).map(r => ({ ...unit(r.T.key, got(r), r.name), ...carry(r) }));
     const { stay, away, word } = this.leave(p, was, h.pop, h.yielded ? 'yielded' : 'storm', men);
-    t.claim({ villagers: Math.max(6, stay) });
+    t.claim({ villagers: stay });
     t.fled = away;
     t.flagColor = null;
     p.eco = h.eco;
@@ -1516,7 +1516,7 @@ export class World {
     p.garrison = a.units;
     const { stay, away, word } = this.leave(p, was, p.eco?.pop ?? 0, how, men);
     if (p.eco) {
-      p.eco.pop = Math.max(5, stay);
+      p.eco.pop = stay;
       p.eco.fled = away;
       if (p.eco.gold) { H.gold += p.eco.gold * 0.8; p.eco.gold *= 0.2; }
       this.strongbox(p.eco, H, vassalOf(this, p));   // (fewer people, a smaller box)
@@ -1569,7 +1569,7 @@ export class World {
     // (as many stay as when you take a place: fewer by storm than on terms, militia.js handOver)
     // (your men and those who flee make for your nearest other place, as a house's do: leave)
     const { stay, away, word } = this.leave(p, 0, pop, t.yieldedOurs ? 'yielded' : 'storm', ours, t.yieldedOurs ? `Garrison of ${p.name}` : `Survivors of ${p.name}`);
-    const eco = FACTIONS[side].invader || FACTIONS[side].bandit ? { pop: Math.max(10, stay), level: 1, arms: 0 } : fromTown(t, { pop: stay });
+    const eco = FACTIONS[side].invader || FACTIONS[side].bandit ? { pop: stay, level: 1, arms: 0 } : fromTown(t, { pop: stay });
     eco.fled = away;
     Object.assign(p, { town: null, garrison: theirs.length ? theirs : [unit('spear', 10, `${FACTIONS[side].short} spearmen`)], eco });
     this.log(`${p.name} has fallen to ${FACTIONS[side].name}.`, 1);
@@ -1823,7 +1823,7 @@ export class World {
     const v = vassalOf(this, p);
     if (!v || p.owner !== 0) return false;
     const e = p.eco, men = p.garrison;
-    const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(e.pop))), retinue: false, stock: stores(e) });
+    const town = this.makeTown(p, { villagers: Math.min(80, Math.round(e.pop)), retinue: false, stock: stores(e) });
     layPlace(town, p, 0);
     p.mem = null;
     grownLevels(town, e);
@@ -1855,7 +1855,7 @@ export class World {
     const v = this.overseer(p), e = p.eco;
     if (!v || !e) return null;
     const keep = { town: p.town, heightAt: p.heightAt, trees: p.trees, garrison: p.garrison, aiClock: p.aiClock, pruneClock: p.pruneClock, onRoad: p.onRoad };
-    const town = this.makeTown(p, { villagers: Math.max(6, Math.min(80, Math.round(e.pop))), retinue: false, stock: stores(e) });
+    const town = this.makeTown(p, { villagers: Math.min(80, Math.round(e.pop)), retinue: false, stock: stores(e) });
     const look = { town, heightAt: p.heightAt, trees: p.trees, onRoad: p.onRoad };
     Object.assign(p, keep);
     layPlace(town, p, 0);

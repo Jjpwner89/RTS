@@ -290,7 +290,7 @@ EVENTS.collapse = {
         return `Three days of digging, and every miner comes out alive. The mine at ${p.name} works again in three minutes.`;
       } },
       { label: 'Seal the gallery', run: () => {
-        if (t) lose(t, trapped); else p.eco.pop = Math.max(8, p.eco.pop - trapped);
+        if (t) lose(t, trapped); else p.eco.pop = Math.max(Math.min(8, p.eco.pop), p.eco.pop - trapped);
         return `The gallery is sealed with ${trapped} men behind it. ${p.name} mourns, and the mine goes on.`;
       } },
     ];

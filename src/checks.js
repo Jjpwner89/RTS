@@ -719,6 +719,38 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // Nobody is made up when a place changes hands (Orchestrator, 2026-11-22: "never invent
+  // people"): a place of three keeps the few who stay, and a town that small, or empty, still
+  // works: newcomers come, its numbers stay numbers, and its governor goes on building.
+  await check('a place of 3 taken keeps only those who stay, and a town of 0 to 5 still grows and builds', () => scratch(async (make, FACTIONS) => {
+    const out = [], odd = o => Object.entries(o).filter(([, v]) => typeof v === 'number' && !Number.isFinite(v)).map(([k]) => k);
+    const tiny = (s, name, n) => { const p = s.pois.find(q => q.name === name); p.owner = null; p.eco.pop = n; p.garrison = []; return p; };
+    // You storm it: a town of the two or three who stay, which fills and builds under the governor.
+    {
+      const s = make(), p = tiny(s, 'Redgate', 3);
+      s.capture(p, s.spawnArmy(0, FAIR(), p.links[0], 'Host', 'march'), 'storm');
+      const t = p.town, had = t.population, built = t.buildings.length;
+      if (had > 3) out.push(`you take a place of 3: its town has ${had} people`);
+      for (let i = 0; i < 1800; i++) s.updateTown(p, 0.5);
+      if (t.population <= had) out.push(`your town of ${had}: still ${t.population} after 15 minutes (${t.settlers().block || 'no block'})`);
+      if (t.buildings.length <= built && !t.govSite) out.push(`your town of ${had}: its governor built nothing in 15 minutes`);
+      const bad = [...odd(t.stock), ...odd({ mood: t.mood, larder: t.larder, population: t.population, settling: t.settling })];
+      if (bad.length) out.push(`your town of ${had}: ${bad.join(', ')} not a number`);
+    }
+    // A rival takes one of 3, and one of nobody: the few who stay, and families come.
+    for (const n of [3, 0]) {
+      const s = make(), p = tiny(s, 'Redgate', n);
+      s.tookBy(s.spawnArmy(1, FAIR(), p.links[0], 'Host', 'march'), p, 'storm');
+      const had = p.eco.pop;
+      if (had > n) out.push(`a rival takes a place of ${n}: it holds ${had}`);
+      for (let i = 0; i < 180; i++) s.tickHoldings(5);
+      if (!(p.eco.pop > had)) out.push(`a rival's place of ${Math.round(had)}: ${Math.round(p.eco.pop * 10) / 10} after 15 minutes`);
+      const bad = [...odd(p.eco), ...odd(p.eco.stock)];
+      if (bad.length) out.push(`a rival's place of ${n}: ${bad.join(', ')} not a number`);
+    }
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.

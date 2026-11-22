@@ -165,9 +165,12 @@ export const GAME = { cell: 40, take: 0.24, regrow: 1 / 1500 };
 export const FIREWOOD = 1.5;
 // Newcomers a minute at best, before food, mood and the village's name.
 const SETTLE = 1.2;
+// A place this small (an emptied village, one taken with few left) still draws families to
+// its empty houses at half pace or better, bare larder or not: they bring their own seed corn.
+export const FEW = 6;
 // Newcomers a minute: the larder (meals a head), the mood and the village's name.
-export function settleRate(larder, mood, name) {
-  const food = larder < 1 ? 0 : Math.min(1, (larder - 1) / 3);
+export function settleRate(larder, mood, name, few = false) {
+  const food = Math.max(few ? 0.5 : 0, larder < 1 ? 0 : Math.min(1, (larder - 1) / 3));
   return SETTLE * food * (0.4 + Math.max(0, Math.min(1.2, (mood - 30) / 50))) * Math.max(0.3, Math.min(2, name));
 }
 // Paved roads (creator, 2026-11-20): stone laid between two points; anyone walking on
@@ -2465,8 +2468,8 @@ export class Town {
     const mood = Math.max(0, Math.min(1.2, (this.mood - 30) / 50));
     const why = this.repute(), name = Math.max(0.3, Math.min(2, 1 + why.reduce((n, [k]) => n + k, 0)));
     const room = this.population < this.housing && !this.underAttack;
-    const rate = room ? settleRate(larder, this.mood, name) : 0;
-    const block = this.population >= this.housing ? 'no room: build houses' : this.underAttack ? 'under attack' : !food ? 'not enough food to spare' : '';
+    const few = this.population < FEW, rate = room ? settleRate(larder, this.mood, name, few) : 0;
+    const block = this.population >= this.housing ? 'no room: build houses' : this.underAttack ? 'under attack' : !food && !few ? 'not enough food to spare' : '';
     return { rate, room, food, mood, name, why, block };
   }
 
