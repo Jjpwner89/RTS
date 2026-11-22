@@ -13,7 +13,7 @@
 // hauls the goods to your nearest village and can be robbed on the way. Rival houses buy
 // there too for their own stores, at the going price.
 import { FACTIONS } from './world.js';
-import { ELITE, HOUSEHOLD_PAY } from '../economy.js';
+import { ELITE, DRILLED, HOUSEHOLD_PAY } from '../economy.js';
 import { TYPES } from '../battle.js';
 import { WAGE as HIRED } from './companies.js';
 
@@ -22,17 +22,19 @@ import { WAGE as HIRED } from './companies.js';
 // the village militia called out to fight is not soldiers at all, so neither draws a wage.
 // (Orchestrator, 2026-11-21: every wage scaled by 2.5, the household's and elites' too, in
 // the same order, so gold is what caps an army: levy 0.5 < foot 0.75 < mail and horse 0.9
-// < household 1 < man-at-arms 1.5 < knight 3.75; sellswords 1.25, crossbowmen 1.5.)
+// < household 1 < man-at-arms 1.5 < knight 3.75; sellswords 1.25, crossbowmen 1.5.) Drilled
+// serjeants and yeomen draw 1.2 (economy.js DRILLED), between mail and the household.
 export const WAGES = { levy: 0.5, foot: 0.75, heavy: 0.9 };
 // Men in each place, the cheapest first, who are its home guard and draw nothing. The
 // household, hired men and the elite always draw pay.
 export const HOME_GUARD = 12;
 const UNPAID_GRUMBLE = 45, UNPAID_STAND_DOWN = 150, STAND_DOWN_EVERY = 30;
 
-function payOf(key, gear, elite) {
+export function payOf(key, gear, elite) {
   if (key === 'household') return HOUSEHOLD_PAY;
   if (elite || ELITE[key]) return (ELITE[key] ?? ELITE.maa).pay;
   if (HIRED[key]) return HIRED[key];
+  if (DRILLED[key]) return DRILLED[key].pay;
   const T = TYPES[key];
   if (!T || T.engine || key === 'folk') return 0;
   if (T.militia) return WAGES.levy;

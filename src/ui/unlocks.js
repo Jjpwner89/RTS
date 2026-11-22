@@ -11,7 +11,10 @@ export const UNLOCKS = {
   towns: { when: rank('Lord'), intro: 'New: town templates lay out a whole quarter of buildings at once.' },
   masons: { when: rank('Lord') },
   greatkeep: { when: rank('Lord') },
-  'b:hall': { when: rank('Count'), intro: "New: a knights' hall trains your veterans into men-at-arms and knights." },
+  // `ahead`: shown greyed before it unlocks, with `why`, so the next step is in sight (the
+  // knights' hall from Lord; creator, 2026-11-22).
+  'b:hall': { when: rank('Count'), ahead: rank('Lord'), why: 'From the rank of Count', intro: "New: a knights' hall trains your veterans into men-at-arms and knights." },
+  drill: { when: rank('Lord'), intro: 'New: a barracks drills your veterans into serjeants and yeoman archers.' },
   'b:cathedral': { when: rank('Count'), intro: 'New: a cathedral, the showpiece of a realm, in a village of 100 people.' },
   // The Realm screen's tabs arrive with what they are about (the Realm screen itself comes at Lord).
   'tab:vassals': { when: w => (w.vassals || []).length > 0, intro: 'New: Vassals: each one\'s mood, wants and dues.' },
@@ -27,6 +30,12 @@ export function unlocked(w, key) {
   if (!w) return true;
   const U = UNLOCKS[key];
   return !U || !!U.when(w);
+}
+
+// Not yet, but shown greyed: the reason it waits ('From the rank of Count'), else null.
+export function ahead(w, key) {
+  const U = UNLOCKS[key];
+  return w && U?.ahead && !U.when(w) && U.ahead(w) ? U.why : null;
 }
 
 // Introductions already shown in this campaign, saved with it (save.js WORLD_KEYS). A save

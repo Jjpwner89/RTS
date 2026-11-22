@@ -24,6 +24,9 @@ const STOCK = { wood: 250, stone: 200, planks: 80, iron: 30, food: 400, flax: 20
 // Arms for the barracks racks: a regiment of spears and one of bows. The hall's kit is on top.
 const ARMS = { spears: 24, shields: 24, bows: 12, arrows: 120 };
 const HALL_ARMS = { mail: 12, swords: 12, shields: 12, armour: 6, lances: 6, horses: 6 };
+// From Lord, veterans drill at the barracks (economy.js DRILLED): ten of them, and the mail and
+// leather for a batch of serjeants and one of yeomen.
+const DRILL_ARMS = { mail: 10, leatherarmour: 10 }, DRILL_VETERANS = 10;
 
 // The game quietly answers everything itself: fights are reckoned, offers and news pass,
 // and settlers are taken in when there is room.
@@ -97,11 +100,12 @@ export async function makeTestCampaign(key, progress = () => {}) {
   }
   // What the rank opens, ready to try (Manager, 2026-11-21: the Count test had no barracks
   // or hall, so its tools could not be tried and the banners raised no levies). Every rank
-  // gets a barracks in Ashford with arms in its racks; Count and Duke also a knights' hall,
-  // veterans home from the wars, mail and plate, and the fees.
+  // gets a barracks in Ashford with arms in its racks, veterans and the kit to drill them;
+  // Count and Duke also a knights' hall, more veterans, mail and plate, and the fees.
   if (raise(t, 'barracks')) {
     const b = t.buildings.find(o => o.kind === 'barracks' && o.state === 'active');
-    for (const [g, n] of Object.entries(ARMS)) t.put(b, g, n);
+    for (const [g, n] of Object.entries({ ...ARMS, ...DRILL_ARMS })) t.put(b, g, n);
+    for (const v of t.villagers.filter(o => o.state !== 'soldier').slice(-DRILL_VETERANS)) v.xp = Math.max(v.xp || 0, 1);
   }
   if (T.vassals && raise(t, 'hall')) {
     // The hall's kit sits in the hall itself: it counts as the village's, but nobody hauls it

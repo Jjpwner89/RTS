@@ -193,7 +193,7 @@ function clear(e) {
 function nextBuild(e) {
   const s = e.stock, plan = PLANS[e.focus] || PLANS.farming;
   // A grown military place raises a knights' hall (as yours need a strong keep: level 3)
-  // and trains elites there from its veterans (world.js trainHall). It saves the planks
+  // and trains elites there from its veterans (world.js trainAt). It saves the planks
   // for it, and the hall may stand beyond the usual count of buildings.
   e.wantHall = e.focus === 'military' && e.level >= 3 && !!e.buildings.barracks && !e.buildings.hall;
   const can = k => Object.entries(BUILDINGS[k].cost).every(([g, q]) => (s[g] || 0) >= q);

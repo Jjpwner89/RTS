@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, taxedHeads, ELITE, HALL, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, taxedHeads, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -312,7 +312,8 @@ export class World {
       if (unfed >= 1) standDown(e, p.garrison, Math.min(Math.ceil(unfed), 6), this.pois.filter(q => q.owner === p.owner && q.eco?.buildings && !q.town));
       h.arms += kits(e);
     }
-    if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainHall(p, e, h, dt);
+    if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainAt(p, e, h, dt, 'hall');
+    if (h && !h.bandit && !h.invader && !v && e.buildings.barracks) this.trainAt(p, e, h, dt, 'barracks');
     if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
   }
 
@@ -324,37 +325,42 @@ export class World {
     if (e.gold > box) { if (h && !h.bandit && !v) h.gold += e.gold - box; e.gold = box; }
   }
 
-  // A rival's knights' hall, on your rules (economy.js ELITE, HALL): veterans of its
-  // garrison drill in batches for their kit and a fee, and march out as men-at-arms or
-  // knights (Dunmore's as knights when there are horses).
-  trainHall(p, e, h, dt) {
-    const T = e.training;
+  // A rival's knights' hall and barracks, on your rules (economy.js trainsAt): veterans of its
+  // garrison train in batches for their kit and a fee, and march out as men-at-arms or knights
+  // (Dunmore's as knights when there are horses) from a hall, or as serjeants and yeomen from
+  // a barracks once the house holds as much as a lord (two places), as you drill from Lord.
+  trainAt(p, e, h, dt, where) {
+    const S = trainsAt(where), slot = where === 'hall' ? 'training' : 'drilling', T = e[slot];
     if (T) {
       T.left -= dt;
       if (T.left > 0) return;
-      e.training = null;
-      p.garrison.push({ ...unit(T.key, T.n, `${h.short} ${TYPES[T.key].name.toLowerCase()}`), xp: T.xp + 2, elite: true, armour: T.armour ?? baseArmour(T.key), shield: T.shield ?? true });
+      e[slot] = null;
+      p.garrison.push({ ...unit(T.key, T.n, `${h.short} ${TYPES[T.key].name.toLowerCase()}`), xp: T.xp + S.gain, ...(S.elite ? { elite: true } : {}), armour: T.armour ?? baseArmour(T.key), shield: T.shield ?? canShield(T.key) });
       return;
     }
-    const elites = p.garrison.filter(u => u.elite).reduce((n, u) => n + u.count, 0);
-    // Veterans come to the hall from any of the house's garrisons; once the house reaches
-    // beyond its own lands (rivals.js STAGES) and has gold to keep them, any of its men will do.
     const held = this.pois.filter(q => q.owner === h.index && !q.town);
+    if (!S.elite && rankOf(held.filter(q => q.kind !== 'camp').length) === 'Reeve') return;
+    const trained = u => S.elite ? !!u.elite : !!DRILLED[u.key];
+    const already = p.garrison.filter(trained).reduce((n, u) => n + u.count, 0);
+    // Veterans come from any of the house's garrisons; once the house reaches beyond its own
+    // lands (rivals.js STAGES) and has gold to keep them, any of its men will do.
     const anyMan = (h.ai?.stage ?? 0) >= 1 && h.gold > 600;
-    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && (anyMan || (u.xp || 0) >= HALL.veteran) && !TYPES[u.key]?.engine && u.key !== 'sellsword' && u.key !== 'hiredxbow');
-    // A great house's hall keeps more men the more places it holds.
-    const room = Math.round(HALL.cap * Math.max(1, held.length / 2)) - elites, have = vets.reduce((n, u) => n + u.count, 0);
-    if (room <= 0 || !have) return;
-    // Weapons, and mail at the least (plate if there is enough), as in your hall.
+    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && !DRILLED[u.key] && (anyMan || (u.xp || 0) >= S.veteran) && !TYPES[u.key]?.engine && u.key !== 'sellsword' && u.key !== 'hiredxbow');
+    // A great house keeps more of them the more places it holds.
+    const room = Math.round(S.cap * Math.max(1, held.length / 2)) - already, men = vets.reduce((n, u) => n + u.count, 0);
+    if (room <= 0 || !men) return;
+    // Weapons, and the armour: mail at the least for elites (plate if there is enough), their kind's for drilled men.
     const has = g => Math.floor(e.stock[g] || 0);
-    const kitN = k => Math.min(Math.max(has('mail'), has('armour')), ...Object.entries(weaponKit(k)).map(([g, q]) => Math.floor(has(g) / q)));
-    const key = h.trait === 'hothead' && kitN('knight') >= 3 ? 'knight' : 'maa';
-    const n = Math.min(HALL.batch, room, have, kitN(key), Math.floor(h.gold / ELITE[key].fee));
+    const body = k => S.elite ? Math.max(has('mail'), has('armour')) : has(ARMOUR_GOOD[TYPES[k].armour]);
+    const kitN = k => Math.min(body(k), ...Object.entries(weaponKit(k)).map(([g, q]) => Math.floor(has(g) / q)));
+    const key = S.elite ? (h.trait === 'hothead' && kitN('knight') >= 3 ? 'knight' : 'maa')
+      : kitN('yeoman') > kitN('serjeant') ? 'yeoman' : 'serjeant';
+    const n = Math.min(S.batch, room, men, kitN(key), Math.floor(h.gold / S.kinds[key].fee));
     if (n < 3) return;
-    const fit = outfit(key, n, has, 'best', true);
+    const fit = S.elite ? outfit(key, n, has, 'best', true) : { armour: TYPES[key].armour, shield: canShield(key) && has('shields') >= n };
     if (!fit) return;
     for (const [g, q] of Object.entries(outfitKit(key, n, fit))) e.stock[g] = (e.stock[g] || 0) - q;
-    h.gold -= ELITE[key].fee * n;
+    h.gold -= S.kinds[key].fee * n;
     let left = n, xp = 0;
     for (const u of vets.sort((x, y) => (y.xp || 0) - (x.xp || 0))) {
       const k = Math.min(left, u.count);
@@ -362,7 +368,7 @@ export class World {
       if (!left) break;
     }
     for (const q of held) q.garrison = q.garrison.filter(u => u.count > 0);
-    e.training = { key, n, xp, left: ELITE[key].drill * n, ...fit };
+    e[slot] = { key, n, xp, left: S.kinds[key].drill * n, ...fit };
   }
 
   // A house raises men for its field army at its muster place, drawing them from whichever
@@ -436,6 +442,8 @@ export class World {
     // The household guard is a lord's: from the rank of Lord (creator, 2026-11-21: the first conquest is all home-grown troops).
     town.householdRule = () => ['Lord', 'Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Lord';
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
+    // Veterans drill at a barracks into serjeants and yeomen from the rank of Lord (creator, 2026-11-22).
+    town.drillRule = () => ['Lord', 'Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Lord';
     town.greatRule = () => cathedralRule(this);
     // Finished buildings go on the Needs you list for a while (alerts.js).
     town.onBuilt = b => { if (p.owner === 0 && b.kind !== 'house') { (this.built ||= []).push({ p: p.id, name: b.B.name, icon: b.B.icon, at: this.time }); if (this.built.length > 12) this.built.shift(); } };
@@ -1933,7 +1941,7 @@ export function seenAs(a) {
 
 // What each rank brings (the crown has its own moment).
 const RANKS = {
-  Lord: { title: 'a lord', tools: 'You may give villages to vassals to run for you, lay out whole quarters from town templates, and call the banners.',
+  Lord: { title: 'a lord', tools: 'You may give villages to vassals to run for you, lay out whole quarters from town templates, call the banners, and drill your veterans at a barracks into serjeants and yeoman archers.',
     trouble: 'Vassals have minds of their own: watch what they think of you.' },
   Count: { title: 'a count', tools: 'Your villages with a strong keep may raise a knights\' hall for elite men.',
     trouble: 'The great houses take you seriously now, and a slighted vassal may stop paying.' },
@@ -1958,7 +1966,7 @@ function pickKind(h, r, time) {
     builder: ['spear', 'archer', 'spear', 'sword'],
     turtler: ['spear', has('crossbow') ? 'crossbow' : 'archer', 'archer', 'spear'],
     schemer: ['spear', 'archer', 'sword', 'spear'],
-    // Men-at-arms and knights come only from a knights' hall, for every house (trainHall).
+    // Men-at-arms and knights come only from a knights' hall, for every house (trainAt).
     merchant: ['spear', has('crossbow') ? 'crossbow' : 'archer', 'sword', 'sword'],
     hothead: ['spear', 'cav', 'cav', 'sword'],
   }[h.trait] || ['spear', 'archer', 'sword', 'spear'];

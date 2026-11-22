@@ -461,6 +461,43 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Slower midgame gold (creator, 2026-11-22): the first 40 heads pay as before, and a home
+  // village of 160 at fair taxes brings in about 60 a minute, whatever its keep, not 100.
+  await check('treasury: the first forty heads pay in full, and 160 people bring in about 60 a minute', async () => {
+    const E = await import('./economy.js'), out = [];
+    for (const [n, lvl] of [[20, 1], [40, 2]]) if (E.taxedHeads(n, lvl) !== n) out.push(`${n} people under a level-${lvl} keep pay for ${E.taxedHeads(n, lvl).toFixed(1)} heads`);
+    const rate = Object.getOwnPropertyDescriptor(E.Town.prototype, 'taxRate').get.call({ taxes: 2, mood: 65 }) * 60;
+    for (const lvl of [3, 4, 5]) {
+      const a = E.taxedHeads(160, lvl) * rate;
+      if (a < 50 || a > 72) out.push(`160 people under a level-${lvl} keep at fair taxes pay ${a.toFixed(0)} gold a minute`);
+    }
+    return out;
+  });
+
+  // Earned troops (creator, 2026-11-22): veterans drill at a barracks into serjeants and
+  // yeomen from Lord and train at a knights' hall from Count, for real fees, and each step
+  // draws more pay than the one before; the hall shows greyed at Lord.
+  await check('training: drilled men and elites cost real gold, earn more pay, and wait for their rank', async () => {
+    const E = await import('./economy.js'), { payOf, WAGES } = await import('./world/treasury.js'), { ahead } = await import('./ui/unlocks.js'), { TYPES } = await import('./battle.js'), out = [];
+    if (E.ELITE.maa.fee < 50 || E.ELITE.knight.fee < 120) out.push(`hall fees are ${E.ELITE.maa.fee} and ${E.ELITE.knight.fee}: not real money`);
+    for (const [k, D] of Object.entries(E.DRILLED)) {
+      if (!TYPES[k] || !E.KITS[k]) { out.push(`${k} is drilled but has no type or kit`); continue; }
+      const pay = payOf(k, TYPES[k].armour, false);
+      if (!(pay > WAGES.heavy && pay < E.ELITE.maa.pay)) out.push(`${TYPES[k].name} draw ${pay} a minute, not between mail (${WAGES.heavy}) and a man-at-arms (${E.ELITE.maa.pay})`);
+      if (!(D.fee > 0 && D.drill > 0)) out.push(`${TYPES[k].name} cost no fee or drill`);
+    }
+    if (E.trainsAt({ kind: 'barracks', B: {} })?.kinds !== E.DRILLED || E.trainsAt({ kind: 'hall', B: { hall: true } })?.kinds !== E.ELITE) out.push('a barracks or a hall trains the wrong men');
+    for (const [rank, want] of [['Reeve', null], ['Lord', 'From the rank of Count'], ['Count', null]]) if ((ahead({ rank, pois: [] }, 'b:hall') ?? null) !== want) out.push(`at ${rank} the knights' hall shows ${ahead({ rank, pois: [] }, 'b:hall') ?? 'as it is'}, not ${want ?? 'as it is'}`);
+    for (const p of w.pois) {
+      if (p.owner !== 0 || !p.town || p.town.hostile) continue;
+      for (const b of p.town.buildings) if (b.kind === 'barracks' && b.state === 'active') {
+        const why = p.town.trainCheck('serjeant', b).reason;
+        if ((w.rank === 'Reeve') !== (why === 'From the rank of Lord')) out.push(`${p.name}'s barracks at ${w.rank}: ${why || 'drills'}`);
+      }
+    }
+    return out;
+  });
+
   // Leagues on one rule for every side (Orchestrator, 2026-11-21): of two equal reasons, one
   // against you and one against a house, the nearer side is chosen, and so not always you;
   // a stronger reason beats a nearer one.

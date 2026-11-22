@@ -49,7 +49,7 @@ import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
 import { LOD } from './models.js';
 import { audio } from './audio.js';
-import { unlocked } from './ui/unlocks.js';
+import { unlocked, ahead } from './ui/unlocks.js';
 import * as news from './ui/news.js';
 
 const params = new URLSearchParams(location.search);
@@ -222,6 +222,7 @@ function townBundle(p, look = null) {
     pullBack: () => world.endStorm(p, true),
     templates: () => world.rank !== 'Reeve',
     unlocked: key => unlocked(world, key),
+    ahead: key => ahead(world, key),
     companies: () => (world.companies || []).map(c => {
       const o = offer(world, c, 0), boss = c.employer !== null && c.employer !== undefined ? FACTIONS[c.employer] : null;
       const where = world.byId[c.home]?.name;
@@ -344,8 +345,9 @@ function deploy(battle, side, units, cx, cz, angle) {
     for (const u of list) { put(u, x + width(u) / 2, back); x += width(u); }
     return -x;
   };
-  const foot = units.filter(u => u.key !== 'archer' && u.key !== 'cav');
-  const archers = units.filter(u => u.key === 'archer'), horse = units.filter(u => u.key === 'cav');
+  const bows = u => u.key === 'archer' || u.key === 'yeoman';
+  const foot = units.filter(u => !bows(u) && u.key !== 'cav');
+  const archers = units.filter(bows), horse = units.filter(u => u.key === 'cav');
   const half = foot.length ? row(foot, 0) : 0;
   if (archers.length) row(archers, foot.length ? 24 : 0);
   horse.forEach((u, i) => put(u, (i % 2 ? -1 : 1) * (half + 30 + Math.floor(i / 2) * 50), 8));

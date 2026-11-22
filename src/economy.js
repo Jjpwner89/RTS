@@ -284,16 +284,32 @@ export function outfitKit(key, n, fit) {
   return kit;
 }
 // Kit a man needs at the least: his weapons (KITS[key].kit), and what he wears by default.
-export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 'maa', 'lightcav', 'cav', 'knight']
+export const KITS = Object.fromEntries(['spear', 'archer', 'sword', 'crossbow', 'serjeant', 'yeoman', 'maa', 'lightcav', 'cav', 'knight']
   .map(k => [k, { name: TYPES[k].name, kit: weaponKit(k) }]));
 // Elite men come only from a knights' hall, trained from veterans: a few at a time, for
 // their kit, a fee in gold and minutes of drill per man. A hall keeps so many at most. On
-// the campaign they draw pay every minute (gold per man; world/treasury.js).
+// the campaign they draw pay every minute (gold per man; world/treasury.js). The fees are
+// real money (creator, 2026-11-22: the midgame had nothing to spend gold on; they were 8 and 20).
 export const ELITE = {
-  maa: { fee: 8, drill: 45, pay: 1.5 },
-  knight: { fee: 20, drill: 75, pay: 3.75 },
+  maa: { fee: 60, drill: 45, pay: 1.5 },
+  knight: { fee: 150, drill: 75, pay: 3.75 },
 };
 export const HALL = { batch: 6, cap: 24, veteran: 1 };   // veteran: the least experience (Blooded)
+// Drilled men (creator, 2026-11-22: "i would want more and better troops. you gotta earn
+// those"): from the rank of Lord, veterans drill at a barracks into serjeants and yeoman
+// archers, the step before the knights' hall. Each takes his kit in the armour of his kind
+// (mail for a serjeant, leather for a yeoman, from the armourer and tanner), a fee and drill
+// time, and draws more pay than a levy (world/treasury.js). A barracks keeps so many at most.
+export const DRILLED = {
+  serjeant: { fee: 20, drill: 25, pay: 1.2 },
+  yeoman: { fee: 20, drill: 25, pay: 1.2 },
+};
+export const DRILL = { batch: 10, cap: 40, veteran: 1 };
+// What a building trains and how: a knights' hall its elites (mail at the least, plate if
+// there is enough), a barracks its drilled men (their kind's armour). One path for both, in
+// your villages (Town.train) and a house's places (World.trainAt).
+export const trainsAt = b => (b.B?.hall || b === 'hall') ? { kinds: ELITE, ...HALL, elite: true, gain: 2 }
+  : (b.kind === 'barracks' || b === 'barracks') ? { kinds: DRILLED, ...DRILL, elite: false, gain: 1 } : null;
 // The keep grows with the village to level 3 and never shrinks back (keepPeak) when levies
 // march out. Levels 4 and 5 are raised for gold and stone (KEEP_RAISE, keepBought), once the
 // village has the people; each gives homes and lifts the mood.
@@ -303,8 +319,11 @@ export const keepLevel = t => t.keepLevel ? Math.max(1, Math.min(5, t.keepLevel)
 // A keep's reach (Orchestrator, 2026-11-21: tax outran the people and the army it paid): a
 // keep collects in full from so many heads and a third from each beyond, so a village that
 // has outgrown its keep pays less a head until a greater keep is raised (KEEP_RAISE). The
-// same for a house's places by their level (World.tickEconomy).
-export const KEEP_REACH = [0, 20, 40, 60, 90, 130], BEYOND_REACH = 1 / 3;
+// same for a house's places by their level (World.tickEconomy). Slower midgame gold (creator,
+// 2026-11-22: "midgame nothing for that much gold"; Ashford made about 100 a minute at 160
+// people): the first 40 heads pay as before, but reach grows little past that and each head
+// beyond pays a sixth, so 160 people bring in about 60 a minute, not 100.
+export const KEEP_REACH = [0, 20, 40, 50, 55, 60], BEYOND_REACH = 1 / 6;
 export const taxedHeads = (n, level) => { const r = KEEP_REACH[Math.max(1, Math.min(5, level))]; return n <= r ? n : r + (n - r) * BEYOND_REACH; };
 export const KEEP_RAISE = [
   { name: 'great keep', pop: 100, gold: 500, cost: { stone: 80, planks: 30 }, housing: 10, mood: 4 },
@@ -1268,45 +1287,53 @@ export class Town {
 
   veterans() { return this.villagers.filter(v => v.state !== 'soldier' && (v.xp || 0) >= HALL.veteran); }
   hallMen(hall) { return this.battle.regs.filter(r => r.hall === hall.id && !r.gone).reduce((n, r) => n + r.alive, 0); }
+  // Veterans already promised to a hall or barracks that is training them.
+  inTraining() { return this.buildings.reduce((n, b) => n + (b.training?.n || 0), 0); }
 
+  // A knights' hall or a barracks (trainsAt): veterans, kit, a fee each, and room.
   trainCheck(key, hall) {
-    const E = ELITE[key];
+    const S = trainsAt(hall), E = S?.kinds[key];
+    if (!E) return { ok: false, reason: 'Not trained here' };
     if (hall.state !== 'active') return { ok: false, reason: 'Not built yet' };
-    if (hall.training) return { ok: false, reason: `Training ${hall.training.n} ${KITS[hall.training.key].name.toLowerCase()}` };
-    const room = HALL.cap - this.hallMen(hall);
-    if (room <= 0) return { ok: false, reason: `The hall holds ${HALL.cap} men` };
-    const vets = this.veterans().length;
-    if (!vets) return { ok: false, reason: 'Needs veterans: villagers who fought as levies and came home' };
-    const kit = KITS[key].kit;
-    // Elites wear mail at the least, plate if there is enough for every man.
-    const byArmour = Math.max(Math.floor(this.free('mail')), Math.floor(this.free('armour')));
+    const rule = !S.elite && this.drillRule?.();
+    if (rule) return { ok: false, reason: rule };
+    if (hall.training) return { ok: false, reason: `${S.elite ? 'Training' : 'Drilling'} ${hall.training.n} ${KITS[hall.training.key].name.toLowerCase()}` };
+    const room = S.cap - this.hallMen(hall);
+    if (room <= 0) return { ok: false, reason: S.elite ? `The hall holds ${S.cap} men` : `A barracks keeps ${S.cap} drilled men` };
+    const vets = this.veterans().length - this.inTraining();
+    if (vets < 1) return { ok: false, reason: 'Needs veterans: villagers who fought as levies and came home' };
+    const kit = KITS[key].kit, T = TYPES[key];
+    // Elites wear mail at the least, plate if there is enough for every man; drilled men their kind's armour.
+    const byArmour = S.elite ? Math.max(Math.floor(this.free('mail')), Math.floor(this.free('armour'))) : Math.floor(this.free(ARMOUR_GOOD[T.armour]));
     const byKit = Math.min(byArmour, ...Object.entries(kit).map(([g, n]) => Math.floor(this.free(g) / n)));
     const byGold = Math.floor(this.purse.gold / E.fee);
-    const n = Math.min(HALL.batch, room, vets, byKit, byGold);
+    const n = Math.min(S.batch, room, vets, byKit, byGold);
     const short = Object.entries(kit).filter(([g, k]) => this.free(g) < k).map(([g]) => GOODS[g].name.toLowerCase());
-    if (byArmour < 1) short.push('mail or plate');
+    if (byArmour < 1) short.push(S.elite ? 'mail or plate' : GOODS[ARMOUR_GOOD[T.armour]].name.toLowerCase());
     if (n < 1) return { ok: false, reason: byKit < 1 ? `Short of ${short.join(', ')}` : `Needs ${E.fee} gold each` };
-    return { ok: true, n, fit: outfit(key, n, g => Math.floor(this.free(g)), 'best', true) };
+    const fit = S.elite ? outfit(key, n, g => Math.floor(this.free(g)), 'best', true)
+      : { armour: T.armour, shield: canShield(key) && this.free('shields') >= n };
+    return { ok: true, n, fit };
   }
 
   // Kit and fees are paid now; the veterans drill for minutes before they march out.
   train(key, hall) {
     const c = this.trainCheck(key, hall);
     if (!c.ok) return c;
-    const E = ELITE[key];
+    const E = trainsAt(hall).kinds[key];
     this.spend(outfitKit(key, c.n, c.fit));
     this.purse.gold -= E.fee * c.n;
     hall.training = { key, n: c.n, left: E.drill * c.n, total: E.drill * c.n, ...c.fit };
-    this.event(`${c.n} veterans have begun their training as ${KITS[key].name.toLowerCase()}.`);
+    this.event(`${c.n} veterans have begun their ${hall.B.hall ? 'training' : 'drill'} as ${KITS[key].name.toLowerCase()}.`);
     return { ok: true };
   }
 
   updateHalls(dt) {
     for (const hall of this.buildings) {
-      const T = hall.training;
-      if (!T || hall.state !== 'active') continue;
+      const T = hall.training, S = T && trainsAt(hall);
+      if (!T || !S || hall.state !== 'active') continue;
       T.left -= dt;
-      hall.status = `Training ${T.n} ${KITS[T.key].name.toLowerCase()}: ${Math.ceil(T.left / 60)} min left`;
+      hall.status = `${S.elite ? 'Training' : 'Drilling'} ${T.n} ${KITS[T.key].name.toLowerCase()}: ${Math.ceil(T.left / 60)} min left`;
       if (T.left > 0) continue;
       hall.training = null;
       hall.status = '';
@@ -1316,14 +1343,14 @@ export class Town {
       if (men.length < T.n) for (const [g, k] of Object.entries(outfitKit(T.key, T.n - men.length, fit))) this.put(this.keep, g, k);
       if (!men.length) { this.event('The veterans in training are gone; their kit is back in the stores.'); continue; }
       for (const v of men) { this.release(v); v.hidden = false; }
-      const xp = Math.max(...men.map(v => v.xp || 0)) + 2;
+      const xp = Math.max(...men.map(v => v.xp || 0)) + S.gain;
       const out = Math.atan2(hall.x, hall.z);
       const r = this.battle.addRegiment(0, T.key, hall.x + Math.sin(out) * 18, hall.z + Math.cos(out) * 18, out,
         { count: men.length, from: men, name: KITS[T.key].name, xp, ...fit });
-      Object.assign(r, { levy: T.key, elite: true, hall: hall.id }, fit);
+      Object.assign(r, { levy: T.key, hall: hall.id }, S.elite ? { elite: true } : {}, fit);
       r.soldiers.forEach((s, i) => { men[i].state = 'soldier'; men[i].soldier = s; s.villager = men[i]; });
       audio.play('drums', hall, this.battle); // audio
-      this.event(`${men.length} ${KITS[T.key].name.toLowerCase()} have finished their training.`);
+      this.event(`${men.length} ${KITS[T.key].name.toLowerCase()} have finished their ${S.elite ? 'training' : 'drill'}.`);
     }
   }
 
@@ -2652,7 +2679,7 @@ export class Town {
     const b = this.battle, n = specs.length;
     b.homes[0] = this.edgePoint(entryAngle);            // your broken men run back down the road
     b.homes[1] = this.edgePoint(entryAngle + Math.PI);  // theirs out the far side
-    const ranged = key => ['archer', 'crossbow', 'hiredxbow'].includes(key);
+    const ranged = key => ['archer', 'yeoman', 'crossbow', 'hiredxbow'].includes(key);
     const regs = specs.map((sp, i) => {
       const a = entryAngle + (i - (n - 1) / 2) * Math.min(0.55, 2.8 / Math.max(1, n));
       // Inside their walls if they have them, else in a ring out in front of the keep.

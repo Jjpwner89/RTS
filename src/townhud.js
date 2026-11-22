@@ -1,10 +1,11 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ROAD, ELITE, HALL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_REACH, BEYOND_REACH, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
+import { ROAD, ELITE, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_REACH, BEYOND_REACH, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
+import { TYPES } from './battle.js';
 import { watch } from './ui/news.js';
 
 // Folds and the "about" notes are the player's choice, kept between visits and sessions.
@@ -201,6 +202,7 @@ export class TownHud {
     const at = (sel, tab) => () => { const el = this.buildEl.querySelector(sel); return el && !el.hidden ? el : [this.buildEl.querySelector(`[data-tab="${tab}"]`), true]; };
     watch('towns', () => this.buildEl.querySelector('[data-tab="Towns"]'));
     watch('b:hall', at('[data-build="hall"]', 'Military'));
+    watch('drill', at('[data-build="barracks"]', 'Military'));
     watch('b:cathedral', at('[data-build="cathedral"]', 'Village'));
   }
 
@@ -292,7 +294,7 @@ export class TownHud {
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
     set('tax', t.readOnly ? `${TAXES[t.taxes].name}, set by ${t.readOnly.name}` : TAXES[t.taxes].name);
-    // A keep taxes only so many heads; past its reach each pays a third (economy.js KEEP_REACH).
+    // A keep taxes only so many heads; past its reach each pays a sixth (economy.js KEEP_REACH).
     const reach = KEEP_REACH[keepLevel(t)], over = t.population > reach;
     set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${(t.taxed * t.taxRate * 60).toFixed(0)}/min${over ? ` <small>(keep taxes ${reach} people)</small>` : ''}`);
     this.stockEl.querySelector('[data-s="gold"]').title = `The keep taxes up to ${reach} people in full; past that each pays a third. A bigger keep taxes more.`;
@@ -310,7 +312,9 @@ export class TownHud {
 
     // Tabs and buildings your rank can't use yet aren't shown at all (DESIGN_NOTES).
     const lord = this.can('towns') && (this.hooks.templates?.() ?? true);
-    const shown = el => el.dataset.build.startsWith('tpl:') ? lord : el.dataset.build === 'hire' ? !!this.hooks.findBuilding : this.can(`b:${el.dataset.build}`);
+    // A building a rank or two off is shown greyed with its reason (ui/unlocks.js ahead).
+    const soon = el => !el.dataset.build.startsWith('tpl:') && el.dataset.build !== 'hire' ? this.hooks.ahead?.(`b:${el.dataset.build}`) : null;
+    const shown = el => el.dataset.build.startsWith('tpl:') ? lord : el.dataset.build === 'hire' ? !!this.hooks.findBuilding : this.can(`b:${el.dataset.build}`) || !!soon(el);
     if (this.tab === 'Towns' && !lord) this.tab = 'Village';
     const folded = this.buildEl.classList.contains('folded');
     for (const el of this.tabEls) {
@@ -331,7 +335,15 @@ export class TownHud {
       const tpl = el.dataset.build.startsWith('tpl:');
       el.hidden = el.dataset.group !== this.tab || !shown(el);
       const T = tpl && TEMPLATES[el.dataset.build.slice(4)], small = T?.at && t.population < T.at;
-      el.classList.toggle('poor', small || el.dataset.build !== 'hire' && !t.canAfford(tpl ? templateCost(el.dataset.build.slice(4)) : BUILDINGS[el.dataset.build]?.cost || { stone: 1 }));
+      const why = soon(el);
+      el.classList.toggle('poor', !!why || small || el.dataset.build !== 'hire' && !t.canAfford(tpl ? templateCost(el.dataset.build.slice(4)) : BUILDINGS[el.dataset.build]?.cost || { stone: 1 }));
+      const B = BUILDINGS[el.dataset.build];
+      if (B) {
+        el.disabled = !!why;
+        const label = el.querySelector('small'), text = why || listCost(B.cost), title = why ? `${why}. ${B.desc}` : B.desc;
+        if (label && label.textContent !== text) label.textContent = text;
+        if (el.title !== title) el.title = title;
+      }
       const tip = T && `${T.focus}: ${T.desc}${T.at ? `\nFor a village of ${T.at} people or more${small ? ` (you have ${t.population})` : ''}.` : ''}`;
       if (T && el.title !== tip) el.title = tip;
       el.classList.toggle('on', placing === el.dataset.build);
@@ -443,8 +455,12 @@ export class TownHud {
       rows.push(`<p class="kit" data-f="racks"></p>`);
       rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
       for (const [k, K] of Object.entries(KITS)) {
-        if (ELITE[k]) continue;
+        if (ELITE[k] || DRILLED[k]) continue;
         rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks, and wears what the racks allow</p>`);
+      }
+      if (this.can('drill')) {
+        rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and minutes of drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
+        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${Math.round(E.drill / 60 * 10) / 10} min of drill</p>`);
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
@@ -469,6 +485,8 @@ export class TownHud {
     if (co) rows.push(`<p class="note">A mercenary company under ${co.captain}. Wages: ${co.wage} gold a minute, from your treasury.${co.unpaid ? ' <b class="bad">They are owed pay.</b>' : ''}</p>`,
       `<button data-act="dismiss" class="wide"><span>Dismiss them</span><small>they leave your service; no refund</small></button>`);
     else if (r.elite) rows.push(`<p class="note">Trained in your knights' hall from veterans. Slow to replace: losing them hurts.${this.hooks.companies ? ` Pay: ${Math.round(r.alive * (ELITE[r.T.key]?.pay ?? ELITE.maa.pay) * 10) / 10} gold a minute.` : ''}</p>`,
+      `<button data-act="disband" class="wide"><span>Stand them down</span><small>they go home to work; their kit goes back to the racks</small></button>`);
+    else if (DRILLED[r.T.key]) rows.push(`<p class="note">Drilled at your barracks from veterans.${this.hooks.companies ? ` Pay: ${Math.round(r.alive * DRILLED[r.T.key].pay * 10) / 10} gold a minute.` : ''}</p>`,
       `<button data-act="disband" class="wide"><span>Stand them down</span><small>they go home to work; their kit goes back to the racks</small></button>`);
     else if (r.levy) rows.push(`<button data-act="disband" class="wide"><span>Disband</span><small>send them home to work</small></button>`);
     else if (r.T.key === 'household') rows.push(`<p class="note">Your household guard: paid men, ${Math.round(r.alive * HOUSEHOLD_PAY * 10) / 10} gold a minute from your treasury. Dismissed, they leave, and nobody joins the village.</p>`,
