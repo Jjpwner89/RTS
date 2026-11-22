@@ -687,6 +687,39 @@ async function worldChecks(w) {
     return out;
   });
 
+  // The household guard by rank (creator, 2026-11-22): Lord 1, Count 2, Duke 3, King 4, counted
+  // across the realm, at home and in the field; one wiped out or disbanded frees its slot.
+  await check('household guard: a lord keeps 1, a count 2, a duke 3, across the realm', async () => {
+    const W = await import('./world/world.js'), out = [];
+    const p = w.pois.find(q => q.owner === 0 && q.town && !q.town.hostile), t = p?.town;
+    if (!t) return null;
+    const want = W.HOUSEHOLD_CAP[w.rank] || 0, { have, cap } = w.households(0);
+    if (cap !== want) out.push(`at the rank of ${w.rank} the cap is ${cap}, not ${want}`);
+    if (!cap) return out;
+    if (W.HOUSEHOLD_CAP.Lord !== 1 || W.HOUSEHOLD_CAP.Count !== 2 || W.HOUSEHOLD_CAP.Duke !== 3) out.push(`the caps are ${JSON.stringify(W.HOUSEHOLD_CAP)}`);
+    // Fill to the cap: one regiment here, the rest in an army in the field.
+    const gold = t.purse.gold, added = [], army = have < cap - 1 ? w.spawnArmy(0, Array.from({ length: cap - have - 1 }, () => ({ key: 'household', count: 30, name: 'Household guard (checks() test)' })), p, 'Household test') : null;
+    try {
+      t.purse.gold = 1e6;
+      if (have < cap) added.push(t.battle.addRegiment(0, 'household', 0, 0, 0, { count: 30, name: 'Household guard (checks() test)' }));
+      const full = t.hireCheck('household');
+      if (full.ok) out.push(`with ${w.households(0).have} of ${cap} it would hire another`);
+      else if (full.reason !== `A ${w.rank.toLowerCase()} keeps ${cap} household guard${cap > 1 ? 's' : ''} (you have ${cap})`) out.push(`at the cap it says "${full.reason}"`);
+      // one wiped out frees its slot
+      const one = added[0] || t.battle.regs.find(r => r.side === 0 && r.T.key === 'household' && !r.gone);
+      if (one) {
+        const alive = one.soldiers.filter(s => s.alive).map(s => { s.alive = false; return s; });
+        if (!t.hireCheck('household').ok) out.push(`a household wiped out still holds its slot: "${t.hireCheck('household').reason}"`);
+        for (const s of alive) s.alive = true;
+      }
+    } finally {
+      t.purse.gold = gold;
+      for (const r of added) if (!r.gone) t.battle.disband(r);
+      if (army) w.removeArmy(army);
+    }
+    return out;
+  });
+
   // Earned troops (creator, 2026-11-22): veterans drill at a barracks into serjeants and
   // yeomen from Lord and train at a knights' hall from Count, for real fees, and each step
   // draws more pay than the one before; the hall shows greyed at Lord.

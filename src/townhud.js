@@ -405,6 +405,8 @@ export class TownHud {
       if (el.dataset.act === 'refit') { const c = this.town.refitCheck(reg); el.querySelector('small').textContent = c.ok ? `at the ${c.rack.B.name.toLowerCase()}: ${gearText(c.fit)}` : c.reason; }
       if (el.dataset.act === 'upgrade') { const c = this.town.upgradeCheck(selected); el.hidden = !!c.done; el.querySelector('small').textContent = c.ok ? 'ready' : c.reason; }
       if (el.dataset.act.startsWith('engine:') || el.dataset.act.startsWith('hire:')) el.querySelector('small').textContent = title || 'ready';
+      // (how many the rank allows, realm-wide: world.js HOUSEHOLD_CAP)
+      if (el.dataset.act === 'hire:household' && this.town.householdCount) { const { have, cap } = this.town.householdCount(); if (cap) el.querySelector('small').textContent = `Household guards ${have} of ${cap}${title && have < cap ? ` · ${title}` : ''}`; }
       if (el.dataset.act.startsWith('train:')) { const c = this.town.trainCheck(el.dataset.act.slice(6), selected); el.querySelector('small').textContent = c.ok ? `${c.n} men` : c.reason; }
       if (el.dataset.act.startsWith('co:')) {
         const c = this.hooks.companies().find(o => o.id === +el.dataset.act.slice(3));

@@ -52,6 +52,9 @@ export const fierceness = w => AGGRESSION[w.options?.aggression] || AGGRESSION.n
 export const grace = w => GRACE * fierceness(w).stage;
 // Gold a person pays a second at fair taxes, yours and the rivals' alike (merchants 1.5×).
 export const TAX = 0.012;
+// Household guards a lord keeps, by rank, across the realm (creator, 2026-11-22; the King's
+// four are the Orchestrator's): every regiment with men left, at home or in the field, counts.
+export const HOUSEHOLD_CAP = { Lord: 1, Count: 2, Duke: 3, King: 4 };
 export const COFFER = 5;   // gold a head a place keeps in its strongbox (tickEconomy)
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
@@ -445,7 +448,13 @@ export class World {
     town.rebelHouse = this.bandits;
     // A knights' hall wants the rank of Count, and its finishing is a moment.
     // The household guard is a lord's: from the rank of Lord (creator, 2026-11-21: the first conquest is all home-grown troops).
-    town.householdRule = () => ['Lord', 'Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Lord';
+    // So many of them by rank (HOUSEHOLD_CAP); an old save over the cap keeps them, but hires no more.
+    town.householdRule = () => {
+      const { have, cap } = this.households(0);
+      if (!cap) return 'From the rank of Lord';
+      return have >= cap ? `A ${this.rank.toLowerCase()} keeps ${cap} household guard${cap > 1 ? 's' : ''} (you have ${have})` : null;
+    };
+    town.householdCount = () => this.households(0);
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
     // Veterans drill at a barracks into serjeants and yeomen from the rank of Lord (creator, 2026-11-22).
     town.drillRule = () => ['Lord', 'Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Lord';
@@ -1157,6 +1166,17 @@ export class World {
     this.removeArmy(a);
     this.hooks.captured(p, was);
     this.checkBroken(was);
+  }
+
+  // How many household guards a side keeps (regiments with men left, in its villages, places
+  // and armies) and how many its lord's rank allows. Only you hire them today; a house that
+  // ever does goes by its lord's rank the same way.
+  households(side) {
+    const live = r => r.side === side && !r.gone && r.T.key === 'household' && r.soldiers.some(s => s.alive && !s.gone);
+    const have = this.pois.filter(p => p.owner === side).reduce((n, p) => n + (p.town ? p.town.battle.regs.filter(live).length : p.garrison.filter(u => u.key === 'household' && u.count > 0).length), 0)
+      + this.armies.filter(a => a.side === side && !a.gone).reduce((n, a) => n + a.units.filter(u => u.key === 'household' && u.count > 0).length, 0);
+    const rank = side === 0 ? this.rank : rankOf(this.pois.filter(p => p.owner === side && p.kind !== 'camp').length);
+    return { have, cap: HOUSEHOLD_CAP[rank] || 0 };
   }
 
   // A place changes hands. Seats move to the house's next-best place when lost.
