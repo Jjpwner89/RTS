@@ -232,6 +232,7 @@ export class World {
     const tracked = p.kind !== 'camp' && !FACTIONS[p.owner]?.invader;
     p.eco = tracked ? seedEconomy(p, this.rand, { seat: p.seat !== undefined, crown: p.kind === 'crown', kindPop: K.pop })
       : { pop: Math.round((p.seat !== undefined ? 55 : 32) * K.pop + (p.kind === 'crown' ? 30 : 0)), level: lvl, arms: 0 };
+    if (tracked) this.strongbox(p.eco, FACTIONS[p.owner], null);
     // No two places keep quite the same guard: poor ones fewer, and a rich trading town
     // trusts to its coin more than its walls.
     const guard = tracked ? WEALTH[p.eco.wealth].guard * (p.eco.focus === 'trade' ? 0.6 : p.eco.focus === 'military' ? 1.25 : 1) : 1;
@@ -301,11 +302,7 @@ export class World {
     if (v) FACTIONS[0].gold += share(this, v, taxes + traded);
     else if (h && !h.bandit) { h.gold += taxes + traded / 2; e.gold += traded / 2; }
     else e.gold += taxes * 0.5 + traded;
-    // A place keeps a strongbox, not a treasury (Orchestrator, 2026-11-21: a market town taken
-    // at minute 88 held 7,050 gold): COFFER a head at most. A house's place sends the rest
-    // to its lord; a free place spends it on itself.
-    const box = e.pop * COFFER;
-    if (e.gold > box) { if (h && !h.bandit && !v) h.gold += e.gold - box; e.gold = box; }
+    this.strongbox(e, h, v);
     const want = this.keepHome(p), have = headcount(p.garrison);
     if (have < want) for (const u of arm(e, Math.min(6, want - have), v ? Math.max(12, housing(e) * 0.4) : keepAtWork(e, pressedAt(h, p), AT_WORK.guard), v ? 'best' : armourPolicy(h)))
       recruit(p.garrison, u.key, u.count, h && !v ? `${h.short} ${TYPES[u.key].name.toLowerCase()}` : `${p.name} ${TYPES[u.key].name.toLowerCase()}`, null, gearFields(u));
@@ -317,6 +314,14 @@ export class World {
     }
     if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainHall(p, e, h, dt);
     if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
+  }
+
+  // A place keeps a strongbox, not a treasury (Orchestrator, 2026-11-21: a market town taken
+  // at minute 88 held 7,050 gold): COFFER a head at most. A house's place sends the rest
+  // to its lord; a free place spends it on itself. From the day it is founded, too.
+  strongbox(e, h, v) {
+    const box = e.pop * COFFER;
+    if (e.gold > box) { if (h && !h.bandit && !v) h.gold += e.gold - box; e.gold = box; }
   }
 
   // A rival's knights' hall, on your rules (economy.js ELITE, HALL): veterans of its
