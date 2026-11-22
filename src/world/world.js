@@ -56,6 +56,7 @@ export const TAX = 0.012;
 // Household guards a lord keeps, by rank, across the realm (creator, 2026-11-22; the King's
 // four are the Orchestrator's): every regiment with men left, at home or in the field, counts.
 export const HOUSEHOLD_CAP = { Lord: 1, Count: 2, Duke: 3, King: 4 };
+export const WALLED = 1.4;   // walls stormed bare: the defenders count this much more (autoSides)
 export const COFFER = 5;   // gold a head a place keeps in its strongbox (tickEconomy)
 // How a house fills its racks (economy.js POLICIES): Varn raises light and fast, Stonemere
 // and the rich houses armour every man they can, Dunmore and Wyndham keep the best for
@@ -1042,14 +1043,16 @@ export class World {
 
   defenceBonus(p) { return 1.2 * KINDS[p.kind].defence * (p.kind === 'crown' && workDone(this, 'walls') ? 1.5 : 1); }
 
+  // Walls stormed with no ladders, ram or engines cost as dearly auto-resolved as by hand
+  // (battle.js): for you, and between the houses (Orchestrator, 2026-11-22: the same rules).
+  bareWalls(p, units) { return !!p && walledPlace(p) && !units.some(u => TYPES[u.key]?.engine); }
+
   // Who an auto-resolved fight sets against you: the defenders, the folk who turn out for
-  // a place, and how much the place helps them. Walls stormed with no ladders, ram or
-  // engines cost as dearly here as by hand (battle.js).
+  // a place, and how much the place and its walls help them.
   autoSides(enc) {
-    const p = enc.poi, walled = p && walledPlace(p);
-    const bare = enc.kind === 'assault' && walled && !enc.army.units.some(u => TYPES[u.key]?.engine);
+    const p = enc.poi, bare = enc.kind === 'assault' && this.bareWalls(p, enc.army.units);
     const folk = enc.kind === 'assault' ? turnOut(p, enc.army.units, FACTIONS[p.owner]) : [];
-    return { folk, D: [...enc.defenders, ...folk], bonus: enc.kind === 'assault' ? this.defenceBonus(p) * (bare ? 1.4 : 1) : 1, bare };
+    return { folk, D: [...enc.defenders, ...folk], bonus: enc.kind === 'assault' ? this.defenceBonus(p) * (bare ? WALLED : 1) : 1, bare };
   }
 
   // What auto-resolve would likely do, without rolling: its chance of winning (resolve's
@@ -1497,7 +1500,7 @@ export class World {
     }
     // Its people turn out if the keep itself is in danger (militia.js).
     const folk = turnOut(p, a.units, FACTIONS[p.owner]);
-    const r = this.resolve(a.units, [...p.garrison, ...folk], this.defenceBonus(p));
+    const r = this.resolve(a.units, [...p.garrison, ...folk], this.defenceBonus(p) * (this.bareWalls(p, a.units) ? WALLED : 1));
     r.D = sendHome(p, folk, r.D);
     a.units = r.A;
     if (r.attackerWins) this.tookBy(a, p, 'storm', r.D);
@@ -2077,7 +2080,9 @@ export class World {
 
   // How hard a place would be to take, in the same units as power().
   defence(p) {
-    if (!p.town) return power(p.garrison) * this.defenceBonus(p);
+    // (a house reckons a walled place as its host would meet it, with no engines: they bring
+    // a siege train only against you)
+    if (!p.town) return power(p.garrison) * this.defenceBonus(p) * (walledPlace(p) ? WALLED : 1);
     const regs = p.town.garrison();
     return regs.reduce((n, r) => n + r.alive * value(r.T.key), 0) + 25 + p.town.population * 0.3;
   }

@@ -719,6 +719,26 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // Walls count the same between the houses as against you (Orchestrator, 2026-11-22): a
+  // walled place stormed with no ram, ladders or engines counts its defenders ×1.4 (autoSides),
+  // in a rival's assault too, and a house reckons its targets so.
+  await check('walls count between houses as against you: ×1.4 stormed bare, none with a ram', () => scratch(async (make, FACTIONS) => {
+    const { WALLED } = await import('./world/world.js'), out = [];
+    const s = make(), p = s.pois.find(q => q.owner > 0 && q.eco?.buildings && !q.town && q.kind === 'village' && q.seat === undefined);
+    if (!p) return ['no rival village to test'];
+    const men = [{ key: 'spear', count: 40, name: 'Spears' }], ram = [...men, { key: 'ram', count: 8, name: 'Ram' }];
+    p.mem = null; p.eco.walls = 'none';
+    const open = s.defence(p);
+    if (s.bareWalls(p, men)) out.push(`${p.name} with no walls counts as walled`);
+    p.eco.walls = 'wood';
+    if (!s.bareWalls(p, men) || s.bareWalls(p, ram)) out.push(`${p.name} palisaded: bare walls ${s.bareWalls(p, men)} with spears, ${s.bareWalls(p, ram)} with a ram`);
+    if (Math.abs(s.defence(p) / open - WALLED) > 1e-6) out.push(`a house reckons ${p.name} palisaded at ×${(s.defence(p) / open).toFixed(2)}, not ×${WALLED}`);
+    if (!/bareWalls\(p, a\.units\)/.test(s.autoAssault.toString())) out.push('a rival\'s assault does not ask about bare walls');
+    const a = s.spawnArmy(p.owner === 1 ? 2 : 1, men, p.links[0], 'Host', 'march');
+    if (Math.abs(s.autoSides({ kind: 'assault', poi: p, army: a, defenders: p.garrison }).bonus / s.defenceBonus(p) - WALLED) > 1e-6) out.push('your auto-resolve does not count the palisade the same');
+    return out;
+  }));
+
   // Nobody is made up when a place changes hands (Orchestrator, 2026-11-22: "never invent
   // people"): a place of three keeps the few who stay, and a town that small, or empty, still
   // works: newcomers come, its numbers stay numbers, and its governor goes on building.
