@@ -1826,10 +1826,9 @@ export class Battle {
     return best;
   }
 
-  // Militia who break and run have thrown down their tools: nobody shoots after them or chases
-  // them on foot, so taking a place doesn't empty it of its people. Horse ride down those they
-  // catch in the first moments, then rein in (creator, 2026-11-22: that is the real cost of breaking).
-  spared(r, by = null) { return r.routing && !!r.T.militia && !(by?.T.mounted && this.time - r.routedAt < 4); }
+  // Villagers called out (folk) who break and run have thrown down their tools: nobody cuts them
+  // down or shoots after them, so taking a place doesn't empty it of its people.
+  spared(r) { return r.routing && r.T.key === 'folk'; }
 
   // Who a soldier can come to blows with. On the ground: men on the ground, with no wall between.
   // On the wall: men on the walkway, climbers on ladders, and anyone at the foot of the wall.
@@ -1837,7 +1836,7 @@ export class Battle {
     let best = null, bestD = radius * radius, low = null, lowD = POUR_REACH * POUR_REACH;
     const up = s.level === 1;
     this.forNear(s.x, s.z, radius, o => {
-      if (o.reg.side === s.reg.side || this.spared(o.reg, s.reg)) return;
+      if (o.reg.side === s.reg.side || this.spared(o.reg)) return;
       const d = (o.x - s.x) ** 2 + (o.z - s.z) ** 2;
       if (up) {
         if (o.level === 1 && !o.climb) { if (d < bestD) { bestD = d; best = o; } }
@@ -1885,7 +1884,7 @@ export class Battle {
     if (r.targetWall) this.aimAtWall(r, dt);
     else if (r.targetReg) {
       const t = r.targetReg;
-      if (t.gone || this.spared(t, r)) { r.targetReg = null; r.x = r.cx; r.z = r.cz; this.assignSlots(r); }
+      if (t.gone) { r.targetReg = null; r.x = r.cx; r.z = r.cz; this.assignSlots(r); }
       else {
         const p = this.aimPoint(r, t), dx = p.x - r.cx, dz = p.z - r.cz, d = Math.hypot(dx, dz) || 1;
         const ang = Math.atan2(dx, dz);
@@ -2220,7 +2219,7 @@ export class Battle {
     else if (r.routing) {
       s.target = null;
       if (this.walls.any) {
-        const h = r.scatter ? r.fleeTo : this.homes[r.side];
+        const h = this.homes[r.side];
         this.travel(s, { x: h.x + s.jitter * 20, z: h.z, perch: null }, T.speed * 1.3, dt);
       } else {
         const dir = r.fleeDir + s.jitter;
@@ -2234,7 +2233,7 @@ export class Battle {
       s.searchCd -= dt;
       // Men holding their ground only fight whoever reaches them.
       const engageR = this.shoots(r) ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
-      if (s.target && (!live(s.target) || this.spared(s.target.reg, r) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (engageR + 2) ** 2
+      if (s.target && (!live(s.target) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (engageR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
@@ -2782,7 +2781,6 @@ export class Battle {
       const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
       if (d < nd) { nd = d; nearest = o; }
     }
-    if (r.T.militia) { this.scatter(r, nearest, nd); return; }
     const h = this.homes[r.side];
     const home = Math.atan2(h.x - r.cx, h.z - r.cz);
     let dir = home;
@@ -2802,37 +2800,6 @@ export class Battle {
       r.angle = nearest ? Math.atan2(nearest.cx - r.cx, nearest.cz - r.cz) : r.angle;
       this.assignSlots(r);
       this.event(r.side, `${this.label(r)} have rallied.`);
-    }
-  }
-
-  // A militia that breaks doesn't run for the keep, to regroup there and be cut down when the keep
-  // is stormed (creator, 2026-11-22: "all stay to get massacred"). Its men scatter: away from the
-  // enemy, out of the place and into the woods where there are any, and leave the field alive
-  // (disband: alive and gone, so the place's people count them). Never a rally or a regroup.
-  scatter(r, nearest, nd) {
-    if (!r.scatter) {
-      const away = nearest ? Math.atan2(r.cx - nearest.cx, r.cz - nearest.cz) : r.angle + Math.PI;
-      const placed = this.walls.any || this.structures, out = placed && Math.hypot(r.cx, r.cz) > 5 ? Math.atan2(r.cx, r.cz) : away;
-      let best = away, bs = -Infinity;
-      for (let i = 0; i < 16; i++) {
-        const a = i / 16 * Math.PI * 2;
-        let wood = 0;
-        for (let d = 20; d <= 60; d += 20) wood += this.woodAt(r.cx + Math.sin(a) * d, r.cz + Math.cos(a) * d) / 3;
-        const sc = Math.cos(angleDiff(a, away)) + Math.cos(angleDiff(a, out)) * 0.6 + wood * 0.8;
-        if (sc > bs) { bs = sc; best = a; }
-      }
-      r.scatter = { dir: best };
-      if (r.side === 0) this.event(0, `${this.label(r)} scatter: every man for himself, away from the fighting.`);
-    }
-    // swerving from anyone close behind, but on out the way they chose
-    let dir = r.scatter.dir;
-    if (nearest && nd < 25) { const away = Math.atan2(r.cx - nearest.cx, r.cz - nearest.cz); dir = away + angleDiff(dir, away) * 0.5; }
-    r.fleeDir = dir;
-    r.fleeTo = { x: Math.max(-HALF, Math.min(HALF, r.cx + Math.sin(dir) * 260)), z: Math.max(-HALF, Math.min(HALF, r.cz + Math.cos(dir) * 260)) };
-    // Clear of the fighting, or at the edge of the map: they are away.
-    if ((this.time - r.routedAt > 6 && nd > 60) || Math.max(Math.abs(r.cx), Math.abs(r.cz)) > HALF - 20) {
-      this.disband(r);
-      this.event(r.side, `${this.label(r)} got away: ${r.alive} of ${r.initial} men.`);
     }
   }
 
