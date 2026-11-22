@@ -1555,6 +1555,48 @@ async function orderChecks() {
     return men[0].alive && closest > 4 ? [`after 40 s the nearest of ${A.name} is still ${Math.round(closest)} m from the man on their bank (heading for ${A.dest ? at(A.dest) : 'nowhere'}${A.via ? ', by ' + at(A.via) : ''})`] : [];
   });
 
+  // Villagers who break are let go (battle.js spared): no man stays locked on one, no regiment
+  // keeps an attack on them, and nobody is cut down after the rout.
+  await check('routing village militia are let go: no man or regiment stays on them, none die after', async () => {
+    const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
+    const b = new Battle(makeHeight(4), 4, { deploy: false });
+    const F = b.addRegiment(1, 'folk', 0, 0, 0, { count: 30 }), A = b.addRegiment(0, 'knight', 0, 12, Math.PI, { count: 12 });
+    b.orderAttack([A], F);
+    for (let t = 0; t < 8 && !A.soldiers.some(s => s.target?.reg === F); t += 0.05) b.step(0.05);
+    if (!A.soldiers.some(s => s.target?.reg === F)) return ['the knights never came to blows with the militia, so nothing was tested'];
+    b.startRout(F);
+    b.step(0.05);
+    const out = [], left = F.alive;
+    if (A.targetReg === F) out.push(`${A.name} keep their attack on the routing militia`);
+    const locked = A.soldiers.filter(s => live(s) && s.target?.reg === F).length;
+    if (locked) out.push(`${locked} of ${A.name} stay locked on routing militiamen`);
+    b.orderAttack([A], F);
+    for (let t = 0; t < 10; t += 0.05) b.step(0.05);
+    if (A.targetReg === F) out.push(`${A.name}, sent at the routing militia, still go after them 10 s later`);
+    if (F.alive < left) out.push(`${left - F.alive} militiamen cut down after they broke`);
+    return out;
+  });
+
+  // Down to the militia against a much stronger enemy, they break and live (battle.js checkHeart);
+  // beside a garrison still standing, or in a fair fight, they keep the usual morale.
+  await check('militia left alone against twice their worth break within 5 s, not beside a garrison or in a fair fight', async () => {
+    const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
+    const out = [];
+    for (const [foe, n, breaks] of [['knight', 24, true], ['spear', 8, false]]) {
+      const b = new Battle(makeHeight(6), 6, { deploy: false });
+      const F = b.addRegiment(1, 'folk', 0, -80, 0, { count: 40 }), G = b.addRegiment(1, 'spear', 20, -80, 0, { count: 30 });
+      b.addRegiment(0, foe, 0, 80, Math.PI, { count: n });
+      for (let t = 0; t < 3; t += 0.05) b.step(0.05);
+      if (F.routing) out.push(`the militia broke beside a standing garrison, against ${n} ${foe}s`);
+      b.startRout(G);
+      let at = null;
+      for (let t = 0; t < 6 && at === null; t += 0.05) { b.step(0.05); if (F.routing) at = t; }
+      if (breaks && at === null) out.push(`the militia, alone against ${n} ${foe}s, still stand 6 s after the garrison broke`);
+      if (!breaks && at !== null) out.push(`the militia broke ${at.toFixed(1)} s after the garrison, in a fair fight against ${n} ${foe}s`);
+    }
+    return out;
+  });
+
   // Regiments that join a fight late (reinforcements, a muster, a host's later regiments) are drawn, in a look
   // already on the field (its meshes grow: view.js grow) as in a new one.
   await check('every man of regiments that join mid-fight is drawn', async () => {

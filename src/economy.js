@@ -10,7 +10,7 @@ import { RoadNet } from './roadnet.js';
 import { PACE } from './pace.js';
 
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
-import { TYPES, FORMATIONS, vetRank, VET_RANKS } from './battle.js';
+import { TYPES, FORMATIONS, vetRank, VET_RANKS, value } from './battle.js';
 import { driftHome } from './world/militia.js';
 
 export const GOODS = {
@@ -254,9 +254,7 @@ export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key),
 // (r.battles, the short service record on its card).
 // An arrière-ban levy also carries the time it goes home (world/arriere.js).
 export const carry = u => ({ ...gearOf(u), battles: u.battles || 0, ...(u.until ? { until: u.until } : {}) });
-const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, bandit: 0.7,
-  crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
-export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
+export { value };   // a man's worth (battle.js), what power() counts
 export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
 // A band's or a garrison's strength, the sum auto-resolve and the attack ask reckon with (world.js).
 export const power = units => units.reduce((n, u) => n + u.count * value(u.key) * armourWeight(u), 0);

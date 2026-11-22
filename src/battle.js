@@ -119,6 +119,12 @@ export function lookChain(key) {
 }
 
 // Formations: spacing and depth multiply the unit's own; the rest change the fight.
+// What one man of a kind is worth in a fight, against a spearman's 1: the strength the world
+// reckons with (economy.js power) and a village militia weighs its chances by (checkHeart).
+const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, bandit: 0.7,
+  crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
+export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
+
 // How many files a regiment of `count` men of type T stands in.
 export const filesFor = (T, count) => count > T.count ? Math.min(count, Math.max(T.files, Math.round(Math.sqrt(count * T.files * T.files / T.count))))
   : Math.min(T.files, Math.max(T.engine ? 1 : 4, Math.ceil(count / 2)));
@@ -1782,6 +1788,7 @@ export class Battle {
     this.updateStones(dt);
     if (Math.floor(this.time) !== Math.floor(this.time - dt)) {
       this.checkBreak();
+      this.checkHeart();
       this.checkVictory();
       this.updateSight();
       if (this.river) this.riverTick();
@@ -1877,6 +1884,8 @@ export class Battle {
 
     // Through the wall (or ladders up): on at the foe it was sent for. And a foe that has
     // gone behind walls is looked for a way in to, once a second.
+    // Villagers who have thrown down their tools (spared) are let go, whoever sent the attack.
+    if (r.targetReg && this.spared(r.targetReg)) { r.targetReg = null; r.dest = null; }
     if (r.runOnce && !r.dest && !r.targetReg && !r.targetWall && !r.after) r.runOnce = false;   // that run is over
     // Covering a gate (coverGate): until it is down, or some other way in opens.
     if (r.cover && (r.reachCd = (r.reachCd || 0) - dt) <= 0) {
@@ -2243,7 +2252,7 @@ export class Battle {
       s.searchCd -= dt;
       // Men holding their ground only fight whoever reaches them.
       const engageR = this.shoots(r) ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
-      if (s.target && (!live(s.target) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (engageR + 2) ** 2
+      if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (engageR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
@@ -2751,6 +2760,7 @@ export class Battle {
     }
     if (r.engaged > 0 && r.alive < r.initial * 0.5) r.morale -= 1.2 * dt * (T.merc ? 1.6 : 1);
     if (T.merc && r.alive < r.initial * 0.6) r.morale -= 0.4 * dt;
+    if (r.losingHeart) { r.morale -= T.morale / 3 * dt; if (r.morale <= 0) this.startRout(r); return; }
     // Men on their own walls take heart from them.
     const walled = r.posts && r.posts[0]?.perch.side === r.side;
     if (r.engaged === 0 && this.time - r.lastHit > 4) r.morale = Math.min(top, r.morale + 2 * dt);
@@ -2994,6 +3004,23 @@ export class Battle {
       for (const r of this.regs) if (r.side === side && !r.gone) {
         if (r.regrouping) { this.disband(r); continue; }
         if (!r.routing) this.startRout(r, { quiet: true });
+      }
+    }
+  }
+
+  // Villagers called out (militia) fight on beside soldiers, but once no soldier of their side
+  // still stands and the enemy still standing clearly outweighs them (2:1 or more, by worth),
+  // they lose heart and break within a few seconds: they run and live (spared). A fair fight,
+  // or a garrison still holding beside them, keeps them to the usual morale.
+  checkHeart() {
+    const worth = rs => rs.reduce((n, r) => n + r.alive * value(r.T.key), 0);
+    for (const side of [0, 1]) {
+      const own = this.regs.filter(r => r.side === side && this.usable(r) && !r.T.engine);
+      const folk = own.filter(r => r.T.militia), foe = this.regs.filter(r => r.side !== side && this.usable(r) && !r.T.engine);
+      const lost = folk.length && folk.length === own.length && worth(foe) >= worth(folk) * 2;
+      for (const r of folk) {
+        if (lost && !r.losingHeart) this.event(side, `${this.label(r)} see nobody left to stand with them, and lose heart.`);
+        r.losingHeart = lost;
       }
     }
   }

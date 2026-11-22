@@ -409,7 +409,7 @@ function pickFight(battle, r, foes, standing, { busyFirst = false } = {}) {
     pick = list.reduce((best, o) => (!best || dist(r, o) / exposed(o, p) < dist(r, best) / exposed(best, p) ? o : best), null);
   } else if (r.T.charge) {
     // Horse rides down routers, then hunts archers and engines, then hits whoever is busiest from the side.
-    const routers = foes.filter(o => o.routing && dist(r, o) < 90);
+    const routers = foes.filter(o => o.routing && !battle.spared(o) && dist(r, o) < 90);
     const soft = reachable.filter(o => o.T.range || o.engine);
     const busy = reachable.filter(o => o.engaged > 0 && !o.T.braces);
     pick = nearest(r, routers) || (busyFirst && nearest(r, busy)) || nearest(r, soft) || nearest(r, busy) || nearest(r, reachable);
