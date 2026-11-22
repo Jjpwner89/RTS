@@ -99,7 +99,7 @@ export function fieldOf(w, h, mine = held(w, h)) {
 function committed(w, h, mine, B) {
   let n = 0;
   for (const a of w.armies) if (!a.gone && !a.wagon && a.side != null && a.side !== h.index && a.side !== w.bandits && w.atWar(h.index, a.side) && mine.some(p => dist(a, p) < 400)) n += headcount(a.units);
-  const P = h.ai.plan, T = P?.target;
+  const P = h.ai?.plan, T = P?.target;
   if (T && P.phase !== 'march' && T.owner !== null && T.owner !== w.bandits) n += w.defence(T) * B.need + 20;
   return n;
 }
@@ -308,6 +308,17 @@ function oddsLine(h, kind, r) {
   if (kind === 'even') return `${h.lord} reckons the odds about even.`;
   if (kind === 'bold') return `${h.lord} takes a long shot, at about ${ratio(r)}.`;
   return '';
+}
+
+// The odds line for a war a house makes outside thinkWars, a refused tribute: its free men
+// against your place nearest it, so every war reads as a choice (Orchestrator, 2026-11-21).
+export function oddsOn(w, h, side) {
+  const mine = held(w, h), theirs = w.pois.filter(p => p.owner === side && p.kind !== 'camp');
+  if (!mine.length || !theirs.length) return '';
+  let t = theirs[0], bd = Infinity;
+  for (const p of theirs) for (const q of mine) if (dist(p, q) < bd) { bd = dist(p, q); t = p; }
+  const r = oddsAt(w, fieldOf(w, h, mine) - committed(w, h, mine, bent(h)), t);
+  return oddsLine(h, r >= ODDS.win ? 'win' : r >= ODDS.line.raider ? 'even' : 'bold', r);
 }
 
 // Cornered (creator, 2026-11-21: "an AI cornered, out of options, declares war and tries to
