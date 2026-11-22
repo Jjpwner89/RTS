@@ -95,6 +95,7 @@ export class TownHud {
       // Clicking the alarm takes you to the attackers.
       this.stockEl.onclick = e => {
         if (e.target.closest('.fold')) { this.fold(!this.stockEl.classList.contains('folded')); setPref('stock-folded', this.stockEl.classList.contains('folded')); return; }
+        if (e.target.closest('[data-s="gold"]')) { this.taxOpen = !this.taxOpen; return; }
         // A vassal's village is theirs to run: you may look, not act (creator's call, 2026-11-19).
         if (town.readOnly) return;
         if (e.target.closest('.raid.now')) this.hooks.findAttackers?.();
@@ -146,6 +147,7 @@ export class TownHud {
       <div class="people"><span data-s="pop"></span><span data-s="idle"></span><button class="fold" title="Fold the stores to one strip, to see more of the village"></button></div>
       <div class="people mood"><span data-s="mood"></span><span class="tax">${lever(-1, 'Lower taxes', '−')}<span data-s="tax"></span>${lever(1, 'Raise taxes', '+')}</span></div>
       <div class="people"><span data-s="gold"></span></div>
+      <p class="note taxnote" data-s="taxnote" hidden></p>
       <div class="people"><span data-s="settlers"></span></div>
       <div class="warn" data-s="hunger"></div>
       <div class="raid" data-s="raid"></div>
@@ -206,18 +208,19 @@ export class TownHud {
     watch('b:cathedral', at('[data-build="cathedral"]', 'Village'));
   }
 
-  // What raises the village's tax, line by line (economy.js devTax, World.taxOf).
+  // What raises the village's tax, line by line (economy.js devTax, World.taxOf): the hint
+  // to build first, then each part with its number leading. { hint, lines }.
   taxWhy(t, tax) {
     const r = n => Math.round(n * 10) / 10, lvl = keepLevel(t);
-    return ['Taxes come from what the village has built more than from its people:',
-      `· ${t.population} people: ${r(t.population * TAX_HEAD)} a minute`,
-      `· the manor's dues: ${TAX_MANOR}`,
-      `· its buildings: ${r(devOf(t.devCounts()))} (workshops, smithies, mills and a market add most; each more of a kind adds half as much; upgrades add too)`,
-      `· the keep, level ${lvl}: ×${KEEP_TAX[lvl]}`,
-      ...(tax.dues > 0.05 ? [`· trade at its market: ${r(tax.dues)} (${Math.round(MARKET_DUES * 100)}% of what is sold and carried there)`] : []),
-      `· ${TAXES[t.taxes].name.toLowerCase()} and the mood: ×${r(t.taxRate)}`,
-      ...(tax.kind !== 1 ? [`· the kind of place: ×${tax.kind}`] : []),
-      'Build workshops, a market and a greater keep to raise it.'].join('\n');
+    return {
+      hint: 'Raise it with workshops, mills, a market or a greater keep.',
+      lines: [`+${r(t.population * TAX_HEAD)} · ${t.population} people`,
+        `+${TAX_MANOR} · the manor`,
+        `+${r(devOf(t.devCounts()))} · buildings (a second of a kind adds half)`,
+        ...(KEEP_TAX[lvl] !== 1 ? [`×${KEEP_TAX[lvl]} · the keep, level ${lvl}`] : []),
+        ...(tax.dues > 0.05 ? [`+${r(tax.dues)} · trade at the market (${Math.round(MARKET_DUES * 100)}% of sales)`] : []),
+        `×${r(t.taxRate)} · ${TAXES[t.taxes].name.toLowerCase()} and the mood`,
+        ...(tax.kind !== 1 ? [`×${tax.kind} · the kind of place`] : [])] };
   }
 
   // The stores folded to one strip: people, gold and the goods in hand, nothing else.
@@ -311,8 +314,12 @@ export class TownHud {
     // Tax comes from what the village has built (economy.js devTax); on the campaign, with its market's dues.
     const tax = this.hooks.tax?.() ?? { gold: t.taxBase * t.taxRate, dues: 0, kind: 1 };
     set('gold', `${goldIco()} ${Math.floor(t.purse.gold)} gold · taxes ${tax.gold.toFixed(0)}/min`);
-    const gt = this.stockEl.querySelector('[data-s="gold"]'), why = this.taxWhy(t, tax);
-    if (gt.title !== why) gt.title = why;
+    // The same in words under the line when it is tapped, for touch.
+    const gt = this.stockEl.querySelector('[data-s="gold"]'), W = this.taxWhy(t, tax), why = [W.hint, ...W.lines].join('\n');
+    if (gt.title !== why && !gt.dataset.tipHeld) gt.title = why;
+    const note = this.stockEl.querySelector('[data-s="taxnote"]');
+    note.hidden = !this.taxOpen;
+    if (this.taxOpen) put(note, `<b>${W.hint}</b><br>${W.lines.join('<br>')}`);
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
     this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);

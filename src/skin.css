@@ -332,3 +332,8 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 
 /* The small line on a lit (active) button reads in the button's own ink, not the panel's green. */
 #info .recipe.on small { color: var(--btn-on-ink); opacity: .9; }
+
+/* The tax line explains itself on hover, and when tapped (townhud.js taxWhy). */
+#stock [data-s="gold"] { cursor: help; }
+#stock .taxnote { margin: 2px 0 6px; font-size: 12px; line-height: 1.45; }
+#stock .taxnote b { color: var(--ink, inherit); font-weight: 600; }
