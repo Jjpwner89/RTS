@@ -571,7 +571,7 @@ export function act(w, h, id, theirs = false) {
     const ratio = w.strength(0) / Math.max(1, w.strength(h));
     d.opinion -= 20;
     if (ratio < 2 || w.rand() < (H.trait === 'hothead' ? 0.6 : 0.2)) {
-      if (w.rand() < 0.5) w.declareWar(h, 0, false, `${H.lord} will not pay tribute. ${oddsOn(w, H, 0)}`);
+      if (w.rand() < 0.5) w.declareWar(h, 0, false, `Tribute refused. ${oddsOn(w, H, 0)}`);
       return no(`${H.lord} refuses to pay. “Come and take it.”`);
     }
     const n = Math.round(Math.min(300, 60 + H.gold * 0.3));

@@ -306,7 +306,7 @@ const ratio = r => (r >= 1 ? `${(Math.round(r * 2) / 2).toFixed(1).replace('.0',
 function oddsLine(h, kind, r) {
   if (kind === 'win') return `${h.lord} reckons on winning, at about ${ratio(r)}.`;
   if (kind === 'even') return `${h.lord} reckons the odds about even.`;
-  if (kind === 'bold') return `${h.lord} takes a long shot, at about ${ratio(r)}.`;
+  if (kind === 'bold') return r < 0.1 ? `${h.lord} goes against heavy odds.` : `${h.lord} takes a long shot, at about ${ratio(r)}.`;   // ("1 to 22.5" is no number to read)
   return '';
 }
 
