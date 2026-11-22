@@ -9,7 +9,9 @@
 import { HALF } from './terrain.js';
 
 const CELL = 2, SPAN = HALF + 40, N = Math.ceil(SPAN * 2 / CELL);
-const UNREACHED = 65535, CACHE = 48;
+// Fields kept at once: a start (the walkers of a small town need about this many), grown
+// when fields thrown out are asked for again, up to a ceiling (a field is 170 kB).
+const UNREACHED = 65535, CACHE = 48, CACHE_MAX = 192;
 const NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
 export class Nav {
@@ -17,6 +19,9 @@ export class Nav {
     this.walls = walls;
     this.blocked = [new Uint8Array(N * N), new Uint8Array(N * N)];
     this.fields = new Map();
+    this.cap = CACHE;          // fields kept: grows as walkers ask for ones already thrown out
+    this.top = CACHE_MAX;
+    this.dropped = new Set();  // keys thrown out lately
     this.version = -1;
     this.box = null;           // bounds of everything that blocks, for quick "nothing in the way" answers
     this.regions = [new Int32Array(N * N), new Int32Array(N * N)];
@@ -37,6 +42,7 @@ export class Nav {
     if (this.version === this.walls.version) return;
     this.version = this.walls.version;
     this.fields.clear();
+    this.dropped.clear();
     for (const b of this.blocked) b.fill(0);
     let box = null;
     const grow = (x, z, r) => {
@@ -216,8 +222,15 @@ export class Nav {
         q[tail++] = o;
       }
     }
+    // Asked for again after being thrown out: more walkers want fields than are kept.
+    if (this.dropped.delete(key)) this.cap = Math.min(this.top, this.cap + 8);
     this.fields.set(key, f);
-    if (this.fields.size > CACHE) this.fields.delete(this.fields.keys().next().value);
+    if (this.fields.size > this.cap) {
+      const old = this.fields.keys().next().value;
+      this.fields.delete(old);
+      this.dropped.add(old);
+      if (this.dropped.size > this.top) this.dropped.delete(this.dropped.values().next().value);
+    }
     return f;
   }
 
