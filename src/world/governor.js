@@ -22,19 +22,23 @@ export function govern(t, dt) {
   t.govClock = EVERY;
   if (t.underAttack) { if (desperate(t) && t.muster().ok) t.event('The governor has called out the militia to hold the keep.', 1); return; }
   if (t.buildings.some(b => b.state === 'site')) return;
-  // What it wants first; if that can't go up (a market wants planks and nobody makes them:
-  // seed 7's governed Ashford built nothing from minute 20 on), the next step of its development.
-  const kind = wanted(t);
-  let b = kind && site(t, kind), dev = null;
-  // (nothing else while hungry with food places standing open: they want hands, not buildings;
-  // nor while a home or food place it wants waits on materials, which would go elsewhere)
-  const wait = t.govWait || ESSENTIAL.has(kind);
-  if (!b && !wait && (dev = develop(t))) b = site(t, dev);
-  if (!b && !wait) { dev = null; const k = spare(t); b = k && site(t, k); }
+  // What it wants first, though once the basics stand a building for the tax takes its turn
+  // every few minutes ahead of the rest (QC, 2026-11-22: well, market, chapel, mill and bakery
+  // always came first, and none was for the tax in 11 minutes). If what it wants can't go up
+  // (a market wants planks and nobody makes them: seed 7's governed Ashford built nothing from
+  // minute 20 on), the next step of its development, then work for idle hands. Nothing else
+  // while hungry with food places open (they want hands), or while a home or food place it
+  // wants waits on materials, which would go elsewhere.
+  const kind = wanted(t), wait = t.govWait || ESSENTIAL.has(kind);
+  let dev = wait ? null : develop(t), b = dev && site(t, dev);
+  if (!b) { dev = null; b = kind && site(t, kind); }
+  if (!b && !wait) { const k = spare(t); b = k && site(t, k); }
   if (!b) return;
   t.govSite = b;
   if (dev) t.govDevAt = t.time;
-  t.event(`The governor has set the villagers to build a ${kindName(t, b.kind)}${dev ? ', to raise the tax' : ''}.`);
+  // (a building for the tax also goes to the world log, "Ashford: …", as you are not there to see it)
+  const text = `The governor has set the villagers to build a ${kindName(t, b.kind)}${dev ? ', to raise the tax' : ''}.`;
+  if (dev) t.say(text); else t.event(text);
 }
 
 // What the keep's panel says the governor is doing.
