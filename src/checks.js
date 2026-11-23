@@ -3164,7 +3164,7 @@ async function firstHourChecks(w) {
 
 // The season in the top bar, and a herald at each turn of it (ui/seasonring.js, world.js seasonStep).
 async function seasonChecks(w) {
-  const { seasonOf, leftText } = await import('./ui/seasonring.js');
+  const { seasonOf, leftText, updateSeasonRing } = await import('./ui/seasonring.js');
   const { World, SEASON_NEWS } = await import('./world/world.js');
   group = 'Seasons';
   await check('the seasons turn every five minutes: spring, summer, autumn, winter, spring', () => {
@@ -3177,7 +3177,11 @@ async function seasonChecks(w) {
   await check('the clock has a season ring that names the season and the time left', () => {
     const g = window.game;
     if (!g || g.mode !== 'world') return null;
-    const el = document.getElementById('seasonring'), out = [];
+    // (Frames draw the ring; a hidden pane has none, so draw it as a frame would, for the world's time now.)
+    const clock = document.getElementById('clock'), out = [];
+    if (!clock) return ['no clock'];
+    updateSeasonRing(clock, w.time);
+    const el = document.getElementById('seasonring');
     if (!el) return ['no season ring beside the clock'];
     const name = ['Spring', 'Summer', 'Autumn', 'Winter'][w.season];
     if (!el.title.startsWith(`${name}:`) || !/left/.test(el.title)) out.push(`the ring says "${el.title}" in ${name}`);
