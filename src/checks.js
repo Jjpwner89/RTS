@@ -2945,6 +2945,45 @@ async function firstHourChecks(w) {
   });
 }
 
+// The season in the top bar, and a herald at each turn of it (ui/seasonring.js, world.js seasonStep).
+async function seasonChecks(w) {
+  const { seasonOf, leftText } = await import('./ui/seasonring.js');
+  const { World, SEASON_NEWS } = await import('./world/world.js');
+  group = 'Seasons';
+  await check('the seasons turn every five minutes: spring, summer, autumn, winter, spring', () => {
+    const out = [], at = (t, name, left) => { const s = seasonOf(t); if (s.name !== name) out.push(`at ${t}s it is ${s.name}, not ${name}`); if (left !== undefined && Math.round(s.left) !== left) out.push(`at ${t}s ${Math.round(s.left)}s are left, not ${left}`); };
+    at(0, 'Spring', 300); at(299, 'Spring', 1); at(300, 'Summer', 300); at(599, 'Summer'); at(600, 'Autumn'); at(899, 'Autumn'); at(900, 'Winter'); at(1199, 'Winter'); at(1200, 'Spring'); at(1500, 'Summer');
+    if (!/^2 min left, then autumn$/.test(leftText(seasonOf(600 - 120)))) out.push(`hover text reads "${leftText(seasonOf(480))}"`);
+    if (!/^under a minute left/.test(leftText(seasonOf(580)))) out.push('the last minute is not "under a minute left"');
+    return out;
+  });
+  await check('the clock has a season ring that names the season and the time left', () => {
+    const g = window.game;
+    if (!g || g.mode !== 'world') return null;
+    const el = document.getElementById('seasonring'), out = [];
+    if (!el) return ['no season ring beside the clock'];
+    const name = ['Spring', 'Summer', 'Autumn', 'Winter'][w.season];
+    if (!el.title.startsWith(`${name}:`) || !/left/.test(el.title)) out.push(`the ring says "${el.title}" in ${name}`);
+    if (el.querySelectorAll('[data-q]').length !== 4) out.push('the ring is not four quarters');
+    return out;
+  });
+  await check('a herald marks the turn into spring, summer and autumn, and winter, once each, never at the start of a game or a load', () => {
+    const told = [], fake = (part = 1) => ({ time: 0, part, hooks: { herald: m => told.push(m) }, get season() { return Math.floor((this.time % 1200) / 300); }, seasonStep: World.prototype.seasonStep });
+    const out = [], step = (f, t) => { f.time = t; f.seasonStep(); };
+    const f = fake();
+    step(f, 10); if (told.length) out.push('announced a season at the start');
+    step(f, 20); step(f, 299); if (told.length) out.push('announced within a season');
+    step(f, 300); if (told.at(-1)?.title !== 'Summer') out.push('no Summer herald at 300 s');
+    step(f, 310); step(f, 599); if (told.length !== 1) out.push('Summer announced more than once');
+    step(f, 600); step(f, 900); step(f, 1200);
+    if (told.map(m => m.title).join() !== 'Summer,Autumn,Winter,Spring') out.push(`the turns were announced as ${told.map(m => m.title).join()}`);
+    const plan = { Spring: 'The fields are sown. The roads dry; the houses will gather their hosts.', Summer: 'Campaigning season. Expect musters along the borders.', Autumn: 'Harvest. The barns fill, and raiders know it. Stock the larder for winter.' };
+    for (const [title, text] of Object.entries(plan)) if (SEASON_NEWS.find(n => n[0] === title)?.[1] !== text) out.push(`${title}'s line is not the agreed one`);
+    const g = fake(2); step(g, 10); step(g, 900); if (told.filter(m => m.title === 'Winter').length !== 1) out.push('in Part 2 winter is announced here as well as by the north');
+    return out;
+  });
+}
+
 // A place you have seen but do not hold is described in words from what you saw, never from what is there now
 // (world/scout.js).
 async function scoutChecks(w) {
@@ -3068,6 +3107,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.sworn) await houseChecks(window.game.world);
   if (window.game?.world?.sworn) await wordsChecks(window.game.world);
   if (window.game?.world?.pois) await scoutChecks(window.game.world);
+  if (window.game?.world?.pois) await seasonChecks(window.game.world);
   if (window.game?.world?.pois) await firstHourChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();

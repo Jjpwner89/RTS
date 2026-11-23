@@ -403,3 +403,7 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #gamemenu .gm-row { display: grid; grid-template-columns: minmax(96px, 36%) 1fr; gap: 4px 10px; padding: 3px 0; border-bottom: 1px solid var(--rule); font-size: 14px; }
 #gamemenu .gm-row kbd { font: 600 13px var(--body-font); color: var(--ink); background: var(--btn); border: var(--btn-border); border-radius: 3px; padding: 1px 6px; align-self: start; justify-self: start; }
 #gamemenu .gm-build { margin: 10px 0 0; font-size: 12px; color: var(--dim); opacity: .8; }
+
+/* The season ring beside the clock */
+#seasonring { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 4px; }
+#seasonring svg { display: block; }

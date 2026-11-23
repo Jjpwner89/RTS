@@ -55,6 +55,7 @@ import { unlocked, ahead } from './ui/unlocks.js';
 import * as news from './ui/news.js';
 import { showLoadFailure, download } from './ui/loadfail.js';
 import { nudge } from './ui/nudge.js';
+import { updateSeasonRing } from './ui/seasonring.js';
 import { fileName, ago } from './world/saveslots.js';
 
 const params = new URLSearchParams(location.search);
@@ -1391,6 +1392,7 @@ function savedTag() {
 }
 function topBar() {
   savedTag();
+  if (mode !== 'field') updateSeasonRing($('clock'), world.time); else $('seasonring')?.remove();
   $('realm-toggle').hidden = !unlocked(world, 'realm');
   $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
   const holder = mode === 'town' ? current.holder || $('place').textContent : '';

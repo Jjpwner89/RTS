@@ -38,6 +38,14 @@ export const ownerOf = p => (p.owner === null ? NEUTRAL : FACTIONS[p.owner]);
 export { power };   // (economy.js: the village's own defence reckons with it too)
 export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
+// What the herald says as each season turns (seasonStep).
+export const SEASON_NEWS = [
+  ['Spring', 'The fields are sown. The roads dry; the houses will gather their hosts.'],
+  ['Summer', 'Campaigning season. Expect musters along the borders.'],
+  ['Autumn', 'Harvest. The barns fill, and raiders know it. Stock the larder for winter.'],
+  ['Winter', 'Snow on the roads: armies march slower. Keep the larder full until spring.'],
+];
+
 const MEET = 14;        // opposing armies this close fight
 // Everyone near a meeting fights in it (Orchestrator, 2026-11-23): armies this close to either
 // host, at war with the other side and at peace with its own, join its side (World.wing).
@@ -1791,6 +1799,18 @@ export class World {
   get season() { return Math.floor((this.time % 1200) / 300); }
   get winter() { return this.season === 3; }
 
+  // A line at the turn of each season (the first one of a game, or of a loaded save, is not announced). Winter's own
+  // herald, in Part 2, is the northern house's (rivals.js winterRaids); in Part 1 winter has this one.
+  seasonStep() {
+    const s = this.season;
+    if (this.seasonSeen === undefined) { this.seasonSeen = s; return; }
+    if (s === this.seasonSeen) return;
+    this.seasonSeen = s;
+    if (s === 3 && this.part === 2) return;
+    const [title, text] = SEASON_NEWS[s];
+    this.hooks.herald?.({ title, text });
+  }
+
   get rank() {
     const n = this.pois.filter(p => p.owner === 0).length;
     if (this.crowned) return 'King';
@@ -1873,6 +1893,7 @@ export class World {
   update(dt) {
     if (this.winner !== null) return;
     this.time += dt;
+    this.seasonStep();
     for (const p of this.pois) if (p.town) this.updateTown(p, dt);
     for (const a of [...this.armies]) if (!a.gone) { if (a.wagon) moveWagon(this, a, dt); else if (a.escort) followCart(this, a); else this.moveArmy(a, dt); }
     this.checkMeetings();
