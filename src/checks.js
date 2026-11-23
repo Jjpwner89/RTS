@@ -2715,6 +2715,36 @@ async function slotChecks(w) {
   });
 }
 
+// The first hour: what a new player is shown (campaign.js goalNudge, marchButtons; the Start here card).
+async function firstHourChecks(w) {
+  const g = window.game;
+  group = 'First hour';
+  await check('a place you have seen has a March button for your nearest army, one you have not seen has none', () => {
+    if (!g?.marchButtons || g.mode !== 'world') return null;
+    const mine = w.armies.some(a => a.side === 0 && !a.gone && !a.wagon && a.units);
+    const out = [];
+    const seen = w.pois.find(p => p.seen && p.owner !== 0), unseen = w.pois.find(p => !p.seen);
+    if (unseen && g.marchButtons(unseen)) out.push(`${unseen.name} was never seen but offers a March button`);
+    if (seen && mine && !/data-act="march:/.test(g.marchButtons(seen))) out.push(`${seen.name} offers no March button though you have an army`);
+    if (seen && !mine && g.marchButtons(seen)) out.push('a March button with no army to send');
+    return out.length || seen || unseen ? out : null;
+  });
+  await check('on the first goals, something on screen glows', async () => {
+    if (g?.mode !== 'world' || w.goals > 1 || w.part === 2 || !w.home?.town) return null;
+    await new Promise(r => setTimeout(r, 300));
+    return document.querySelector('.goal-pulse') ? [] : ['the next step (go to Ashford, then build) shows no glow'];
+  });
+  await check('the Start here card is shut once you have played, and the help can always be opened', () => {
+    const card = document.getElementById('starthere');
+    if (!card) return null;
+    const out = [];
+    let started = null; try { started = localStorage.getItem('rts.started'); } catch { return null; }
+    if (card.classList.contains('open') && started && !w.options?.test) out.push('the Start here card is open in a browser that has already started a campaign');
+    if (!document.getElementById('help-toggle')) out.push('no How to play button');
+    return out;
+  });
+}
+
 // A place you have seen but do not hold is described in words from what you saw, never from what is there now
 // (world/scout.js).
 async function scoutChecks(w) {
@@ -2833,6 +2863,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.sworn) await houseChecks(window.game.world);
   if (window.game?.world?.sworn) await wordsChecks(window.game.world);
   if (window.game?.world?.pois) await scoutChecks(window.game.world);
+  if (window.game?.world?.pois) await firstHourChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {

@@ -16,9 +16,10 @@ export function mountSaves(root) {
   const draw = async (say = '') => {
     root.replaceChildren();
     const saves = listSaves();
-    root.append(el('h3', {}, 'Saved campaigns'));
+    if (saves.length) root.append(el('h3', {}, 'Saved campaigns'));
     const msg = el('p', { className: 'whyline', hidden: !say }, say);
-    if (!saves.length) root.append(el('p', { className: 'note' }, 'Nothing is saved in this browser yet.'));
+    root.classList.toggle('bare', !saves.length);
+    if (!saves.length) root.append(el('span', { className: 'note' }, 'Have a save file from another browser or computer? '));
     for (const s of saves) {
       const row = el('div', { className: 'saverow' });
       row.append(el('span', { className: 'grow' }, describe(s)));

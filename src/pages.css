@@ -44,3 +44,5 @@ a { color: var(--gold); }
 .sheet #saves button, .sheet #new-ask button { font: 700 14px var(--body-font); padding: 5px 12px; cursor: pointer; color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); }
 .sheet .whyline { color: #8a2f1d; margin: 8px 0; }
 .sheet .note { color: var(--dim); font-size: 13px; }
+
+.sheet #saves.bare { background: none; border: 0; padding: 0 16px; }

@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RTS Prototypes</title>
+<title>RTS</title>
 <link rel="stylesheet" href="src/skin.css">
 <link rel="stylesheet" href="src/pages.css">
 </head>
 <body>
 <main class="sheet">
-  <h1>RTS prototypes</h1>
-  <p>A medieval strategy game in progress: build and fight on one map, rising from a keep to a realm.</p>
+  <h1>RTS</h1>
+  <p>A medieval strategy game: build a village, raise an army and rise from a reeve to the crown.</p>
   <a class="entry" href="world.html?continue" id="continue" hidden><b>Continue</b><span></span></a>
   <form class="box" action="world.html" id="new-campaign">
-    <b>New campaign</b>Rise from one village to the crown: rival houses, sieges, diplomacy and Kingsbridge, and then the north.
+    <b id="new-title">New campaign</b>Rise from one village to the crown: rival houses, sieges, diplomacy and Kingsbridge, and then the north.
     <div class="opts">
       <label>Realm<select name="size"><option value="small">Small: three houses</option><option value="normal" selected>Normal: five houses</option><option value="large">Large: all six houses</option></select></label>
       <label>Rivals<select name="aggression"><option value="gentle">Gentle: slow to war</option><option value="normal" selected>Normal</option><option value="fierce">Fierce: quick to war</option></select></label>
@@ -22,10 +22,14 @@
     </div>
     <button type="submit">Begin</button>
     <div id="new-ask" class="whyline" hidden><span></span> <button type="button" data-go>Start the new campaign</button> <button type="button" data-no>Cancel</button></div>
+    <small id="first-note" hidden>For a first campaign we have picked a small realm and gentle rivals: slow to war, and no outlaw raids. Change them whenever you like.</small>
+    <small id="iron-note" class="whyline" hidden><b>Ironman:</b> no Save button. The campaign saves itself, and a defeat deletes it for good: there is no going back.</small>
     <small>Ironman: no Save button. The campaign saves itself every few minutes, and a defeat ends it for good.</small>
   </form>
   <div class="box" id="saves"></div>
-  <div class="box tests">
+  <div id="dev" hidden>
+    <h2>For the builders</h2>
+    <div class="box tests">
     <b>Test campaigns</b>Jump in at a rank to try templates, vassals and diplomacy: a seed-7 campaign played forward to that point, with gold and building stock to spare. It takes a few seconds to prepare. Test campaigns save to their own slot and never replace your real campaign.
     <div class="opts">
       <a class="btn" href="world.html?test=lord" title="Two places, at minute 10: vassals, town templates and calling the banners.">Lord</a>
@@ -39,6 +43,7 @@
   <a class="entry" href="battle.html"><b>Battle test</b>A field battle of about 1,200 soldiers: regiments, morale and routs.</a>
   <a class="entry" href="fronts/"><b>Marchfront</b>The side project: armies, fronts and supply on one map.</a>
   <a class="entry" href="muster.html"><b>Muster</b>Every soldier in the game on parade: look them over up close or march along beside them.</a>
+  </div>
   <a class="entry" href="credits.html"><b>Credits</b>The free music, sound and models this game is built with, and their licences.</a>
 </main>
 <script type="module" src="src/ui/tooltip.js"></script>
@@ -59,6 +64,17 @@
   try { if (localStorage.getItem('rts.campaign.test')) document.getElementById('continue-test').hidden = false; } catch (e) { /* no test save */ }
   mountSaves(document.getElementById('saves'));
   if (location.hash === '#saves') document.getElementById('saves').scrollIntoView();
+  // A fresh browser starts on the kind setting; after that, what you chose last time.
+  const f0 = document.getElementById('new-campaign');
+  let last = null; try { last = JSON.parse(localStorage.getItem('rts.newgame')); } catch (e) { /* none */ }
+  const fresh = !saves.length && !last;
+  if (fresh) { f0.size.value = 'small'; f0.aggression.value = 'gentle'; document.getElementById('first-note').hidden = false; }
+  else if (last) { for (const k of ['size', 'aggression']) if (last[k]) f0[k].value = last[k]; }
+  f0.addEventListener('submit', () => { try { localStorage.setItem('rts.newgame', JSON.stringify({ size: f0.size.value, aggression: f0.aggression.value })); } catch (e) { /* not kept */ } });
+  const iron = f0.querySelector('[name=ironman]'), ironNote = document.getElementById('iron-note');
+  iron.onchange = () => { ironNote.hidden = !iron.checked; };
+  // The builders' part (test campaigns, the village, the battle test, Marchfront, the muster) shows with ?dev, and stays shown.
+  try { if (/[?&]dev\b/.test(location.search)) localStorage.setItem('rts.dev', '1'); if (/[?&]nodev\b/.test(location.search)) localStorage.removeItem('rts.dev'); document.getElementById('dev').hidden = localStorage.getItem('rts.dev') !== '1'; } catch (e) { /* hidden */ }
   const form = document.getElementById('new-campaign'), ask = document.getElementById('new-ask');
   form.addEventListener('submit', e => {
     if (!cur || (cur.info.status !== 'ok' && cur.info.status !== 'old') || form.dataset.sure === '1') return;

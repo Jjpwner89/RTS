@@ -54,6 +54,7 @@ import { audio } from './audio.js';
 import { unlocked, ahead } from './ui/unlocks.js';
 import * as news from './ui/news.js';
 import { showLoadFailure, download } from './ui/loadfail.js';
+import { nudge } from './ui/nudge.js';
 import { fileName, ago } from './world/saveslots.js';
 
 const params = new URLSearchParams(location.search);
@@ -184,20 +185,23 @@ function showHerald() {
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500 + Math.max(0, (msg.text || '').length - 140) * 40);   // a long herald stays longer
 }
 
+// Sends the selected army to place p (the right-click, and the March buttons on a place's card).
+function orderTo(p) {
+  if (!selected || !selected.units || selected.side !== 0) return;
+  // A great house's place you are at peace with: attacking it means war, so ask first.
+  if (p.owner !== null && p.owner !== 0 && !FACTIONS[p.owner]?.bandit && !world.atWar(0, p.owner)) { asks.push({ kind: 'war', army: selected, poi: p }); return; }
+  // Already waiting outside a place it may now attack (war declared since): attack it.
+  if (selected.at === p && !selected.path.length && world.canAttack(0, p)) { world.arrive(selected, p); return; }
+  if (!world.order(selected, p)) flash(selected.retreating ? 'They are falling back and will not turn yet.' : 'They are already there.');
+}
+
 let worldView = new WorldView(stage, world);
 const worldControls = new WorldControls(stage.camera, canvas, worldView, {
   togglePause: () => { paused = !paused; },
   setSpeed: s => { speed = s; paused = false; },
   select: it => { selected = it; },
   hasSelection: () => !!selected,
-  order: p => {
-    if (!selected || !selected.units || selected.side !== 0) return;
-    // A great house's place you are at peace with: attacking it means war, so ask first.
-    if (p.owner !== null && p.owner !== 0 && !FACTIONS[p.owner]?.bandit && !world.atWar(0, p.owner)) { asks.push({ kind: 'war', army: selected, poi: p }); return; }
-    // Already waiting outside a place it may now attack (war declared since): attack it.
-    if (selected.at === p && !selected.path.length && world.canAttack(0, p)) { world.arrive(selected, p); return; }
-    if (!world.order(selected, p)) flash(selected.retreating ? 'They are falling back and will not turn yet.' : 'They are already there.');
-  },
+  order: p => orderTo(p),
   enter: p => enterTown(p),
   hint: (p, x, y) => showOrderHint(world, selected, p, x, y),
 });
@@ -319,6 +323,20 @@ function showWorld() { setMode('world', null); }
 // A short list in the corner of the map, the next step lit; finishing one says so wherever you are.
 const goalSeen = { visited: !!loaded };
 let goalsShown = -1;
+// The next step glows (ui/nudge.js): Ashford on the map until you are in it, then the building to place.
+function goalNudge() {
+  const g = world.goals, home = world.home, t = home?.town;
+  if (g > 3 || world.part === 2 || !home || !t) return nudge(null);
+  let el = null;
+  const want = g === 1 ? ['woodcutter', 'farm'] : g === 3 ? ['barracks'] : [];
+  if (g === 2) return nudge(null);
+  if (mode === 'world') el = worldView.places.get(home)?.label || null;
+  else if (mode === 'town' && current.poi === home && townHud) {
+    const miss = want.find(k => !t.buildings.some(b => b.kind === k));
+    if (miss) { const bar = townHud.buildEl, btn = bar.querySelector(`[data-build="${miss}"]`); el = btn && !btn.hidden ? btn : bar.querySelector(`[data-tab="${BUILDINGS[miss].group}"]`); }
+  }
+  nudge(el);
+}
 $('goals').onclick = () => { $('goals').classList.toggle('folded'); goalsShown = -1; };
 function goals() {
   if (mode === 'town') goalSeen.visited = true;
@@ -926,7 +944,7 @@ function flash(text, good = false) {
   flash.timer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-const blocked = () => ($('prompt').classList.contains('open') && !$('prompt').classList.contains('soft')) || $('result').classList.contains('open') || $('help').classList.contains('open');
+const blocked = () => $('starthere').classList.contains('open') || ($('prompt').classList.contains('open') && !$('prompt').classList.contains('soft')) || $('result').classList.contains('open') || $('help').classList.contains('open');
 
 // ---- the world panel ----
 
@@ -980,7 +998,7 @@ function worldPanel() {
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide" title="${capWhy(world.rank)}">Join with ${o.name} (${Math.min(headcount(o.units), Math.max(0, world.armyCap - headcount(it.units)))} of ${headcount(o.units)} fit)</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
-    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
+    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><div data-f="march" class="marchbtns"></div><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come here: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners here</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. See the cost first">${ico('spears')} Call the arrière-ban here</button>` : '')
         + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
@@ -1001,7 +1019,7 @@ function worldPanel() {
           <button data-act="visit" class="wide" title="See their village as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button>
           <div class="row"><button data-act="revoke" class="warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button></div>`
         : world.overseer(it) ? `<button data-act="visit" class="wide" title="See it as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button><p class="note">${FACTIONS[it.owner].name} is sworn to you: its places and armies light the map for you.</p><div data-f="intel" class="intel"></div>`
-        : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Select one of your armies, then right-click here to march on it.</p>`);
+        : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Or select one of your armies and right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
   if (!it) {
@@ -1111,6 +1129,7 @@ function worldPanel() {
       set('scout', sr ? `<span class="${sr.stale ? 'stale' : ''}">${sr.near}.</span>` : '');
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
       set('intel', intelText(it));
+      set('march', marchButtons(it));
       if (lord) {
         const o = opinion(world, lord), e = it.eco, T = TEMPERS[lord.temper];
         set('vassal', `<p title="${o.why.map(([n, t]) => `${n > 0 ? '+' : ''}${n} ${t}`).join('\n')}"><b style="color:${moodColor(o.total)}">${moodWord(o.total)} (${o.total > 0 ? '+' : ''}${o.total})</b> · ${T.name}: ${T.about}</p>`
@@ -1135,6 +1154,17 @@ function worldPanel() {
 }
 
 // What your last spy saw in a place: as it was that day, not as it is now.
+// A March button for each of your nearest armies, on the card of a place you have seen: the right-click, spelled out.
+function marchButtons(p) {
+  if (!p.seen || p.owner === 0) return '';
+  const free = world.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.escort && a.units && !a.retreating && !(a.at === p && !a.path.length && !world.canAttack(0, p)));
+  free.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  return free.slice(0, 3).map(a => {
+    const attack = world.canAttack(0, p);
+    return `<button data-act="march:${a.id}" class="wide" title="${a.name} sets off for ${p.name}${attack ? ' and attacks it' : ''}">${ico('battle')} ${attack ? 'Attack with' : 'March'} ${a.name} (${headcount(a.units)})${attack ? '' : ' here'}</button>`;
+  }).join('');
+}
+
 function intelText(p) {
   const r = p.intel;
   if (!r) return p.seen && p.owner !== 0 ? '<p class="note">Its stores and buildings are unknown. A spy can find out.</p>' : '';
@@ -1191,6 +1221,10 @@ $('wpanel').onclick = e => {
   if (act === 'chronicle') return openChronicle();
   if (act === 'enter') enterTown(it);
   if (act === 'spy' && it && world.sendSpy(it)) panelKey = null;
+  if (act?.startsWith('march:') && it) {
+    const a = world.armies.find(o => o.id === +act.slice(6) && !o.gone);
+    if (a) { selected = a; orderTo(it); panelKey = null; }
+  }
   if (act?.startsWith('grant') && it) {
     const to = act.includes(':') ? world.vassals.find(v => v.id === +act.split(':')[1]) : null;
     const v = world.grant(it, to);
@@ -1444,6 +1478,7 @@ function frame(now) {
   topBar();
   news.tick(world);
   goals();
+  goalNudge();
   alertList();
   worldLog();
   audio.frame(cam, mode === 'world' ? worldControls.cam : current.controls.cam, mode === 'world' ? { map: true, log: world.events, world, fx: stage.current().userData.fx } // audio
@@ -1470,6 +1505,16 @@ $('save').onclick = () => {
   flash(r.ok ? 'Saved. Continue from the menu any time.' : r.reason, r.ok);
 };
 if (loaded) { $('help').classList.remove('open'); paused = false; }
+// The first campaign in this browser opens on a short Start here card instead of the long help (which stays one click away).
+const startKey = 'rts.started';
+let started = true; try { started = !!localStorage.getItem(startKey); } catch { /* treat as played */ }
+if (!loaded && !params.has('test') && !started) {
+  $('help').classList.remove('open');
+  $('starthere').hidden = false; $('starthere').classList.add('open');
+}
+const closeStart = () => { $('starthere').classList.remove('open'); $('starthere').hidden = true; try { localStorage.setItem(startKey, '1'); } catch { /* not kept */ } };
+$('starthere-go').onclick = () => { closeStart(); paused = false; };
+$('starthere-help').onclick = () => { closeStart(); $('help').classList.add('open'); };
 // Ironman: no Save button; the campaign saves itself often, and a defeat ends it for good.
 if (world.options.ironman) { $('save').hidden = true; saveGame(world); }
 // The game menu (ui/menu.js) asks before Quit only when something would be lost: what the
@@ -1495,4 +1540,4 @@ setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);
 requestAnimationFrame(frame);
 
-window.game = { world, ceremony, ceremonyStep, pace, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };
+window.game = { world, marchButtons, ceremony, ceremonyStep, pace, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };
