@@ -9,6 +9,7 @@ import { iconImage } from './icons.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor, gaitSpeed, CADENCE } from './anim.js';
 import { fxFor } from './fx.js';
 import { SUN_DIR, NIGHT, lamps, torchPools } from './look.js';
+import { Standards, CHEER_FOR } from './parade.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
 // without shields (reg.armour: 'none' | 'leather' | 'mail' | 'plate', reg.shield: false for none).
@@ -107,6 +108,16 @@ export const fallsInClip = (info, s) => !s.alive && (info.horse ? !!clipOf('hors
 export const HORSE_GAITS = ['Walk', 'Trot', 'Gallop', 'Gallop_Long'];
 // What the rider does in each of his horse's gaits (he sits a walk still, and rides the long gallop as the gallop).
 const RIDE_IN = { Idle: 'Ride_Idle', Walk: 'Ride_Idle', Trot: 'Ride_Trot', Gallop: 'Ride_Gallop', Gallop_Long: 'Ride_Gallop' };
+// The victory march (parade.js): halted on his ground a man cheers with his weapon up for two strides (still
+// walking, he keeps step; a rider sits his horse). How far into it he is, or null once it is over; his walk
+// then takes up again from the start of its stride, where the cheer's legs end.
+function cheerT(s, dt, rate = 1) {
+  if (s.cheerFrom !== s.cheerAt) { s.cheerFrom = s.cheerAt; s.cheerT = 0; }
+  s.cheerT += dt * rate;
+  if (s.cheerT < CHEER_FOR) return s.cheerT;
+  s.cheerAt = null; s.stride = 0;
+  return null;
+}
 function pickClip(s, b, info, out) {
   const r = s.reg, T = r.T, now = b.time, rig = info.rig;
   const dt = s.animDt = clamp(now - (s.animAt ?? now), 0, 0.5);   // (a frame at 4x is up to 0.4 s of battle: main.js)
@@ -154,6 +165,7 @@ function pickClip(s, b, info, out) {
     else if (s.v >= 0.4 && Math.abs(a) < Math.PI / 3) s.leanTo = a;
     s.animT += dt * g.rate * (backing ? -1 : 1);
     out.hc = clipOf('horse', pace); out.ht = s.animT;
+    if (s.cheerAt != null && clipOf(rig, 'Ride_Cheer')) { const t = cheerT(s, dt); if (t != null) return show('Ride_Cheer', t); }
     const lance = info.weapon === 'lance';
     if (close && lance) { s.couchAt ??= now; return show('Ride_Couch', now - s.couchAt); }
     s.couchAt = null;
@@ -183,6 +195,10 @@ function pickClip(s, b, info, out) {
     if (k) return k;
   }
   if (r.routing) { if (s.v >= 0.4) s.leanTo = moveAngle(s); return pace(['Rout']); }   // (he turns and runs whichever way he flees)
+  if (s.cheerAt != null) {
+    const moving = s.v >= 0.4, t = clipOf(rig, 'CheerWalk') ? cheerT(s, dt, moving ? gaitFor(rig, ['CheerWalk'], s.v).rate : 1) : null;
+    if (t != null) return moving ? show('CheerWalk', t) : show('Cheer', t / CHEER_FOR * 1.5);
+  }
   if (b.winner === r.side) { s.animT += dt; return show('Cheer', s.animT % 2.6); }
   if (s.v >= 0.4 || s.climb > 0) {
     // (a climber keeps stepping up his ladder however slowly he rises; a man shoved back or sideways, or closing up
@@ -904,6 +920,9 @@ export class BattleView {
     this.javelinMesh.count = nj;
     this.javelinMesh.instanceMatrix.needsUpdate = true;
     this.updateDuelRing();
+    // a victory march (parade.js) starts once you see the place, and carries its standards
+    if (b.parade) b.parade.seen = true;
+    if (b.parade || this.standards) (this.standards ||= new Standards(this.scene, this)).update(b);
 
     for (const bn of this.banners) {
       const r = bn.r;

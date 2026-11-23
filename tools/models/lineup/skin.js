@@ -51,6 +51,8 @@ const HUMAN_CLIPS = {
   Idle: { src: 'Idle', loop: true }, Stand: { src: 'Idle', loop: true, arm: 0 },
   Walk: { src: 'Walk', loop: true }, Run: { src: 'Run', loop: true }, RunArmed: { src: 'Run', loop: true, arm: 0 }, WalkArmed: { src: 'Walk', loop: true, arm: 0 },
   CarryWalk: { src: 'Walk', loop: true, upper: ['Carry', 'step'], weapon: 'Carry' }, CarryRun: { src: 'Run', loop: true, upper: ['Carry', 'step'], weapon: 'Carry' },
+  // the victory march (src/parade.js): passing the gate he cheers with his weapon up, keeping step, over two strides
+  CheerWalk: { src: 'Walk', loop: true, wrap: true, length: 2.6667, upper: ['Cheer', 'step'], weapon: 'Cheer' },
   // stepping back or sideways, facing on (shoved in a melee, closing up in a ring facing out): the stock runs back and
   // to each side, slowed to a walk's stride
   Step_Back: { src: 'Run_Back', loop: true, speed: 0.45 }, Step_Left: { src: 'Run_Left', loop: true, speed: 0.45 }, Step_Right: { src: 'Run_Right', loop: true, speed: 0.45 },
@@ -73,6 +75,8 @@ const HUMAN_CLIPS = {
 // fall on his back in his own Death beside it (`thrown`: where he lands, in metres off the saddle's foot, and the turn).
 const RIDER_CLIPS = {
   Ride_Charge: { src: 'Ride_Gallop', loop: true, upper: ['Ride_Couch', 1], weapon: 'Ride_Couch' },
+  // a rider cheers the same way, sitting his walking horse (src/parade.js)
+  Ride_Cheer: { src: 'Ride_Idle', loop: true, wrap: true, length: 2.6667, upper: ['Cheer', 'step'], weapon: 'Cheer' },
   Ride_Fall: { src: 'Death', hold: true, weapon: 'Death', length: 1.2, thrown: { lead: 0.4, from: 0.35, land: [1.9, 0, 0.4], turn: -Math.PI / 2, hop: 0.45 } },
 };
 // The horse walks in its trot with the fore legs a quarter stride early (each hoof then comes down on its own beat,
@@ -212,12 +216,14 @@ function pose(r, def, t) {
     if (r.from) retarget(r.from, r);
     return;
   }
-  const at = def.at ?? t;   // (a clip held at one moment of its source, as the turn holds the idle)
+  // (a clip held at one moment of its source, as the turn holds the idle; `wrap`: a loop longer than its source,
+  // the source played round again)
+  const at = def.at ?? (def.wrap ? t % base.clips[def.src].duration : t);
   sample(base, def.src, at);
   const over = def.arm != null ? [RIGHT_ARM, 'March_Upright', def.arm] : def.upper ? [UPPER, ...def.upper] : null;
   if (over) {
     const keep = over[0].map(n => base.bones.get(n)), held = new Map();
-    sample(base, over[1], over[2] === 'step' ? t / base.clips[def.src].duration * base.clips[over[1]].duration : over[2]);
+    sample(base, over[1], over[2] === 'step' ? t / (def.length ?? base.clips[def.src].duration) * base.clips[over[1]].duration : over[2]);
     for (const b of keep) held.set(b, b.quaternion.clone());
     sample(base, def.src, at);
     for (const [b, q] of held) b.quaternion.copy(q);

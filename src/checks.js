@@ -596,6 +596,55 @@ async function worldChecks(w) {
     return out;
   });
 
+  // A place taken sees its army march in in victory (parade.js; creator, 2026-11-22: "I want them to look sick as
+  // they parade in in victory"): every regiment in column, together at one pace, onto its own ground, where it opens
+  // out into its line and every man cheers, all within the show (about 15 s); and an order to any regiment ends it
+  // at once, that regiment keeping its order and the rest going to their ground in their own lines. A walled castle
+  // and an open village, with a host of eight kinds.
+  await check('victory march: a place taken sees its army march onto its ground in column, cheer, and stop at an order', () => scratch(async make => {
+    const { SHOW } = await import('./parade.js'), out = [];
+    const host = () => [['knight', 20], ['serjeant', 40], ['spear', 60], ['sword', 50], ['archer', 40], ['yeoman', 30], ['maa', 30], ['cav', 20]].map(([key, count]) => ({ key, count, name: key }));
+    const take = (s, name) => {
+      const p = s.pois.find(q => q.name === name), a = s.spawnArmy(0, host(), p.links[0], 'Victors', 'march');
+      a.last = p.links[0];
+      s.capture(p, a, 'yielded', []);
+      return p.town.battle;
+    };
+    for (const name of ['Greyley Castle', 'Brackholm']) {
+      const s = make(), B = take(s, name), P = B.parade;
+      if (!P) { out.push(`${name}: no march`); continue; }
+      const go = P.list.filter(e => e.stage === 'wait');
+      if (go.length < P.list.length / 2) out.push(`${name}: only ${go.length} of ${P.list.length} regiments march`);
+      for (const e of go) if (e.r.files !== e.cf || e.cf >= e.files) out.push(`${name}: the ${e.r.name} wait in ${e.r.files} files, not a column narrower than their ${e.files}`);
+      P.seen = true;
+      const cheered = new Set();
+      let t = 0;
+      for (; t < SHOW + 5 && B.parade; t += 0.25) { s.update(0.25); for (const e of go) for (const q of e.r.soldiers) if (q.cheerAt != null) cheered.add(q); }
+      if (B.parade) out.push(`${name}: the march still running after ${t} s`);
+      else if (t > SHOW + 0.5) out.push(`${name}: the march took ${t} s`);
+      for (const e of go) {
+        const r = e.r, men = r.soldiers.filter(q => q.alive && !q.gone && !q.captain);
+        if (Math.hypot(r.x - e.ground.x, r.z - e.ground.z) > 3) out.push(`${name}: the ${r.name} ended ${Math.hypot(r.x - e.ground.x, r.z - e.ground.z).toFixed(1)} m from their ground`);
+        if (r.files !== e.files) out.push(`${name}: the ${r.name} stand in ${r.files} files, not their ${e.files}`);
+        const quiet = men.filter(q => !cheered.has(q)).length;
+        if (quiet) out.push(`${name}: ${quiet} of the ${r.name} never cheered`);
+      }
+    }
+    // an order two seconds in
+    const s = make(), B = take(s, 'Brackholm'), P = B.parade;
+    P.seen = true;
+    for (let t = 0; t < 2; t += 0.25) s.update(0.25);
+    const e0 = P.list.find(e => e.stage === 'march'), r0 = e0.r;
+    B.orderMove([r0], r0.x + 30, r0.z, 0);
+    const order = r0.dest;
+    s.update(0.05);
+    if (B.parade) out.push('an order did not end the march');
+    if (r0.dest !== order) out.push(`the ${r0.name}, ordered, did not keep the order`);
+    for (const e of P.list) if (e !== e0 && e.stage !== 'done') out.push(`the ${e.r.name} are still marching after the order`);
+    for (const e of P.list) if (e !== e0 && (e.r.files !== e.files || (e.r.dest && Math.hypot(e.r.dest.x - e.ground.x, e.r.dest.z - e.ground.z) > 0.5))) out.push(`after the order the ${e.r.name} were not sent to their ground in their own lines`);
+    return out;
+  }));
+
   await check('militia: a place\'s people turn out when outnumbered, and stay home against hopeless odds', async () => {
     const M = await import('./world/militia.js'), E = await import('./economy.js'), out = [];
     const p = { name: 'Testby', kind: 'village', eco: { pop: 60 }, garrison: [{ key: 'spear', count: 20 }] };
@@ -1719,8 +1768,8 @@ async function findAssets() {
   const { ROAD } = await import('./economy.js');
   const { footGaits } = await import('./view.js');
   const { HORSE_GAITS } = await import('./view.js');
-  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Death_Fwd', 'Hit', 'Hit_2', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed', 'Turn', 'TurnArmed', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'Shield_Wall'];
-  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Hoe', 'Hammer', 'Saw', 'Pickaxe', 'Work', 'Idle'];
+  const FOOT = ['Idle', 'Stand', 'Walk', 'Run', 'RunArmed', 'WalkArmed', 'March_Upright', 'Death', 'Death_Fwd', 'Hit', 'Hit_2', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed', 'Turn', 'TurnArmed', 'Sword_Slash', 'Spear_Thrust', 'Spear_Brace', 'Rout', 'Cheer', 'CheerWalk', 'Shield_Wall'];
+  const RIDE = ['Ride_Idle', 'Ride_Trot', 'Ride_Gallop', 'Ride_Charge', 'Ride_Couch', 'Ride_Fall', 'Ride_Cheer'], HORSE = ['Idle', 'Death', ...HORSE_GAITS], WORK = ['Walk', 'Run', 'CarryWalk', 'CarryRun', 'Chop', 'Hoe', 'Hammer', 'Saw', 'Pickaxe', 'Work', 'Idle'];
   const DOG = ['Idle', 'Walk', 'Trot', 'Run', 'Rout', 'Bite', 'Death'];
   const GAITS = ['Walk', 'Trot', 'Run', 'WalkArmed', 'RunArmed', 'March_Upright', 'Rout', 'CarryWalk', 'CarryRun', 'Step_Back', 'Step_Left', 'Step_Right', 'Step_BackArmed', 'Step_LeftArmed', 'Step_RightArmed'];
   const noClip = new Set();

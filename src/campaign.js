@@ -267,6 +267,15 @@ function townBundle(p, look = null) {
   b.controls = new Controls(stage.camera, canvas, town.battle, view, heightAt, b.hooks);
   b.controls.enabled = false;
   Object.assign(b.controls.cam, { x: 0, z: 40, dist: 120 });
+  // An army waiting to march in in victory (parade.js): from behind it, out on its side of the road, looking past
+  // it at the place it marches on.
+  const P = town.battle.parade;
+  if (P && P.start == null) {
+    const go = P.list.filter(e => e.stage === 'wait'), n = go.length || 1;
+    const x = go.reduce((k, e) => k + e.ground.x, 0) / n, z = go.reduce((k, e) => k + e.ground.z, 0) / n;
+    const side = Math.sign(x * P.cos - z * P.sin) || 1, spread = Math.max(0, ...go.map(e => Math.hypot(e.ground.x - x, e.ground.z - z)));
+    Object.assign(b.controls.cam, { x: x * 0.8, z: z * 0.8, dist: Math.min(130, 72 + spread * 0.5), yaw: Math.atan2(P.sin + 0.5 * side * P.cos, P.cos - 0.5 * side * P.sin) });
+  }
   // Storming: start over your own men on the ground they form up on, looking in at the keep.
   if (town.hostile) { const a = town.hostile.entry; Object.assign(b.controls.cam, { x: Math.sin(a) * 115, z: Math.cos(a) * 115, dist: 170, yaw: a }); }
   b.hooks.cancelOtherPlacing = () => { st.placing = null; };

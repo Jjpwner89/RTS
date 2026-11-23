@@ -487,6 +487,10 @@ function battleNews(b, dt) {
   M.offer = b.duelOffer;
   if (b.duel && b.duel !== M.duel) { M.duel = b.duel; M.duelOver = false; play('gasp', b.duel, b); }
   if (b.duel?.over && !M.duelOver) { M.duelOver = true; play('cheer', b.duel, b); }
+  // a victory march (parade.js): a fanfare as it sets off, a cheer as each regiment halts on its ground
+  const P = b.parade;
+  if (P?.start != null && M.parade !== P) { M.parade = P; M.cheers = 0; play('fanfare', P.list[0]?.r ? { x: P.list[0].r.x, z: P.list[0].r.z } : null, b); }
+  if (P && P.cheers > (M.cheers ?? 0)) { M.cheers = P.cheers; play('cheer', P.at, b); }
   for (const side of [0, 1]) {
     const L = b.lords?.[side];
     if (L && L !== M.lords[side]) { play('fanfare', L.soldier, b); play('neigh', L.soldier, b); }

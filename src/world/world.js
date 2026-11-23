@@ -1012,7 +1012,7 @@ export class World {
     p.eco = null;
     const angle = this.angle(p, a.last === p ? p.links[0] : a.last);
     if (kept.length) town.addTroops(kept, angle);
-    town.addTroops(a.units, angle);
+    town.addTroops(a.units, angle, { parade: true });   // a victory march (parade.js)
     this.removeArmy(a);
     const text = `${p.name} swears fealty to you for ${c.price} gold. Its people, stores and garrison are yours.`;
     this.log(text);
@@ -1239,7 +1239,7 @@ export class World {
     grownLevels(town, p.eco);
     this.plunder(p);
     p.eco = null;
-    town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last));
+    town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last), { parade: true });   // a victory march (parade.js)
     this.removeArmy(a);
     this.hooks.captured(p, was);
     this.checkBroken(was);

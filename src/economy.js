@@ -12,6 +12,7 @@ import { PACE } from './pace.js';
 import { thinkTownSiege, thinkSiegeDefence } from './ai.js';
 import { TYPES, FORMATIONS, vetRank, VET_RANKS, value } from './battle.js';
 import { driftHome } from './world/militia.js';
+import { lineUp, stepParade } from './parade.js';
 
 export const GOODS = {
   wood: { name: 'Wood', icon: 'wood', color: '#c8925a' },
@@ -1687,6 +1688,7 @@ export class Town {
     this.stockCache = null;
     // A place you are storming is only a battlefield until it is yours.
     if (this.hostile) { this.updateAttacks(dt); this.updateBurning(dt); for (const v of this.villagers) this.updateFolk(v, dt); return; }
+    stepParade(this);
     this.keepPeak = Math.max(this.keepPeak || 1, byPeople(this.population));
     // Masons: more hands as the village grows, twice as many while hired ones are here.
     this.battle.masons = (1 + Math.floor(this.population / 15)) * (this.time < (this.masonsUntil || 0) ? 2 : 1);
@@ -2902,8 +2904,9 @@ export class Town {
 
   // ---- troops coming and going on the world map ----
 
-  // Regiments arriving by road march in from the edge. Levies bring their villagers.
-  addTroops(specs, angle, { stand: standAt = 40 } = {}) {
+  // Regiments arriving by road march in from the edge. Levies bring their villagers. An army taking the place
+  // (`parade`) comes in as a victory march instead: in column onto its ground, cheering as it halts (parade.js).
+  addTroops(specs, angle, { stand: standAt = 40, parade = false } = {}) {
     const entry = this.edgePoint(angle);
     const face = Math.atan2(-entry.x, -entry.z);
     const added = [];
@@ -2926,6 +2929,7 @@ export class Town {
     }
     // up the road toward the keep, to form up together beside it (`formUp`)
     this.formUp(added, angle, standAt);
+    if (parade) lineUp(this, added, angle);
     return added;
   }
 
