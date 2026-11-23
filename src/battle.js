@@ -1137,6 +1137,15 @@ export class Battle {
     return true;
   }
 
+  // Foot that have been hacking at a wall have gone ahead of the regiment's anchor (the men run to their places at the
+  // wall; the anchor only walks), so when the wall falls they come together where they stand. Otherwise every man is
+  // called back to places round an anchor left behind, and the regiment about-faces, walks back, and trickles in.
+  gather(r) {
+    if (r.engine || r.gone || !r.soldiers) return;
+    r.x = r.cx; r.z = r.cz;
+    this.assignSlots(r);
+  }
+
   orderHalt(regs) {
     for (const r of regs) {
       if (!this.usable(r) || r.posts) continue;
@@ -1974,7 +1983,7 @@ export class Battle {
     // a gate down elsewhere), go on by it rather than finish this one.
     else if (r.after && r.targetWall && this.nav.any && (r.reachCd = (r.reachCd || 0) - dt) <= 0) {
       r.reachCd = 1;
-      if (this.reaches(r, r.after)) { r.targetWall = null; r.wallPoint = null; r.dest = null; }
+      if (this.reaches(r, r.after)) { r.targetWall = null; r.wallPoint = null; r.dest = null; this.gather(r); }
     }
     if (r.targetWall) this.aimAtWall(r, dt);
     else if (r.targetReg) {
@@ -2080,7 +2089,7 @@ export class Battle {
   // throwing engines to within range.
   aimAtWall(r, dt) {
     const s = r.targetWall, E = r.engine;
-    if (this.structGone(s) || (E?.kind === 'ladder' && E.ladders.length)) { r.targetWall = null; r.dest = null; return; }
+    if (this.structGone(s) || (E?.kind === 'ladder' && E.ladders.length)) { r.targetWall = null; r.dest = null; this.gather(r); return; }
     const p = s.wall && s.kind === 'piece' ? (() => {
       const h = toSegment(r.wallPoint?.x ?? r.cx, r.wallPoint?.z ?? r.cz, s.a.x, s.a.z, s.b.x, s.b.z);
       const t = s.gate ? 0.5 : Math.max(0.2, Math.min(0.8, h.t));
@@ -2343,6 +2352,9 @@ export class Battle {
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
+        // A foe who has got behind a wall (or a wall that has gone up between them) can't be fought: let him go,
+        // rather than stand pressing at the wall trying to get at him.
+        if (s.target && s.level === 0 && s.target.level === 0 && this.nav.any && !this.nav.clear(r.side, s.x, s.z, s.target.x, s.target.z)) s.target = null;
         const near = this.findTarget(s, Math.max(engageR, s.level === 1 ? POUR_REACH : 0));
         if (near) { if (near !== s.target) near.onMe = (near.onMe || 0) + 1; s.target = near; s.swarm = false; }
         else if (s.target && s.level === 1 && s.target.level !== 1) s.target = null;
@@ -2394,7 +2406,7 @@ export class Battle {
           s.lunge = 1;
           s.struckAt = this.time; // anim
           s.yaw = turnToward(s.yaw, Math.atan2(goal.strike.x - s.x, goal.strike.z - s.z), 1);
-          if (this.hitStructure(goal.strike, T.dmg * (goal.strike.material === 'wood' ? this.tuning.palisade : 1), 'melee')) { r.targetWall = null; this.event(r.side, `${this.label(r)} broke through!`); }
+          if (this.hitStructure(goal.strike, T.dmg * (goal.strike.material === 'wood' ? this.tuning.palisade : 1), 'melee')) { r.targetWall = null; this.gather(r); this.event(r.side, `${this.label(r)} broke through!`); }
           r.engaged++;
         }
       }
