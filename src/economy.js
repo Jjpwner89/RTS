@@ -149,12 +149,13 @@ export const BUILDINGS = {
 // Building upgrades (creator, 2026-11-20): an upgraded building is simply better. Each
 // level adds as many work places again as the first, and works a little faster, so one
 // level 2 woodcutter out-produces two at level 1; stores keep one more hauler a level.
-// The catch is the cost: level 2 in stone and planks, level 3 in gold and iron. Houses
-// don't level up.
+// The catch is the cost: level 2 in stone and planks, level 3 in gold and iron. A house's
+// level gives room for three more and a little cheer (HOUSE_MOOD), in a finer house.
 export const UPGRADES = [null, null,
   { gold: 0, cost: { stone: 15, planks: 10 } },
   { gold: 100, cost: { iron: 10, planks: 10 } }];
 export const SPEED = [1, 1, 1.15, 1.3];
+export const HOUSE_MOOD = 2;
 // The opening (creator, 2026-11-20): enough for a few early choices between woodcutters,
 // houses and farms, not all of them, and food for a while.
 export const START_STOCK = { wood: 60, stone: 12, food: 60 };
@@ -1542,7 +1543,7 @@ export class Town {
 
   upgradeCheck(b) {
     const U = UPGRADES[(b.level || 1) + 1];
-    if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.B.camp || b.kind === 'house') return { ok: false, reason: 'Fully upgraded', done: true };
+    if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.B.camp) return { ok: false, reason: 'Fully upgraded', done: true };
     if (b.dry) return { ok: false, reason: "Worked out: upgrading won't help" };
     if (U.gold && this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
     if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
@@ -1586,7 +1587,7 @@ export class Town {
       add(this.hungry ? -30 : meals >= this.population * 2 ? 8 : 0, this.hungry ? 'going hungry' : 'full larders');
       add(this.hadBread ? 8 : 0, 'bread on the table');
       const comfort = {};
-      for (const b of this.buildings) if (b.state === 'active' && b.B.mood) (comfort[b.kind] = comfort[b.kind] || []).push(b.B.mood * (1 + 0.25 * ((b.level || 1) - 1)));
+      for (const b of this.buildings) { const m = b.B.mood || (b.kind === 'house' && b.level > 1 ? HOUSE_MOOD : 0); if (b.state === 'active' && m) (comfort[b.kind] = comfort[b.kind] || []).push(m * (1 + 0.25 * ((b.level || 1) - 1))); }
       for (const [k, list] of Object.entries(comfort)) add(Math.round(list.sort((a, b) => b - a).slice(0, 3).reduce((n, m, i) => n + m / (i + 1), 0)), BUILDINGS[k].name.toLowerCase());
       add(TAXES[this.taxes].mood, TAXES[this.taxes].name.toLowerCase());
       add(this.population >= this.housing ? -5 : 0, 'crowded homes');

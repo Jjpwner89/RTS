@@ -234,8 +234,8 @@ const MAT = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: tru
 
 bld.build = async () => {
   const rows = [];
-  // the village's buildings: houses in their three styles, then every other kind at levels 1 to 3
-  rows.push({ title: 'Houses', items: Array.from({ length: HOUSE_STYLES }, (_, s) => ({ name: `House, style ${s + 1}`, geo: town.geo('house', s, 1), baked: !!buildingModel('house.' + s) })) });
+  // the village's buildings: houses in their three styles at levels 1 to 3, then every other kind at levels 1 to 3
+  rows.push({ title: 'Houses', items: Array.from({ length: HOUSE_STYLES * 3 }, (_, i) => { const s = Math.floor(i / 3), l = 1 + i % 3; return { name: `House, style ${s + 1}${l > 1 ? ' · level ' + l : ''}`, geo: town.geo('house', s, l), baked: !!buildingModel(l > 1 ? `house.${s}.${l}` : 'house.' + s) }; }) });
   const kinds = Object.keys(BUILDINGS).filter(k => k !== 'house');
   for (const k of kinds) {
     const B = BUILDINGS[k], levels = B.hall || B.great ? 1 : UPGRADES.length - 1;

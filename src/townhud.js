@@ -502,9 +502,9 @@ export class TownHud {
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
-    if (b.state === 'active' && UPGRADES[2] && b.kind !== 'well' && b.kind !== 'house' && !B.camp) {
+    if (b.state === 'active' && UPGRADES[2] && b.kind !== 'well' && !B.camp) {
       const U = UPGRADES[(b.level || 1) + 1], next = (b.level || 1) + 1;
-      const gain = B.haul ? 'one more hauler' : B.jobs ? `work for ${B.jobs * next}, a little faster` : B.mood ? 'lifts the mood more' : 'sturdier';
+      const gain = B.housing ? 'room for 3 more, and a finer house lifts the mood' : B.haul ? 'one more hauler' : B.jobs ? `work for ${B.jobs * next}, a little faster` : B.mood ? 'lifts the mood more' : 'sturdier';
       if (U) rows.push(`<button data-act="upgrade" class="wide"><span>Upgrade to level ${next} · ${U.gold ? `${U.gold} ${goldIco()} + ` : ''}${this.goodsList(U.cost)}</span><small></small></button><p class="kit">${gain}</p>`);
     }
     const buttons = [];

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { iconImage } from './icons.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, heartModel, keepTop, houseModel, campModel, keepLevelOf, poleFor } from './view.js';
+import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, heartModel, keepTop, houseModel, houseUpgraded, campModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, setBlend, gaitFor } from './anim.js';
 import { BUILDINGS, crate } from './economy.js';
@@ -294,7 +294,7 @@ export class TownView {
   geo(kind, style = 0, level = 1) {
     // (a village's chapel is the monastery kind, drawn as the smaller timber chapel)
     const base = kind === 'house' ? `house.${style % HOUSE_STYLES}` : kind === 'monastery' ? 'chapel' : kind === 'cathedral' && !buildingModel('cathedral') ? 'monastery' : kind;
-    for (let l = level; l > 1; l--) if (buildingModel(`${base}.${l}`)) return this.cached(`${base}.${l}`, () => buildingModel(`${base}.${l}`));
+    for (let l = level; l > 1; l--) if (buildingModel(`${base}.${l}`)) return this.cached(`${base}.${l}`, () => kind === 'house' ? houseUpgraded(buildingModel(`${base}.${l}`), this.geo(kind, style, 1)) : buildingModel(`${base}.${l}`));
     return this.cached(base, () => (kind === 'house' ? houseModel(style) : buildingModel(base) || buildingModel(kind)) || campModel(kind) || (MODELS[kind] || MODELS.storehouse)());
   }
   cached(key, make) { return this.geos[key] || (this.geos[key] = make()); }

@@ -400,6 +400,32 @@ export function houseModel(style = 0) {
   ]);
 }
 
+// An upgraded house (level 2 or 3, townview.js) as the pack's own model, with a stone chimney standing up through
+// its roof toward one gable, and never much smaller across than the house it replaced (`was`, its level 1), so an
+// upgrade reads as a step up.
+export function houseUpgraded(geo, was) {
+  const size = g => { if (!g.boundingBox) g.computeBoundingBox(); const b = g.boundingBox; return Math.max(b.max.x - b.min.x, b.max.z - b.min.z); };
+  const k = Math.min(1.6, Math.max(1, 0.8 * size(was) / size(geo)));
+  const g = (geo.index ? geo.toNonIndexed() : geo.clone()).scale(k, k, k);
+  g.computeBoundingBox();
+  // where: of a few spots across the house, one well under its roof (the model's highest point within a metre of it)
+  // and off toward an end, so it reads as a chimney and not a post; it stands a metre above the roof there
+  const b = g.boundingBox, p = g.attributes.position, mx = (b.min.x + b.max.x) / 2, mz = (b.min.z + b.max.z) / 2;
+  const hx = (b.max.x - b.min.x) / 2, hz = (b.max.z - b.min.z) / 2;
+  let x = mx, z = mz, best = -Infinity, roof = b.max.y;
+  for (const u of [-0.5, -0.25, 0, 0.25, 0.5]) for (const v of [-0.5, -0.25, 0, 0.25, 0.5]) {
+    const cx = mx + u * hx, cz = mz + v * hz;
+    let h = 0;
+    for (let i = 0; i < p.count; i++) if ((p.getX(i) - cx) ** 2 + (p.getZ(i) - cz) ** 2 < 1) h = Math.max(h, p.getY(i));
+    const score = h / b.max.y + 0.3 * Math.max(Math.abs(u), Math.abs(v)) + 0.05 * u;
+    if (h > 0.6 * b.max.y && score > best) { best = score; x = cx; z = cz; roof = h; }
+  }
+  const top = roof + 1;
+  const parts = [part(box(0.75, top, 0.75), STONE, { x, y: top / 2, z }), part(box(0.9, 0.16, 0.9), STONE_DARK, { x, y: top + 0.08, z })];
+  for (const q of parts) { q.deleteAttribute('uv'); if (!g.attributes.normal) q.deleteAttribute('normal'); }
+  return mergeGeometries([g, ...parts]);
+}
+
 // Height of the keep's roof, so its flag flies just above it.
 export function keepTop(geo) {
   if (!geo.boundingBox) geo.computeBoundingBox();
