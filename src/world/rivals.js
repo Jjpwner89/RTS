@@ -158,7 +158,7 @@ export function meetHost(w, h, mine, foeHosts, plan) {
     const F = byId(M.foe), G = w.byId[M.at], host = M.host != null ? byId(M.host) : null;
     const pals = F ? partnersOf(w, h, F.side) : [];
     const ours = p => p.owner === h.index || pals.includes(p.owner);
-    const over = !F || F.retreating || !w.pois.some(p => ours(p) && dist(p, F) < 500);
+    const over = !F || F.retreating || !((F.target && ours(F.target)) || w.pois.some(p => ours(p) && dist(p, F) < 500));
     if (M.host != null) {
       if (!host) { ai.meet = null; return null; }
       if (over && !host.retreating) { if (!(G?.owner === h.index && w.order(host, G))) w.retreat(host); ai.meet = null; }
@@ -172,6 +172,10 @@ export function meetHost(w, h, mine, foeHosts, plan) {
     const wings = wingsAt(w, G, F);
     const need = power(F.units) * MEET_AT, spare = spareAt(w, G), joined = wings.reduce((n, x) => n + power(x.units), 0) + (pals.includes(0) ? yoursNear(w, G) : 0);
     if (spare + joined < need || spare <= 0) return G;
+    // It waits for its partners' men on the road, or yet to be sent, while the foe is not at its gates.
+    const coming = w.armies.some(x => !x.gone && !x.retreating && x.wing?.foe === F.id && x.wing.at === G.id && x.at !== G);
+    const unsent = w.time - M.since < 2 * THINK && pals.some(j => j && wingSpare(w, j, G) >= 10);
+    if ((coming || unsent) && dist(F, G) > 120) return G;
     const cap = ARMY_CAP[rankOf(mine.filter(p => p.kind !== 'camp').length)] || ARMY_CAP.Reeve;
     const units = takeUnits(G.garrison, Math.min(spare, cap * power(G.garrison) / Math.max(1, headcount(G.garrison))));
     if (!units.length) return G;
@@ -196,11 +200,12 @@ export function meetHost(w, h, mine, foeHosts, plan) {
     if (F.retreating || F.halted || F.mode === 'raid' || headcount(F.units) < 40) continue;
     const pals = partnersOf(w, h, F.side);
     const ours = w.pois.filter(p => p.kind !== 'camp' && (p.owner === h.index || pals.includes(p.owner)));
-    if (!ours.some(p => dist(p, F) < 400)) continue;
+    // Near, or marching on one of theirs (its scouts see it set out).
+    if (!ours.includes(F.target) && !ours.some(p => dist(p, F) < 400)) continue;
     let G = ours.includes(F.target) ? F.target : ours.sort((p, q) => dist(p, F) - dist(q, F))[0];
     // You gather your own; a partner's place it is headed for is that partner's to lead from (joinMeet).
     if (G.owner === 0) G = mine.filter(p => p.kind !== 'camp').sort((p, q) => dist(p, F) - dist(q, F))[0];
-    if (!G || G.owner !== h.index || dist(F, G) < 60 || dist(F, G) > 500) continue;
+    if (!G || G.owner !== h.index || dist(F, G) < 60 || (G !== F.target && dist(F, G) > 500)) continue;
     const joined = pals.reduce((n, j) => n + (j === 0 ? yoursNear(w, G) : wingSpare(w, j, G)), 0);
     if (field + joined < power(F.units) * MEET_AT) continue;
     if (!best || power(F.units) > power(best.F.units)) best = { F, G };

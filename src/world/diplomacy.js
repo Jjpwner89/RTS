@@ -171,7 +171,10 @@ export const wouldJoin = (w, H, side) => !leagued(w, H.index) && !(w.leagues || 
 // Of a house's reasons, the one it acts on: the strongest, and of equals the nearer side.
 // The same for you and every house: nobody comes first for being you.
 export const strongestReason = rs => rs.filter(Boolean).sort((a, b) => b.n - a.n || a.d - b.d)[0] || null;
-const leagueReady = (w, H) => H.ai?.stance === 'war' && !(H.arriere?.rest > w.time) && H.gold >= banCost(w, H);
+// Arming and able to pay for its ban. A ban out or resting no longer keeps it out (Battles,
+// 2026-11-23: houses call theirs whenever a foe's host presses, so it rested two minutes in
+// three and no league formed in three hours); it sends fewer levies to a league's host (houseBan).
+const leagueReady = (w, H) => H.ai?.stance === 'war' && H.gold >= banCost(w, H);
 export const leagued = (w, h) => !!w.coalition?.members.includes(h);
 
 // The league raises one host (Duke batch, 2026-11-21): every member sends two men in five from
