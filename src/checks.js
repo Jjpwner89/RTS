@@ -1239,6 +1239,70 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // Threat awareness (Orchestrator, 2026-11-23): a call is news to the caller's neighbours and foes,
+  // you among them; a foe that reckons itself the target gathers at its place the caller could
+  // reach, at peace or not; nobody answers an answer; a raided place is relieved before the band
+  // comes, so it turns back; and a house raided again and again goes for the raiders' home.
+  await check('threat: a call is news to neighbours and you, a foe answers at its border, a raid is relieved, repeat raiders are punished', () => scratch(async (make, FACTIONS) => {
+    const T = await import('./world/threat.js'), R = await import('./world/rivals.js'), { headcount } = await import('./world/world.js'), out = [];
+    const s = make(), logs = [];
+    s.log = (t, l) => logs.push([t, l]);
+    const d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    const houses = FACTIONS.filter(x => x.index > 0 && x.alive && x.ai && !x.bandit && !x.invader);
+    const own = x => s.pois.filter(p => p.owner === x.index && p.kind !== 'camp');
+    const near = (x, y) => own(x).some(p => own(y).some(q => d(p, q) < T.THREAT.border));
+    let h, k;
+    for (const a of houses) for (const b of houses) if (!h && a !== b && near(a, b) && own(b).length >= 2) { h = a; k = b; }
+    if (!h) return ['no two houses border each other on this map'];
+    for (const x of houses) { x.ai.plan = null; x.ai.meet = null; x.ai.alert = null; }
+    if (!s.atWar(h.index, k.index)) s.declareWar(h.index, k.index, true);
+    s.dip[h.index].opinion = -60;   // on bad terms with you
+    const G = own(h).sort((a, b) => Math.min(...own(k).map(q => d(a, q))) - Math.min(...own(k).map(q => d(b, q))))[0];
+    T.callHeard(s, h.index, G, { kind: 'banners', men: 120 });
+    const word = logs.find(([t]) => t.startsWith(`${h.name} has called its banners at ${G.name}`));
+    if (!word || word[1] !== 1) out.push(`a house on bad terms with you called its banners and you were not told: ${logs.map(l => l[0]).join(' | ') || 'no log'}`);
+    const P = s.byId[k.ai.alert?.at];
+    if (!P || P.owner !== k.index) return [...out, `${k.name}, at war with the caller on its border, did not answer its call`];
+    // A stranger far off, at peace and with no grudge, does not stir.
+    const far = houses.find(x => x !== h && x !== k && !near(x, h) && !s.atWar(x.index, h.index) && !s.fought?.[s.warKey(x.index, h.index)]);
+    if (far?.ai.alert) out.push(`${far.name}, far from the caller and at peace with it, answered its call`);
+    // Nobody answers an answer.
+    h.ai.alert = null;
+    T.callHeard(s, k.index, P, { kind: 'arriere', answer: true });
+    if (h.ai.alert) out.push('a call made in answer was answered in turn');
+    // It gathers at P, at peace or not: its other places keep a skeleton and send the rest there.
+    const Q = own(k).find(p => p !== P && p.eco);
+    if (Q) {
+      Q.garrison = [{ key: 'spear', count: 120, name: 'Guard' }];
+      k.ai.stance = 'build'; k.ai.alert.until = s.time + 300;
+      R.houseMind(s, k);
+      const col = s.armies.find(a => !a.gone && a.side === k.index && a.mode === 'column' && (a.target === P || a.path.at(-1) === P));
+      if (k.ai.alert && !col && headcount(Q.garrison) > 60) out.push(`${k.name} heard the call but sent nobody from ${Q.name} to ${P.name} (${headcount(Q.garrison)} men kept)`);
+    }
+    // A raid on P: seen coming, the places near send relief, and the band turns back.
+    for (const a of s.armies.filter(a => a.side === k.index)) s.removeArmy(a);
+    k.ai.alert = null;
+    const rel = own(k).filter(p => p !== P).sort((a, b) => d(a, P) - d(b, P))[0];
+    rel.garrison = [{ key: 'spear', count: 200, name: 'Guard' }];
+    // Each band is as far from P by road as the relief is, so the relief gets there with it.
+    const r = Math.max(30, s.route(rel, P, s.roadOf(k.index)).length), ux = (rel.x - P.x) / (d(rel, P) || 1), uz = (rel.z - P.z) / (d(rel, P) || 1);
+    const spawnBand = () => { const b = s.spawnArmy(h.index, [{ key: 'spear', count: 30, name: 'Raiders' }], G, `${h.short} raiders`, 'raid'); s.order(b, P); Object.assign(b, { x: P.x + ux * r, z: P.z + uz * r, path: [P] }); return b; };
+    const band = spawnBand();
+    if (r > T.THREAT.road) return [...out, `${rel.name} is ${Math.round(r)} by road from ${P.name}: too far to test relief`];
+    T.answerRaids(s, k, q => 20);
+    Object.assign(band, { x: P.x + 1, z: P.z + 1 });
+    const relief = s.armies.find(a => !a.gone && a.side === k.index && a.target === P);
+    if (!relief) return [...out, `a band coming at ${P.name} brought no relief from ${rel.name} with 200 men`];
+    Object.assign(relief, { x: P.x + 2, z: P.z + 2, path: [P] });
+    s.autoRaid(band, P);
+    if (!band.retreating && !band.gone) out.push(`the band at ${P.name} saw ${headcount(relief.units)} men coming and did not turn back`);
+    // Three bands from one side in a while: a host goes for the raiders' place nearest the raids.
+    let punish = null;
+    for (let i = 0; i < 2 && !punish; i++) { spawnBand(); punish = T.answerRaids(s, k, q => 20); }
+    if (!punish || punish.side !== h.index || punish.home.owner !== h.index) out.push(`three bands from ${h.name} and ${k.name} did not resolve to punish it`);
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.

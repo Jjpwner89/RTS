@@ -8,6 +8,7 @@
 import { FACTIONS, headcount, unit, mergeInto, roughly, ARMY_CAP } from './world.js';
 import { EAT, capacity, takeFood } from './supply.js';
 import { takeRoster, returnToRoster, fromReg, armedIn } from './ban.js';
+import { callHeard } from './threat.js';
 
 export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 800, rest: 300, key: 'militia' };
 export const isLevy = u => !!u.until;
@@ -74,6 +75,7 @@ export function callArriere(w, dest) {
   if (there) w.log(`No road through friendly land reaches ${dest.name} from every place: ${there} of the arrière-ban gather at ${stage.name} instead.`, 1);
   if (cut.length) w.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their levies wait' : 'its levies wait'} at home.`, 1);
   w.chron(`You called the arrière-ban: ${plan.men} men of the countryside.`);
+  callHeard(w, 0, dest, { kind: 'arriere' });   // the houses around you hear of it (threat.js)
   return { ok: true, men, there, stage };
 }
 
@@ -120,11 +122,12 @@ export function houseBan(w, h, room, from = w.time) {
 }
 
 // A house calls its arrière-ban as you call yours (Orchestrator, 2026-11-22): when its host
-// gathers, to the muster place, or when a foe's host comes near, to the place it threatens.
+// gathers, to the muster place, or when a foe's host comes near, to the place it threatens
+// (answer: to meet a threat, not to make one: threat.js callHeard).
 // houseBan takes the gold and food; each place's men march to `dest` as a column and join
 // its garrison there (a place with no road keeps its own at home); they go home when their
 // time is up (tickArriere). As many as a host of its rank holds, less what stands at `dest`.
-export function houseCall(w, h, dest) {
+export function houseCall(w, h, dest, answer = false) {
   const places = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling);
   const room = (ARMY_CAP[rankOf(places.length)] || 0) - headcount(dest.garrison);
   const men = houseBan(w, h, room);
@@ -140,7 +143,8 @@ export function houseCall(w, h, dest) {
     const col = w.spawnArmy(h.index, units, p, `${h.short} arrière-ban`, 'column');
     if (!w.order(col, dest, w.roadOf(h.index))) { w.removeArmy(col); mergeInto(p.garrison, units); }   // (not through a foe's or a free place, which would stop it)
   }
-  if (dest.visible || w.knows(h.index)) w.log(`${h.name} calls its arrière-ban to ${dest.name}: about ${roughly(men)} men of the countryside.`, 2);
+  // News to its neighbours and foes, you among them (threat.js); otherwise word only if you know it.
+  if (!callHeard(w, h.index, dest, { kind: 'arriere', answer, men }) && (dest.visible || w.knows(h.index))) w.log(`${h.name} calls its arrière-ban to ${dest.name}: about ${roughly(men)} men of the countryside.`, 2);
   return men;
 }
 

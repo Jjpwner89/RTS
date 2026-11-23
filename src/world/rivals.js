@@ -22,6 +22,7 @@ import { standDown, keepAtWork, pressedAt } from './holdings.js';
 import { houseRuns } from './supply.js';
 import { thinkWalls } from './walling.js';
 import { siegeReady, takeTrain } from './siege.js';
+import { alertAt, answerRaids, callHeard } from './threat.js';
 import { TYPES } from '../battle.js';
 
 export const STAGES = ['Settling', 'Expanding', 'Contending'];
@@ -316,7 +317,7 @@ function chooseStance(w, h, B, stage, mine) {
   return score > (h.ai.stance === 'war' ? 0.2 : 0.5) ? 'war' : 'build';
 }
 
-function houseMind(w, h) {
+export function houseMind(w, h) {   // (exported for checks())
   const mine = held(w, h);
   if (!mine.length) return;
   const B = bent(h), ai = h.ai, plan = ai.plan;
@@ -340,6 +341,10 @@ function houseMind(w, h) {
   // A foe's host near: it gathers where that host is headed and marches out to meet it (meetHost).
   const meetAt = !h.bandit && !h.invader ? meetHost(w, h, mine, foeHosts, plan) : null;
   if (meetAt) muster = meetAt;
+  // A call it heard and reckons is against it: it gathers at the place the caller could reach
+  // (threat.js), unless its own host is out.
+  const alert = !h.bandit && !h.invader && !meetAt && plan?.phase !== 'march' ? alertAt(w, h) : null;
+  if (alert) muster = alert;
   ai.muster = plan?.phase === 'muster' && plan.staging?.owner === h.index
     ? { at: plan.target.id, from: plan.staging.id, short: Math.max(0, Math.ceil(w.defence(plan.target) * B.need + 20 - spareAt(w, plan.staging))) } : null;
   // Its rear: places with no enemy place or army within a short march (World.keepHome).
@@ -349,12 +354,14 @@ function houseMind(w, h) {
   const arming = ai.stance === 'war';
   // Its arrière-ban, on your rules (arriere.js houseCall): to its muster while a host gathers
   // against a place, or to the place of its that a foe's host is nearest.
-  if (!h.bandit && !h.invader && arming) {
+  // Answering a call, at peace or not, it calls its own (and that call answers, threat.js).
+  if (!h.bandit && !h.invader && (arming || alert)) {
     const near = mine.filter(p => ai.pressed.includes(p.id)).sort((p, q) => Math.min(...foeHosts.map(a => dist(p, a))) - Math.min(...foeHosts.map(a => dist(q, a))))[0];
-    const to = meetAt || (plan?.phase === 'muster' && plan.staging?.owner === h.index ? plan.staging : near);
-    if (to) houseCall(w, h, to);
+    const staging = plan?.phase === 'muster' && plan.staging?.owner === h.index ? plan.staging : null;
+    const to = meetAt || alert || staging || near;
+    if (to) houseCall(w, h, to, to !== staging);
   }
-  if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
+  if (h.arms >= 6 && (arming || alert || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
   // Building with nothing planned, it keeps a modest field reserve and sends the rest home.
   const real = mine.filter(p => p.eco?.buildings && !p.town);
   if (!arming && !plan && muster.eco?.buildings) {
@@ -370,7 +377,7 @@ function houseMind(w, h) {
   const last = ai.lastPressed ||= {};
   for (const id of ai.pressed) last[id] = w.time;
   const calm = p => !pressedAt(h, p) && w.time - (last[p.id] ?? -Infinity) >= CALM;
-  const gathering = plan?.phase === 'muster' || !!meetAt;   // (its places keep a skeleton and send the rest: World.keepHome)
+  const gathering = plan?.phase === 'muster' || !!meetAt || !!alert;   // (its places keep a skeleton and send the rest: World.keepHome)
   if (!gathering && real.some(p => calm(p) && p.eco.pop < keepAtWork(p.eco, false) - 6)) {
     for (const p of real.filter(calm)) {
       if (plan?.phase === 'muster' && p === plan.staging) continue;
@@ -402,6 +409,23 @@ function houseMind(w, h) {
 
   thinkWars(w, h, B, stage);
   if (stage > 0 && arming) warRaids(w, h, B, plan);
+  // Bands coming at its places: relief from its others; raided again and again by one side, a
+  // host goes for that side's place nearest the raids, unless it is already set on a war (threat.js).
+  const punish = !h.bandit && !h.invader ? answerRaids(w, h, p => skeletonOf(w, h, p)) : null;
+  if (punish && (!ai.plan || ai.plan.phase === 'probe' || ai.plan.skirmish) && punish.home !== ai.plan?.target) {
+    const S = nearestOwn(w, h, punish.home).place;
+    if (S) {
+      ai.plan = { target: punish.home, staging: S, phase: 'muster', t: 0, waited: 0, host: null, raids: 0, punish: punish.side };
+      w.hooks.threat?.({ kind: 'punish', by: punish.side, on: h.index, at: punish.home.id, time: w.time });
+      const told = punish.side === 0 && punish.home.owner === 0;
+      if (told) {
+        w.log(`${h.lord} has had enough of your raiders: ${h.name} gathers a host at ${S.name} to march on ${punish.home.name}.`, 1);
+        w.meet(h.index);
+      }
+      callHeard(w, h.index, S, { kind: 'host', told });
+      return;
+    }
+  }
 
   // Drop a plan whose target is ours now, or no longer an enemy.
   if (plan && (plan.target.owner === h.index || !w.canAttack(h.index, plan.target))) {
@@ -626,6 +650,8 @@ function runPlan(w, h, B, plan) {
         w.meet(h.index);
         w.hooks.herald?.({ house: h, title: `${h.name} gathers a host`, text: `At ${plan.staging.name}, against ${T.name}. Strike their raiders and their muster before it marches, or make ready your walls.` });
       }
+      // A host gathering is news to the houses around it, and to you if you border it (threat.js).
+      if (plan.staging) callHeard(w, h.index, plan.staging, { kind: 'host', told: T.owner === 0 });
     }
     return;
   }

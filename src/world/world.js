@@ -26,7 +26,8 @@ import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { MARCH_LIVE, armyStep } from './march.js';
 import { tickArriere, rankOf } from './arriere.js';
 import * as ban from './ban.js';
-import { hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
+import { callHeard, sendRelief } from './threat.js';
+import { RELIEF, hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -217,6 +218,7 @@ export class World {
     if (i === j || this.atWar(i, j)) return;
     this.wars.add(this.warKey(i, j));
     (this.warBy ||= {})[this.warKey(i, j)] = i;   // who started it (diplomacy.js leagueReason)
+    (this.fought ||= {})[this.warKey(i, j)] = this.time;   // and that they have fought, kept after the peace (threat.js)
     const a = FACTIONS[i], b = FACTIONS[j];
     if (i === 0) this.meet(j);
     if (j === 0) {
@@ -288,7 +290,7 @@ export class World {
     // While its host gathers, to march on a place or out to meet a foe's host, a house keeps
     // only a skeleton guard where no foe presses, as you may strip yours (Orchestrator,
     // 2026-11-22): the rest marches to the host (rivals.js).
-    if ((ai?.plan?.phase === 'muster' || (ai?.meet && ai.meet.host == null)) && p.eco && !pressedAt(h, p)) return SKELETON + 4 * (p.eco.level || 0);
+    if ((ai?.plan?.phase === 'muster' || (ai?.meet && ai.meet.host == null) || ai?.alert?.until > this.time) && p.eco && !pressedAt(h, p)) return SKELETON + 4 * (p.eco.level || 0);
     // A house arming for war strips the places no enemy is near, as you would (rivals.js).
     const rear = ai?.stance === 'war' && ai.rear?.includes(p.id);
     return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.5 : 1) * (rear ? 0.5 : 1));
@@ -780,6 +782,7 @@ export class World {
     if (from || !there) this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} place${from > 1 ? 's' : ''}, to join ${plan.here} there.` : `The banners are called, but no other place has men to spare. ${plan.here} stand ready at ${dest.name}.`);
     if (there) this.log(`No road through friendly land reaches ${dest.name} from every place: ${there} men gather at ${stage.name} instead. Muster them there and march as one host.`, 1);
     if (cut.length) this.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their men stay' : 'its men stay'} at home.`, 1);
+    callHeard(this, 0, dest, { kind: 'banners' });   // the houses around you hear of it (threat.js)
     return { men, from, there, stage };
   }
 
@@ -1617,6 +1620,13 @@ export class World {
     if (word) this.log(word, was === 0 ? 1 : 2);
     this.checkBroken(was);
     this.checkEnd();
+  }
+
+  // A band at a house's place: its places near enough to be there in time send what they can
+  // spare (threat.js; most relief went out when the band was seen coming, rivals.js houseMind).
+  relieve(p, band) {
+    const h = p.owner != null ? FACTIONS[p.owner] : null;
+    if (h?.ai && p.owner !== 0 && !h.bandit && !h.invader) sendRelief(this, h, p, band, RELIEF.eta * armyStep(this, band));
   }
 
   // Raiders on a holding: if they beat the guard, they burn and steal, then go home.

@@ -11,7 +11,10 @@ export { RELIEF };
 
 // Armies friendly to `owner`'s place `p` that are marching on it, and near enough to matter.
 export function hostsFor(w, p, owner = p.owner) {
-  const friend = a => a.side === owner || (owner === 0 && !!(w.dip?.[a.side]?.vassal || w.dip?.[a.side]?.allied));
+  // (and a partner's: its league or the coalition against you, your sworn houses' and allies' for you and them: Battles, 2026-11-23)
+  const yours = i => !!(w.dip?.[i]?.vassal || w.dip?.[i]?.allied);
+  const pair = (i, j) => (w.leagues || []).some(L => L.members.includes(i) && L.members.includes(j)) || !!(w.coalition?.members?.includes(i) && w.coalition.members.includes(j));
+  const friend = a => a.side === owner || (owner === 0 ? yours(a.side) : pair(owner, a.side) || (yours(owner) && (a.side === 0 || yours(a.side))));
   const out = [];
   for (const a of w.armies) {
     if (a.gone || a.wagon || a.retreating || a.halted || !friend(a)) continue;

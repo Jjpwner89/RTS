@@ -126,7 +126,7 @@ function decoder(w, armyById) {
   return dec;
 }
 
-const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options', 'decrees', 'elitePay', 'settlerClock', 'lastSettlers', 'settlerSeen', 'petitionAt', 'uiSeen', 'outlaws', 'tributeAt', 'seasonSeen', 'arriere', 'leagues', 'warBy', 'eventAt', 'calls'];
+const WORLD_KEYS = ['time', 'nextArmy', 'winner', 'victory', 'crowned', 'wars', 'met', 'half', 'dip', 'dipClock', 'ecoClock', 'sightClock', 'supplyClock', 'goals', 'spies', 'vassals', 'vassalId', 'faction', 'coalition', 'eventClock', 'lastEvent', 'banditPeace', 'rankSeen', 'companies', 'captains', 'captainId', 'lordHurt', 'chronicle', 'cairns', 'lordCaptive', 'lordAskedAt', 'works', 'options', 'decrees', 'elitePay', 'settlerClock', 'lastSettlers', 'settlerSeen', 'petitionAt', 'uiSeen', 'outlaws', 'tributeAt', 'seasonSeen', 'arriere', 'leagues', 'warBy', 'eventAt', 'calls', 'fought', 'heard'];
 
 function pack(w) {
   const enc = encoder(w);
