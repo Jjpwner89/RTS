@@ -124,15 +124,15 @@ export function lookChain(key) {
 //   soak: the share of a blow's damage each point of the armour worn turns aside (leather 1, mail 2, plate 4 points).
 //   dmg: every blow's damage, arrows too.
 //   room: spacing between files and ranks, times the type's own.
-//   crowd: most men who may go for one foe at once (0: all who like), so a front stays a front and doesn't mob: four in
+//   crowd: most men who may go for one foe at once (0: all who like), so a front stays a front and doesn't mob: three in
 //   every setting (it only bites where a few are outnumbered), two in E.
 //   shock: how hard a regiment breaking shakes the ones beside it (1: as now), and breakAt: the share of an army
 //   still standing under which, if the foe has clearly more, the whole army breaks at once (0.5 now).
 export const TUNING = {
-  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, room: 1, crowd: 4, shock: 1, breakAt: 0.5 },
-  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 4, shock: 1, breakAt: 0.5 },
-  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 4, shock: 1, breakAt: 0.5 },
-  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 4, shock: 1, breakAt: 0.5 },
+  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 3, shock: 1, breakAt: 0.5 },
   E: { key: 'E', name: 'Much slower, steadier', defStep: 0.065, soak: 0.09, dmg: 0.5, room: 1.12, crowd: 2, shock: 0.5, breakAt: 0.4 },
 };
 
