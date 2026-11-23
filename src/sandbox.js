@@ -14,7 +14,7 @@ import { Hud } from './hud.js';
 
 const params = new URLSearchParams(location.search);
 const SETTINGS = Object.values(TUNING);
-const find = k => TUNING[k] || TUNING.A;
+const find = k => TUNING[k] || TUNING.F;
 
 // ---- the fights ----
 // Each side is a list of [kind, x, z, count] on the ground; side 1 stands where side 0 does, mirrored across z = 0
@@ -112,8 +112,8 @@ const paneEl = [document.getElementById('paneL'), document.getElementById('paneR
 const ui = {
   fight: Math.max(0, Math.min(FIGHTS.length - 1, +params.get('fight') || 0)),
   seed: +params.get('seed') || 7,
-  setL: find(params.get('a') || 'A'),
-  setR: find(params.get('b') || 'D'),
+  setL: find(params.get('a') || 'F'),
+  setR: find(params.get('b') || 'A'),
   compare: params.has('b'),
 };
 let paused = false, speed = 1;

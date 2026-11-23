@@ -118,8 +118,8 @@ export function lookChain(key) {
   return chain;
 }
 
-// How hard a fight is, in a few dials the combat sandbox (sandbox.html) swaps while you watch. A is the game as
-// it plays; the others are candidates and change nothing live until one is chosen.
+// How hard a fight is, in a few dials the combat sandbox (sandbox.html) swaps while you watch. F is the game as it plays
+// (the creator's pick of 2026-11-23, "F it is!"); A is how it played before, kept with the others to compare against.
 //   defStep: hit chance a point of attack over defence is worth (0.05 each).
 //   soak: the share of a blow's damage each point of the armour worn turns aside (leather 1, mail 2, plate 4 points).
 //   dmg: every blow's damage in melee; arrow: every arrow's, bolt's and javelin's (a missile's own dial, so slowing the
@@ -135,7 +135,7 @@ export function lookChain(key) {
 //   shock: how hard a regiment breaking shakes the ones beside it (1: as now), and breakAt: the share of an army
 //   still standing under which, if the foe has clearly more, the whole army breaks at once (0.5 now).
 export const TUNING = {
-  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, arrow: 1, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  A: { key: 'A', name: 'Before F (the game until 2026-11-23)', defStep: 0.05, soak: 0, dmg: 1, arrow: 1, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
   B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, arrow: 1, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
   C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, arrow: 0.8, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
   D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, arrow: 0.8, rank: 0, wrap: 2, room: 1.12, crowd: 3, shock: 1, breakAt: 0.5 },
@@ -276,7 +276,7 @@ export class Battle {
     this.checkWinner = deploy;
     this.counts = [{}, {}];
     this.version = 0;          // bumped when prune() drops soldiers, so views rebuild
-    this.tuning = TUNING.A;    // how hard a fight is (TUNING)
+    this.tuning = TUNING.F;    // how hard a fight is (TUNING): F, the creator's pick of 2026-11-23
     this.walls = new Walls(heightAt);
     this.nav = new Nav(this.walls);
     this.walls.onBreak = s => this.onWallBreak(s);

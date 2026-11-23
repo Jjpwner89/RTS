@@ -2192,12 +2192,14 @@ async function orderChecks() {
   // ... and the whole regiment closes on a tougher small band: not a drip of men stepping one by
   // one into dead men's slots while the rest wait (creator, 2026-11-22: "they just ran up two at a
   // time after the last group got killed").
-  // (60%, not 80%: three to a man, so not every one of 60 can be on a band of 12.)
-  await check('a regiment fighting a tougher small band keeps 60% of its men in the fight while the band stands', async () => {
+  // (Not 80%: with `crowd` men to a foe (F: two) not every one of 60 can be on a band of 12, so what is asked is that at
+  // least as many as may be on them are close or striking, up to 60%: 24 of 60, 30 of 80.)
+  await check('a regiment fighting a tougher small band has as many as may be on it close or striking while the band stands', async () => {
     const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
     const out = [];
     for (const [key, n, foe, fn] of [['spear', 60, 'maa', 12], ['spear', 80, 'household', 15]]) {
       const b = new Battle(makeHeight(4), 4, { deploy: false });
+      const need = Math.min(0.6, b.tuning.crowd * fn / n);
       const A = b.addRegiment(0, key, 0, 35, Math.PI, { count: n }), E = b.addRegiment(1, foe, 0, 0, 0, { count: fn });
       b.orderAttack([A], E); b.orderAttack([E], A);
       const man = s => live(s) && !s.captain;
@@ -2211,7 +2213,7 @@ async function orderChecks() {
         if (share < low) { low = share; at = t - contact; }
       }
       if (contact === null) out.push(`${n} ${key}s never reached ${fn} ${foe}`);
-      else if (low < 0.6) out.push(`${n} ${key}s against ${fn} ${foe}: only ${Math.round(low * 100)}% of them in the fight ${Math.round(at)} s after the first blow, the band still standing`);
+      else if (low < need) out.push(`${n} ${key}s against ${fn} ${foe}: only ${Math.round(low * 100)}% of them in the fight ${Math.round(at)} s after the first blow (${Math.round(need * 100)}% asked), the band still standing`);
     }
     return out;
   });
