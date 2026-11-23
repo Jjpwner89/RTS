@@ -125,7 +125,7 @@ function committed(w, h, mine, B) {
 // two fight where they meet (World.checkMeetings). Once that host is gone, beaten or turned
 // back, its own comes home. It gives up gathering if the host is on it first. Returns the place
 // it gathers at while it gathers (h.ai.meet).
-const MEET_AT = 0.8, MEET_WAIT = 300;
+const MEET_AT = 1, MEET_WAIT = 300;   // (even odds or better: Orchestrator, 2026-11-23)
 export function meetHost(w, h, mine, foeHosts, plan) {
   const ai = h.ai, M = ai.meet, byId = id => w.armies.find(a => a.id === id && !a.gone);
   if (M) {

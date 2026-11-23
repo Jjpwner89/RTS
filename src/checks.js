@@ -932,7 +932,7 @@ async function worldChecks(w) {
   }));
 
   // Hosts meet in the field (Orchestrator, 2026-11-23; rivals.js meetHost): a house a foe's host
-  // presses gathers where it is headed, marches out on its road with 0.8 of its strength, and
+  // presses gathers where it is headed, marches out on its road with as much as it brings, and
   // the two fight where they meet; one too weak to stand stays behind its walls.
   await check('host meets host: a pressed house gathers, marches out on the foe\'s road and fights it there; a weak one stays home', () => scratch(async (make, FACTIONS) => {
     const R = await import('./world/rivals.js'), { headcount } = await import('./world/world.js'), out = [];
