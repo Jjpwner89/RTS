@@ -9,6 +9,7 @@ import { seatPower, kinWarmth } from './vassals.js';
 import { FACTIONS, power, headcount, takeUnits, mergeInto, roughly, unit as unitOf, ARMY_CAP } from './world.js';
 import { ARRIERE, houseBan, banCost } from './arriere.js';
 import { oddsOn } from './rivals.js';
+import { leagueTrain } from './siege.js';
 
 const SIEGE = new Set(['ram', 'ladder', 'mangonel', 'trebuchet']);
 
@@ -218,7 +219,7 @@ function raiseHost(w) {
     if (n) from.push(`${FACTIONS[h].short} ${n}`);
   }
   if (headcount(units) < 30) { for (const u of units) S.garrison.push(u); C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
-  for (const [key, count] of [['ram', 8], ['ladder', 12], ['mangonel', 6]]) units.push({ ...unitOf(key, count, `League ${key}s`) });
+  units.push(...leagueTrain(w, C.members, T));   // the engines its members built (siege.js)
   // Each member calls its own arrière-ban on your rules (Orchestrator, 2026-11-21: no free
   // men): its rank's levy from each of its places, 3 gold a man from its purse, carts from
   // its stores, ten minutes from the march, and not again until its countryside has rested

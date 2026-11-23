@@ -201,6 +201,8 @@ function nextBuild(e) {
   e.wantHall = e.focus === 'military' && e.level >= 3 && !!e.buildings.barracks && !e.buildings.hall;
   const can = k => Object.entries(BUILDINGS[k].cost).every(([g, q]) => (s[g] || 0) >= q);
   if (e.wantHall && can('hall')) return 'hall';
+  // A house means to storm walls from here: a siege workshop first (siege.js).
+  if (e.wantWorks && !e.buildings.siegeworks && can('siegeworks')) return 'siegeworks';
   // With a hall, the kit for its men: leather and mail, and horses.
   if (e.buildings.hall) for (const k of ['tanner', 'armourer', 'stable']) if (!e.buildings[k] && can(k)) return k;
   if (builtCount(e) >= (e.maxBuilt ?? 40)) { clear(e); return null; }

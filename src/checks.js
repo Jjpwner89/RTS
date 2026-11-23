@@ -836,6 +836,51 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // A house's siege train is built and paid for, on your rules (Orchestrator, 2026-11-22: rams
+  // came free, and only against you): a workshop at its muster, each engine for your engine's
+  // cost and crew, and the walls' ×1.4 drops only once one is ready to march.
+  await check('siege trains: a house builds a workshop and pays for each engine, crewed from its people; none come free', () => scratch(async (make, FACTIONS) => {
+    const SG = await import('./world/siege.js'), { ENGINES, BUILDINGS } = await import('./economy.js'), { WALLED } = await import('./world/world.js'), out = [];
+    const s = make(), h = FACTIONS.find(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.some(p => p.owner === x.index && p.eco?.buildings && !p.town));
+    const S = s.pois.find(p => p.owner === h.index && p.eco?.buildings && !p.town), T = s.pois.find(p => p.owner > 0 && p.owner !== h.index && p.eco?.buildings && !p.town);
+    T.mem = null; T.eco.walls = 'wood';
+    Object.assign(S.eco, { pop: 120 }); delete S.eco.buildings.siegeworks; S.eco.engines = null;
+    Object.assign(S.eco.stock, { wood: 300, planks: 300, stone: 100, iron: 30, string: 30 });
+    const d = s.defence(T), first = SG.siegeReady(s, h, T, S);
+    if (Math.abs(first - d) > 1e-6) out.push(`with no train it reckons the palisaded ${T.name} at ${first.toFixed(0)}, not ${d.toFixed(0)} (×${WALLED})`);
+    if (!S.eco.wantWorks) out.push(`${S.name} was not set to raise a siege workshop`);
+    const planks0 = S.eco.stock.planks;
+    for (let i = 0; i < 12 && !S.eco.buildings.siegeworks; i++) s.tickHoldings(5);
+    if (!S.eco.buildings.siegeworks) return [...out, `${S.name} raised no siege workshop in a minute`];
+    const before = { ...S.eco.stock }, pop0 = S.eco.pop;
+    SG.siegeReady(s, h, T, S);
+    if (Math.round(pop0 - S.eco.pop) !== ENGINES.ram.crew || Math.round(S.eco.crews || 0) !== ENGINES.ram.crew) out.push(`its ram took ${Math.round(pop0 - S.eco.pop)} from their work to stand by it (${S.eco.crews} crew), not ${ENGINES.ram.crew}`);
+    const ram = ENGINES.ram.cost;
+    if (!S.eco.engines?.ram || Object.entries(ram).some(([g, n]) => Math.abs(before[g] - S.eco.stock[g] - n) > 1e-6)) out.push(`its ram: ${JSON.stringify(S.eco.engines)}, cost ${JSON.stringify(Object.fromEntries(Object.keys(ram).map(g => [g, before[g] - S.eco.stock[g]])))}, not ${JSON.stringify(ram)}`);
+    SG.siegeReady(s, h, T, S);
+    if (S.eco.engines?.ladder) out.push('a second engine came in the same building turn');
+    s.time += SG.ENGINE_EVERY + 1;
+    const ready = SG.siegeReady(s, h, T, S);
+    if (!S.eco.engines?.ladder) out.push('no ladders a building turn later');
+    if (Math.abs(ready - d / WALLED) > 1e-6) out.push(`with its train it reckons ${T.name} at ${ready.toFixed(0)}, not ${(d / WALLED).toFixed(0)}`);
+    const spent = h.ai.siegeSpent || {};
+    if (Math.round(spent.planks || 0) !== BUILDINGS.siegeworks.cost.planks + ENGINES.ram.cost.planks + ENGINES.ladder.cost.planks) out.push(`its siege bill shows ${spent.planks} planks`);
+    const pop = S.eco.pop, crews = S.eco.crews, units = SG.takeTrain(s, h, S, T), crew = units.reduce((n, u) => n + u.count, 0);
+    if (units.map(u => u.key).sort().join() !== 'ladder,ram' || crew !== ENGINES.ram.crew + ENGINES.ladder.crew || crews - S.eco.crews !== crew || S.eco.pop !== pop) out.push(`the host took ${units.map(u => u.key + ' ' + u.count).join(', ')}: ${crews - S.eco.crews} of the crews standing by, ${Math.round(pop - S.eco.pop)} more of its people`);
+    S.garrison.push(...units); SG.crewsHome(S);
+    if (S.eco.crews !== crews || Math.round(S.eco.pop) !== Math.round(pop) || !S.eco.engines?.ram || S.garrison.some(u => ENGINES[u.key])) out.push(`home again: ${S.eco.crews} crew of ${crews}, ${Math.round(S.eco.pop)} people of ${Math.round(pop)}, engines ${JSON.stringify(S.eco.engines)}`);
+    // Crews gone back to work (stores ran short): the host crews its engines from the people.
+    S.eco.crews = 0;
+    const pop2 = S.eco.pop, again = SG.takeTrain(s, h, S, T), crew2 = again.reduce((n, u) => n + u.count, 0);
+    if (again.length !== 2 || Math.round(pop2 - S.eco.pop) !== crew2 || crew2 !== ENGINES.ram.crew + ENGINES.ladder.crew) out.push(`crews back at work: the host took ${again.map(u => u.key + ' ' + u.count).join(', ')} and ${Math.round(pop2 - S.eco.pop)} of its people`);
+    // An open place wants no train; no host anywhere gets engines for nothing.
+    T.eco.walls = 'none';
+    if (SG.takeTrain(s, h, S, T).length) out.push('engines went against an unwalled place');
+    const src = (await Promise.all(['world/diplomacy.js', 'world/rivals.js'].map(f => fetch(new URL(f, import.meta.url)).then(r => r.text())))).join('\n');
+    if (/\[['"]ram['"], *\d+\]/.test(src)) out.push('a free ram is still handed out somewhere');
+    return out;
+  }));
+
   // Nobody is made up when a place changes hands (Orchestrator, 2026-11-22: "never invent
   // people"): a place of three keeps the few who stay, and a town that small, or empty, still
   // works: newcomers come, its numbers stay numbers, and its governor goes on building.

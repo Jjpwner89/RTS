@@ -8,6 +8,7 @@
 // that stays your choice.
 import { FACTIONS, dist } from './world.js';
 import { wallsFor, wallsUp } from './places.js';
+import { thinkSiege } from './siege.js';
 
 // The chance, each time the house thinks (rivals.js THINK, 8 s), that it starts on a wall it
 // can pay for.
@@ -21,6 +22,7 @@ const name = m => (m === 'stone' ? 'stone walls' : 'a palisade');
 
 // Each time a house thinks: maybe start one wall, at most one building at a time.
 export function thinkWalls(w, h, mine) {
+  thinkSiege(w, h);   // (a league's siege train, siege.js)
   if (mine.some(p => p.eco?.walling) || w.rand() >= (KEEN[h.trait] ?? 0.1)) return null;
   const real = mine.filter(p => p.eco?.buildings && !p.town);
   const others = w.pois.filter(q => q.owner !== null && q.owner !== h.index && !FACTIONS[q.owner]?.bandit);

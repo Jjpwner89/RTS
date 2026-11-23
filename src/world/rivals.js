@@ -20,6 +20,7 @@ import { rivalHire } from './companies.js';
 import { standDown, keepAtWork, pressedAt } from './holdings.js';
 import { houseRuns } from './supply.js';
 import { thinkWalls } from './walling.js';
+import { siegeReady, takeTrain } from './siege.js';
 import { TYPES } from '../battle.js';
 
 export const STAGES = ['Settling', 'Expanding', 'Contending'];
@@ -631,9 +632,10 @@ function runPlan(w, h, B, plan) {
     if (!S || S.owner !== h.index) { plan.staging = nearestOwn(w, h, T).place; return; }
     // A house in a league against you sends its men to the league's one host, not its own.
     if (T.owner === 0 && leagued(w, h.index) && leagueHost(w)) return;
-    const need = w.defence(T) * B.need + 20, spare = spareAt(w, S);
+    // (walls count ×1.4 until it has built engines to take, siege.js)
+    const D = siegeReady(w, h, T, S), need = D * B.need + 20, spare = spareAt(w, S);
     // A house whose lord has just fallen mourns before it marches again (world/captains.js).
-    const ready = (h.mourning ?? 0) < w.time && (spare >= need || (plan.waited > 420 && spare >= w.defence(T) * 1.1));
+    const ready = (h.mourning ?? 0) < w.time && (spare >= need || (plan.waited > 420 && spare >= D * 1.1));
     plan.seen = { ready, at: w.time };   // what it saw at this think (musterProblems)
     if (!ready) {
       // Given up: it looks elsewhere for a while, not straight back at the same place.
@@ -649,10 +651,10 @@ function runPlan(w, h, B, plan) {
     const units = takeUnits(S.garrison, Math.min(spare, want));
     if (!units.length) { pass(); return; }
     const besiege = T.owner === 0;
-    if (besiege) for (const [key, count] of siegeTrain(w, h)) units.push({ key, count, name: `${h.short} ${TYPES[key].name.toLowerCase()}` });
+    units.push(...takeTrain(w, h, S, T));   // the engines it built, crewed by S's people (siege.js)
     const host = w.spawnArmy(h.index, units, S, `The ${h.short} host`, besiege ? 'siege' : 'assault');
     // No road after all: the men go back into the garrison (they used to vanish with the host).
-    if (!w.order(host, T)) { w.removeArmy(host); mergeInto(S.garrison, host.units.filter(u => !TYPES[u.key]?.engine)); pass(); return; }
+    if (!w.order(host, T)) { w.removeArmy(host); mergeInto(S.garrison, host.units); pass(); return; }
     plan.phase = 'march';
     plan.host = host;
     // Word of a host on the march: as big as rumour makes it, not the true count.
@@ -665,16 +667,6 @@ function runPlan(w, h, B, plan) {
       h.ai.cool = 120;
     }
   }
-}
-
-// Rams and ladders for any siege; engines for great houses later on.
-function siegeTrain(w, h) {
-  const out = [];
-  if (TYPES.ram) out.push(['ram', 8]);
-  if (TYPES.ladder) out.push(['ladder', 12]);
-  if (w.time > 1500 && TYPES.mangonel) out.push(['mangonel', 6]);
-  if (w.time > 2400 && TYPES.trebuchet && (h.trait === 'turtler' || h.trait === 'builder')) out.push(['trebuchet', 8]);
-  return out;
 }
 
 // A small party to burn and steal from one of the enemy's places near the target.
