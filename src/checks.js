@@ -820,6 +820,25 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // An unwatched fight costs the winner what the beaten could kill (creator, 2026-11-22: 828
+  // men against about 30 lost about 100): a tiny band a few men, an even fight half its men.
+  await check('auto-resolve: a win over a tiny band costs a few men, an even fight about half', () => scratch(async (make, FACTIONS) => {
+    const out = [], s = make(), lost = (a, d) => {
+      let n = 0, k = 0;
+      for (let i = 0; i < 200; i++) {
+        const r = s.resolve([{ key: 'spear', count: a, name: 'A' }], [{ key: 'spear', count: d, name: 'D' }]);
+        if (r.attackerWins) { n += a - r.A.reduce((m, u) => m + u.count, 0); k++; }
+      }
+      return k ? n / k : NaN;
+    };
+    const tiny = lost(800, 30), even = lost(200, 200) / 200;
+    if (!(tiny <= 10)) out.push(`800 spears beating 30 lose ${tiny.toFixed(1)} men on average`);
+    if (!(even >= 0.35 && even <= 0.6)) out.push(`200 spears beating 200 lose ${Math.round(even * 100)}% of their men`);
+    const o = s.autoOdds({ kind: 'field', army: { units: [{ key: 'spear', count: 800, name: 'A' }] }, defenders: [{ key: 'spear', count: 30, name: 'D' }], poi: null });
+    if (Math.round(800 * o.winLoss) > 10) out.push(`the box says a win over 30 would cost about ${Math.round(800 * o.winLoss)} of 800`);
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.

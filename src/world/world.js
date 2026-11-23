@@ -78,6 +78,10 @@ const toll = (theirs, ours) => !theirs && !ours ? 'nobody fell'
 // is the target: a duke's 1,000 leaves room for the host he meets, and a king fields it all.
 // One table: mustering, joining armies and the muster buttons all read it.
 export const ARMY_CAP = { Reeve: 150, Lord: 300, Count: 600, Duke: 1000, King: 1200 };
+// The share of its men a winner loses in a fight nobody watches, by the beaten side's strength
+// against its own (ratio, 0 to 1): what that side could kill, 0.12 to 0.57 men a man of theirs
+// (creator, 2026-11-22: 828 men against 30 lost about 100 when it was a share of the winner's own).
+export const winCost = ratio => ratio * (0.12 + 0.45 * ratio);
 const NEXT_RANK = { Reeve: 'Lord', Lord: 'Count', Count: 'Duke', Duke: 'King' };
 // Why the cap is what it is, for a tooltip: "An army of a count holds at most 600 men (1,000 as a duke)."
 export function capWhy(rank) {
@@ -1029,12 +1033,13 @@ export class World {
     return got;
   }
 
-  // A quick sum of strength with some luck either way, for fights nobody watches.
+  // A quick sum of strength with some luck either way, for fights nobody watches. The winner
+  // loses what the beaten side could kill (winCost), the loser more than half.
   resolve(A, D, bonus = 1) {
     const pa = power(A) * (0.85 + this.rand() * 0.3), pd = power(D) * bonus * (0.85 + this.rand() * 0.3);
     const attackerWins = pa > pd;
     const ratio = Math.min(pa, pd) / Math.max(pa, pd, 1);
-    const winLoss = 0.12 + 0.45 * ratio * ratio, loseLoss = 0.55 + 0.3 * ratio;
+    const winLoss = winCost(ratio), loseLoss = 0.55 + 0.3 * ratio;
     // Survivors learn as in a fought battle (battle.js veterans): half a step, a whole one for a win.
     const cut = (units, f, won) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)), xp: Math.round(((u.xp || 0) + (won ? 1 : 0.5)) * 10) / 10, battles: (u.battles || 0) + 1 }))
       .filter(u => u.count >= 3);
@@ -1064,7 +1069,7 @@ export class World {
     let win = 0;
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (a * (0.85 + 0.3 * (i + 0.5) / N) > d * (0.85 + 0.3 * (j + 0.5) / N)) win++;
     const ratio = Math.min(a, d) / Math.max(a, d, 1);
-    return { us: headcount(enc.army.units), them: headcount(D), chance: win / (N * N), winLoss: 0.12 + 0.45 * ratio * ratio, bare };
+    return { us: headcount(enc.army.units), them: headcount(D), chance: win / (N * N), winLoss: winCost(ratio), bare };
   }
 
   autoResolve(enc) {
