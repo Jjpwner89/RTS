@@ -207,7 +207,9 @@ const describe = s => {
   const bits = [];
   if (s.defStep !== TUNING.A.defStep) bits.push(`each point of defence ${Math.round((s.defStep / TUNING.A.defStep - 1) * 100)}% worth more`);
   if (s.soak) bits.push(`mail turns ${Math.round(s.soak * 200)}% of a blow aside, plate ${Math.round(s.soak * 400)}%`);
-  if (s.dmg !== 1) bits.push(`damage ${Math.round((s.dmg - 1) * 100)}%`);
+  if (s.dmg !== 1) bits.push(`damage ${Math.round((s.dmg - 1) * 100)}%${s.arrow === s.dmg ? ' (arrows too)' : ''}`);
+  if (s.arrow !== s.dmg) bits.push(`arrows ${s.arrow === 1 ? 'at full damage' : Math.round((s.arrow - 1) * 100) + '%'}`);
+  if (s.rank) bits.push(`only the front ${s.rank} ranks fight when lines meet; the rest hold their places close behind and step up (the line's ends may wrap the foe)`);
   if (s.room !== 1) bits.push(`${Math.round((s.room - 1) * 100)}% more room between men`);
   if (s.crowd) bits.push(`at most ${s.crowd} on one man`);
   if (s.shock !== 1) bits.push(`a regiment breaking shakes its neighbours ${Math.round((1 - s.shock) * 100)}% less`);

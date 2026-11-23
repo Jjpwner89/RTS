@@ -122,18 +122,26 @@ export function lookChain(key) {
 // it plays; the others are candidates and change nothing live until one is chosen.
 //   defStep: hit chance a point of attack over defence is worth (0.05 each).
 //   soak: the share of a blow's damage each point of the armour worn turns aside (leather 1, mail 2, plate 4 points).
-//   dmg: every blow's damage, arrows too.
+//   dmg: every blow's damage in melee; arrow: every arrow's, bolt's and javelin's (a missile's own dial, so slowing the
+//   melee need not slow the shooting).
 //   room: spacing between files and ranks, times the type's own.
 //   crowd: most men who may go for one foe at once (0: all who like), so a front stays a front and doesn't mob: three in
 //   every setting (it only bites where a few are outnumbered), two in E.
+//   rank: how many ranks fight when lines meet (0: everyone who can reach a foe; one fewer for men with a short reach: swords
+//   fight from the front rank, spears over a second's shoulders); the rest keep their places in their
+//   files close behind, step up into gaps and never stand off. The men of the end `wrap` files of a line still go for a
+//   foe, so a line that overlaps the enemy's wraps its flank. A big regiment onto a small band is not held to this: it
+//   still closes round it (`swarm`, with the `crowd` cap).
 //   shock: how hard a regiment breaking shakes the ones beside it (1: as now), and breakAt: the share of an army
 //   still standing under which, if the foe has clearly more, the whole army breaks at once (0.5 now).
 export const TUNING = {
-  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
-  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
-  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
-  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 3, shock: 1, breakAt: 0.5 },
-  E: { key: 'E', name: 'Much slower, steadier', defStep: 0.065, soak: 0.09, dmg: 0.5, room: 1.12, crowd: 2, shock: 0.5, breakAt: 0.4 },
+  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, arrow: 1, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, arrow: 1, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, arrow: 0.8, rank: 0, wrap: 2, room: 1, crowd: 3, shock: 1, breakAt: 0.5 },
+  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, arrow: 0.8, rank: 0, wrap: 2, room: 1.12, crowd: 3, shock: 1, breakAt: 0.5 },
+  E: { key: 'E', name: 'Much slower, steadier', defStep: 0.065, soak: 0.09, dmg: 0.5, arrow: 0.5, rank: 0, wrap: 2, room: 1.12, crowd: 2, shock: 0.5, breakAt: 0.4 },
+  F: { key: 'F', name: 'E, ranks held in contact, arrows at full', defStep: 0.065, soak: 0.09, dmg: 0.5, arrow: 1, rank: 2, wrap: 1, room: 1.12, crowd: 2, shock: 0.5, breakAt: 0.4 },
+  G: { key: 'G', name: 'F, but arrows −50% like the blows', defStep: 0.065, soak: 0.09, dmg: 0.5, arrow: 0.5, rank: 2, wrap: 1, room: 1.12, crowd: 2, shock: 0.5, breakAt: 0.4 },
 };
 
 // Formations: spacing and depth multiply the unit's own; the rest change the fight.
@@ -2371,12 +2379,15 @@ export class Battle {
       const holdR = s.swarm ? (s.target?.reg.routing ? SWARM.reach : SWARM.band) : engageR;
       if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.swarm && s.target.reg.routing && s.target.reg !== r.targetReg) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (holdR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
+      // Behind the fighting ranks (TUNING rank): he keeps his place in his file, close behind, till a gap opens ahead.
+      const held = !s.swarm && this.heldBack(s);
+      if (held && s.target) s.target = null;
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
         // A foe who has got behind a wall (or a wall that has gone up between them) can't be fought: let him go,
         // rather than stand pressing at the wall trying to get at him.
         if (s.target && s.level === 0 && s.target.level === 0 && this.nav.any && !this.nav.clear(r.side, s.x, s.z, s.target.x, s.target.z)) s.target = null;
-        const near = this.findTarget(s, Math.max(engageR, s.level === 1 ? POUR_REACH : 0));
+        const near = held ? null : this.findTarget(s, Math.max(engageR, s.level === 1 ? POUR_REACH : 0));
         if (near) { if (near !== s.target) near.onMe = (near.onMe || 0) + 1; s.target = near; s.swarm = false; }
         else if (s.target && s.level === 1 && s.target.level !== 1) s.target = null;
         else if (!s.target && r.targetReg && !r.hold && !r.posts && !s.captain && s.level === 0) { const t = this.swarmFoe(s); if (t) { s.target = t; s.swarm = true; } }
@@ -2436,6 +2447,17 @@ export class Battle {
     s.v = Math.hypot(s.vx, s.vz);
     if (s.climb <= 0) s.y = s.level === 1 ? this.walls.walkY(s.perch, s.x, s.z) : this.river ? this.groundY(s.x, s.z) : this.heightAt(s.x, s.z);
     s.phase += s.v * dt * 2.2;
+  }
+
+  // Is this man in the ranks behind the fighting ones? Only foot in line, tight or loose order are held, and not the men
+  // of a line's end files, who may go round the foe's flank.
+  heldBack(s) {
+    const rank = this.tuning.rank, r = s.reg;
+    if (!rank || s.level !== 0 || s.captain || r.T.mounted || r.T.engine || r.posts || this.shoots(r) || !(r.formation === 'line' || r.formation === 'tight' || r.formation === 'loose')) return false;
+    // (long spears fight over a second rank's shoulders; swords and the like only from the front)
+    const ranks = r.T.reach >= 2.2 ? rank : Math.max(1, rank - 1);
+    const files = Math.max(1, Math.min(r.files, r.alive)), wrap = this.tuning.wrap;
+    return Math.floor(s.slot / files) >= ranks && s.slot % files >= wrap && s.slot % files < files - wrap;
   }
 
   // Getting somewhere, on the ground or along the walls, climbing up or down on the way.
@@ -3079,7 +3101,7 @@ export class Battle {
         audio.play('arrowhit', hit, this); // audio
         hit.reg.lastHit = this.time;
         hit.reg.shotBy = a.from;
-        this.hurt(hit, a.dmg * this.tuning.dmg, a.from);
+        this.hurt(hit, a.dmg * this.tuning.arrow, a.from);
       }
     }
     this.arrows.length = w;
