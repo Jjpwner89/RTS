@@ -428,6 +428,25 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Every timer that waits on marching is scaled to the pace the game runs on (world/march.js SLOW; the creator chose C
+  // with the raid break-off at 30 s, 2026-11-23): partners can reach a meeting, a host's gathering and the herald's words
+  // agree, a call-out of the ban leaves time in the field, carts feed an army as far as they used to, and wagons keep up.
+  await check('marching: the timers that wait on it follow the pace', async () => {
+    const { MARCH_LIVE, SLOW, marchPace } = await import('./world/march.js');
+    const { HOST_GATHER } = await import('./world/diplomacy.js'), { MEET_WAIT } = await import('./world/rivals.js');
+    const { ARRIERE } = await import('./world/arriere.js'), { CARRY, EAT } = await import('./world/supply.js'), { RELIEF } = await import('./economy.js');
+    const out = [], foot = marchPace(MARCH_LIVE, [{ key: 'spear', count: 1 }]), tol = 0.98;
+    if (HOST_GATHER < 120 * SLOW * tol) out.push(`the league's host gathers for ${HOST_GATHER} s: partners at 600 units need ${Math.round(600 / foot)} s and the strike window was 120 s of a 6-a-second march`);
+    if (MEET_WAIT < 300 * SLOW * tol) out.push(`a meeting host waits ${MEET_WAIT} s: its partners' men at 600 units take ${Math.round(600 / foot)} s`);
+    if (MEET_WAIT < 600 / foot * 1.5) out.push(`a meeting host waits ${MEET_WAIT} s, but its partners' men from 600 units take ${Math.round(600 / foot)} s to come`);
+    const reach = CARRY / EAT * foot;
+    if (reach < 1400) out.push(`an army's carts feed it ${Math.round(reach)} units of road; four minutes at the old pace was 1440`);
+    const field = ARRIERE.serve - 2 * 400 / foot;
+    if (field < 300) out.push(`a call-out of the ban lasts ${ARRIERE.serve} s, of which marching two places in and out takes ${Math.round(2 * 400 / foot)}: ${Math.round(field)} s in the field`);
+    if (RELIEF.eta !== 30) out.push(`the raid break-off is ${RELIEF.eta} s, the creator's choice was 30`);
+    return out;
+  });
+
   // Every place's layout (places.js): its whole tally laid out, nothing overlapping, walls as its numbers say.
   await check('places: every layout holds its tally', () => sample(places.checkPlaces(w), 10));
 
@@ -1787,9 +1806,12 @@ async function worldChecks(w) {
   });
   await check('your party in a place it storms is warned of a host coming, once, with the choice to pull back; the host follows it home', async () => {
     const R = await import('./world/relief.js'), out = [];
+    const M = await import('./world/march.js'), E = await import('./economy.js');
+    // a host coming: 70% of RELIEF.eta seconds' march from the place, at the pace the game marches foot
+    const near = -Math.round(E.RELIEF.eta * M.marchPace(M.MARCH_LIVE, [{ key: 'spear', count: 1 }]) * 0.7);
     const owner = 3, at = { x: 0, z: 0 };
     const place = { id: 'checks-storm', name: 'Stormby', owner, x: 0, z: 0, town: { hostile: { owner }, strength: () => 100, battle: { regs: [{ side: 0, gone: false, routing: false, alive: 60 }] } } };
-    const host = { id: 901, side: owner, gone: false, wagon: false, retreating: false, halted: false, x: 0, z: -300, path: [place], target: place, last: { name: 'Eldmark', x: 0, z: -300 }, units: [{ key: 'spear', count: 300, name: 'Relief' }] };
+    const host = { id: 901, side: owner, gone: false, wagon: false, retreating: false, halted: false, x: 0, z: near, path: [place], target: place, last: { name: 'Eldmark', x: 0, z: -300 }, units: [{ key: 'spear', count: 300, name: 'Relief' }] };
     const asked = [], pulled = [], logs = [];
     const W = { armies: [host], pois: [place], dip: [], time: 0, hooks: { choice: ev => asked.push(ev) }, log: m => logs.push(m), endStorm: (p, chose) => pulled.push([p.id, chose]) };
     R.warnRelief(W);

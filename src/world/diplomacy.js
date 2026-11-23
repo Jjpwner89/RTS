@@ -8,6 +8,7 @@
 import { seatPower, kinWarmth } from './vassals.js';
 import { FACTIONS, power, headcount, takeUnits, mergeInto, roughly, unit as unitOf, ARMY_CAP } from './world.js';
 import { ARRIERE, houseBan, banCost } from './arriere.js';
+import { SLOW } from './march.js';
 import { oddsOn } from './rivals.js';
 import { leagueTrain } from './siege.js';
 
@@ -183,7 +184,8 @@ export const leagued = (w, h) => !!w.coalition?.members.includes(h);
 // it before it marches), then marches on that place. One big danger with a clear end: the host
 // beaten means the league is broken, and its lords sue for peace. A host that takes the place
 // stays there as its garrison, and the league gathers another.
-const HOST_GATHER = 120;     // seconds the host waits at its muster before it marches
+export const HOST_GATHER = Math.round(120 * SLOW);   // seconds the host waits at its muster before it marches (two minutes when foot marched at 6 a second: scaled by the march, so those at a distance can come and the strike window is as long a march)
+const gatherWords = s => ['', 'a minute', 'two minutes', 'three minutes', 'four minutes', 'five minutes', 'six minutes', 'seven minutes'][Math.round(s / 60)] || `${Math.round(s / 60)} minutes`;
 const HOST_AGAIN = 300;      // and after a place taken, before the next host gathers
 const HOST_SHARE = 0.4;      // of each member place's garrison (a house's own banners leave half)
 const hostOf = w => w.armies.find(a => a.id === w.coalition?.host?.id && !a.gone) || null;
@@ -236,7 +238,7 @@ function raiseHost(w) {
   S.seen = true;
   w.log(`The league gathers one host at ${S.name}: about ${roughly(C.host.men)} men (${from.join(', ')}). It means to march on ${T.name}.`, 1);
   w.chron(`The league against you gathered its host at ${S.name}, ${C.host.men} strong.`);
-  w.hooks.herald?.({ house: lead, title: 'The league raises its host', text: `${C.host.men} men gather at ${S.name} under ${lead.lord}, to march on ${T.name} in two minutes. Strike them there, or meet them on the road: break this host and the league is broken.` });
+  w.hooks.herald?.({ house: lead, title: 'The league raises its host', text: `${C.host.men} men gather at ${S.name} under ${lead.lord}, to march on ${T.name} in ${gatherWords(HOST_GATHER)}. Strike them there, or meet them on the road: break this host and the league is broken.` });
 }
 function tickHost(w) {
   const C = w.coalition, H = C.host;

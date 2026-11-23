@@ -13,6 +13,7 @@
 // hears of it), then the host marches with rams and ladders and lays siege.
 import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit, TAX, ARMY_CAP, SKELETON } from './world.js';
 import { KINDS } from './realm.js';
+import { SLOW } from './march.js';
 import { devTax } from '../economy.js';
 import { houseCall, rankOf } from './arriere.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight, wouldJoin, callToArms } from './diplomacy.js';
@@ -133,7 +134,7 @@ function committed(w, h, mine, B) {
 // leads; the others send what their places near it can spare, above a skeleton, to wait
 // outside it (joinMeet), and march out with its host when it marches, so they meet the foe's
 // host together and fight as one (World.wing). Your armies there count, but you lead your own.
-const MEET_AT = 1, MEET_WAIT = 300;   // (even odds or better: Orchestrator, 2026-11-23)
+export const MEET_AT = 1, MEET_WAIT = Math.round(300 * SLOW);   // (even odds or better: Orchestrator, 2026-11-23)
 const WING_REACH = 600;               // a partner's places this near the gathering send their men
 export function partnersOf(w, h, s) {
   const i = h.index;

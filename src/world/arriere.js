@@ -9,7 +9,7 @@ import { FACTIONS, headcount, unit, mergeInto, roughly, ARMY_CAP } from './world
 import { EAT, capacity, takeFood } from './supply.js';
 import { takeRoster, returnToRoster, fromReg, armedIn } from './ban.js';
 
-export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 600, rest: 300, key: 'militia' };
+export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 800, rest: 300, key: 'militia' };
 export const isLevy = u => !!u.until;
 const due = w => u => u.until && u.until <= w.time;
 const mins = s => Math.max(1, Math.ceil(s / 60));

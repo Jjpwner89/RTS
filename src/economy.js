@@ -400,7 +400,7 @@ const CALL_RANGE = 80;
 // itself breaks off and makes for home with its plunder. eta: a host closing on the place this near (seconds) counts as
 // coming; ratio: clearly stronger; sight: how far (m) the band sees on the village's ground; chase: the longest road
 // a relieving host follows a beaten band home.
-export const RELIEF = { eta: 90, ratio: 1.5, sight: 140, chase: 600 };
+export const RELIEF = { eta: 30, ratio: 1.5, sight: 140, chase: 600 };   // eta was 90 s; the creator chose 30 with the slower march (2026-11-23)
 const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 

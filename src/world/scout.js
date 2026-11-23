@@ -9,7 +9,7 @@
 import { headcount } from './world.js';
 import { STRENGTH_BANDS } from './diplomacy.js';
 
-export const REACH = 400;       // world units: about a minute's march for an army (the map is ~1400 across)
+export const REACH = 400;       // world units: about 170 s of foot's march at the pace the game runs on (the map is ~1400 across)
 export const STALE = 180;       // seconds after which what you saw "may have changed"
 export const STRONG = 60;       // men at which a garrison counts as strong
 

@@ -1,5 +1,5 @@
 // Food for armies in the field. A man eats one food every two minutes; an army sets out
-// with four minutes' worth on its carts and fills them again near its own places (yours
+// with ten minutes' worth (four when foot marched at 6 a second: scaled by the march, so it reaches as far) on its carts and fills them again near its own places (yours
 // from the village stores, a rival's from its holdings). Out of food, men desert. The
 // wounded of a fight walk with the army, eat its food, and rejoin when it rests fed in
 // its own lands. Wagons carry food from your villages to an army far from home, and can
@@ -13,16 +13,17 @@ import { housing, kits, takeKit, AT_WORK } from './holdings.js';
 import { priceShare, glut, noteTrade } from '../economy.js';
 import { workDone } from './works.js';
 import { rankOf } from './arriere.js';
+import { SLOW } from './march.js';
 
 export const EAT = 1 / 120;        // food per man per second
-export const CARRY = 2;            // food per man the carts hold: four minutes
+export const CARRY = 2 * SLOW;     // food per man the carts hold: ten minutes (four, at the old pace)
 const NEAR = 70;                   // this close to one of its own places, an army is fed
 const REST = 1 / 45;               // share of the wounded back on their feet each second
 const DESERT = 0.04;               // share of a starving army lost every ten seconds
 export const HOMELAND = 220;       // this close to one of its own places, an army is in its own lands
 const FORAGE = 0.25;               // what a blockading army eats, living off the fields round the place
 export const QUARTERED = { mood: -8, secs: 90 };   // a village whose farms feed soldiers who brought nothing
-const WAGON_SPEED = 8;
+const WAGON_SPEED = 8 / SLOW;       // a cart drives a third faster than foot marches (8 against 6 before the slower march)
 
 export const fit = a => a.units.reduce((n, u) => n + u.count, 0);
 export const hurt = a => (a.wounded || []).reduce((n, u) => n + u.count, 0);
