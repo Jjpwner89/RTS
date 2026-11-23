@@ -22,6 +22,7 @@ import { tickWalls } from './walling.js';
 import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
+import { MARCH_LIVE, armyStep } from './march.js';
 import { tickArriere, rankOf } from './arriere.js';
 import * as ban from './ban.js';
 import { hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
@@ -36,7 +37,6 @@ export const ownerOf = p => (p.owner === null ? NEUTRAL : FACTIONS[p.owner]);
 export { power };   // (economy.js: the village's own defence reckons with it too)
 export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
-export const SPEED = 6;        // world units a second along a road
 const MEET = 14;        // opposing armies this close fight
 // Everyone near a meeting fights in it (Orchestrator, 2026-11-23): armies this close to either
 // host, at war with the other side and at peace with its own, join its side (World.wing).
@@ -132,6 +132,7 @@ export class World {
   constructor(seed, hooks, options = {}) {
     this.seed = seed;
     this.hooks = hooks;
+    this.march = MARCH_LIVE;   // how fast armies march by make-up (march.js); not saved: it is the game's rule
     // Chosen when the campaign begins (index.html), kept in the save.
     this.options = { size: 'normal', aggression: 'normal', ironman: false, ...options };
     this.rand = rng(seed + 3);
@@ -585,7 +586,7 @@ export class World {
   moveArmy(a, dt) {
     if (a.halted || !a.path.length) return;
     const to = a.path[0];
-    const d = dist(a, to), step = SPEED * dt * (a.retreating ? 1.1 : 1) * (this.winter ? 0.85 : 1) * (a.side === 0 && decreed(this, 'roads') ? 1.2 : 1);   // snow on the roads; the king's roads
+    const d = dist(a, to), step = armyStep(this, a) * dt;   // by what the army is made of, the snow, the king's roads (march.js)
     a.heading = Math.atan2(to.x - a.x, to.z - a.z);
     if (d > step) { a.x += (to.x - a.x) / d * step; a.z += (to.z - a.z) / d * step; a.at = null; return; }
     a.x = to.x; a.z = to.z;

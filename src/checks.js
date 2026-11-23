@@ -407,6 +407,27 @@ async function worldChecks(w) {
   if (window.game.mode === 'world') await check('the map bar shows no battle numbers', () =>
     /men standing/.test(document.getElementById('strength')?.textContent || '') ? [`it reads "${document.getElementById('strength').textContent}"`] : []);
 
+  // An army marches at the pace of its slowest unit's class, in every setting of the march (world/march.js): horse
+  // and dogs fastest, foot slower, engines slowest; A (the game's pace until one is chosen) is one pace for all, and
+  // the world's marching step uses it.
+  await check('marching: an army goes at its slowest unit, horse fastest and engines slowest', async () => {
+    const { MARCH, MARCH_LIVE, marchClass, marchPace, armyStep } = await import('./world/march.js');
+    const out = [], foot = [{ key: 'spear', count: 40 }], horse = [{ key: 'cav', count: 20 }], dogs = [{ key: 'wardog', count: 20 }], ram = [{ key: 'ram', count: 10 }];
+    for (const S of Object.values(MARCH)) {
+      const f = marchPace(S, foot), h = marchPace(S, horse), e = marchPace(S, ram);
+      if (!(h >= f && f >= e)) out.push(`${S.key}: horse ${h}, foot ${f}, engines ${e} are not in order`);
+      if (S.key !== 'A' && !(h > f * 1.4)) out.push(`${S.key}: horse ${h} is not clearly faster than foot ${f}`);
+      if (marchPace(S, [...horse, ...foot]) !== f || marchPace(S, [...foot, ...ram]) !== e || marchPace(S, [...horse, ...dogs]) !== h) out.push(`${S.key}: a mixed army is not at its slowest unit's pace`);
+    }
+    if (marchClass([]) !== 'foot') out.push('an army with no units is not foot');
+    const a = { units: foot, side: 1 }, was = w.march;
+    w.march = MARCH.B;
+    if (Math.abs(armyStep(w, a) - MARCH.B.foot * (w.winter ? 0.85 : 1)) > 1e-9) out.push('armyStep does not follow the world\'s setting');
+    w.march = was;
+    if (w.march !== MARCH_LIVE) out.push(`the world marches on ${w.march.key}, not the chosen setting ${MARCH_LIVE.key}`);
+    return out;
+  });
+
   // Every place's layout (places.js): its whole tally laid out, nothing overlapping, walls as its numbers say.
   await check('places: every layout holds its tally', () => sample(places.checkPlaces(w), 10));
 

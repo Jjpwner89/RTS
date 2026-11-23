@@ -17,5 +17,6 @@ Then open http://localhost:8000. three.js loads from a CDN, so the first load ne
 - `town.html`: the village on its own: build, work, raise levies, hold off bandit raids.
 - `battle.html`: the field battle test.
 - `sandbox.html`: the combat sandbox: one fight under settings A to G of how hard fighting is (battle.js `TUNING`), alone or side by side, with the numbers that tell them apart.
+- `march.html`: the march sandbox: how long armies take between places under settings A to C of the march (src/world/march.js), and a raid band against the relief that answers it.
 
 Icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0); see [assets/icons/CREDITS.md](assets/icons/CREDITS.md).

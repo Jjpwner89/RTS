@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTS March Sandbox</title>
+<link rel="stylesheet" href="src/style.css">
+<link rel="stylesheet" href="src/skin.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  body { overflow: auto; background: #d9cfb4; color: var(--ink); font: 15px/1.4 var(--body-font); }
+  #wrap { max-width: 1100px; margin: 0 auto; padding: 14px 16px 40px; }
+  h1 { font: 400 24px var(--head-font); color: var(--gold); margin: 6px 0 2px; }
+  h2 { font: 400 15px var(--head-font); color: var(--gold); letter-spacing: .06em; margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--rule); }
+  p.lead { margin: 0 0 8px; color: var(--dim); }
+  .panel { background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: var(--surface-shadow); padding: 10px 14px; margin: 8px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 3px 8px; text-align: right; font-variant-numeric: tabular-nums; border-bottom: 1px solid rgba(80, 60, 30, .15); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td small { color: var(--dim); }
+  tr.g td { background: rgba(120, 160, 70, .18); }
+  tr.r td { background: rgba(180, 70, 50, .13); }
+  .set { display: grid; grid-template-columns: 1.5em 1fr; gap: 0 8px; margin: 3px 0; }
+  .set b { color: var(--gold); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .bar button, .bar select, .bar input { font: 500 14px var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); padding: 3px 10px; cursor: pointer; }
+  .bar input { width: 4.5em; cursor: text; }
+  .bar button.on { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
+  .bar label { display: flex; gap: 6px; align-items: center; }
+  .strip { margin: 8px 0; }
+  .strip h3 { margin: 0 0 2px; font: 400 15px var(--head-font); }
+  .strip h3 b { color: var(--gold); }
+  .strip canvas { width: 100%; height: 130px; display: block; background: #e6dcc0; border: 1px solid var(--rule); border-radius: 4px; }
+  .strip .log { font-size: 13px; color: var(--dim); min-height: 2.8em; }
+  .key { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 3px 0 10px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>March sandbox</h1>
+  <p class="lead">How long armies take from place to place, by what they are made of, under settings A, B and C of the march (src/world/march.js). A is the world as it has marched: one pace for everything. Nothing here changes the game until one is chosen.</p>
+
+  <h2>Settings</h2>
+  <div class="panel" id="sets"></div>
+
+  <h2>How long a march takes</h2>
+  <div class="panel"><div id="times"></div>
+    <p class="lead" style="margin-top:6px">One place along the road is about 200 world units (the middle of the realm's roads: 174 to 314); two places about 400. Game minutes are the clock on the top bar; a season is five of them.</p></div>
+
+  <h2>A raid, and the relief that answers it</h2>
+  <div class="panel">
+    <p class="lead" style="margin:0 0 6px">A raid band sets out from its camp for the village. The village sees them leave and sends relief, after the reaction time below, from one place away and from two. The raiders have the village until relief is on them, then they break off and run for the camp; horse can run them down.</p>
+    <div class="bar">
+      <label>Relief is <select id="relief"><option value="foot">foot (spearmen)</option><option value="horse">horse (heavy cavalry)</option></select></label>
+      <label>reaction <input id="delay" type="number" min="0" max="120" step="5" value="15"> s</label>
+      <span id="reliefTable"></span>
+    </div>
+    <div id="windows" style="margin-top:8px"></div>
+  </div>
+
+  <h2>Watch it</h2>
+  <div class="bar">
+    <button id="play">❚❚ Pause</button>
+    <span><button data-speed="1">1×</button> <button data-speed="5">5×</button> <button data-speed="15" class="on">15×</button> <button data-speed="40">40×</button></span>
+    <button id="restart">↻ Restart</button>
+    <span><i class="key" style="background:#b03028"></i>raid band <i class="key" style="background:#2c58b8"></i>relief from one place away <i class="key" style="background:#2c8a58"></i>from two <i class="key" style="background:#444"></i>the village</span>
+  </div>
+  <div id="strips"></div>
+</div>
+<script type="module" src="src/marchsandbox.js"></script>
+</body>
+</html>

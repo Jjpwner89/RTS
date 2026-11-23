@@ -4,7 +4,8 @@
 // gets back. One rule for every band: a house's or outlaws' in your village (economy.js checkRelief), and
 // your own party in a place you storm, which is warned, not commanded (warnRelief). Whoever sends the relief:
 // it is any army friendly to the place that is marching on it (hostsFor).
-import { headcount, SPEED, FACTIONS } from './world.js';
+import { headcount, FACTIONS } from './world.js';
+import { armyStep } from './march.js';
 import { power, RELIEF } from '../economy.js';
 export { RELIEF };
 
@@ -18,7 +19,7 @@ export function hostsFor(w, p, owner = p.owner) {
     if (a.target !== p && end !== p) continue;
     let len = 0, at = a;
     for (const q of a.path) { len += Math.hypot(q.x - at.x, q.z - at.z); at = q; }
-    const eta = len / SPEED;
+    const eta = len / armyStep(w, a);   // by what the host is made of (march.js): horse is there sooner
     if (eta <= RELIEF.eta) out.push({ a, eta, men: headcount(a.units), power: power(a.units) });
   }
   return out;

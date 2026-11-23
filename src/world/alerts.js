@@ -8,8 +8,7 @@
 import { FACTIONS, headcount, seenAs } from './world.js';
 import { foodLeft } from './supply.js';
 import { living, opinion } from './vassals.js';
-
-const SPEED = 6;   // world.js: road speed
+import { armyStep } from './march.js';
 
 const mins = s => s < 60 ? 'under a minute' : `${Math.round(s / 60)} min`;
 
@@ -56,7 +55,7 @@ export function alerts(w) {
     if (a.gone || a.side === 0 || a.wagon || !a.visible || a.retreating) continue;
     const to = a.target;
     if (!to || to.owner !== 0) continue;
-    const eta = ahead(a) / SPEED;
+    const eta = ahead(a) / armyStep(w, a);
     const raid = a.mode === 'raid' || FACTIONS[a.side]?.bandit;
     const S = seenAs(a);
     add(4, `${S.name}${S.men ? ` (${S.men})` : ''} ${raid ? 'raiding toward' : 'marching on'} ${to.name}, ${mins(eta)} away`, a, raid ? 'raid' : 'invader');
