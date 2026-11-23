@@ -118,6 +118,24 @@ export function lookChain(key) {
   return chain;
 }
 
+// How hard a fight is, in a few dials the combat sandbox (sandbox.html) swaps while you watch. A is the game as
+// it plays; the others are candidates and change nothing live until one is chosen.
+//   defStep: hit chance a point of attack over defence is worth (0.05 each).
+//   soak: the share of a blow's damage each point of the armour worn turns aside (leather 1, mail 2, plate 4 points).
+//   dmg: every blow's damage, arrows too.
+//   room: spacing between files and ranks, times the type's own.
+//   crowd: most men who may go for one foe at once (0: all who like), so a front stays a front and doesn't mob.
+//   palisade: how much of a blow's damage a wooden wall still takes from men hacking at it (1 now).
+//   shock: how hard a regiment breaking shakes the ones beside it (1: as now), and breakAt: the share of an army
+//   still standing under which, if the foe has clearly more, the whole army breaks at once (0.5 now).
+export const TUNING = {
+  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, room: 1, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
+  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
+  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
+  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
+  E: { key: 'E', name: 'D, locked in, steadier nerve', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 2, palisade: 0.6, shock: 0.5, breakAt: 0.4 },
+};
+
 // Formations: spacing and depth multiply the unit's own; the rest change the fight.
 // What one man of a kind is worth in a fight, against a spearman's 1: the strength the world
 // reckons with (economy.js power) and a village militia weighs its chances by (checkHeart).
@@ -246,6 +264,7 @@ export class Battle {
     this.checkWinner = deploy;
     this.counts = [{}, {}];
     this.version = 0;          // bumped when prune() drops soldiers, so views rebuild
+    this.tuning = TUNING.A;    // how hard a fight is (TUNING)
     this.walls = new Walls(heightAt);
     this.nav = new Nav(this.walls);
     this.walls.onBreak = s => this.onWallBreak(s);
@@ -539,7 +558,7 @@ export class Battle {
   // A schiltron is a ring around the anchor instead, each man facing out.
   slotPos(r, k) {
     const T = r.T, F = FORMATIONS[r.formation] || FORMATIONS.line;
-    const sp = T.spacing * F.spacing, dp = (T.depth || T.spacing) * F.depth;
+    const sp = T.spacing * F.spacing * this.tuning.room, dp = (T.depth || T.spacing) * F.depth * this.tuning.room;
     let lx, lz, face = 0;
     if (r.formation === 'square') {
       const ring = this.ringSlot(r, k, sp);
@@ -1771,6 +1790,10 @@ export class Battle {
     // Where each man stood as the step began, before anyone moves or knocks him about:
     // constrain() puts him back there if he ends the step in a wall or the deep channel.
     for (const s of this.soldiers) { s.lx = s.x; s.lz = s.z; }
+    if (this.tuning.crowd) {   // how many go for each man (findTarget keeps to TUNING crowd)
+      for (const s of this.soldiers) s.onMe = 0;
+      for (const s of this.soldiers) if (s.target && live(s) && live(s.target)) s.target.onMe++;
+    }
     for (const r of this.regs) this.updateRegiment(r, dt);
     for (const r of this.regs) { r.engagedWas = r.engaged; r.engaged = 0; r._lagSum = 0; r._lagN = 0; if (r.pinch) this.queuePinch(r); }
     for (const s of this.soldiers) if (live(s)) this.updateSoldier(s, dt);
@@ -1887,9 +1910,10 @@ export class Battle {
   // On the wall: men on the walkway, climbers on ladders, and anyone at the foot of the wall.
   findTarget(s, radius) {
     let best = null, bestD = radius * radius, low = null, lowD = POUR_REACH * POUR_REACH;
-    const up = s.level === 1;
+    const up = s.level === 1, crowd = this.tuning.crowd;
     this.forNear(s.x, s.z, radius, o => {
       if (o.reg.side === s.reg.side || this.spared(o.reg)) return;
+      if (crowd && o.onMe >= crowd && o !== s.target) return;   // enough already on him: look for another
       const d = (o.x - s.x) ** 2 + (o.z - s.z) ** 2;
       if (up) {
         if (o.level === 1 && !o.climb) { if (d < bestD) { bestD = d; best = o; } }
@@ -2308,7 +2332,7 @@ export class Battle {
       if (s.searchCd <= 0) {
         s.searchCd = 0.25 + this.rand() * 0.15;
         const near = this.findTarget(s, Math.max(engageR, s.level === 1 ? POUR_REACH : 0));
-        if (near) { s.target = near; s.swarm = false; }
+        if (near) { if (near !== s.target) near.onMe = (near.onMe || 0) + 1; s.target = near; s.swarm = false; }
         else if (s.target && s.level === 1 && s.target.level !== 1) s.target = null;
         else if (!s.target && r.targetReg && !r.hold && !r.posts && !s.captain && s.level === 0) { const t = this.swarmFoe(s); if (t) { s.target = t; s.swarm = true; } }
       }
@@ -2358,7 +2382,7 @@ export class Battle {
           s.lunge = 1;
           s.struckAt = this.time; // anim
           s.yaw = turnToward(s.yaw, Math.atan2(goal.strike.x - s.x, goal.strike.z - s.z), 1);
-          if (this.hitStructure(goal.strike, T.dmg, 'melee')) { r.targetWall = null; this.event(r.side, `${this.label(r)} broke through!`); }
+          if (this.hitStructure(goal.strike, T.dmg * (goal.strike.material === 'wood' ? this.tuning.palisade : 1), 'melee')) { r.targetWall = null; this.event(r.side, `${this.label(r)} broke through!`); }
           r.engaged++;
         }
       }
@@ -2700,7 +2724,8 @@ export class Battle {
     const wetA = this.river ? this.river.depthAt(s.x, s.z) : 0, wetD = this.river ? this.river.depthAt(t.x, t.z) : 0;
     const wood = Math.max(this.trees ? Math.max(this.woodAt(t.x, t.z), this.woodAt(s.x, s.z)) : 0, Math.max(wetA, wetD) * 0.4);
     let flank = tr.routing ? 0 : this.flankOf(s.x, s.z, t);
-    let chance = 0.42 + (A.atk - defOf(tr)) * 0.05 - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
+    const tn = this.tuning;
+    let chance = 0.42 + (A.atk - defOf(tr)) * tn.defStep - FD.def * (1 - wood) + this.captainBonus(ar) * 0.015 + (wetD - wetA) * 0.07;
     // Tired arms strike slower and guard worse.
     chance += (tr.fatigue || 0) * 0.03 - (ar.fatigue || 0) * 0.06;
     // Old soldiers fight better, and better still with their lord in the field.
@@ -2725,7 +2750,7 @@ export class Battle {
     // Fighting up a slope is hard work; down it, men put their weight behind each blow.
     const slope = s.level === 0 && t.level === 0 ? this.downhill(s, t) : 0;
     chance += slope * 0.08;
-    let dmg = A.dmg;
+    let dmg = A.dmg * tn.dmg * (1 - tn.soak * wornBy(tr).def);
     const braced = (D.braces && (flank === 0 || tr.formation === 'square')) && !tr.routing;
     if (A.charge && !s.charged && s.v > A.speed * 0.7) {
       s.charged = true;
@@ -2838,7 +2863,7 @@ export class Battle {
     for (const o of this.regs) {
       if (o === r || o.gone || o.routing) continue;
       const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
-      if (o.side === r.side && d < 50) o.morale -= 8 * (FORMATIONS[o.formation]?.morale || 1);
+      if (o.side === r.side && d < 50) o.morale -= 8 * this.tuning.shock * (FORMATIONS[o.formation]?.morale || 1);
       if (o.side !== r.side && d < 60) o.morale = Math.min(o.T.morale + 10, o.morale + 5);
     }
     for (const o of this.regs) if (o.targetReg === r && o.T.range) o.targetReg = null;
@@ -3009,7 +3034,7 @@ export class Battle {
         audio.play('arrowhit', hit, this); // audio
         hit.reg.lastHit = this.time;
         hit.reg.shotBy = a.from;
-        this.hurt(hit, a.dmg, a.from);
+        this.hurt(hit, a.dmg * this.tuning.dmg, a.from);
       }
     }
     this.arrows.length = w;
@@ -3050,7 +3075,7 @@ export class Battle {
     for (const side of [0, 1]) {
       if (this.broken?.[side] || !start[side] || !start[1 - side]) continue;
       const own = standing[side] / start[side];
-      if (!((own < 0.5 && standing[1 - side] > standing[side] * 1.25) || own < 0.15)) continue;
+      if (!((own < this.tuning.breakAt && standing[1 - side] > standing[side] * 1.25) || own < 0.15)) continue;
       (this.broken ||= [false, false])[side] = true;
       this.event(side, side === 0 ? 'Your army breaks and flees the field!' : 'The enemy army breaks and flees the field!');
       for (const r of this.regs) if (r.side === side && !r.gone) {

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTS Combat Sandbox</title>
+<link rel="stylesheet" href="src/style.css">
+<link rel="stylesheet" href="src/skin.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  body { overflow: hidden; }
+  .pane { position: fixed; top: 0; bottom: 0; z-index: 1; }
+  #paneL { left: 0; right: 0; }
+  #paneR { display: none; right: 0; width: 50%; }
+  body.compare #paneL { right: 50%; }
+  body.compare #paneR { display: block; }
+  .tag { position: fixed; top: 58px; z-index: 2; pointer-events: none; font: 700 15px var(--head-font, serif); color: #fff; text-shadow: 0 1px 3px #000, 0 0 6px #000; padding: 2px 10px; }
+  #tagL { left: 10px; }
+  #tagR { right: 10px; display: none; }
+  body.compare #tagR { display: block; }
+  #divider { position: fixed; top: 0; bottom: 0; left: 50%; width: 3px; margin-left: -1px; background: #1b1610; z-index: 2; display: none; pointer-events: none; }
+  body.compare #divider { display: block; }
+  #sbx { position: fixed; top: 96px; left: 10px; width: 268px; z-index: 3; padding: 8px 10px 10px; background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: var(--surface-shadow); color: var(--ink); font: 14px/1.35 var(--body-font); max-height: calc(100vh - 240px); overflow-y: auto; }
+  #sbx h4 { font: 400 13px var(--head-font); color: var(--gold); letter-spacing: .06em; margin: 8px 0 4px; padding-bottom: 2px; border-bottom: 1px solid var(--rule); }
+  #sbx h4:first-child { margin-top: 0; }
+  #sbx button, #sbx select { font: 500 13px var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); padding: 3px 8px; cursor: pointer; }
+  #sbx button:hover { background: var(--btn-hover); }
+  #sbx button.on { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border); }
+  #sbx .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; align-items: center; }
+  #sbx .scn { display: block; width: 100%; text-align: left; margin: 2px 0; }
+  #sbx .scn small { display: block; color: var(--dim); font-size: 11px; font-weight: 400; }
+  #sbx .scn.on small { color: #d9ceb0; }
+  #sbx label { display: flex; gap: 6px; align-items: center; }
+  #sbx .set { display: flex; gap: 6px; align-items: baseline; margin: 2px 0; }
+  #sbx .set b { color: var(--gold); width: 1.2em; }
+  #sbx small.dim { color: var(--dim); }
+  #stats { position: fixed; right: 10px; top: 96px; z-index: 3; width: 330px; padding: 8px 10px; background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius); box-shadow: var(--surface-shadow); color: var(--ink); font: 13px/1.35 var(--body-font); max-height: calc(100vh - 250px); overflow-y: auto; }
+  #stats h4 { font: 400 13px var(--head-font); color: var(--gold); letter-spacing: .06em; margin: 6px 0 3px; border-bottom: 1px solid var(--rule); }
+  #stats h4:first-child { margin-top: 0; }
+  #stats table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  #stats td, #stats th { padding: 1px 4px; text-align: left; vertical-align: top; font-weight: 400; }
+  #stats th { color: var(--dim); font-size: 11px; }
+  #stats td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  #stats tr.best td { background: rgba(120, 160, 70, .25); }
+  #stats .blue { color: #2c58b8; } #stats .red { color: #b03028; }
+  #stats small { color: var(--dim); }
+  #stats #batch-go { font: 500 13px var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); padding: 3px 8px; cursor: pointer; }
+  #cards { left: 290px; right: 16px; }
+</style>
+</head>
+<body class="">
+<canvas id="view"></canvas>
+<div id="paneL" class="pane"></div>
+<div id="paneR" class="pane"></div>
+<div id="divider"></div>
+<div id="tagL" class="tag"></div>
+<div id="tagR" class="tag"></div>
+
+<header id="top">
+  <span class="title">Combat sandbox</span>
+  <span id="clock">0:00</span>
+  <button id="pause" title="Pause or carry on" data-key="Space">❚❚ Pause</button>
+  <span class="speeds"><button data-speed="1">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button></span>
+  <span id="strength"></span>
+  <button id="restart" title="Start this fight again from the beginning">↻ Restart</button>
+  <button id="help-toggle">? Controls</button>
+</header>
+
+<div id="paused-tag">Paused: you can still give orders</div>
+<div id="log"></div>
+
+<aside id="sbx">
+  <h4>Fight</h4>
+  <div id="scns"></div>
+  <h4>Settings</h4>
+  <div id="sets"></div>
+  <div class="row"><label title="Two copies of the same fight side by side, each with its own setting; your orders go to both"><input type="checkbox" id="cmp"> Side by side</label></div>
+  <div class="row" id="pickL"></div>
+  <div class="row" id="pickR"></div>
+  <h4>Orders</h4>
+  <div class="row"><label title="Off: both sides fight on their own. On: a regiment you order stays under your hand for 20 s, then goes back to fighting on its own."><input type="checkbox" id="hand" checked> My orders count</label></div>
+  <small class="dim">Left-click selects, right-click orders, as in a battle. Everyone else fights the nearest regiment.</small>
+</aside>
+
+<aside id="stats"></aside>
+
+<aside id="help">
+  <h3>Combat sandbox</h3>
+  <p>The same fight under different <b>settings</b> (A is the game as it plays now), watched live. Pick a fight and a setting; change the setting while it runs and the next blows follow it.</p>
+  <p><b>Side by side</b> runs two copies of the fight, one per setting, with one camera. Your orders go to both.</p>
+  <p><b>Run all settings</b> in the stats panel plays every setting through, quickly and unwatched, and tells you the seconds to the first rout, to the end, and the losses by type.</p>
+  <p><b>Left click / drag</b>: select · <b>Right click</b>: move or attack · <b>Right drag</b>: draw a front · <b>WASD</b>: pan · <b>Q / E</b>: turn · <b>Scroll</b>: zoom · <b>Space</b>: pause</p>
+</aside>
+
+<div id="cards"></div>
+<div id="select-box"></div>
+
+<div id="end" style="display:none"><h2></h2><p></p><button id="again">Again</button></div>
+
+<script type="module" src="src/checks.js"></script><!-- consistency checks: checks() in the console (HOW_WE_BUILD.md section 4) -->
+<script type="module" src="src/sandbox.js"></script>
+</body>
+</html>

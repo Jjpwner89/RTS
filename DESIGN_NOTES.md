@@ -1130,3 +1130,12 @@ A governed place used to stay bare: seed 7's governed Ashford paid about 33 a mi
 - **The barracks** the governor raises from 40 people is an older rule (2414b23, kept): a call to the banners raises levies from each barracks' racks, so a governed village without one sends none.
 - **The houses' places** already develop by their own plans (holdings.js `PLANS`, `GROW`): market towns run 5–7 markets, abbeys 8 mills and bakeries. They keep those.
 - checks(): "governor: develops a place for tax, slowly, by what it gathers" (two hours of governor turns on a stand-in village and market town: no military building and nothing paid in gold, at least two minutes between developments, no market in a village, a market town gets one, 40–50 a minute at 160 people, nothing a minute after the last, and every keep's governor line reads as it should).
+
+
+## Combat sandbox (rts-feel, 2026-11-22)
+
+From the creator's plane playtest: melee is "mob enemy then enemy gone", it "collapsed into too much of a melee", and they want it slightly slower and more spread out, with units locked in more and the gaps between types wider (knights and men-at-arms tanky). Nothing is changed in the live game: `battle.js` has a `TUNING` table and `Battle.tuning` (A, the game as it plays, by default), and `sandbox.html` runs fights under each setting for the creator to pick by eye.
+
+- **Settings**: A as now. B armour counts for more (each point of defence 30% worth more, and mail turns 18% of a blow aside, plate 36%). C damage −20%. D is B and C with 12% more room between men. E is D plus no more than two men on one foe, a regiment breaking shaking its neighbours half as hard, the army breaking at 40% left (not 50%), and palisades taking 40% less from men hacking at them.
+- **What the numbers say** (unwatched runs, three each): with A, a line of 60-man foot regiments meets at about 8 s and the whole of one side is gone by 16 to 19 s: 25 men a second fall in the first moments of contact, because every man in a three-rank regiment is on a foe at once (80% of 360 men engaged within a second of contact), and then `checkBreak` sends the whole army out of the fight together (first rout and end within a second or two of each other). Damage and armour slow the first part but not the second, which is why E also touches nerve.
+- **Not changed in the sandbox**: the movement oddities (men converging and popping out, the gap behind the front, the breach). They are watched there in 'A big band onto a small one' and 'Storm a palisade'.

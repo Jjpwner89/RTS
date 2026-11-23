@@ -16,5 +16,6 @@ Then open http://localhost:8000. three.js loads from a CDN, so the first load ne
 - `world.html`: the campaign: a world map of four places, your villages, field battles and a rival house.
 - `town.html`: the village on its own: build, work, raise levies, hold off bandit raids.
 - `battle.html`: the field battle test.
+- `sandbox.html`: the combat sandbox: one fight under settings A to E of how hard fighting is (battle.js `TUNING`), alone or side by side, with the numbers that tell them apart.
 
 Icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0); see [assets/icons/CREDITS.md](assets/icons/CREDITS.md).
