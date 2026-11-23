@@ -1125,7 +1125,7 @@ function worldPanel() {
     } else {
       // What you can tell of a place you do not hold: how strongly, how long ago you saw it, what is near it (world/scout.js).
       const sr = scoutReport(world, it, selected?.units && selected.side === 0 ? selected : null);
-      set('men', !it.seen ? 'Send an army near to see it' : sr ? `<span class="${sr.stale ? 'stale' : ''}">${sr.held}</span>` : `About ${it.visible ? headcount(it.garrison) : it.known?.men ?? '?'} men in the garrison`);
+      set('men', !it.seen ? 'Send an army near to see it' : sr ? `<span class="${sr.stale ? 'stale' : ''}">${sr.held}</span>` : (it.visible || it.known?.men != null ? `About ${it.visible ? headcount(it.garrison) : it.known.men} men in the garrison` : 'Seen, but its strength is not known'));
       set('scout', sr ? `<span class="${sr.stale ? 'stale' : ''}">${sr.near}.</span>` : '');
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
       set('intel', intelText(it));

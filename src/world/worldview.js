@@ -437,7 +437,7 @@ export class WorldView {
       const spy = w.spies?.find(o => o.at === p.id), back = spy ? Math.max(0, Math.ceil(spy.back - w.time)) : 0;
       const spyLine = spy ? `<small class="spy">${ico('watchtower')} your spy · back in ${Math.floor(back / 60)}:${String(back % 60).padStart(2, '0')}</small>` : '';
       const html = !p.seen ? `<b style="color:${own.color}">${ico(K.icon)} ${p.name}</b><small>unexplored</small>`
-        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : p.visible && w.sworn(shown) ? `${own.name} · sworn to you` : own.name} · ${p.town ? '' : '~'}${men} men${p.visible ? '' : ' (last seen)'}</small>${spyLine}`;
+        : `<b style="color:${own.color}">${ico(K.icon)} ${p.name}${alarm}</b>${told}<small>${shown === null ? `free ${K.name.toLowerCase()}` : liege ? `${liege.name}'s · sworn to you` : p.visible && w.sworn(shown) ? `${own.name} · sworn to you` : shown === undefined ? 'owner unknown' : own.name} · ${men == null ? 'strength unknown' : `${p.town ? '' : '~'}${men} men`}${p.visible || men == null ? '' : ' (last seen)'}</small>${spyLine}`;
       if (o.html !== html) { o.html = html; o.label.innerHTML = html; }
       o.label.classList.toggle('selected', selected === p);
       o.label.classList.toggle('hover', this.hovered === p);

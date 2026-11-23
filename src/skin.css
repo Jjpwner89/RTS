@@ -354,7 +354,7 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #gamemenu button:disabled { background: var(--btn); color: var(--btn-ink); border: var(--btn-border); opacity: .5; cursor: default; }
 #gamemenu button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #gamemenu .whyline { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
-@media (max-width: 800px), (max-height: 600px) { #menu-btn .lbl { display: none; } #top #menu-btn { padding: 4px 6px; min-height: 36px; } }
+@media (max-width: 800px), (max-height: 600px) { #menu-btn .lbl { display: none; } #top #menu-btn { padding: 4px 6px; min-width: 34px; min-height: 44px; } }   /* (the bar is drawn at about 60% on a phone: this is about 26 px on screen, the most the bar can spare) */
 
 /* Walls tab: what each tool does, and what to do once one is picked (siegeui.js). */
 #build #defences .items small.does { color: var(--dim); font-size: 10.5px; line-height: 1.2; margin-top: 1px; }

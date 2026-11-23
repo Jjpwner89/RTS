@@ -2978,6 +2978,10 @@ async function scoutChecks(w) {
     } finally { p.visible = vis; if (at === undefined) delete p.known.at; else p.known.at = at; }
     return out;
   });
+  await check('no place label says undefined, NaN or null', () => {
+    const bad = [...document.querySelectorAll('.wlabel.place')].map(e => e.textContent).filter(t => /undefined|NaN|\bnull\b/.test(t));
+    return sample(bad, 4);
+  });
   await check('the words climb with the garrison', () => {
     const order = [0, 5, 20, 45, 80, 150].map(heldWords);
     return new Set(order).size === order.length ? [] : [`not six different words for six sizes: ${order.join(' / ')}`];
