@@ -498,7 +498,7 @@ export class RealmScreen {
           ? `<span class="warn">${esc(p.name)} becomes ${esc(h.short)}'s to hold (+20 with them). They keep it if they ever break faith.</span> <button data-act="${key}" class="warn">Yes, give it</button><button data-act="cancel">No</button>`
           : `<button data-act="${key}" title="${esc(w.canGrantTo(p, h.index).warn)}">${ico('crown')} ${esc(p.name)}</button>`;
       }).join('')}</span>` : '';
-      return `<div class="line"><span class="grow"><b style="color:${h.color}">${esc(h.name)}</b> <span class="chip good">sworn to you</span><br><small>${esc(h.lord)} · ${places.length} place${places.length === 1 ? '' : 's'} · ${num(men)} men</small>${compact ? '' : `<br><small>${terms}</small>`}${give}</span>
+      return `<div class="line house"><span class="grow"><b style="color:${h.color}">${esc(h.name)}</b> <span class="chip good">sworn to you</span><br><small>${esc(h.lord)} · ${places.length} place${places.length === 1 ? '' : 's'} · ${num(men)} men</small>${compact ? '' : `<br><small>${terms}</small>`}${give}</span>
         <span class="acts">${look}<button data-act="house:${h.index}" title="Their lord, and everything you can do with them">Deal</button></span></div>`;
     }).join('');
     return `<section class="box${compact ? '' : ' wide'}"><h4>${ico('castle')} ${compact ? 'Houses sworn to you' : 'Houses sworn to you, with their terms'}</h4>${rows}</section>`;

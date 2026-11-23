@@ -546,6 +546,7 @@ export function act(w, h, id, theirs = false) {
     w.chron(`${H.lord} bent the knee, and ${H.name} became your vassal.`);
     d.opinion = Math.max(d.opinion, 20);
     H.vassalOf = 0;
+    w.updateVision?.();   // its places and armies light up now, not at the next half-second tick
     // Said plainly, wherever it shows (creator, 2026-11-22: a fast click on the offer left them unsure it had happened).
     const terms = `${H.name} is now your vassal: peace, a share of its taxes (${VASSAL_TRIBUTE} gold a minute while its coffers last), its backing for your claim, and its lands and host in your sight.`;
     w.log(terms, 1);

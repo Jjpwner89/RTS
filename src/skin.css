@@ -365,3 +365,11 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 #prompt.arming .row button { opacity: .55; cursor: progress; }
 #prompt.arming::after { content: ''; display: block; height: 3px; margin-top: 10px; background: var(--gold); transform-origin: left; animation: arming .8s linear forwards; }
 @keyframes arming { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* A sworn house's row in Realm > Vassals: its words and its buttons each get the width of the screen on a phone */
+@media (max-width: 800px), (max-height: 600px) {
+  #realm .line.house { flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; }
+  #realm .line.house .grow { flex: 1 1 100%; }
+  #realm .line.house .acts { flex: 1 1 100%; white-space: normal; text-align: left; display: flex; flex-wrap: wrap; gap: 4px; }
+  #realm .line.house .acts button { margin-left: 0; }
+}
