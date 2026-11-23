@@ -183,7 +183,7 @@ export class TownHud {
         ${ico('stone', '#bdb8ad')}<span>Paved road</span><small>1 stone per ${ROAD.perStone} m</small>${KEY_OF.road ? `<kbd>${KEY_OF.road.toUpperCase()}</kbd>` : ''}
       </button>
       <button class="item" data-build="hire" data-group="Military" title="Hire men with gold: the household guard, and sellsword companies you have found. Opens the keep.">
-        ${ico('spears')}<span>Hire men</span><small>household guard, sellswords</small>
+        ${ico('swords')}<span>Hire men</span><small>household guard, sellswords</small>
       </button>` + Object.entries(TEMPLATES).map(([k, T]) => `
       <button class="item" data-build="tpl:${k}" data-group="Towns" title="${T.focus}: ${T.desc}">
         ${ico(T.icon)}<span>${T.name}</span><small>${listCost(templateCost(k))}</small>

@@ -31,7 +31,7 @@ const Name = c => c.name[0].toUpperCase() + c.name.slice(1);
 //   the market, then off on other work (the dear ones are about less, so seldom on offer).
 export const GRADES = {
   hiredband: { price: 12, wage: 0.75, size: [40, 60], stay: 20, away: 6 },
-  sellsword: { price: 19, wage: 1, size: [40, 56], stay: 18, away: 8 },
+  sellsword: { price: 21, wage: 1, size: [40, 56], stay: 18, away: 8 },
   hiredxbow: { price: 24, wage: 1.25, size: [36, 50], stay: 15, away: 10 },
   hiredmaa: { price: 38, wage: 1.75, size: [30, 42], stay: 12, away: 16 },
   hiredlance: { price: 80, wage: 4.5, size: [18, 26], stay: 9, away: 25 },

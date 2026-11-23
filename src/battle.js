@@ -45,7 +45,7 @@ export const TYPES = {
   // flails and pitchforks, no armour and no drill. Weaker than any levy and quick to break.
   folk: { key: 'folk', armour: 'none', name: 'Village militia', role: 'Everyone called out: improvised weapons, no armour, break easily', count: 40, files: 14, spacing: 1.7, speed: 3.2, hp: 9, atk: 2, def: 2, dmg: 3, reach: 1.8, cooldown: 1.4, morale: 35, militia: true, value: 0.35, look: 'militia' },
   // Hired and household troops: paid in gold, no villagers. Mercenaries lose heart quickly when a fight goes badly.
-  sellsword: { key: 'sellsword', armour: 'leather', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
+  sellsword: { key: 'sellsword', armour: 'leather', name: 'Sellswords', role: 'Hired swordsmen with shields, in leather: good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
   hiredxbow: { key: 'hiredxbow', armour: 'leather', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
   // The dearer and cheaper ends of the hiring market (Orchestrator, 2026-11-23: from hired bandits to knights): an outlaw
   // band that runs first, free companions in mail, and lances of hired knights.
@@ -153,7 +153,10 @@ export const TUNING = {
 // What one man of a kind is worth in a fight, against a spearman's 1: the strength the world
 // reckons with (economy.js power) and a village militia weighs its chances by (checkHeart).
 const VALUE = { spear: 1, sword: 1.25, archer: 0.9, cav: 2.2, militia: 0.7, bandit: 0.7,
-  crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2 };
+  crossbow: 1.1, lightcav: 1.6, heavycav: 2.6, maa: 1.5, knight: 3.2,
+  // hired companies, by the men they copy (a sellsword is a swordsman with more hit points and defence; the hired
+  // ones keep less nerve than your own)
+  hiredband: 0.65, sellsword: 1.3, hiredxbow: 1.15, hiredmaa: 1.45, hiredlance: 3.1 };
 export const value = key => TYPES[key]?.value ?? VALUE[key] ?? 1;
 
 // Swarming a smaller band (Battle.swarmFoe): its front under `narrower` of the regiment's;
