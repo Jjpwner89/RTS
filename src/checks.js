@@ -901,15 +901,15 @@ async function worldChecks(w) {
   }));
 
   // Mercenaries priced as what they are (creator, 2026-11-22: "felt like I cheated";
-  // Orchestrator, 2026-11-23): near a kitted, trained man up front, above a man-at-arms in
-  // wages, so many by rank for you as for a house, and a year before one let go is back.
-  await check('companies: priced near a kitted, trained man, paid above a man-at-arms, kept by rank, a year back on the market', () => scratch(async (make, FACTIONS) => {
+  // Orchestrator, 2026-11-23): about a third of a man-at-arms up front, above one in wages,
+  // so many by rank for you as for a house, and a year before one let go is back.
+  await check('companies: a third of a man-at-arms up front, paid above one, kept by rank, a year back on the market', () => scratch(async (make, FACTIONS) => {
     const C = await import('./world/companies.js'), { ELITE } = await import('./economy.js'), { WARES } = await import('./world/treasury.js'), out = [];
     const s = make(), c = (s.companies = C.makeCompanies(s))[0];
     for (const o of s.companies) o.home = null;
     const kitted = WARES.mail.price / WARES.mail.lot + WARES.swords.price / WARES.swords.lot + ELITE.maa.fee;   // a man-at-arms, shield aside
     for (const k of Object.keys(C.PRICE)) {
-      if (C.PRICE[k] < kitted * 0.5 || C.PRICE[k] > kitted * 1.2) out.push(`a ${k} costs ${C.PRICE[k]} a man, not near a man-at-arms' ${Math.round(kitted)}`);
+      if (C.PRICE[k] < kitted * 0.25 || C.PRICE[k] > kitted * 0.5) out.push(`a ${k} costs ${C.PRICE[k]} a man, not about a third of a man-at-arms' ${Math.round(kitted)}`);
       if (C.WAGE[k] < ELITE.maa.pay) out.push(`a ${k} draws ${C.WAGE[k]} a minute, under a man-at-arms' ${ELITE.maa.pay}`);
     }
     if (C.hirePrice(c) !== Math.round(c.size * C.PRICE[c.key])) out.push(`${c.name}: ${C.hirePrice(c)} gold for ${c.size} men`);

@@ -19,14 +19,14 @@ const CAPTAINS = ['Bors Hale', 'Ysolt of the Marches', 'Cade Ferro', 'Old Garm',
 // A company's name at the start of a sentence.
 const Name = c => c.name[0].toUpperCase() + c.name.slice(1);
 // What a company costs, the same for you and the houses (creator, 2026-11-22: mercenaries
-// made the snowball "felt like I cheated"; Orchestrator, 2026-11-23: priced near a kitted,
-// trained man, paid at least a man-at-arms' wage, so many by rank, slow back to market).
-// A hired man comes kitted and drilled, and takes nobody from your work, so he costs about
-// what you would pay to make one: a man-at-arms is mail 32, a sword 14 (the market's lot
-// prices, treasury.js WARES), a shield and a 60 fee, about 110; a serjeant mail, a sword and
-// a 20 fee, about 70. A sellsword (mail, sword and shield, a fighter between the two) 85 a
-// man; a hired crossbowman (leather, crossbow, a big shield, drilled as a yeoman) 65.
-export const PRICE = { sellsword: 85, hiredxbow: 65 };       // gold per man, up front
+// made the snowball "felt like I cheated"; Orchestrator, 2026-11-23: paid at least a
+// man-at-arms' wage, so many by rank, slow back to market; then a middle price, so one
+// company at Lord is a big decision you can afford). A man-at-arms is mail 32, a sword 14
+// (the market's lot prices, treasury.js WARES), a shield and a 60 fee, about 110. A hired man
+// costs about a third of that up front: a company of 45 is 1,500 to 1,600 gold, some 10 to 18
+// minutes of a new lord's income, and its wages take most of the rest. The rank cap and the
+// wages hold the rush back; at 85 a man the first company was 26 to 43 minutes away.
+export const PRICE = { sellsword: 35, hiredxbow: 27 };       // gold per man, up front
 // Paid above a man-at-arms (1.5) and below a knight (3.75): the dearest foot in the realm.
 export const WAGE = { sellsword: 1.75, hiredxbow: 1.75 };   // gold per man per minute (treasury.js WAGES)
 // How many companies a lord keeps by rank, as the household guard (world.js HOUSEHOLD_CAP):
