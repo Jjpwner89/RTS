@@ -40,9 +40,9 @@ export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
 // What the herald says as each season turns (seasonStep).
 export const SEASON_NEWS = [
-  ['Spring', 'The fields are sown. The roads dry; the houses will gather their hosts.'],
-  ['Summer', 'Campaigning season. Expect musters along the borders.'],
-  ['Autumn', 'Harvest. The barns fill, and raiders know it. Stock the larder for winter.'],
+  ['Spring', 'The fields are sown. The roads dry.'],
+  ['Summer', 'Long days in the fields. The crops are coming on.'],
+  ['Autumn', 'Harvest. The barns fill; lay in stores for winter.'],
   ['Winter', 'Snow on the roads: armies march slower. Keep the larder full until spring.'],
 ];
 

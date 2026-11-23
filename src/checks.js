@@ -3090,7 +3090,7 @@ async function seasonChecks(w) {
     step(f, 310); step(f, 599); if (told.length !== 1) out.push('Summer announced more than once');
     step(f, 600); step(f, 900); step(f, 1200);
     if (told.map(m => m.title).join() !== 'Summer,Autumn,Winter,Spring') out.push(`the turns were announced as ${told.map(m => m.title).join()}`);
-    const plan = { Spring: 'The fields are sown. The roads dry; the houses will gather their hosts.', Summer: 'Campaigning season. Expect musters along the borders.', Autumn: 'Harvest. The barns fill, and raiders know it. Stock the larder for winter.' };
+    const plan = { Spring: 'The fields are sown. The roads dry.', Summer: 'Long days in the fields. The crops are coming on.', Autumn: 'Harvest. The barns fill; lay in stores for winter.' };
     for (const [title, text] of Object.entries(plan)) if (SEASON_NEWS.find(n => n[0] === title)?.[1] !== text) out.push(`${title}'s line is not the agreed one`);
     const g = fake(2); step(g, 10); step(g, 900); if (told.filter(m => m.title === 'Winter').length !== 1) out.push('in Part 2 winter is announced here as well as by the north');
     return out;
