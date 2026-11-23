@@ -1663,17 +1663,21 @@ async function worldChecks(w) {
     }
     const t = throwaway({ stock: { wood: 10, stone: 10, food: 20 } }, [['market', 24, 1], ['storehouse', 22, 1]]);
     try {
-      t.purse.gold = 300;
+      // (its own purse: a throwaway village shares yours, and the real world's wages and taxes move that while this runs)
+      t.purse = { gold: 300 };
       const m = t.buildings.find(q => q.kind === 'market'), i = M.findIndex(r => r.buy && 'wood' in r.out);
       if (!m) return ['the test village could not place a market'];
       const before = t.stock.wood;
       if (t.wantedRecipes(m).some(r => r.buy)) out.push('a market buys with nothing switched on');
       m.off.delete(i);
       const price0 = t.buyPrice(M[i]);
-      for (let k = 0; k < 240; k++) { t.battle.step(0.5); t.update(0.5); }
+      // (the price is read as it goes: it mends 60 goods a minute, so once buying stops, at the keep's amount or for want of a
+      // hauler, it is back to the listed price by the end)
+      let peak = price0;
+      for (let k = 0; k < 240; k++) { t.battle.step(0.5); t.update(0.5); peak = Math.max(peak, t.buyPrice(M[i])); }
       if (!(t.stock.wood > before)) out.push(`with buying wood on and 300 gold, wood went from ${before} to ${t.stock.wood}`);
       if (!(t.purse.gold < 300)) out.push('buying cost no gold');
-      if (!(t.buyPrice(M[i]) > price0 || t.stock.wood >= M[i].keep)) out.push(`the price of wood did not rise as it was bought (${price0.toFixed(1)} → ${t.buyPrice(M[i]).toFixed(1)})`);
+      if (!(peak > price0)) out.push(`the price of wood did not rise as it was bought (${price0.toFixed(1)}, never above ${peak.toFixed(1)})`);
       t.purse.gold = 0; m.recipe = null;
       if (t.wantedRecipes(m).some(r => r.buy)) out.push('a market with no gold still wants to buy');
     } finally { t.lost = true; }
