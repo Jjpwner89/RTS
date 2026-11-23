@@ -22,7 +22,7 @@ import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
 import { World, headcount, ownerOf, FACTIONS, walledPlace, capWhy } from './world/world.js';
 import { why } from './ui/why.js';
-import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, CARRY } from './world/supply.js';
+import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, winterAbroad, WINTER_EAT, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf, STANCE } from './world/rivals.js';
@@ -1082,7 +1082,7 @@ function worldPanel() {
       const home = fedAt(world, it), left = foodLeft(world, it);
       set('food', `${ico('food', it.food > 0 ? '#c9b26a' : '#ff8a5a')} ` + (home ? `Fed from ${home.name}${hurt ? '; the wounded are mending' : ''}`
         : it.food <= 0 ? (it.fedBy ? `Carts empty: fed from ${it.fedBy}` : it.quartered ? `<b class="war">Carts empty: living off the farms round ${it.quartered}</b>` : '<b class="war">Out of food: men are deserting</b>')
-        : `Food for ${clock(left)}${it.siege ? ', foraging' : ''}${left < 60 ? homeland(world, it) ? ', then your villages feed them' : ' <b class="war">running low</b>' : ''}`));
+        : `Food for ${clock(left)}${it.siege ? ', foraging' : ''}${winterAbroad(world, it) ? ' <span title="In winter your men eat half again as much outside your lands.">· winter: half again as much</span>' : ''}${left < 60 ? homeland(world, it) ? ', then your villages feed them' : ' <b class="war">running low</b>' : ''}`));
     }
     if (own) {
       const w = fedAt(world, it) ? null : wagonFrom(world, it), btn = el.querySelector('[data-f="wagon"]');
@@ -1120,7 +1120,7 @@ function worldPanel() {
         // As many as one army may hold march (world.js ARMY_CAP); the tooltip says so when some stay.
         const go = Math.min(men, world.armyCap), m = Math.floor(Math.min(spareFood(it.town), go * CARRY) / go * 2);
         const over = men > go ? ` ${men - go} stay: ${capWhy(world.rank)}` : '';
-        mb.title = (m ? `${go} men march out with food for ${m} minute${m > 1 ? 's' : ''}.` : `${go} men, and no spare food for their carts: they will desert away from home.`) + over;
+        mb.title = (m ? `${go} men march out with food for ${m} minute${m > 1 ? 's' : ''}${world.winter ? ` (about ${Math.max(1, Math.floor(m / WINTER_EAT))} outside your lands: in winter your men eat half again as much there)` : ''}.` : `${go} men, and no spare food for their carts: they will desert away from home.`) + over;
         mb.classList.toggle('warn', !m || !!over);
       }
     } else {

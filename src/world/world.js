@@ -14,7 +14,7 @@ import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
-import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal, foodLeft, homeland, QUARTERED } from './supply.js';
+import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal, foodLeft, homeland, mouths, EAT, WINTER_EAT, QUARTERED } from './supply.js';
 import { govern } from './governor.js';
 import { turnOut, yields, standsOrYields, gritOf, handOver, takeIn, driftHome, fledWord, mourn, sendHome } from './militia.js';
 import { tickEvents } from './events.js';
@@ -590,6 +590,8 @@ export class World {
     a.path = best.path;
     a.target = dest;
     a.at = null;
+    // A march of yours abroad in winter says what it will cost (supply.js WINTER_EAT).
+    if (a.side === 0 && this.winter && !a.wagon && a.food > 0 && a.winterTold !== Math.floor(this.time / 1200) && !homeland(this, { side: 0, x: dest.x, z: dest.z })) { a.winterTold = Math.floor(this.time / 1200); this.log(`${a.name} marches in winter: your men eat half again as much outside your lands, so its food lasts about ${Math.max(1, Math.round(a.food / (mouths(a) * EAT * WINTER_EAT * 60)))} min there.`); }
     return true;
   }
 
@@ -919,7 +921,7 @@ export class World {
     a.food = takeFood(p.town, capacity(a));
     const mins = Math.floor(a.food / Math.max(1, headcount(units)) * 2);
     if (mins < 1) this.log(`${a.name} has mustered ${headcount(units)} men, but ${p.name} has no food to load on the carts. Your villages will feed them in your own lands; beyond them they will desert within the minute, so send a wagon after them.`, 1);
-    else this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins} minute${mins > 1 ? 's' : ''} beyond your lands.`);
+    else this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins} minute${mins > 1 ? 's' : ''} beyond your lands.${this.winter ? ` Winter: your men eat half again as much outside your lands, so about ${Math.max(1, Math.floor(mins / WINTER_EAT))}.` : ''}`);
     return a;
   }
 

@@ -447,6 +447,57 @@ async function worldChecks(w) {
     return out;
   });
 
+  // Winter food (seasons plan part 2, 2026-11-23): outside its own lands an army eats half again as much in winter, yours
+  // and the houses' alike; in its own lands, or out of winter, nothing changes. The slow march with the snow's 0.85 still
+  // gets a ram train to a place two roads off before the carts run dry.
+  await check('winter: an army abroad eats half again as much, one at home does not', async () => {
+    const Sup = await import('./world/supply.js'), { marchPace, MARCH_LIVE } = await import('./world/march.js');
+    const out = [], was = w.time, home = w.pois.find(p => p.owner === 0 && !p.town?.hostile);
+    if (!home) return ['no place of yours to test at'];
+    const spot = (side, x, z) => ({ side, x, z, units: [{ key: 'spear', count: 40 }], food: 100, name: 'check host' });
+    // Your army 150 units off one of your places (in your lands, not at its table), and a house's far from any road.
+    const mk = () => {
+      let homeA = null;
+      for (let i = 0; i < 8 && !homeA; i++) {
+        const t = spot(0, home.x + 150 * Math.cos(i * Math.PI / 4), home.z + 150 * Math.sin(i * Math.PI / 4));
+        if (Sup.homeland(w, t) && !Sup.fedAt(w, t)) homeA = t;
+      }
+      return { homeA, away: spot(1, 1e5, 1e5) };
+    };
+    const burn = (a, winter) => {
+      w.time = winter ? 900 : 100;
+      const food = a.food, saved = w.armies;
+      w.armies = [a];
+      Sup.supplyArmies(w, 10);
+      w.armies = saved;
+      return (food - a.food) / (40 * 10 * Sup.EAT);
+    };
+    for (const winter of [false, true]) {
+      const { homeA, away } = mk();
+      if (!homeA) { out.push('found no spot in your lands away from the table'); continue; }
+      const h = burn(homeA, winter), f = burn(away, winter);
+      if (Math.abs(h - 1) > 0.01) out.push(`${winter ? 'winter' : 'summer'}: an army in its own lands burned ${h.toFixed(2)}x what it eats`);
+      const want = winter ? Sup.WINTER_EAT : 1;
+      if (Math.abs(f - want) > 0.01) out.push(`${winter ? 'winter' : 'summer'}: an army abroad burned ${f.toFixed(2)}x, wanted ${want}x`);
+    }
+    // A besieging army forages, and winter still costs it half again.
+    w.time = 900;
+    const sg = spot(1, 1e5, 1e5); sg.siege = true;
+    const sf = burn(sg, true);
+    if (Math.abs(sf - 0.25 * Sup.WINTER_EAT) > 0.01) out.push(`a besieging army abroad in winter burned ${sf.toFixed(3)}x, wanted ${0.25 * Sup.WINTER_EAT}x`);
+    // foodLeft agrees with the burn, so the warnings tell the truth.
+    const t = spot(1, 1e5, 1e5);
+    w.time = 100; const summer = Sup.foodLeft(w, t);
+    w.time = 900; const winter = Sup.foodLeft(w, t);
+    if (Math.abs(summer / winter - Sup.WINTER_EAT) > 0.01) out.push(`foodLeft: ${Math.round(summer)} s in summer but ${Math.round(winter)} s in winter`);
+    // A ram train marching two places (400 units) in winter arrives well before its carts are empty.
+    const ram = [{ key: 'spear', count: 40 }, { key: 'ram', count: 2 }];
+    const trip = 400 / (marchPace(MARCH_LIVE, ram) * 0.85), have = Sup.CARRY / (Sup.EAT * Sup.WINTER_EAT);
+    if (trip > have * 0.8) out.push(`a winter ram march of two places takes ${Math.round(trip)} s; its carts last ${Math.round(have)} s abroad in winter`);
+    w.time = was;
+    return out;
+  });
+
   // Every place's layout (places.js): its whole tally laid out, nothing overlapping, walls as its numbers say.
   await check('places: every layout holds its tally', () => sample(places.checkPlaces(w), 10));
 

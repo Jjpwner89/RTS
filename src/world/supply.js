@@ -16,6 +16,7 @@ import { rankOf } from './arriere.js';
 import { SLOW } from './march.js';
 
 export const EAT = 1 / 120;        // food per man per second
+export const WINTER_EAT = 1.5;     // in winter, outside its own lands, an army eats half again as much (the creator approved seasons, 2026-11-23)
 export const CARRY = 2 * SLOW;     // food per man the carts hold: ten minutes (four, at the old pace)
 const NEAR = 70;                   // this close to one of its own places, an army is fed
 const REST = 1 / 45;               // share of the wounded back on their feet each second
@@ -37,11 +38,16 @@ export function provision(a, food = null) {
   a.starving = 0;
 }
 
+// Winter and away from its own lands: the army that eats half again as much (inside them, nothing changes).
+export const winterAbroad = (w, a) => w.winter && !homeland(w, a);
+// Food per man per second now: a blockading army forages, a winter army abroad eats more.
+export const eatRate = (w, a) => EAT * (a.siege ? FORAGE : 1) * (winterAbroad(w, a) ? WINTER_EAT : 1);
+
 // Seconds of food left at the army's present size (Infinity when it is being fed).
 export function foodLeft(w, a) {
   if (fedAt(w, a)) return Infinity;
   const n = mouths(a);
-  return n ? a.food / (n * EAT * (a.siege ? FORAGE : 1)) : Infinity;
+  return n ? a.food / (n * eatRate(w, a)) : Infinity;
 }
 
 // The place feeding this army, if it is close enough to one of its own (for you, a
@@ -155,7 +161,7 @@ export function supplyArmies(w, dt) {
         a.food += home.town && home.owner === 0 ? takeFood(home.town, Math.min(want, rate)) : home.eco?.buildings ? fromStores(home.eco, Math.min(want, rate)) : Math.min(want, rate);
       }
       if (a.food > 0) heal(a, REST * dt);
-    } else a.food = Math.max(0, a.food - n * EAT * dt * (a.siege ? FORAGE : 1));
+    } else a.food = Math.max(0, a.food - n * eatRate(w, a) * dt);
     if (a.food > 0) { a.starving = 0; a.quartered = a.fedBy = null; a.quarterTold = false; continue; }
     const land = homeland(w, a);
     if (land) { liveOffTheLand(w, a, land, n * EAT * dt * (a.siege ? FORAGE : 1)); a.starving = 0; continue; }
