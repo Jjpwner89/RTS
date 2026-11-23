@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, SKIN, METAL, DARK, WOOD, LEATHER, STONE, STONE_DARK, THATCH, PLASTER, SIDE_COLORS, heartModel, keepTop, houseModel, campModel, keepLevelOf, poleFor } from './view.js';
 import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, setBlend, gaitFor } from './anim.js';
-import { BUILDINGS } from './economy.js';
+import { BUILDINGS, crate } from './economy.js';
 import { fxFor } from './fx.js';
 import { lamps } from './look.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
@@ -505,14 +505,18 @@ export class TownView {
       }
       // Anything carried goes in a crate held in front, its contents showing over the rim; a baked villager carries
       // it in the shoulder sack that the carrying clips show (anim)
-      if (v.carry && !this.anim) {
-        d.position.set(v.x + Math.sin(v.yaw) * 0.42, v.y + bob + 0.92, v.z + Math.cos(v.yaw) * 0.42);
+      // A cart's load (a storehouse hauler's, more than a crate) shows as a bigger crate even on a baked villager.
+      const cart = v.carry && v.load && v.load.n > crate(v.carry);
+      if (v.carry && (!this.anim || cart)) {
+        d.position.set(v.x + Math.sin(v.yaw) * (cart ? 0.6 : 0.42), v.y + bob + 0.92, v.z + Math.cos(v.yaw) * (cart ? 0.6 : 0.42));
+        d.scale.setScalar(cart ? 1.5 : 1);
         d.updateMatrix();
         P.crate.setMatrixAt(k, d.matrix);
         d.position.y += 0.4;
         d.updateMatrix();
         P.carry.setMatrixAt(k, d.matrix);
         P.carry.setColorAt(k, c.set(CARRY[v.carry] || '#ffffff'));
+        d.scale.setScalar(1);
         k++;
       }
     }

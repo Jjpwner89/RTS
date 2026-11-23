@@ -4,8 +4,10 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, RESERVE, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
+import { BUILDINGS, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
 import { TYPES } from '../battle.js';
+// A steward's place keeps this many planks back from kit for its hall (your villages keep none back: economy.js).
+const AI_PLANKS = 25;
 
 const EFF = 0.4;            // share of a hard-driven village's output a steward gets
 const EAT = 1 / 60;         // food per person per second, as in your villages
@@ -138,7 +140,7 @@ export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
     // (as in your villages, planks are kept back for building before they go into kit)
     const list = R.filter(r => !r.off && Object.keys(r.out).every(g => (s[g] || 0) < (r.keep ?? 400))
       && (r.above === undefined || Object.entries(r.in).every(([g, q]) => (s[g] || 0) >= r.above + q))
-      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < RESERVE.planks + r.in.planks + (e.wantHall ? BUILDINGS.hall.cost.planks : 0))
+      && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < AI_PLANKS + r.in.planks + (e.wantHall ? BUILDINGS.hall.cost.planks : 0))
       // its market, as yours, won't sell into a glut (economy.js GLUT)
       && (!r.gold || priceShare(e.glut, saleGood(r), now) >= GLUT.floor));
     if (!list.length) continue;

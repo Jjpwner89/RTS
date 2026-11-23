@@ -57,7 +57,7 @@ export function villageRow(w, p) {
   const trouble = [];
   if (t.underAttack || t.hostile) trouble.push(['Under attack', 5]);
   if (t.revolt) trouble.push(['In revolt', 5]);
-  if (t.hungry) trouble.push(['Hungry', 4]);
+  if (t.starving) trouble.push(['Hungry', 4]);
   if (t.cold) trouble.push(['Cold hearths', 3]);
   if (t.mood < 30) trouble.push([townMood(t.mood), 3]);
   if (stuck.length) trouble.push([`${stuck.length} stuck: ${[...new Set(stuck.map(b => b.status.replace(/:.*/, '')))].slice(0, 2).join(', ')}`, 2]);
@@ -248,7 +248,7 @@ export class RealmScreen {
     const w = this.w;
     let n = 0;
     if (k === 'vassals') n = living(w).filter(v => v.refusing || v.feud || w.faction?.members.includes(v.id) || outlook(w, v).warn).length;
-    if (k === 'villages') n = w.pois.filter(p => p.owner === 0 && p.town && (p.town.hungry || p.town.revolt || p.town.underAttack || p.town.mood < 30)).length;
+    if (k === 'villages') n = w.pois.filter(p => p.owner === 0 && p.town && (p.town.starving || p.town.revolt || p.town.underAttack || p.town.mood < 30)).length;
     if (k === 'council') n = Object.keys(SEATS).filter(s => !seatHolder(w, s)).length && living(w).some(v => !v.council) ? 1 : 0;
     return n ? ` <b class="badge">${n}</b>` : '';
   }
@@ -324,7 +324,7 @@ export class RealmScreen {
     // The steward: food and building goods short anywhere, and the coffers.
     {
       let text = null, btn = null;
-      const short = rows.filter(r => r.food < 3 || r.t.hungry).sort((a, b) => a.food - b.food)[0];
+      const short = rows.filter(r => r.food < 3 || r.t.starving).sort((a, b) => a.food - b.food)[0];
       const cold = rows.filter(r => r.t.cold || r.wood < 10).sort((a, b) => a.wood - b.wood)[0];
       if (short) {
         const g = this.giver(short.p.id, 'food');

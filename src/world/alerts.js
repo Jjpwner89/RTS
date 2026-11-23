@@ -33,7 +33,7 @@ export function alerts(w) {
     }
     if (t.revolt) add(4, `${p.name} is in revolt`, p, 'warning');
     else if (t.misery > 30) add(3, `${p.name} is close to revolt (mood ${Math.round(t.mood)})`, p, 'people');
-    if (t.hungry) { const h = t.hungerWhy(); add(5, `${p.name} is going hungry: ${h.why}. ${h.fix[0].toUpperCase()}${h.fix.slice(1)}`, p, 'food'); }
+    if (t.starving) { const h = t.hungerWhy(); add(5, `${p.name} is going hungry: ${h.why}. ${h.fix[0].toUpperCase()}${h.fix.slice(1)}`, p, 'food'); }
     else {
       // Food seen coming up short, early, with the cause and the fix (playtest round 3).
       const fo = t.foodOutlook();

@@ -55,14 +55,9 @@ export const GOOD_GROUPS = [
 // (round 4: the carpenter's shields ate planks, and so wood, unseen). `keep` stops a
 // recipe once that much of its output is stored. Arms have no limit (switch a recipe off to
 // stop it), save shields and leather armour, which stop at sixty so the planks and leather aren't all made into them.
-// Workshops stop asking for wood once the village is down to its last, so construction can go on.
-// Goods left for building: workshops don't ask for the last 20 wood, and none turns the last
-// 25 planks into shields or arms.
-export const RESERVE = { wood: 20, planks: 25 };
-// Building sites take wood before workshops do (playtest round 3, 2026-11-21: the carpenter ate the
-// opening's wood and houses waited). A workshop that turns wood into something other than bread
-// waits until a house or two and a workshop are covered.
-export const WOOD_FIRST = 36;
+// No goods are held back for building (creator, 2026-11-22: "I should be able to manage my own planks";
+// "if I run out of planks, I run out of planks"): sites come first in hauling, and the player's own
+// `keep` limits and switches say what a workshop makes.
 const CLEAR_TIME = 25;
 // A village with less than this many minutes of food in its stores puts its hands on the food first (round 4).
 const FOOD_FIRST = 3;
@@ -78,7 +73,7 @@ export const BUILDINGS = {
   house: { name: 'House', icon: 'house', group: 'Village', cost: { wood: 12 }, radius: 3.5, build: 10, housing: 6, hp: 120,
     desc: 'Room for 6 more villagers, and a hearth that burns a little wood. Newcomers come for food, a good mood and the village\'s name.' },
   storehouse: { name: 'Storehouse', icon: 'storehouse', group: 'Village', cost: { wood: 15 }, radius: 4.5, build: 12, jobs: 3, hp: 150,
-    haul: true, storage: true, desc: 'Holds any goods. Its three haulers carry goods between the buildings around it.' },
+    haul: true, storage: true, desc: 'Holds any goods. Its three haulers have a cart: they carry twice a crate and walk a little faster, between the buildings around it.' },
   woodcutter: { name: 'Woodcutter', icon: 'woodcutter', group: 'Gather', cost: { wood: 10 }, radius: 3.5, build: 10, jobs: 3, hp: 120,
     gather: { node: 'tree', range: 40, need: 6, time: 5, out: { wood: 4 } }, desc: 'Fells trees for wood. Build it beside a wood.' },
   quarry: { name: 'Quarry', icon: 'quarry', group: 'Gather', cost: { wood: 12 }, radius: 3.5, build: 12, jobs: 2, hp: 120,
@@ -129,8 +124,13 @@ export const BUILDINGS = {
       { in: { wood: 10 }, out: {}, gold: 6, time: 4, above: 150 }, { in: { stone: 10 }, out: {}, gold: 7, time: 4, above: 80 },
       { in: { food: 10 }, out: {}, gold: 7, time: 4, above: 120 }, { in: { planks: 10 }, out: {}, gold: 12, time: 4, above: 60, off: true },
       { in: { iron: 5 }, out: {}, gold: 16, time: 4, above: 20, off: true }, { in: { swords: 2 }, out: {}, gold: 18, time: 4, above: 10, off: true },
+      // Buying (creator, 2026-11-22): a use for gold, dear next to what a sale earns (BUY), off until you switch it on.
+      // It buys while the village holds less than `keep`, and the price climbs with what has been bought lately.
+      { in: {}, out: { wood: 10 }, buy: 16, time: 4, keep: 100, off: true }, { in: {}, out: { stone: 10 }, buy: 19, time: 4, keep: 80, off: true },
+      { in: {}, out: { food: 10 }, buy: 19, time: 4, keep: 80, off: true }, { in: {}, out: { planks: 10 }, buy: 32, time: 4, keep: 80, off: true },
+      { in: {}, out: { iron: 5 }, buy: 43, time: 4, keep: 40, off: true },
     ],
-    desc: 'Sells what the village has spare for gold, and lifts the mood. It only sells above a reserve; switch off what you want to keep.' },
+    desc: 'Sells what the village has spare for gold, and lifts the mood. It only sells above a reserve; switch off what you want to keep. It can also buy: clearly dearer than it sells, and dearer still the more is bought.' },
   well: { name: 'Well', icon: 'well', group: 'Village', cost: { stone: 10 }, radius: 2.5, build: 8, hp: 150, mood: 3, desc: 'Clean water close by. Lifts the mood a little.' },
   monastery: { name: 'Chapel', icon: 'monastery', group: 'Village', cost: { stone: 30, planks: 10 }, radius: 6, build: 24, hp: 250, mood: 10,
     desc: 'A place to pray, wed and bury. Lifts the mood a good deal.' },
@@ -190,6 +190,11 @@ const glutOf = (G, g, now) => { const o = G?.[g]; return o ? Math.max(0, o.n - G
 export const priceShare = (G, g, now) => 1 / (1 + glutOf(G, g, now) / GLUT.half);
 export function glut(G, g, n, now) { G[g] = { n: glutOf(G, g, now) + n, at: now }; }
 export const saleGood = r => Object.keys(r.in)[0];
+// Buying at a market (creator, 2026-11-22): the same glut, the other way. Each batch bought raises the
+// price of that good here by the share of GLUT.half bought and not yet mended (priceShare, keyed 'buy:<good>'),
+// and the market stops buying at BUY.most times the listed price.
+export const BUY = { most: 2 };
+export const buyGood = r => Object.keys(r.out)[0];
 
 // Tax rates: gold collected for each villager, and what the village thinks of it.
 export const TAXES = [
@@ -384,13 +389,23 @@ export const ENGINES = Object.fromEntries(['ladder', 'ram', 'mangonel', 'trebuch
 const KEEP = { name: 'Keep', icon: 'keep', radius: 11, housing: 12, hp: 1500, jobs: 2, haul: true, storage: true };
 const LEVY_MAX = 20, LEVY_MIN = 5;
 const ABOUT_TO_BURN = 120;   // m: a band this near the building it has picked is met (thinkDefenders)
+// The people are called out when raiders come this near any building of the village (creator, 2026-11-22:
+// they were called as soon as raiders stood on the map, and went back to work and out again). Raiders
+// at the map's edge are an alert only; at a walking band's pace, 80 m is about a minute away.
+const CALL_RANGE = 80;
 const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
 // A crate holds 20 of most goods (10 before pace B halved the walk); a yard or workshop
 // holds 30 of each before it stops for haulers. Arrows are light and go four times as far.
 const CRATE = 20, HOLD = 30, BULK = { arrows: 4, bolts: 4 };
-const crate = g => CRATE * (BULK[g] || 1);
+export const crate = g => CRATE * (BULK[g] || 1);
+// A storehouse's haulers have a cart (creator, 2026-11-22: "your default haulers, and then you build your
+// storehouse people who help move things around a bit faster"): a crate and a half of anything a trip, and a
+// quicker step. The keep's haulers and the villagers without a job carry as ever.
+const CART = { load: 2, speed: 1.15 };
+const carts = v => v.job?.kind === 'storehouse';
+const RUN = 3;   // m/s: a villager's run (the clips' stride, pace.js), a militiaman hurrying back to work
 const holdOf = g => HOLD * (BULK[g] || 1);
 const ARMS = GOOD_GROUPS[2][1];
 
@@ -566,6 +581,8 @@ export class Town {
     return n;
   }
   free(g) { return this.stock[g] - this.owed(g); }
+  // What a market's buying recipe costs now: its listed price, up with what has been bought lately.
+  buyPrice(r) { return r.buy / priceShare(this.glut, 'buy:' + buyGood(r), this.time); }
 
   // How much of each good a building is asking for, as a total it wants to hold.
   wants(b) {
@@ -577,26 +594,21 @@ export class Town {
     const w = {};
     for (const r of this.wantedRecipes(b)) {
       for (const [g, n] of Object.entries(r.in)) {
-        if (this.free(g) < (RESERVE[g] || 0)) continue;
         w[g] = Math.max(w[g] || 0, n * 3);
       }
     }
     return w;
   }
 
-  // Planks are left for building: no workshop turns the last 25 into shields or arms.
-  savingPlanks(r) { return 'planks' in r.in && !('planks' in r.out) && this.free('planks') < RESERVE.planks + r.in.planks; }
-  savingWood(r) { return 'wood' in r.in && !('bread' in r.out) && !r.gold && this.free('wood') < WOOD_FIRST + r.in.wood; }
-
   // Recipes switched on that the village still wants and the workshop has room for.
   wantedRecipes(b) {
     return b.B.recipes.filter((r, i) => !b.off.has(i)
-      && !this.savingPlanks(r)
-      && !this.savingWood(r)
       && Object.keys(r.out).every(k => this.stock[k] < (r.keep ?? Infinity) && (b.store[k] || 0) < holdOf(k))
       // a market sells only what is spare above its reserve, and not into a glut
       && (r.above === undefined || Object.entries(r.in).every(([g, n]) => this.free(g) >= r.above + n))
-      && (!r.gold || priceShare(this.glut, saleGood(r), this.time) >= GLUT.floor));
+      && (!r.gold || priceShare(this.glut, saleGood(r), this.time) >= GLUT.floor)
+      // ... and buys only below what it keeps, with the gold in hand, and not at a runaway price
+      && (!r.buy || this.buyPrice(r) <= Math.min(this.purse.gold, r.buy * BUY.most)));
   }
 
   // What may be carried away from a building. Workshops keep what they need themselves;
@@ -635,24 +647,27 @@ export class Town {
   }
 
   // ---- hauling ----
-  // The best crate for a villager to carry next. Building sites are served first, then
-  // workshops, then arms for the barracks; then full yards and workshops are cleared
-  // into the nearest store. `only` keeps a worker to jobs for their own building.
+  // The best crate for a villager to carry next. Building sites are served first (building is always
+  // the player's own act), then food from the farms and lodges to the stores (the most critical good:
+  // creator, 2026-11-22, 222 meals lay at the farms while the village starved), then workshops, then arms
+  // for the barracks; then full yards and workshops are cleared into the nearest store. `only` keeps a
+  // worker to jobs for their own building.
   planHaul(v, only = null) {
     const holders = this.holders();
     const wants = new Map(holders.map(b => [b, this.wants(b)]));
     const stores = this.stores();
     let best = null, bs = Infinity;
+    const cart = carts(v) ? CART.load : 1;
     // `least`: a building site short of a fraction (firewood leaves broken logs in store)
     // still gets its last crate, of whatever is needed to finish it.
     const consider = (from, to, g, n, rank, least = 1) => {
       if (n < least) return;
       const s = rank * 150 + dist(v, from) + dist(from, to);
-      if (s < bs) { bs = s; best = { from, to, g, n: Math.min(n >= 1 ? Math.floor(n) : n, crate(g)) }; }
+      if (s < bs) { bs = s; best = { from, to, g, n: Math.min(n >= 1 ? Math.floor(n) : n, crate(g) * cart) }; }
     };
     for (const to of holders) {
       const w = wants.get(to);
-      const rank = to === this.priority ? -1 : to.state === 'site' ? 0 : to.kind === 'barracks' ? 2 : 1;
+      const rank = to === this.priority ? -1 : to.state === 'site' ? 0 : to.kind === 'barracks' ? 3 : 2;
       for (const g in w) {
         const need = w[g] - (to.store[g] || 0) - (to.incoming[g] || 0);
         const site = to.state === 'site';
@@ -675,7 +690,7 @@ export class Town {
         // goods stay in the yard, where workshops, sites and hearths draw on them, until the
         // yard is filling up.
         if (!only && n < (g === 'food' || g === 'bread' ? Math.min(crate(g), 5 * (BULK[g] || 1)) : holdOf(g) * 0.6)) continue;
-        consider(from, to || this.keep, g, n, 3);
+        consider(from, to || this.keep, g, n, g === 'food' || g === 'bread' ? 1 : 4);
       }
     }
     if (!best) return null;
@@ -701,7 +716,7 @@ export class Town {
     if (t.phase === 'fetch') {
       if (gone(t.from)) { this.cancelHaul(v); return true; }
       const d = this.door(t.from, v);
-      if (!this.walk(v, d.x, d.z, dt) && !this.stuckNear(v, d.x, d.z, dt)) return false;
+      if (!this.walk(v, d.x, d.z, dt, carts(v) ? WALK * CART.speed : WALK) && !this.stuckNear(v, d.x, d.z, dt)) return false;
       this.unstick(v);
       t.from.reserved[t.g] -= t.n;
       const n = Math.min(t.n, t.from.store[t.g] || 0);
@@ -722,7 +737,7 @@ export class Town {
       t.to.incoming[t.g] = (t.to.incoming[t.g] || 0) + t.n;
     }
     const d = this.door(t.to, v);
-    if (!this.walk(v, d.x, d.z, dt)) {
+    if (!this.walk(v, d.x, d.z, dt, carts(v) ? WALK * CART.speed : WALK)) {
       if (!this.stuckNear(v, d.x, d.z, dt)) return false;
       if (!t.to.cutOff) { t.to.cutOff = true; this.event(`Carriers can't reach the ${t.to.B.name.toLowerCase()}'s door (a wall or a building is in the way): they hand the goods over from where they stand. Clear a way to it.`, 1); }
     }
@@ -1124,8 +1139,8 @@ export class Town {
   backToWork(v) {
     const job = v.musterJob, site = v.musterSite;
     v.musterJob = v.musterSite = null;
-    if (site && !site.removed && site.state === 'site') { site.builders.push(v); v.state = 'build'; v.site = site; }
-    else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; }
+    if (site && !site.removed && site.state === 'site') { site.builders.push(v); v.state = 'build'; v.site = site; v.hustle = this.time + dist(v, site) / RUN + 2; }
+    else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; v.hustle = this.time + dist(v, job) / RUN + 2; }
   }
 
   // Your soldiers at home (the retinue, a garrison, hired men) don't stand at the keep while
@@ -1148,7 +1163,7 @@ export class Town {
     const theirs = this.strength(foes), stand = this.strength(mine.filter(r => !r.T.militia)), total = stand + this.strength(mine.filter(r => r.T.militia));
     // Against hopeless odds (under a third of them, everyone out: HOPELESS) they stay in
     // their homes instead, as a rival's people do (world/militia.js), and the place may yield.
-    if (!this.calledOut && stand < theirs * 1.1 && !this.militia.length && this.musterCheck().ok) {
+    if (!this.calledOut && stand < theirs * 1.1 && !this.militia.length && this.raidersNear() && this.musterCheck().ok) {
       this.calledOut = true;
       if (this.hopeless()) this.say(`Too many to fight: the people of ${this.placeName || 'the village'} shelter in their homes rather than be cut down.`, 1);
       else {
@@ -1208,6 +1223,13 @@ export class Town {
         this.say(`${who} ${held.retinue ? 'holds' : 'hold'} its ground (${held.hold ? 'Hold' : 'too many to meet in the open'}) while raiders burn the ${t === this.keep ? 'keep' : t.B.name.toLowerCase()} to the ${compass(t)}.`, 1);
       }
     }
+  }
+
+  // Whether raiders have come within CALL_RANGE of the keep or any building: the point at which the people are called out.
+  raidersNear() {
+    const foes = this.attackers.filter(g => !g.leaving && g.mode !== 'hold').flatMap(g => g.regs).filter(r => !r.gone && !r.routing && !r.regrouping);
+    const near = (f, o) => Math.hypot(f.cx - o.x, f.cz - o.z) < CALL_RANGE;
+    return foes.some(f => near(f, this.keep) || this.buildings.some(o => o.state !== 'ruined' && near(f, o)));
   }
 
   // A side's strength in the field, reckoned as auto-resolve reckons it (world.js resolve).
@@ -1688,6 +1710,8 @@ export class Town {
 
   walk(v, tx, tz, dt, speed = WALK, side = 0) {
     if (Math.hypot(tx - v.x, tz - v.z) < 0.6) { v.v = 0; return true; }
+    // Back from the militia: at a run until they are at their work (backToWork).
+    if (v.hustle) { if (this.time < v.hustle) speed = Math.max(speed, RUN); else v.hustle = 0; }
     // By road, when that is quicker: onto it, along it, off it (roadnet.js).
     const r = this.roads.length && this.roadWay(v, tx, tz);
     if (r) {
@@ -1933,7 +1957,7 @@ export class Town {
       let score;
       if (b.B.haul) { if (b.workers.length <= f.haulers || haul <= 1) continue; score = 0; }
       else if (b.B.gather?.out?.wood) { if (wood <= 1) continue; score = 3; }
-      else score = !b.B.gather && /^(Waiting|Village has enough|Saving|Store full|Nothing)/.test(b.status || '') ? 1 : 2;
+      else score = !b.B.gather && /^(Waiting|Village has enough|Store full|Nothing)/.test(b.status || '') ? 1 : 2;
       score += -b.workers.length * 0.1;
       if (score < bs) { bs = score; best = b; }
     }
@@ -2028,7 +2052,7 @@ export class Town {
     const food = sum(b => b.B.gather?.out?.food), wood = sum(b => b.B.gather?.out?.wood), haul = sum(b => b.B.haul);
     let best = null, bs = Infinity;
     for (const b of jobs) {
-      const n = b.workers.length, gath = b.B.gather, idleish = !gath && !b.B.haul && /^(Waiting|Village has enough|Saving|Store full)/.test(b.status || '');
+      const n = b.workers.length, gath = b.B.gather, idleish = !gath && !b.B.haul && /^(Waiting|Village has enough|Store full)/.test(b.status || '');
       let score;
       if (b.B.haul) { if (haul <= 1) continue; score = 1; }
       else if (gath?.out?.food) { if (food <= 1 || this.hungry) continue; score = 5; }
@@ -2321,9 +2345,13 @@ export class Town {
     }
     if (ready) {
       for (const [k, n] of Object.entries(ready.in)) this.put(b, k, -n);
+      if (ready.buy) {
+        this.purse.gold -= this.buyPrice(ready);
+        glut(this.glut ??= {}, 'buy:' + buyGood(ready), ready.out[buyGood(ready)], this.time);
+      }
       b.recipe = ready;
       b.timer = ready.time / this.speed(b);
-      b.status = ready.gold ? `Selling ${GOODS[Object.keys(ready.in)[0]].name.toLowerCase()}` : `Making ${GOODS[Object.keys(ready.out)[0]].name.toLowerCase()}`;
+      b.status = ready.buy ? `Buying ${GOODS[buyGood(ready)].name.toLowerCase()}` : ready.gold ? `Selling ${GOODS[Object.keys(ready.in)[0]].name.toLowerCase()}` : `Making ${GOODS[Object.keys(ready.out)[0]].name.toLowerCase()}`;
       return;
     }
     if (b.off.size === list.length) { b.status = 'Nothing switched on'; return; }
@@ -2334,8 +2362,7 @@ export class Town {
       b.status = `Waiting for ${missing.map(k => GOODS[k].name.toLowerCase()).join(' and ')}`;
     } else {
       b.status = full ? 'Store full: needs haulers'
-        : list.some((r, i) => !b.off.has(i) && this.savingWood(r)) ? 'Waiting: wood kept for building'
-        : list.some((r, i) => !b.off.has(i) && this.savingPlanks(r)) ? 'Saving planks for building' : 'Village has enough';
+        : list.some((r, i) => !b.off.has(i) && r.buy && this.purse.gold < this.buyPrice(r)) ? 'Waiting for gold' : 'Village has enough';
     }
     this.selfHaul(v, dt);
   }
@@ -2363,6 +2390,10 @@ export class Town {
   // Cold right now, not as of the last meal (a loaded village shows the flag it was saved with).
   get coldNow() { return this.hearthWood() < this.hearths * FIREWOOD / 2; }
 
+  // People really missing meals: the stores came up short at two meals running (a minute), not one meal
+  // landing a few seconds late (creator, 2026-11-22: "going hungry" showed with 222 meals at the farms).
+  get starving() { return (this.hungerRun || 0) >= 2; }
+
   // Meals in the stores for each person.
   get larder() {
     const meals = this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0);
@@ -2388,7 +2419,7 @@ export class Town {
       const hands = this.villagers.filter(v => v.state !== 'soldier').length;
       return { why: `nobody is working the ${makers.length} farm${makers.length > 1 ? 's' : ''} (${hands} hands, all at other jobs)`, fix: 'hands are taken off other work for the farms; if there are none to spare, build houses once it is fed' };
     }
-    if (yard >= Math.max(10, pop / 2)) return { why: `${yard} meals are piling up at the farms, not reaching the stores`, fix: 'add haulers (a second hauler at the keep, or a storehouse near the farms)' };
+    if (yard >= Math.max(10, pop / 2)) return { why: `${yard} meals lie at the farms, not yet carried to the stores`, fix: 'haulers carry food before anything but building; a storehouse beside the farms, with its cart, brings in more' };
     if (ripening.length) {
       const soonest = Math.min(...ripening.map(b => b.ripeAt - this.time));
       return { why: `${ripening.length > 1 ? `${ripening.length} farms are` : 'a farm is'} still ripening`, fix: `the first crop comes in ${Math.ceil(soonest / 30) / 2} min; a hunter's lodge feeds sooner, and no new houses until then` };
@@ -2484,12 +2515,13 @@ export class Town {
       let need = Math.ceil(this.population / 2);
       const stores = this.stores();
       this.hungry = stores.reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0) < need;
+      this.hungerRun = this.hungry ? (this.hungerRun || 0) + 1 : 0;
       this.hadBread = stores.some(b => (b.store.bread || 0) >= 1);
       for (const g of ['bread', 'food']) for (const b of stores) {
         const n = Math.min(need, b.store[g] || 0);
         if (n > 0) { this.put(b, g, -n); need -= n; }
       }
-      if (this.hungry) this.event('The village is going hungry. Nobody new will settle.', 1);
+      if (this.starving && this.hungerRun === 2) this.event('The village is going hungry: people have missed meals. Nobody new will settle.', 1);
       // Food coming up short is said once, early, with what to do about it.
       (this.foodSamples ??= []).push({ t: this.time, meals: this.stock.food + this.stock.bread });
       if (this.foodSamples.length > 6) this.foodSamples.shift();
@@ -2564,7 +2596,7 @@ export class Town {
     this.lastRaid = this.time;
     this.lastRegs = regs;
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
-      : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!${this.musterCheck().ok ? ' Your people will turn out. Lead them, or lose them.' : ''}`, 1);
+      : `${name} ${mode === 'raid' ? 'are raiding' : 'are attacking'} the village from the ${compass(entry)}!${this.musterCheck().ok ? ` Your people turn out if they come within ${CALL_RANGE} m of the village. Lead them, or lose them.` : ''}`, 1);
     audio.play('horn', null, this.battle); audio.play('drums', null, this.battle); // audio
   }
 

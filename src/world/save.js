@@ -128,7 +128,7 @@ function packTown(t) {
     kind: t.kind,
     keep: { store: t.keep.store, hp: t.keep.hp },
     buildings: t.buildings.map(b => ({ kind: b.kind, x: b.x, z: b.z, state: b.state, progress: b.progress, level: b.level || 1, style: b.style, angle: b.angle,
-      off: [...b.off], paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null, staff: b.staff ?? null, ripeAt: b.ripeAt ?? null, dry: b.dry ? b.dryWhy : null })),
+      off: [...b.off], nrec: b.B.recipes?.length, paused: b.paused, store: b.store, hp: b.hp, status: b.status, training: b.training || null, policy: b.policy || null, staff: b.staff ?? null, ripeAt: b.ripeAt ?? null, dry: b.dry ? b.dryWhy : null })),
     people: t.villagers.filter(v => v.state !== 'soldier').length,
     vets: t.villagers.filter(v => v.state !== 'soldier' && v.xp).map(v => v.xp),
     regiments: t.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing).map(r => ({
@@ -169,6 +169,9 @@ function unpackTown(w, p, s) {
     const nb = r.building;
     if (!nb) continue;
     Object.assign(nb, { state: b.state, progress: b.progress, level: b.level, style: b.style, angle: b.angle ?? nb.angle, off: new Set(b.off), paused: b.paused, store: { ...b.store }, hp: b.hp, status: b.status || '', training: b.training || null, policy: b.policy || undefined });
+    // Recipes added since the save (a market's buying) start as the game makes them, not on.
+    const first = nb.B.recipes?.findIndex(r => r.buy) ?? -1, had = b.nrec ?? (first < 0 ? Infinity : first);
+    nb.B.recipes?.forEach((r, i) => { if (i >= had && (r.off || r.start === 'off')) nb.off.add(i); });
     // Older saves: a barracks' raw leather was its leather armour; it is now the good it is made into (one for one).
     if (nb.kind === 'barracks' && nb.store.leather) { nb.store.leatherarmour = (nb.store.leatherarmour || 0) + nb.store.leather; delete nb.store.leather; }
     if (b.staff !== null && b.staff !== undefined) nb.staff = b.staff;

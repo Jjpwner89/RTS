@@ -1,7 +1,7 @@
 // Town panels: the stockpile, the build menu, and details of whatever is selected.
 // Panels are built once per selection and then only their numbers change, so a
 // button never disappears from under the cursor mid-click.
-import { ROAD, ELITE, LEVY_KINDS, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_TAX, TAX_HEAD, TAX_MANOR, MARKET_DUES, devOf, keepLevel, GLUT, priceShare, saleGood } from './economy.js';
+import { ROAD, ELITE, LEVY_KINDS, HALL, DRILLED, DRILL, GOODS, GOOD_GROUPS, BUILDINGS, BUILD_GROUPS, TEMPLATES, templateCost, KITS, ENGINES, HIRES, UPGRADES, TAXES, listCost, POLICIES, ARMOUR_NAME, ARMOUR_GOOD, HOUSEHOLD_PAY, gearOf, FEAST, KEEP_RAISE, KEEP_TAX, TAX_HEAD, TAX_MANOR, MARKET_DUES, devOf, keepLevel, GLUT, priceShare, saleGood, BUY, buyGood } from './economy.js';
 // A regiment's armour in a few words: "Mail, shields".
 const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
@@ -332,7 +332,7 @@ export class TownHud {
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
     this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);
-    set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.hungry ? `Food has run out: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? `The hearths are cold: ${Math.round(t.hearthWood())} wood in the stores, ${Math.ceil(t.hearths * 1.5 / 2)} needed. Woodcutters and haulers need hands.` : t.population >= t.housing ? 'No room: build houses to grow.' : '');
+    set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.starving ? `Meals are short: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? `The hearths are cold: ${Math.round(t.hearthWood())} wood in the stores, ${Math.ceil(t.hearths * 1.5 / 2)} needed. Woodcutters and haulers need hands.` : t.population >= t.housing ? 'No room: build houses to grow.' : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
     const mb = this.stockEl.querySelector('[data-act="muster"]'), sb = this.stockEl.querySelector('[data-act="standdown"]');
@@ -425,7 +425,11 @@ export class TownHud {
         el.classList.toggle('on', !off);
         // A market's price falls as it sells (economy.js GLUT): say what this one pays now.
         const now = r?.gold ? priceShare(this.town.glut, saleGood(r), this.town.time) : 1;
-        el.querySelector('small').textContent = off ? 'off' : now < 0.95 ? `on · ${Math.round(r.gold * now)} gold${now < GLUT.floor ? ', held' : ' now'}` : 'on';
+        if (r?.buy) {
+          // Buying: the price now, off or on, and why it has stopped when it has.
+          const price = Math.round(this.town.buyPrice(r)), why = this.town.stock[buyGood(r)] >= r.keep ? `, enough (${r.keep})` : price > r.buy * BUY.most ? ', held: price too high' : this.town.purse.gold < price ? ', not enough gold' : '';
+          el.querySelector('small').textContent = `${off ? 'off' : 'on'} · ${price} gold${why}`;
+        } else el.querySelector('small').textContent = off ? 'off' : now < 0.95 ? `on · ${Math.round(r.gold * now)} gold${now < GLUT.floor ? ', held' : ' now'}` : 'on';
       }
     }
   }
@@ -469,8 +473,8 @@ export class TownHud {
     if (B.storage) rows.push(`<p class="note">Haulers carry goods from here, and from the buildings nearby, to wherever they are needed. Build it close to your workshops to save them walking.</p>`);
     if (B.gather) rows.push(`<p class="note">Brings in ${Object.entries(B.gather.out).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(' and ')} each trip, and stacks it here until haulers take it away.</p>`);
     if (B.recipes) {
-      rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${this.goodsList(r.in)} → ${r.gold ? `${r.gold} ${goldIco()}` : this.goodsList(r.out)}</span><small></small></button>`).join('')}</div>`);
-      if (b.kind === 'market') rows.push(`<p class="note">Sells only what is spare: wood above ${B.recipes[0].above}, stone above ${B.recipes[1].above}, food above ${B.recipes[2].above}, and so on. The gold goes to your treasury. Selling a lot at once fetches less: each sale lowers the next price here for a few minutes, and under ${Math.round(GLUT.floor * 100)}% of full price the market holds the goods back.</p>`);
+      rows.push(`<div class="recipes">${B.recipes.map((r, i) => `<button data-act="recipe:${i}" class="recipe"><span>${r.buy ? `${goldIco()} → ${this.goodsList(r.out)}` : `${this.goodsList(r.in)} → ${r.gold ? `${r.gold} ${goldIco()}` : this.goodsList(r.out)}`}</span><small></small></button>`).join('')}</div>`);
+      if (b.kind === 'market') rows.push(`<p class="note">Sells only what is spare: wood above ${B.recipes[0].above}, stone above ${B.recipes[1].above}, food above ${B.recipes[2].above}, and so on. The gold goes to your treasury. Selling a lot at once fetches less: each sale lowers the next price here for a few minutes, and under ${Math.round(GLUT.floor * 100)}% of full price the market holds the goods back. The rows with gold on the left buy: switch one on and the market buys that good, at well over twice what a sale earns and dearer with each batch, until the village holds the amount shown. Buying is off until you switch it on.</p>`);
       else if (B.recipes.length > 1) rows.push(`<p class="note">Click to switch what this workshop makes. With several on, it takes turns. Build a second one to make both at full speed.</p>`);
     }
     if (B.housing) rows.push(`<p class="note">Room for ${B.housing + 3 * ((b.level || 1) - 1)} more villagers. Its hearth burns a little wood. Houses only make room: newcomers come for spare food, a good mood and the village's name.</p>`);

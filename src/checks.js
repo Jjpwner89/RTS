@@ -1235,6 +1235,97 @@ async function worldChecks(w) {
     } finally { t.lost = true; }
     return out;
   });
+  // The creator's plane playtest (2026-11-22): food comes in before workshops (sites still first), a storehouse's
+  // haulers have a cart, nothing is held back for building, and a market can buy. A throwaway village each time.
+  const throwaway = (opts, kinds) => {
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const t = w.makeTown({ ...p, name: `${p.name} (checks() test copy)` }, { villagers: 8, retinue: false, ...opts });
+    const put = (kind, r0, n) => {
+      for (let k = 0, a = 0.3; k < n && a < 60; a += 0.45) {
+        for (let r = r0; r < r0 + 30; r += 5) { const x = Math.cos(a) * r, z = Math.sin(a) * r; if (t.canPlace(kind, x, z, { free: true }).ok && t.place(kind, x, z, { ready: true }).ok) { k++; break; } }
+      }
+    };
+    for (const [k, r0, n] of kinds) put(k, r0, n);
+    return t;
+  };
+  await check('haulers serve sites first, then food, then workshops; a storehouse hauler has a cart', async () => {
+    const t = throwaway({ stock: { wood: 200, stone: 20, food: 0 } }, [['storehouse', 22, 1], ['farm', 40, 1], ['carpenter', 24, 1]]), out = [];
+    try {
+      const farm = t.buildings.find(b => b.kind === 'farm'), store = t.buildings.find(b => b.kind === 'storehouse'), v = t.villagers[0];
+      if (!farm || !store) return [`the test village has no ${farm ? 'storehouse' : 'farm'}`];
+      v.job = null; v.state = 'idle'; t.put(farm, 'food', 60);
+      const take = (who, why) => { who.task = t.planHaul(who); const plan = who.task && { ...who.task }; t.cancelHaul(who); if (!plan) out.push(`${why}: no trip planned`); return plan; };
+      const first = take(v, 'meals at the farm and a carpenter wanting wood');
+      if (first && first.g !== 'food') out.push(`with meals at the farm and a carpenter wanting wood, the next crate is ${first.g}, not food`);
+      const E = await import('./economy.js');
+      if (first && first.n > E.crate('food')) out.push(`a villager with no cart carries ${first.n}, more than a crate`);
+      const site = t.place('house', -30, 25).building;
+      if (site) {
+        const second = take(v, 'a house site');
+        if (second && second.to !== site) out.push(`with a house site waiting, the next crate goes to a ${second.to.kind}, not the site`);
+      }
+      if (site) t.demolish(site);
+      v.job = store;
+      const cart = take(v, 'a storehouse hauler');
+      if (cart && !(cart.n > E.crate('food'))) out.push(`a storehouse hauler carries ${cart.n}, no more than a crate`);
+      v.job = null;
+    } finally { t.lost = true; }
+    return out;
+  });
+  await check('nothing is held back for building: no plank or wood reserve, and planks go to shields as you choose', async () => {
+    const E = await import('./economy.js'), out = [];
+    if ('RESERVE' in E || 'WOOD_FIRST' in E) out.push('economy.js still exports a reserve for building');
+    const t = throwaway({ stock: { wood: 10, planks: 8 } }, [['carpenter', 24, 1]]);
+    try {
+      const b = t.buildings.find(q => q.kind === 'carpenter'), sh = b.B.recipes.findIndex(r => 'shields' in r.out);
+      b.off.delete(sh);
+      if (!t.wantedRecipes(b).some(r => 'shields' in r.out)) out.push('with 8 planks and shields switched on, the carpenter does not want to make shields');
+      if (!t.wantedRecipes(b).some(r => 'planks' in r.out)) out.push('with 10 wood in the stores, the carpenter does not want to make planks');
+    } finally { t.lost = true; }
+    return out;
+  });
+  await check('a market buys what you switch on, dearer than it sells, dearer still as it buys', async () => {
+    const E = await import('./economy.js'), out = [];
+    const M = E.BUILDINGS.market.recipes;
+    for (const r of M.filter(q => q.buy)) {
+      const g = E.buyGood(r), sell = M.find(q => q.gold && E.saleGood(q) === g);
+      if (!r.off) out.push(`buying ${g} starts switched on`);
+      if (sell && !(r.buy / r.out[g] > 2 * sell.gold / sell.in[g])) out.push(`buying ${g} costs ${(r.buy / r.out[g]).toFixed(1)} a unit, not twice what selling pays (${(sell.gold / sell.in[g]).toFixed(1)})`);
+    }
+    const t = throwaway({ stock: { wood: 10, stone: 10, food: 20 } }, [['market', 24, 1], ['storehouse', 22, 1]]);
+    try {
+      t.purse.gold = 300;
+      const m = t.buildings.find(q => q.kind === 'market'), i = M.findIndex(r => r.buy && 'wood' in r.out);
+      if (!m) return ['the test village could not place a market'];
+      const before = t.stock.wood;
+      if (t.wantedRecipes(m).some(r => r.buy)) out.push('a market buys with nothing switched on');
+      m.off.delete(i);
+      const price0 = t.buyPrice(M[i]);
+      for (let k = 0; k < 240; k++) { t.battle.step(0.5); t.update(0.5); }
+      if (!(t.stock.wood > before)) out.push(`with buying wood on and 300 gold, wood went from ${before} to ${t.stock.wood}`);
+      if (!(t.purse.gold < 300)) out.push('buying cost no gold');
+      if (!(t.buyPrice(M[i]) > price0 || t.stock.wood >= M[i].keep)) out.push(`the price of wood did not rise as it was bought (${price0.toFixed(1)} → ${t.buyPrice(M[i]).toFixed(1)})`);
+      t.purse.gold = 0; m.recipe = null;
+      if (t.wantedRecipes(m).some(r => r.buy)) out.push('a market with no gold still wants to buy');
+    } finally { t.lost = true; }
+    return out;
+  });
+  await check('raiders are an alert at the map\'s edge, and the people are called out only within reach of the village', async () => {
+    const t = throwaway({}, [['house', 20, 1]]), out = [];
+    try {
+      const reg = (x, z) => ({ cx: x, cz: z, gone: false, routing: false, regrouping: false, alive: 10 });
+      t.attackers = [{ regs: [reg(200, 0)], mode: 'raid', leaving: false }];
+      if (t.raidersNear()) out.push('raiders 200 m out count as near the village');
+      t.attackers = [{ regs: [reg(t.keep.x + 40, t.keep.z)], mode: 'raid', leaving: false }];
+      if (!t.raidersNear()) out.push('raiders 40 m from the keep do not count as near the village');
+      t.attackers = [];
+      t.hungerRun = 1;
+      if (t.starving) out.push('one meal short already shows as going hungry');
+      t.hungerRun = 2;
+      if (!t.starving) out.push('two meals short in a row is not going hungry');
+    } finally { t.attackers = []; t.lost = true; }
+    return out;
+  });
   // A match is real (marriages as ambitions, 2026-11-21): a wed vassal's house is a great house, only
   // someone who can still be wed wants one, and the price is half the dowry, to the nearest 25.
   await check('a vassal is wed only into a real great house, and the match is priced', async () => {
