@@ -117,7 +117,8 @@ addEventListener('unhandledrejection', e => {
 export function supportProblem() {
   const lacks = [];
   if (!('noModule' in HTMLScriptElement.prototype)) lacks.push('JavaScript modules');
-  else if (!(HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'))) lacks.push('import maps (Safari 16.4 or newer, Chrome 89, Firefox 108)');
+  // (a browser that can't say is given the benefit of the doubt: if it truly lacks import maps, the error banner tells)
+  else if (HTMLScriptElement.supports && !HTMLScriptElement.supports('importmap')) lacks.push('import maps (Safari 16.4 or newer, Chrome 89, Firefox 108)');
   try {
     const c = document.createElement('canvas'), gl = c.getContext('webgl2');
     if (!gl) lacks.push('WebGL 2 graphics (they may be turned off in the browser settings)');
@@ -140,5 +141,30 @@ function checkSupport() {
   document.body.append(v);
 }
 if (document.body) checkSupport(); else addEventListener('DOMContentLoaded', checkSupport, { once: true });
+
+
+// ---- a newer build while you play ----
+// A deployed page asks now and then whether the site has moved on, and says so once: the game keeps working, and a
+// reload (after saving) brings the new one. (The module files are cached by the browser for a few minutes, so
+// a page opened across a deploy can mix old and new until it is reloaded.)
+if (BUILD.sha !== 'dev') {
+  let told = false;
+  const ask = async () => {
+    if (told) return;
+    try {
+      const t = await (await fetch(new URL('../version.js', import.meta.url), { cache: 'no-store' })).text();
+      const sha = /sha: '([^']+)'/.exec(t)?.[1];
+      if (!sha || sha === BUILD.sha) return;
+      told = true;
+      addStyle();
+      const n = document.createElement('div'); n.id = 'oops'; n.style.bottom = '60px'; n.setAttribute('role', 'status');
+      n.innerHTML = '<b>A newer version of Hearth and Host is out.</b> Your game keeps working. Save, then reload to get it.';
+      const row = document.createElement('div'); row.className = 'row';
+      for (const [label, fn] of [['Reload the page', () => location.reload()], ['Later', () => n.remove()]]) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = fn; row.append(b); }
+      n.append(row); document.body.append(n);
+    } catch { /* offline, or the site is between deploys: ask again next time */ }
+  };
+  setInterval(ask, 5 * 60 * 1000);
+}
 
 window.oops = { details, errors, supportProblem, show: note };

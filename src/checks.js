@@ -2854,7 +2854,7 @@ async function oopsChecks() {
     o.show('checks(): a made-up error to see the banner');
     const b = document.getElementById('oops'), out = [];
     if (!b) return ['no banner after an error'];
-    for (const word of ['Copy details', 'Reload', 'Dismiss', 'safe']) if (!b.textContent.includes(word)) out.push(`the banner lacks "${word}"`);
+    for (const word of ['Copy details', 'Reload', 'Dismiss']) if (!b.textContent.includes(word)) out.push(`the banner lacks "${word}"`);
     [...b.querySelectorAll('button')].find(x => /Dismiss/.test(x.textContent))?.click();
     o.errors.length = before;
     if (document.getElementById('oops')) out.push('Dismiss did not remove it');

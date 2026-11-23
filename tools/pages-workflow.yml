@@ -1,0 +1,36 @@
+# Publishes Hearth and Host to GitHub Pages. NOT ACTIVE while it lives here: GitHub only reads workflows from
+# .github/workflows/pages.yml, and the token the sessions push with is not allowed to create files there. To switch it on, add
+# this file at that path (README, "Putting it online"). Even then it is inert: it runs only when someone presses "Run workflow"
+# on the Actions tab (workflow_dispatch), and Pages must first be set to "GitHub Actions" in Settings > Pages.
+# It deploys a filtered copy of the repo: the game, its assets, the vendored three.js; not the notes, tools, the
+# Marchfront side project, the art work in progress or the dev-only pages.
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the site folder
+        run: sh tools/build-site.sh _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
