@@ -1063,7 +1063,9 @@ export class World {
 
   // Half the armour and shields of the men who fell (before minus after) go to the
   // winner's nearest place: into the keep of a village you run, or a rival's stores. That
-  // is how your next levy comes to wear Stonemere's mail.
+  // is how your next levy comes to wear Stonemere's mail. Only a place with stores takes it:
+  // an outlaw camp or the north keeps none, so outlaws carry theirs off (2026-11-23: losing
+  // a fight to outlaws threw here).
   loot(before, after, side, at) {
     const count = (units, sign, into) => {
       for (const u of units) {
@@ -1076,7 +1078,7 @@ export class World {
     const fell = count(after, -1, count(before, 1, {}));
     const got = Object.fromEntries(Object.entries(fell).map(([g, n]) => [g, Math.floor(n / 2)]).filter(([, n]) => n > 0));
     if (!Object.keys(got).length || side === null || side === undefined) return null;
-    const near = this.pois.filter(p => p.owner === side && (side === 0 ? p.town : p.eco)).sort((p, q) => Math.hypot(p.x - at.x, p.z - at.z) - Math.hypot(q.x - at.x, q.z - at.z))[0];
+    const near = this.pois.filter(p => p.owner === side && (side === 0 ? p.town : p.eco?.stock)).sort((p, q) => Math.hypot(p.x - at.x, p.z - at.z) - Math.hypot(q.x - at.x, q.z - at.z))[0];
     if (!near) return null;
     for (const [g, n] of Object.entries(got)) {
       if (side === 0) near.town.put(near.town.keep, g, n);

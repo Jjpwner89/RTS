@@ -819,6 +819,27 @@ async function worldChecks(w) {
   // Walls count the same between the houses as against you (Orchestrator, 2026-11-22): a
   // walled place stormed with no ram, ladders or engines counts its defenders ×1.4 (autoSides),
   // in a rival's assault too, and a house reckons its targets so.
+  // Lose a fight to outlaws (or the north) and the kit of your fallen is theirs: their nearest
+  // place was a camp with no stores, and World.loot threw (2026-11-23, since 6b65db8).
+  await check('loot: the fallen\'s kit goes to a winner\'s place with stores; a camp with none never throws', () => scratch(async (make, FACTIONS) => {
+    const out = [], s = make(), men = [{ key: 'maa', count: 20, name: 'Men-at-arms' }, { key: 'spear', count: 40, name: 'Spears' }];
+    const camp = s.pois.find(p => p.kind === 'camp' && p.owner === s.bandits && !p.eco?.stock);
+    if (!camp) return ['no outlaw camp without stores to test'];
+    const at = { x: camp.x, z: camp.z };
+    try { s.loot(men, [], s.bandits, at); } catch (e) { out.push(`outlaws winning by ${camp.name}: ${e.message}`); }
+    if (camp.eco?.stock) out.push(`${camp.name} was given stores`);
+    // A house's camp nearest the field: the kit goes to its nearest place with stores.
+    const h = FACTIONS.find(f => f.index && f.ai && s.pois.some(p => p.owner === f.index && p.eco?.stock));
+    camp.owner = h.index;
+    const home = s.pois.filter(p => p.owner === h.index && p.eco?.stock).sort((p, q) => Math.hypot(p.x - at.x, p.z - at.z) - Math.hypot(q.x - at.x, q.z - at.z))[0];
+    const was = { ...home.eco.stock };
+    let got = null;
+    try { got = s.loot(men, [], h.index, at); } catch (e) { out.push(`${h.short} winning by its camp: ${e.message}`); }
+    if (!got) out.push('the test kit has no armour or shields to strip');
+    else for (const [g, n] of Object.entries(got)) if ((home.eco.stock[g] || 0) - (was[g] || 0) !== n) out.push(`${home.name} got ${(home.eco.stock[g] || 0) - (was[g] || 0)} ${g}, not ${n}`);
+    return out;
+  }));
+
   await check('walls count between houses as against you: ×1.4 stormed bare, none with a ram', () => scratch(async (make, FACTIONS) => {
     const { WALLED } = await import('./world/world.js'), out = [];
     const s = make(), p = s.pois.find(q => q.owner > 0 && q.eco?.buildings && !q.town && q.kind === 'village' && q.seat === undefined);
