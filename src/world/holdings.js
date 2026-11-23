@@ -4,7 +4,7 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
+import { BUILDINGS, fieldShare, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
 import { TYPES } from '../battle.js';
 // A steward's place keeps this many planks back from kit for its hall (your villages keep none back: economy.js).
 const AI_PLANKS = 25;
@@ -126,6 +126,7 @@ export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
     const G = BUILDINGS[k]?.gather;
     if (!G) continue;
     let rate = n * BUILDINGS[k].jobs * work / G.time * (OLD_YIELD[k] ?? 1);
+    if (G.node === 'field') rate *= fieldShare(now);   // sowing, summer, harvest, fallow: the same rhythm as your villages (economy.js FIELD_SHARE)
     if (G.game) {
       e.game = Math.max(0, Math.min(1, (e.game ?? 1) + dt * GAME.regrow - rate * GAME.take / (6 * n)));
       rate *= Math.min(1, e.game / (GAME.take * (OLD_YIELD[k] ?? 1)));

@@ -151,6 +151,7 @@ export class TownHud {
       <div class="people"><span data-s="gold"></span></div>
       <p class="note taxnote" data-s="taxnote" hidden></p>
       <div class="people"><span data-s="settlers"></span></div>
+      <div class="people"><span data-s="larder"></span></div>
       <div class="warn" data-s="hunger"></div>
       <div class="raid" data-s="raid"></div>
       <button data-act="muster" class="wide muster" hidden><span>Muster the militia</span><small></small></button>
@@ -333,6 +334,8 @@ export class TownHud {
     const draw = t.settlers();
     set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
     this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);
+    // The stores in a line, with winter ahead (economy.js larderForecast); red when they will not see it through.
+    { const L = t.larderForecast?.(); if (L) { set('larder', `<span class="${L.short || L.mins < 1.5 ? 'bad' : ''}">${L.text}</span>`); } }
     set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.starving ? `Meals are short: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? `The hearths are cold: ${Math.round(t.hearthWood())} wood in the stores, ${Math.ceil(t.hearths * 1.5 / 2)} needed. Woodcutters and haulers need hands.` : t.population >= t.housing ? 'No room: build houses to grow.' : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);

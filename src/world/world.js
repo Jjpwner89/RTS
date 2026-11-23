@@ -505,6 +505,7 @@ export class World {
       return have >= cap ? `A ${this.rank.toLowerCase()} keeps ${cap} household guard${cap > 1 ? 's' : ''} (you have ${have})` : null;
     };
     town.householdCount = () => this.households(0);
+    town.clock = () => this.time;   // the seasons turn on the campaign's clock, not the village's age (economy.js fieldShare)
     // Armies of its owner's marching on the village, for a raid band to weigh (economy.js checkRelief).
     town.reliefComing = () => { const hs = hostsFor(this, p); return hs.length ? reliefSummary(hs) : null; };
     // The village's ban: what is armed, and arming a batch out of the racks (world/ban.js).

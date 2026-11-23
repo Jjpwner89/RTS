@@ -85,9 +85,9 @@ export const BUILDINGS = {
     gather: { node: 'tree', range: 55, need: 8, time: 10, out: { food: 6, feathers: 4, hides: 2 }, game: true },
     desc: 'Hunts in the woods for food, feathers and hides. The game near the village runs out and breeds back slowly.' },
   farm: { name: 'Farm', icon: 'farm', group: 'Gather', cost: { wood: 12 }, radius: 9, build: 12, jobs: 2, hp: 100,
-    gather: { node: 'field', time: 8, out: { food: 4 }, ripen: 150 }, desc: 'Grows grain on its own field. Needs open ground. The first crop takes a while to come in.' },
+    gather: { node: 'field', time: 8, out: { food: 5 }, ripen: 150 }, desc: 'Grows grain on its own field. Needs open ground. The first crop takes a while to come in.' },
   flax: { name: 'Flax field', icon: 'flaxfield', group: 'Gather', cost: { wood: 10 }, radius: 9, build: 10, jobs: 1, hp: 100,
-    gather: { node: 'field', time: 8, out: { flax: 3 }, ripen: 120 }, desc: 'Grows flax for bowstring. The first crop takes a while to come in.' },
+    gather: { node: 'field', time: 8, out: { flax: 3.75 }, ripen: 120 }, desc: 'Grows flax for bowstring. The first crop takes a while to come in.' },
   carpenter: { name: 'Carpenter', icon: 'carpenter', group: 'Craft', cost: { wood: 15 }, radius: 3.5, build: 12, jobs: 1, hp: 120,
     recipes: [{ in: { wood: 2 }, out: { planks: 3 }, time: 7, keep: 40 }, { in: { planks: 2 }, out: { shields: 1 }, time: 6, keep: 60, start: 'off' }],
     desc: 'Saws wood into planks. Switch shields on in its panel when the barracks needs them: they take planks, and so wood.' },
@@ -163,6 +163,18 @@ export const START_STOCK = { wood: 60, stone: 12, food: 60 };
 // Game in the woods: each 40 m patch has its own. A hunt takes a share of it, and a patch
 // breeds back over about twenty-five minutes; one hunted out yields nothing meanwhile.
 export const GAME = { cell: 40, take: 0.24, regrow: 1 / 1500 };
+
+// The harvest rhythm (creator, 2026-11-23: "i like seasons - put em in"). The year runs twenty minutes, spring, summer, autumn and
+// winter five each (world.js season). Fields (farm, flax) work at a share of the season: spring sowing 0.6, summer 1, autumn harvest 1.6,
+// winter fallow 0, and their base yield is 1.25 times what it was, so a year's crop is what it was, give or take 5%: only the timing moves.
+// The first winter is gentle (FIRST_WINTER, 0.5) so a new village learns the rhythm before it bites. Hunters, quarries and the rest are
+// steady all year. The same shares run the places you don't run yourselves (holdings.js), so rival houses feel winter too.
+export const SEASON_LEN = 300, YEAR_LEN = 1200, FIELD_SHARE = [0.6, 1, 1.6, 0], FIRST_WINTER = 0.5;
+export const SEASON_NAMES = ['spring', 'summer', 'autumn', 'winter'];
+export const seasonAt = t => Math.floor((t % YEAR_LEN) / SEASON_LEN);
+export const fieldShare = t => (seasonAt(t) === 3 && t < YEAR_LEN ? FIRST_WINTER : FIELD_SHARE[seasonAt(t)]);
+// Seconds from t to the start of season k (the next one, if t is in it).
+export const untilSeason = (t, k) => { const d = (k * SEASON_LEN - (t % YEAR_LEN) + YEAR_LEN) % YEAR_LEN; return d || YEAR_LEN; };
 // Hearths: wood each house (and the keep) burns a minute.
 export const FIREWOOD = 1.5;
 // Newcomers a minute at best, before food, mood and the village's name.
@@ -549,6 +561,15 @@ export class Town {
     while (b.workers.length > this.staffed(b)) this.release(b.workers[b.workers.length - 1]);
   }
   speed(b) { return SPEED[b.level || 1]; }
+  // The campaign's clock, when the village is part of one (world.js sets `clock`): seasons turn on it, not on the village's own age.
+  get seasonTime() { return this.clock ? this.clock() : this.time; }
+  get season() { return seasonAt(this.seasonTime); }
+  get winter() { return this.season === 3; }
+  // What share of its full work a field does now (FIELD_SHARE), and whether it lies fallow.
+  fieldShare() { return fieldShare(this.seasonTime); }
+  fallow(b) { return b.B.gather?.node === 'field' && !(this.fieldShare() > 0); }
+  // Minutes to the next spring, for "Fallow till spring (2 min)".
+  springIn() { return Math.max(1, Math.ceil(untilSeason(this.seasonTime, 0) / 60)); }
   get population() { return this.villagers.length; }
   // Villagers at work, and those of them standing in the levies (still counted as people).
   get atWork() { return this.villagers.filter(v => v.state !== 'soldier').length; }
@@ -1898,7 +1919,7 @@ export class Town {
     const P = this.priority;
     if (P && !P.removed) {
       if (P.state === 'site' && P.builders.length < PRIO_BUILDERS) { P.builders.push(v); v.state = 'build'; v.job = null; v.site = P; return; }
-      if (P.state === 'active' && !P.paused && !P.dry && P.B.jobs && P.workers.length < this.staffed(P)) { P.workers.push(v); v.job = P; v.state = 'work'; v.task = null; v.jobEta = this.time + dist(v, P) / WALK + 2; return; }
+      if (P.state === 'active' && !P.paused && !P.dry && !this.fallow(P) && P.B.jobs && P.workers.length < this.staffed(P)) { P.workers.push(v); v.job = P; v.state = 'work'; v.task = null; v.jobEta = this.time + dist(v, P) / WALK + 2; return; }
     }
     let best = null, bd = Infinity;
     for (const b of this.buildings) {
@@ -1922,7 +1943,7 @@ export class Town {
     for (const b of [this.keep, ...this.buildings]) {
       if (b.state !== 'active' || b.paused || !b.B.jobs || b.workers.length >= this.staffed(b)) continue;
       if (b.dry && this.time - b.dry > 30) b.dry = this.pickSpot(b) ? null : this.time;   // game breeds back
-      if (b.dry) continue;
+      if (b.dry || this.fallow(b)) continue;
       const d = dist(v, b) + (short ? this.foodRank(b, food) * 1e4 : 0);
       if (d < bd) { bd = d; best = b; }
     }
@@ -1936,7 +1957,7 @@ export class Town {
   yardMeals() { return Math.max(0, Math.floor(this.stock.food + this.stock.bread - this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0))); }
   // Food workplaces with a place for another hand (not worked out, not paused).
   openFood() {
-    return this.buildings.reduce((n, b) => n + (b.state === 'active' && !b.paused && !b.dry && b.B.gather?.out?.food ? Math.max(0, this.staffed(b) - b.workers.length) : 0), 0);
+    return this.buildings.reduce((n, b) => n + (b.state === 'active' && !b.paused && !b.dry && !this.fallow(b) && b.B.gather?.out?.food ? Math.max(0, this.staffed(b) - b.workers.length) : 0), 0);
   }
   // The yard to clear and the hands already on food: how many haulers the meals lying about call for
   // (one at least while anything lies there, and more as the farms get hands to fill it).
@@ -2145,6 +2166,21 @@ export class Town {
   doGather(v, dt) {
     const b = v.job, g = b.B.gather;
     if (v.task?.kind === 'haul') { this.doHaul(v, dt); return; }
+    // Winter: the fields lie fallow. A farm's hands stay its own, but carry for the village until spring (a trip begun at the
+    // turn of the season is finished first).
+    if (this.fallow(b) && v.task?.phase !== 'back') {
+      v.task = null;
+      b.status = `Fallow till spring (${this.springIn()} min)`;
+      v.waitCd = (v.waitCd || 0) - dt;
+      if (v.waitCd <= 0) {
+        v.waitCd = 1;
+        v.task = this.planHaul(v);
+        if (v.task) { this.doHaul(v, dt); return; }
+      }
+      const d = this.door(b, v);
+      this.walk(v, d.x, d.z, dt);
+      return;
+    }
     // A full yard stops work until haulers clear it; meanwhile the workers carry crates off themselves.
     if (!v.task && Object.keys(g.out).some(k => (b.store[k] || 0) >= holdOf(k))) {
       if (!this.selfHaul(v, dt)) {
@@ -2211,6 +2247,7 @@ export class Town {
           this.event(`${n0.kind === 'rock' ? 'A stone outcrop' : 'An ore deposit'} to the ${compass(n0)} is worked out.`, 1);
         }
       }
+      if (g.node === 'field') k *= this.fieldShare();   // sowing, summer, harvest (FIELD_SHARE)
       if (k > 0) for (const [g2, n] of Object.entries(g.out)) this.put(b, g2, n * k);
       v.carry = null;
       v.task = null;
@@ -2387,6 +2424,7 @@ export class Town {
     if (!b.B.jobs) return;
     if (b.paused) b.status = 'Paused';
     else if (b.dry) b.status = `${b.dryWhy}: move it or pull it down`;
+    else if (this.fallow(b)) b.status = `Fallow till spring (${this.springIn()} min)`;
     else if (!b.workers.length) b.status = 'No workers';
     else if (b.B.haul) b.status = this.haulStatus(b);
     // Damage mends slowly once the raiders are gone.
@@ -2430,6 +2468,13 @@ export class Town {
     const yard = this.yardMeals(), open = this.openFood();
     const farm = BUILDINGS.farm, perFarm = this.feeds(farm);
     if (!makers.length) return { why: 'nothing is growing or hunting food', fix: `build a farm (it feeds about ${perFarm}; its first crop takes ${Math.round(farm.gather.ripen / 30) / 2} min)` };
+    // Winter: the fields lie fallow; only the hunters feed the village (the harvest rhythm, FIELD_SHARE).
+    const fields = makers.filter(b => b.B.gather.node === 'field');
+    if (fields.length && !(this.fieldShare() > 0)) {
+      const hunters = makers.filter(b => b.B.gather.node !== 'field' && b.workers.length && !b.dry).length;
+      return { why: `winter: the ${fields.length > 1 ? `${fields.length} farms` : 'farm'} lie fallow for ${this.springIn()} more min${hunters ? `, and ${hunters > 1 ? `${hunters} hunters` : 'a hunter'} feed what they can` : ', and nobody hunts'}`,
+        fix: `a hunter's lodge feeds all winter; switch on food buying at a market; and lay in more before next autumn (the harvest is 1.6 times a summer's)` };
+    }
     if (!working.length) {
       const hands = this.villagers.filter(v => v.state !== 'soldier').length;
       return { why: `nobody is working the ${makers.length} farm${makers.length > 1 ? 's' : ''} (${hands} hands, all at other jobs)`, fix: 'hands are taken off other work for the farms; if there are none to spare, build houses once it is fed' };
@@ -2446,11 +2491,56 @@ export class Town {
 
   // Food seen coming, before the village goes hungry (which only shows at under half a minute of meals):
   // minutes in the stores, the trend, and what is to blame, with a fix. Null when all is well.
+  // Meals a minute the working food places bring in, with fields at `share` of their summer work.
+  foodIncome(share) {
+    return this.buildings.reduce((n, b) => {
+      if (b.state !== 'active' || b.paused || b.dry || !b.B.gather?.out?.food || !b.workers.length) return n;
+      const per = this.feeds(b.B) * Math.min(1, b.workers.length / Math.max(1, b.B.jobs));
+      return n + (b.B.gather.node === 'field' ? per * share : per);
+    }, 0);
+  }
+
+  // Looking ahead to winter, as things stand: the meals the stores will hold when it starts (stores now, plus what each
+  // season's fields bring less what the village eats), and what its five minutes take beyond what the hunters bring.
+  // Null in winter itself.
+  winterOutlook() {
+    const pop = this.population, t = this.seasonTime;
+    if (!pop || this.winter) return null;
+    let m = this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0), at = t;
+    const end = t + untilSeason(t, 3);
+    while (at < end - 1e-6) {
+      const to = Math.min(end, (Math.floor(at / SEASON_LEN) + 1) * SEASON_LEN);
+      m = Math.max(0, m + (this.foodIncome(fieldShare(at)) - pop) * (to - at) / 60);
+      at = to;
+    }
+    const need = Math.max(0, (pop - this.foodIncome(fieldShare(end))) * SEASON_LEN / 60);
+    return { inMin: (end - t) / 60, atWinter: Math.round(m), need: Math.round(need), short: m < need };
+  }
+
+  // The stores in a line, for the town panel: meals, minutes at this many mouths, and winter.
+  larderForecast() {
+    const pop = this.population, meals = this.stores().reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0);
+    // (the sum is only said from summer on: in spring the hands are still coming to the fields)
+    const mins = pop ? meals / pop : 0, wo = this.season >= 1 ? this.winterOutlook() : null;
+    let text = `Stores: ${Math.floor(meals)} meals, enough for ${mins >= 10 ? Math.round(mins) : Math.round(mins * 10) / 10} min at ${pop} mouths`;
+    text += this.winter ? `; the fields wake in ${this.springIn()} min` : `; winter in ${Math.max(1, Math.ceil(untilSeason(this.seasonTime, 3) / 60))} min`;
+    if (wo?.short) text += ` (it will take about ${wo.need} meals, and at this rate you will have ${wo.atWinter})`;
+    return { text, meals, mins, short: !!wo?.short };
+  }
+
   foodOutlook() {
     const pop = this.population;
     if (!pop || this.hungry) return null;
     const mins = this.larder, trend = this.foodTrend ?? null;
-    if (mins >= 3 || (trend !== null && trend >= 0 && mins >= 1.5)) return null;
+    // One season ahead of winter, if the stores will not see it through: said then, while there is time to build, hunt or buy.
+    if (mins >= 3 || (trend !== null && trend >= 0 && mins >= 1.5)) {
+      const wo = this.winterOutlook();
+      if (wo?.short && this.season === 2) {
+        const text = `winter is ${Math.ceil(wo.inMin)} min away and will take about ${wo.need} meals: at this rate the stores will hold ${wo.atWinter}`;
+        return { mins, level: 3, text, fix: "a hunter's lodge feeds all winter; more farms now bring in the autumn harvest; or switch on food buying at a market", why: text };
+      }
+      return null;
+    }
     const left = `${mins < 1 ? 'under a minute' : `about ${Math.round(mins * 10) / 10} min`} of food for ${pop}`;
     const { why, fix } = this.foodCause();
     return { mins, level: mins < 1.5 ? 4 : 3, text: `${left}: ${why}`, fix, why };

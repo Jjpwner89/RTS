@@ -1598,6 +1598,7 @@ async function worldChecks(w) {
       }
     };
     put('house', 20, 2); put('storehouse', 22, 1); put('carpenter', 20, 1); put('tanner', 24, 1); put('weaponsmith', 24, 1); put('smelter', 26, 1); put('farm', 55, 3);
+    t.clock = () => 300;   // (a summer, whatever the campaign's clock says)
     try {
       let hungryAt = null;
       for (let s = 0; s < 600; s++) { t.battle.step(0.5); t.update(0.5); if (t.hungry && hungryAt === null) hungryAt = s / 2; }
@@ -1605,6 +1606,67 @@ async function worldChecks(w) {
       if (t.hungry) out.push(`still hungry after five minutes: ${t.hungerWhy().why}`);
       if (farms.length && !farms.some(b => b.workers.length)) out.push(`nobody works any of its ${farms.length} farms after five minutes`);
       if (t.openFood() > 1 && t.idle === 0 && t.population > 6) out.push(`${t.openFood()} food places stand open while every hand works elsewhere`);
+    } finally { t.lost = true; }
+    return out;
+  });
+  // The harvest rhythm (creator, 2026-11-23, economy.js FIELD_SHARE): fields work by the season but a year's crop is what it was, and a
+  // new village gets through its first winter fed.
+  await check("a year's field yield is within 5% of before, and the winters differ as they should", async () => {
+    const E = await import('./economy.js'), out = [];
+    const mean = from => { let sum = 0, n = 0; for (let t = from; t < from + E.YEAR_LEN; t += 10) { sum += E.fieldShare(t); n++; } return sum / n; };
+    const was = { farm: 4, flax: 3 };
+    for (const k of ['farm', 'flax']) {
+      const g = E.BUILDINGS[k].gather, got = Object.values(g.out)[0] * mean(E.YEAR_LEN) / was[k];
+      if (Math.abs(got - 1) > 0.05) out.push(`a ${k}'s year of crops is ${Math.round(got * 100)}% of what it was, not 95 to 105%`);
+    }
+    if (E.fieldShare(1000) !== E.FIRST_WINTER) out.push(`the first winter's fields give ${E.fieldShare(1000)}, not ${E.FIRST_WINTER}`);
+    if (E.fieldShare(1000 + E.YEAR_LEN) !== 0) out.push('the second winter is not fallow');
+    if (!(E.fieldShare(1000 - 300) > E.fieldShare(50) && E.fieldShare(50) < E.fieldShare(400))) out.push('autumn does not beat summer and spring does not trail it');
+    const d = E.untilSeason(0, 3); if (d !== 900) out.push(`winter is ${d} s from the start, not 900`);
+    return out;
+  });
+  await check('a new village with two farms gets through its first winter fed, and says winter is coming', async () => {
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const t = w.makeTown({ ...p, id: 'checks-winter', name: 'Wintersby' }, { villagers: 12, retinue: false, stock: { wood: 100, stone: 12, food: 60 } }), out = [];
+    t.clock = () => t.time;   // its own age: spring at the start
+    const put = (kind, r0, n) => { for (let k = 0, a = 0.3; k < n && a < 60; a += 0.45) for (let r = r0; r < r0 + 30; r += 5) { const x = Math.cos(a) * r, z = Math.sin(a) * r; if (t.canPlace(kind, x, z, { free: true }).ok && t.place(kind, x, z, { ready: true }).ok) { k++; break; } } };
+    put('house', 20, 2); put('storehouse', 22, 1); put('farm', 55, 2);
+    try {
+      let starving = 0, warned = false, lowest = Infinity, fallowSaid = false;
+      for (let s = 0; s < 2500; s++) {
+        t.battle.step(0.5); t.update(0.5);
+        if (t.starving) starving++;
+        if (s % 20 === 0) {
+          if (t.time > 800 && t.time < 900 && !warned && t.larderForecast().text) warned = /winter in/.test(t.larderForecast().text);
+          if (t.time > 900 && t.time < 1200) { lowest = Math.min(lowest, t.larder); fallowSaid ||= t.buildings.some(b => b.kind === 'farm' && /Fallow|Working|First|Yard/.test(b.status)); }
+        }
+      }
+      if (starving) out.push(`${starving * 0.5} s of going hungry in the first year`);
+      if (!warned) out.push('the forecast did not say winter was coming');
+      if (!(lowest > 0.3)) out.push(`the stores fell to ${lowest.toFixed(2)} min of food in the first winter`);
+    } finally { t.lost = true; }
+    return out;
+  });
+  await check('in a fallow winter the farms say so, bring in nothing, keep their hands, and the larder names winter', async () => {
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const t = w.makeTown({ ...p, id: 'checks-fallow', name: 'Fallowby' }, { villagers: 10, retinue: false, stock: { wood: 100, stone: 12, food: 200 } }), out = [];
+    let now = 1200 + 600;   // the second autumn, so the farm gets its hands first; then the second winter, fallow
+    t.clock = () => now;
+    const put = (kind, r0, n) => { for (let k = 0, a = 0.3; k < n && a < 60; a += 0.45) for (let r = r0; r < r0 + 30; r += 5) { const x = Math.cos(a) * r, z = Math.sin(a) * r; if (t.canPlace(kind, x, z, { free: true }).ok && t.place(kind, x, z, { ready: true }).ok) { k++; break; } } };
+    put('house', 20, 1); put('storehouse', 22, 1); put('farm', 55, 1); put('hunter', 40, 1);
+    try {
+      const farm = t.buildings.find(b => b.kind === 'farm');
+      if (!farm) return ['the test village has no farm'];
+      for (let s = 0; s < 120; s++) { t.battle.step(0.5); t.update(0.5); }
+      if (!farm.workers.length) return ['the farm got no hands in autumn'];
+      now = 1200 + 1000; farm.store.food = 0;
+      for (let s = 0; s < 120; s++) { t.battle.step(0.5); t.update(0.5); }
+      if (!/Fallow till spring \(\d+ min\)/.test(farm.status)) out.push(`a fallow farm says "${farm.status}"`);
+      if (farm.store.food > 0) out.push(`a fallow farm has ${farm.store.food} meals in its yard`);
+      if (!farm.workers.length) out.push('a fallow farm lost its hands for the winter');
+      if (!/^Stores: \d+ meals, enough for [\d.]+ min at \d+ mouths; the fields wake in \d+ min/.test(t.larderForecast().text)) out.push(`the forecast says "${t.larderForecast().text}"`);
+      t.stock; const why = t.foodCause();
+      if (!/winter/.test(why.why) || !/hunter/.test(why.fix)) out.push(`the cause of hunger in a fallow winter is "${why.why}" / "${why.fix}"`);
     } finally { t.lost = true; }
     return out;
   });
