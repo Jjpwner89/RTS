@@ -28,6 +28,15 @@ export function yields(p, attackers, H) {
   return standsOrYields(p, H) && outmatched([...p.garrison, ...people(p)], attackers);
 }
 
+// How hard a side holds out before it asks for terms or starves into yielding, as a share of a
+// house's own thresholds (battle.js checkTerms, world.js tickSieges). Creator, 2026-11-22: Norrhold
+// is "less likely to surrender: the first war is internal, then the second is more brutal". Its places
+// never yield on numbers alone (standsOrYields); this is the point at which a walled garrison of
+// theirs asks for terms (a house's: under 0.2 of the attackers' men once breached, or under 0.1), and
+// the time it takes hunger to break it. 1 is a house; below 1 is stubborner.
+export const GRIT = { invader: 0.4 };
+export const gritOf = H => (H?.invader ? GRIT.invader : 1);
+
 // (a raid, a camp of outlaws, the north's strongholds and outlaws' or the north's own
 // places fight it out as ever)
 export const standsOrYields = (p, H) => !p.town && !['camp', 'warcamp', 'pass'].includes(p.kind) && !H?.bandit && !H?.invader;

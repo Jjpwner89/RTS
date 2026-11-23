@@ -569,6 +569,16 @@ async function worldChecks(w) {
   const FAIR = () => [{ key: 'spear', count: 40, name: 'Spears' }, { key: 'archer', count: 12, name: 'Bows' }];
   const village60 = (s, name) => { const p = s.pois.find(q => q.name === name); p.eco.pop = 60; p.garrison = [{ key: 'spear', count: 20, name: `${name} spears` }]; return p; };
 
+  // Norrhold holds out longer than a house before its garrisons ask for terms (creator, 2026-11-22).
+  await check('Norrhold is slower to ask for terms than a house, and its sieges take longer to starve out', async () => {
+    const M = await import('./world/militia.js'), { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js'), out = [];
+    if (!(M.gritOf({ invader: true }) < 1)) out.push(`Norrhold's grit is ${M.gritOf({ invader: true })}, no stubborner than a house`);
+    if (M.gritOf({ bandit: true }) !== 1 || M.gritOf(null) !== 1 || M.gritOf({}) !== 1) out.push('a house, outlaws or free folk hold out differently from the rules');
+    const b = new Battle(makeHeight(4), 4, { deploy: false });
+    if (!b.grit || b.grit.length !== 2 || b.grit.some(x => x !== 1)) out.push('a new battle does not start both sides at a house\'s grit');
+    return out;
+  });
+
   await check('militia: a place\'s people turn out when outnumbered, and stay home against hopeless odds', async () => {
     const M = await import('./world/militia.js'), E = await import('./economy.js'), out = [];
     const p = { name: 'Testby', kind: 'village', eco: { pop: 60 }, garrison: [{ key: 'spear', count: 20 }] };

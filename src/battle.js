@@ -290,6 +290,7 @@ export class Battle {
     this.pours = [];           // boiling oil poured: { x, z, y, time }, for the view
     this.hunger = [0, 0];      // 0 fed .. 1 starving (setHunger)
     this.termsAllowed = false; // a garrison may ask for terms (checkTerms)
+    this.grit = [1, 1];        // how hard each side holds out before asking for terms (militia.js GRIT)
     this.holder = null;        // the side holding a place, walled or not: { side, hopeless() } (world.js)
     this.terms = null;         // { side, time } while an offer waits for an answer
     this.surrendered = null;   // the side that yielded on terms
@@ -1509,7 +1510,8 @@ export class Battle {
       const breached = this.walls.pieces.some(p => p.side === side && (p.state === 'broken' || p.forced));
       const h = this.hunger[side], odds = mine / theirs;
       const hopeless = H?.hopeless();
-      if (hopeless || (walled && odds < 0.2 + h * 0.4 && (breached || h >= 0.5 || odds < 0.1))) {
+      const grit = this.grit[side];
+      if (hopeless || (walled && odds < (0.2 + h * 0.4) * grit && (breached || h >= 0.5 || odds < 0.1 * grit))) {
         this.terms = { side, time: this.time };
         this.event(side, side ? 'The garrison asks for terms.' : 'Our garrison cannot hold: we could yield on terms.');
         this.onTerms?.(this.terms);

@@ -16,7 +16,7 @@ import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } 
 import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal, foodLeft, homeland, QUARTERED } from './supply.js';
 import { govern } from './governor.js';
-import { turnOut, yields, standsOrYields, handOver, takeIn, driftHome, fledWord, mourn, sendHome } from './militia.js';
+import { turnOut, yields, standsOrYields, gritOf, handOver, takeIn, driftHome, fledWord, mourn, sendHome } from './militia.js';
 import { tickEvents } from './events.js';
 import { tickWalls } from './walling.js';
 import { payElites, tickMarkets } from './treasury.js';
@@ -914,7 +914,7 @@ export class World {
       // Hungry men slip over the wall at night.
       for (const u of p.garrison) u.count = Math.floor(u.count * (1 - 0.006 * dt));
       p.garrison = p.garrison.filter(u => u.count >= 3);
-      if (-p.siegeFood > STARVE || !p.garrison.length) {
+      if (-p.siegeFood > STARVE / gritOf(FACTIONS[p.owner]) || !p.garrison.length) {
         this.log(`${p.name} is starved into surrender!`);
         this.hooks.sound?.('siegeends'); // audio
         this.chron(`${p.name} was starved into surrender.`);
@@ -1320,6 +1320,7 @@ export class World {
     // burning, and more of its people stay.
     const b = town.battle;
     b.termsAllowed = true;
+    b.grit[1] = gritOf(FACTIONS[owner]);   // (Norrhold's garrisons are slower to ask)
     // (walled or not, a garrison under a third of your strength asks at once: militia.js yields)
     if (mayYield) b.holder = { side: 1, hopeless: () => town.strength(b.regs.filter(r => r.side === 1 && b.usable(r))) < town.strength(b.regs.filter(r => r.side === 0 && b.usable(r))) * HOPELESS };
     if (p.eco?.hungry) b.setHunger(1, 0.5);
