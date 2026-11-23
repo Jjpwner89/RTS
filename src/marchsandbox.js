@@ -1,6 +1,7 @@
 // The march sandbox: how long armies take between places under each setting of the march (world/march.js), and a raid
 // band and the relief that answers it, played out side by side. Nothing here touches the game.
 import { MARCH, marchClass, marchPace } from './world/march.js';
+import { RELIEF } from './economy.js';
 
 const SETTINGS = Object.values(MARCH);
 const MEET = 14;                       // world.js: opposing armies this close fight
@@ -16,7 +17,7 @@ const ARMIES = [
   ['A raid band (bandits)', [{ key: 'bandit', count: 20 }]],
   ['Foot with a ram', [{ key: 'spear', count: 60 }, { key: 'ram', count: 10 }]],
 ];
-const RELIEF = { foot: [{ key: 'spear', count: 60 }], horse: [{ key: 'cav', count: 40 }] };
+const HELP = { foot: [{ key: 'spear', count: 60 }], horse: [{ key: 'cav', count: 40 }] };
 const RAIDERS = [{ key: 'bandit', count: 20 }];
 
 const $ = id => document.getElementById(id);
@@ -43,11 +44,18 @@ function times() {
 
 // Seconds the raiders have at the village before relief is on them: the relief sets out when the raiders are seen to
 // leave their camp (after `delay`), the raiders reach the village after their own march.
+// The raiders go when relief is on them, or (the game today, economy.js checkRelief and relief.js) as soon as a clearly
+// stronger host is marching on the village within RELIEF.eta seconds of it.
+const rule = () => $('rule').value;
+const ETA = () => +$('eta').value || RELIEF.eta;
 function raidWindow(S, from, kind, delay) {
   const raid = (ROAD.village - ROAD.camp) / marchPace(S, RAIDERS);
   const dist = (from === 'one' ? ROAD.one : ROAD.two) - ROAD.village;
-  const arrive = delay + dist / marchPace(S, RELIEF[kind]);
-  return { raid, arrive, window: arrive - raid };
+  const eta0 = dist / marchPace(S, HELP[kind]);
+  const arrive = delay + eta0;
+  const seen = rule() === 'eta' ? delay + Math.max(0, eta0 - ETA()) : arrive;   // when the band takes alarm
+  const off = Math.min(arrive, Math.max(seen, raid));                                 // and leaves (not before it came)
+  return { raid, arrive, off, window: off - raid, seenAtArrival: seen <= raid };
 }
 function windows() {
   const delay = +$('delay').value || 0;
@@ -56,10 +64,12 @@ function windows() {
     <tr><td><small>raiders reach it after</small></td>${SETTINGS.map(S => `<td><small>${fmt((ROAD.village - ROAD.camp) / marchPace(S, RAIDERS))}</small></td>`).join('')}</tr>`;
   const body = rows.map(([from, kind, label]) => `<tr><td>${label}</td>${SETTINGS.map(S => {
     const w = raidWindow(S, from, kind, delay);
-    const cls = w.window <= 0 ? 'g' : w.window > 60 ? 'r' : '';
-    return `<td class="${cls}" style="background:${w.window <= 0 ? 'rgba(120,160,70,.18)' : w.window > 60 ? 'rgba(180,70,50,.13)' : ''}">${w.window <= 0 ? `met on arrival <small>(relief ${fmt(-w.window)} early)</small>` : `${fmt(w.window)}`}<br><small>relief at ${fmt(w.arrive)}</small></td>`;
+    const met = w.arrive < w.raid, none = !met && w.window < 0.5;
+    const bg = met || none ? 'rgba(120,160,70,.18)' : w.window > 60 ? 'rgba(180,70,50,.13)' : '';
+    const what = met ? `relief there first <small>(${fmt(w.raid - w.arrive)} early)</small>` : none ? 'turn back at sight <small>(relief coming)</small>' : fmt(w.window);
+    return `<td style="background:${bg}">${what}<br><small>relief at the village at ${fmt(w.arrive)}</small></td>`;
   }).join('')}</tr>`).join('');
-  $('windows').innerHTML = `<table>${head}${body}</table><p class="lead" style="margin:6px 0 0">Green: the relief gets there first. Red: over a minute to plunder.</p>`;
+  $('windows').innerHTML = `<table>${head}${body}</table><p class="lead" style="margin:6px 0 0">Green: the relief gets there first, or the raiders turn back before they plunder. Red: over a minute to plunder.</p>`;
 }
 
 // ---- the picture ----
@@ -80,8 +90,8 @@ class Strip {
     this.events = [];
     this.raid = { s: ROAD.camp, st: 'march', pace: marchPace(S, RAIDERS), at: null, plundered: 0 };
     this.reliefs = [
-      { name: 'relief from one place away', from: ROAD.one, colour: '#2c58b8', pace: marchPace(S, RELIEF[kind]), s: ROAD.one, st: 'wait' },
-      { name: 'relief from two places away', from: ROAD.two, colour: '#2c8a58', pace: marchPace(S, RELIEF[kind]), s: ROAD.two, st: 'wait' },
+      { name: 'relief from one place away', from: ROAD.one, colour: '#2c58b8', pace: marchPace(S, HELP[kind]), s: ROAD.one, st: 'wait' },
+      { name: 'relief from two places away', from: ROAD.two, colour: '#2c8a58', pace: marchPace(S, HELP[kind]), s: ROAD.two, st: 'wait' },
     ];
     this.note('The raid band sets out from its camp.');
     this.draw();
@@ -100,6 +110,11 @@ class Strip {
     else if (R.st === 'flee') {
       R.s = Math.max(ROAD.camp, R.s - R.pace * 1.1 * dt);
       if (R.s <= ROAD.camp) { R.st = 'home'; this.note(`The raiders are back at their camp (${fmt(R.plundered)} at the village).`); }
+    }
+    // (the game's rule: a band at the village that sees a clearly stronger host within RELIEF.eta of it turns back)
+    if (R.st === 'plunder' && rule() === 'eta') {
+      const near = this.reliefs.filter(r => r.st === 'march' || r.st === 'there').map(r => (r.s - ROAD.village) / r.pace).sort((a, b) => a - b)[0];
+      if (near !== undefined && near <= ETA()) { R.st = 'flee'; this.note(`The raiders see a host ${Math.round(near)} s away and break off${R.plundered > 0.5 ? ` after ${fmt(R.plundered)}` : ' at once'}.`); }
     }
     for (const r of this.reliefs) {
       if (r.st === 'march') {
@@ -163,6 +178,8 @@ for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => { s
 $('restart').onclick = again;
 $('relief').onchange = again;
 $('delay').onchange = again;
+$('rule').onchange = again;
+$('eta').onchange = again;
 addEventListener('resize', () => strips.forEach(s => s.draw()));
 
 times();

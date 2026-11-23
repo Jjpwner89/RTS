@@ -60,7 +60,8 @@
     <div class="bar">
       <label>Relief is <select id="relief"><option value="foot">foot (spearmen)</option><option value="horse">horse (heavy cavalry)</option></select></label>
       <label>reaction <input id="delay" type="number" min="0" max="120" step="5" value="15"> s</label>
-      <span id="reliefTable"></span>
+      <label>The raiders break off <select id="rule"><option value="eta">when a stronger host is within <i>n</i> seconds of the village</option><option value="contact">only when relief is on them</option></select></label>
+      <label><i>n</i> = <input id="eta" type="number" min="5" max="300" step="5" value="90"> s <small>(the game today: 90)</small></label>
     </div>
     <div id="windows" style="margin-top:8px"></div>
   </div>
