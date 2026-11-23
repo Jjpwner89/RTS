@@ -2224,6 +2224,58 @@ async function houseChecks(w) {
     if (!/gold a minute/.test(html)) out.push('the terms are not stated');
     return out;
   });
+  await check('a village of yours can be given to a sworn house, and to no other', async () => {
+    const mine = w.pois.filter(p => p.owner === 0 && p.town && p !== w.home && w.canGrant(p).ok);
+    const loose = FACTIONS.find(h => h.index && !h.bandit && !h.invader && !w.sworn(h.index));
+    const out = [];
+    if (loose && mine[0] && w.canGrantTo(mine[0], loose.index).ok) out.push(`${loose.name} is not sworn, and can be given ${mine[0].name}`);
+    if (!sworn.length || !mine.length) return out.length ? out : null;
+    const { RealmScreen } = await import('./realmscreen.js');
+    const html = RealmScreen.prototype.houseVassals.call({ w });
+    for (const h of sworn) {
+      if (!w.canGrantTo(mine[0], h.index).ok) out.push(`${h.name} is sworn but cannot be given ${mine[0].name}: ${w.canGrantTo(mine[0], h.index).why}`);
+      if (!html.includes(`data-act="hg:${mine[0].id}:${h.index}"`)) out.push(`the Realm screen offers no way to give ${mine[0].name} to ${h.name}`);
+    }
+    return out;
+  });
+}
+
+// What a tribute demand and the Houses table say about a house's strength, and ceremonies at normal speed.
+async function wordsChecks(w) {
+  const { strengthWords } = await import('./world/diplomacy.js');
+  const { FACTIONS } = await import('./world/world.js');
+  group = 'Strength words and ceremonies';
+  await check("a house's strength is told in words, from the same sums as the demand test", () => {
+    const want = [[0.3, 'far weaker'], [0.6, 'weaker than you'], [1, 'about your match'], [1.5, 'a little stronger'], [2, 'stronger than you'], [4, 'far stronger'], [9, 'badly outmatched']];
+    const out = [];
+    for (const [r, word] of want) {
+      const got = strengthWords({ strength: i => (i === 0 ? 100 : r * 100) }, 1);
+      if (!got.includes(word)) out.push(`at ${r}× your strength it says "${got}", not "${word}"`);
+    }
+    return out;
+  });
+  await check('the Houses tab puts the same words beside each strength', async () => {
+    const known = FACTIONS.slice(1, w.bandits).filter(h => h.alive && w.knows(h.index));
+    if (!known.length) return null;
+    const { RealmScreen } = await import('./realmscreen.js');
+    const html = RealmScreen.prototype.tab_houses.call({ w });
+    return known.filter(h => !html.includes(strengthWords(w, h.index))).map(h => `${h.name}: no "${strengthWords(w, h.index)}"`);
+  });
+  await check('a ceremony plays at normal speed, and the speed you chose comes back', async () => {
+    const g = window.game, four = document.querySelector('[data-speed="4"]');
+    if (!g?.ceremony || !four || g.mode !== 'world') return null;
+    const was = document.querySelector('[data-speed].on'), wasPaused = document.body.classList.contains('paused');
+    four.click();
+    const out = [];
+    if (g.pace() !== 4) out.push(`speed 4 runs at ${g.pace()}`);
+    g.ceremony(150);
+    if (g.pace() !== 1) out.push(`a ceremony runs at ${g.pace()}×, not 1×`);
+    for (let i = 0; i < 30 && g.pace() === 1; i++) await new Promise(r => setTimeout(r, 100));   // (frames drain it: a hidden tab is slow)
+    if (g.pace() !== 4) out.push(`after the ceremony the speed is ${g.pace()}, not the 4 you chose`);
+    (was || document.querySelector('[data-speed="1"]')).click();
+    if (wasPaused) document.getElementById('pause')?.click();
+    return out;
+  });
 }
 
 // ---- running them ----
@@ -2237,6 +2289,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);
   if (window.game?.world?.sworn) await houseChecks(window.game.world);
+  if (window.game?.world?.sworn) await wordsChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();

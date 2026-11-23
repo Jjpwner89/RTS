@@ -44,7 +44,7 @@ import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
 import { RealmScreen } from './realmscreen.js';
-import { actions as dipActions, act as dipAct, mood, grudgeLines, warCost } from './world/diplomacy.js';
+import { actions as dipActions, act as dipAct, mood, grudgeLines, warCost, strengthWords } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
 import * as THREE from 'three';
@@ -78,6 +78,11 @@ const $ = id => document.getElementById(id);
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 let paused = true, speed = 1;
+// A ceremony (a new rank, the coronation) plays at normal speed whatever speed is set, then speed returns.
+// It is timed in frames (each capped at 0.1 s), so a stall while a new map is built does not eat it.
+let ceremonyLeft = 0;
+const ceremony = ms => { ceremonyLeft = Math.max(ceremonyLeft, ms / 1000); };
+const pace = () => (ceremonyLeft > 0 ? 1 : speed);
 let mode = 'world', current = null;     // current: the village or battle on screen
 let selected = null;                    // on the world map: an army or a place
 let hud = null, townHud = null;
@@ -135,7 +140,7 @@ const hooks = {
     for (let k = heraldQueue.length - 1; k >= 0; k--) if (heraldQueue[k].house === h && /declares war/.test(heraldQueue[k].title)) { if (k) heraldQueue.splice(k, 1); else $('herald').classList.remove('show'); }
     for (const l of [...$('log').children]) if (l.dataset.base === `${h.name} has declared war on you!`) l.remove();
   },
-  rankUp: what => audio.play(what === 'hall' ? 'title' : 'rankup'), // audio: a new rank, or a knights' hall standing
+  rankUp: what => { ceremony(8000); audio.play(what === 'hall' ? 'title' : 'rankup'); }, // audio: a new rank, or a knights' hall standing
   sound: name => audio.play(name), // audio: realm news from the world files
   offer: o => asks.push({ kind: 'offer', ...o }),
   choice: ev => { audio.play(String(ev.id).startsWith('petition') ? 'petition' : 'scroll'); asks.push({ kind: 'choice', ev }); }, // audio
@@ -769,6 +774,7 @@ function crownedThenNorth() {
   selected = null;
   panelKey = null;
   paused = false;
+  ceremony(4500);   // the shards take 3.6 s to fall: the north waits for them (set last: building the new map stalls a frame)
   shatter(shot);
 }
 
@@ -1145,7 +1151,7 @@ function housePanel(el, h) {
   const held = grudgeLines(world, h).slice(0, 3);
   set('grudges', held.length ? `Holds against you: ${held.join('; ')}.` : '');
   const n = world.pois.filter(p => p.owner === h.index).length;
-  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}<br><small>${AMBITION[stageOf(h)]} · ${h.short} ${STANCE[h.ai?.stance] || STANCE.build}</small>`);
+  set('state', `${world.atWar(0, h.index) ? 'At war with you' : world.time < d.truceUntil && d.truceUntil < Infinity ? `Truce for ${clock(d.truceUntil - world.time)}` : 'At peace'} · ${n} places · ${ico('gold', '#e8c45a')} ${Math.floor(h.gold)}<br><small>${h.alive ? `Their strength: ${strengthWords(world, h.index)}` : ''}</small><br><small>${AMBITION[stageOf(h)]} · ${h.short} ${STANCE[h.ai?.stance] || STANCE.build}</small>`);
 }
 
 $('wpanel').onclick = e => {
@@ -1330,7 +1336,7 @@ function topBar() {
     $('clock').textContent = `${SEASONS[world.season]} · ${clock(world.time)}`;
     $('pause').textContent = paused ? '▶ Resume' : '❚❚ Pause';
     document.body.classList.toggle('paused', paused);
-    for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === speed);
+    for (const btn of document.querySelectorAll('[data-speed]')) btn.classList.toggle('on', +btn.dataset.speed === pace());
     const foes = world.armies.filter(a => a.side !== 0 && a.visible && !a.wagon && !a.retreating && a.mode !== 'column' && world.atWar(0, a.side));   // a caravan or supply wagon threatens nobody (and has no head count)
     { const html = foes.length ? `${ico('warning', '#ffb05a')} ${foes.map(a => `${a.name} (${headcount(a.units)})`).join(', ')} on the march` : ''; if ($('strength').dataset.was !== html) { $('strength').dataset.was = html; $('strength').innerHTML = html; $('strength').title = html.replace(/<[^>]*>/g, '').trim(); } }
   }
@@ -1352,8 +1358,10 @@ function frame(now) {
   last = now;
   realm.update();
   nextAsk();
+  const left0 = dt * pace();
+  ceremonyLeft = Math.max(0, ceremonyLeft - dt);
   if (!paused && !blocked()) {
-    let left = dt * speed;
+    let left = left0;
     while (left > 1e-4) {
       const h = Math.min(0.05, left);
       if (mode === 'field') {
@@ -1457,4 +1465,4 @@ setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);
 requestAnimationFrame(frame);
 
-window.game = { world, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };
+window.game = { world, ceremony, pace, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };

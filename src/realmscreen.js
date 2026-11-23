@@ -19,7 +19,7 @@ import { wagesOf, HOME_GUARD } from './world/treasury.js';
 import { wage } from './world/companies.js';
 import { runCheck, runLoad, runTime, sendRun, loadText, RUN_KINDS, RUN_GROUPS, wagonsOf, wagonPlan, buyWagons, runCap } from './world/supply.js';
 import { alerts } from './world/alerts.js';
-import { VASSAL_TRIBUTE } from './world/diplomacy.js';
+import { VASSAL_TRIBUTE, strengthWords } from './world/diplomacy.js';
 import { ROAD_UPKEEP, decreed } from './world/decrees.js';
 import { ico } from './icons.js';
 import { claimOn, isGreat, CLAIM, GREAT } from './world/claims.js';
@@ -164,6 +164,16 @@ export class RealmScreen {
     if (act === 'army') { const a = w.armies.find(o => o.id === +id && !o.gone); if (!a) return this.refuse('That army is no longer on the map.'); this.hide(); return this.hooks.select(a); }
     if (act === 'visit') { this.hide(); return this.hooks.visit?.(w.byId[id]); }
     if (act === 'house') { this.hide(); return this.hooks.select({ house: FACTIONS[+id] }); }
+    if (act === 'hg') {
+      // hg:place:house. Asks twice: a village given to a house is theirs to keep.
+      const key = b.dataset.act, p = w.byId[id];
+      if (this.confirm !== key) { this.confirm = key; return this.update(true); }
+      this.confirm = null;
+      const H = w.grantToHouse(p, +x);
+      if (!H) return this.refuse(w.canGrantTo(p, +x).why || `${p?.name} cannot be given now`);
+      this.hooks.flash?.(`${p.name} is now held for you by ${H.name}.`, true);
+      return this.update(true);
+    }
     if (act === 'pick') { this.pick = +id; this.tab = 'vassals'; this.confirm = null; return this.update(true); }
     if (act === 'supply') {
       // supply:from[:to[:what]]; with no sender (supply::to:what), the village best able to spare it.
@@ -480,7 +490,15 @@ export class RealmScreen {
         + w.armies.filter(a => a.side === h.index && !a.gone).reduce((n, a) => n + headcount(a.units), 0);
       const terms = `Peace with you · ${VASSAL_TRIBUTE} gold a minute while its coffers last${h.gold > 0 ? ` (${Math.round(h.gold)} in them)` : ' (empty now)'} · backs your claim · its places and armies light your map`;
       const look = places.slice(0, compact ? 2 : 6).map(p => `<button data-act="visit:${p.id}" title="Look round ${esc(p.name)}: you can look, not build or give orders">${ico('village')} ${esc(p.name)}</button>`).join('');
-      return `<div class="line"><span class="grow"><b style="color:${h.color}">${esc(h.name)}</b> <span class="chip good">sworn to you</span><br><small>${esc(h.lord)} · ${places.length} place${places.length === 1 ? '' : 's'} · ${num(men)} men</small>${compact ? '' : `<br><small>${terms}</small>`}</span>
+      // Land: a village of yours may be given to a house that has sworn to you, as to a knight.
+      const gives = compact || w.rank === 'Reeve' ? [] : w.pois.filter(p => p.owner === 0 && p.town && p !== w.home && w.canGrantTo(p, h.index).ok);
+      const give = gives.length ? `<br><span class="acts-row"><small>Give them a village:</small> ${gives.map(p => {
+        const key = `hg:${p.id}:${h.index}`;
+        return this.confirm === key
+          ? `<span class="warn">${esc(p.name)} becomes ${esc(h.short)}'s to hold (+20 with them). They keep it if they ever break faith.</span> <button data-act="${key}" class="warn">Yes, give it</button><button data-act="cancel">No</button>`
+          : `<button data-act="${key}" title="${esc(w.canGrantTo(p, h.index).warn)}">${ico('crown')} ${esc(p.name)}</button>`;
+      }).join('')}</span>` : '';
+      return `<div class="line"><span class="grow"><b style="color:${h.color}">${esc(h.name)}</b> <span class="chip good">sworn to you</span><br><small>${esc(h.lord)} · ${places.length} place${places.length === 1 ? '' : 's'} · ${num(men)} men</small>${compact ? '' : `<br><small>${terms}</small>`}${give}</span>
         <span class="acts">${look}<button data-act="house:${h.index}" title="Their lord, and everything you can do with them">Deal</button></span></div>`;
     }).join('');
     return `<section class="box${compact ? '' : ' wide'}"><h4>${ico('castle')} ${compact ? 'Houses sworn to you' : 'Houses sworn to you, with their terms'}</h4>${rows}</section>`;
@@ -640,7 +658,7 @@ export class RealmScreen {
       const tie = !h.alive ? 'Broken' : d.vassal ? 'Your vassal' : d.married ? 'Married' : d.allied ? 'Allied' : war ? (w.coalition?.members.includes(h.index) ? 'At war (coalition)' : 'At war') : 'At peace';
       return `<tr><th>${shield(h)}<b>${esc(h.lord)}</b><br><small>${esc(h.name)}</small></th>
         <td class="${war ? 'bad' : ''}">${tie}</td><td class="${opClass(d.opinion)}">${houseFeel(d.opinion)} (${Math.round(d.opinion)})</td>
-        <td>${w.pois.filter(p => p.owner === h.index).length}</td><td>${num(w.strength(h.index))}</td><td>${num(h.gold || 0)}</td>
+        <td>${w.pois.filter(p => p.owner === h.index).length}</td><td>${num(w.strength(h.index))}${h.alive ? `<br><small>${strengthWords(w, h.index)}</small>` : ''}</td><td>${num(h.gold || 0)}</td>
         <td class="acts">${h.alive ? `<button data-act="house:${h.index}" title="Gifts, peace, alliance and marriage">Deal</button>` : ''}</td></tr>`;
     };
     const envoy = seatPower(w, 'envoy');

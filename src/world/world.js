@@ -1225,7 +1225,7 @@ export class World {
   }
 
   // A place changes hands. Seats move to the house's next-best place when lost.
-  takePlace(p, owner) {
+  takePlace(p, owner, gift = false) {
     const was = p.owner;
     // A house that takes another's place is owed a grudge, as you are (diplomacy.js grudge).
     if (owner && was && owner !== was) grudge(this, was, 'took', p.name, owner);
@@ -1233,7 +1233,7 @@ export class World {
     p.free = null;
     const who = i => (i === null ? 'the free folk' : i === this.bandits ? 'outlaws' : FACTIONS[i]?.name);
     if (owner === 0 && was !== 0) this.chron(`You took ${p.name} from ${who(was)}.`);
-    else if (was === 0) this.chron(`${p.name} was lost to ${who(owner)}.`);
+    else if (was === 0) this.chron(gift ? `You gave ${p.name} to ${who(owner)}.` : `${p.name} was lost to ${who(owner)}.`);
     const v = vassalOf(this, p);
     if (v) {
       p.vassal = null;
@@ -1802,8 +1802,9 @@ export class World {
   }
 
   // Gives village p to vassal v, or to a new one.
-  grant(p, v = null) {
-    if (!this.canGrant(p).ok) return null;
+  // The part of a grant any lord shares: you stop running the village and it becomes a place
+  // of numbers, its streets remembered. Returns its garrison and its people.
+  stopRunning(p) {
     const t = p.town;
     const men = t.garrison().filter(r => r.alive > 0).map(r => ({ ...unit(r.T.key, r.alive, r.name), ...carry(r) }));
     const people = t.villagers.filter(o => o.state !== 'soldier').length;
@@ -1811,6 +1812,34 @@ export class World {
     const eco = fromTown(t, { kept: 1 });
     eco.pop = Math.max(10, people);
     Object.assign(p, { town: null, garrison: men, eco });
+    return { men, eco };
+  }
+
+  // A house that has sworn to you can be given one of your villages as a vassal can: it stays
+  // sworn, so its places and the men in them stay in your sight, and it is warmer to you for it.
+  canGrantTo(p, h) {
+    const c = this.canGrant(p);
+    if (!c.ok) return c;
+    if (!this.sworn(h)) return { ok: false, why: `${FACTIONS[h]?.name || 'That house'} is not sworn to you` };
+    return { ...c, warn: c.warn || `${p.name} passes to ${FACTIONS[h].name}, which keeps it if it ever breaks faith` };
+  }
+  grantToHouse(p, h) {
+    if (!this.canGrantTo(p, h).ok) return null;
+    const H = FACTIONS[h];
+    const { eco } = this.stopRunning(p);
+    this.takePlace(p, h, true);
+    this.strongbox(eco, H, null);
+    const need = Math.min(30, 12 + Math.round(eco.pop / 8)) - headcount(p.garrison);
+    if (need > 0) p.garrison.push(unit('spear', need, `${H.short} household`));
+    this.dip[h].opinion += 20;
+    this.log(`You have given ${p.name} to ${H.name}. ${H.lord} holds it for you, sworn.`, 1);
+    this.hooks.granted?.(p, null);
+    return H;
+  }
+
+  grant(p, v = null) {
+    if (!this.canGrant(p).ok) return null;
+    const { men, eco } = this.stopRunning(p);
     if (v) {
       if (v.landless) { v.landless = false; mark(this, v, 10, 'Given land again', 2400); }
       mark(this, v, 12, `Given ${p.name}`, Infinity);

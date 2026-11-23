@@ -391,7 +391,7 @@ function offerFrom(w, H, d) {
     const mins = Math.round(TRIBUTE.buys / 60);
     d.demanded = w.time + TRIBUTE_EVERY;   // they do not ask again for a long while
     w.tributeAt = w.time;
-    ask(`${H.lord} demands tribute`, `“Pay me ${TRIBUTE.gold} gold and my men will stay home.” Paying buys ${mins} minutes of peace with ${H.name}. Refuse, and ${H.lord} may come for it.`,
+    ask(`${H.lord} demands tribute`, `“Pay me ${TRIBUTE.gold} gold and my men will stay home.” ${H.name} is ${strengthWords(w, h)}. Paying buys ${mins} minutes of peace with ${H.name}. Refuse, and ${H.lord} may come for it.`,
       () => {
         if (FACTIONS[0].gold < TRIBUTE.gold) { w.log(`You no longer have ${TRIBUTE.gold} gold for ${H.name}.`, 1); console.warn('tribute: purse too light'); return { ok: false, text: `You have only ${Math.floor(FACTIONS[0].gold)} gold.` }; }
         FACTIONS[0].gold -= TRIBUTE.gold; d.opinion += 15;
@@ -401,6 +401,14 @@ function offerFrom(w, H, d) {
       },
       () => { d.opinion -= 15; if (w.rand() < 0.5) w.declareWar(h, 0, false, `Tribute refused. ${oddsOn(w, H, 0)}`); });
   }
+}
+
+// A house's strength against yours in words, from the same sums the demand test uses
+// (strengthOf): a tribute box shows who is asking without a table of numbers.
+export const STRENGTH_BANDS = [[0.4, 'far weaker than you'], [0.8, 'weaker than you'], [1.25, 'about your match'], [1.8, 'a little stronger than you'], [3, 'stronger than you'], [5, 'far stronger than you']];
+export function strengthWords(w, h) {
+  const r = w.strength(h) / Math.max(1, w.strength(0));
+  return (STRENGTH_BANDS.find(([top]) => r <= top)?.[1]) || 'far stronger than you: you are badly outmatched';
 }
 
 // Strength of a house: its garrisons and armies.
@@ -621,7 +629,7 @@ export function warCost(w, h) {
   if (d.backs && !d.vassal) out.push(`${H.lord} will stop backing your claim to the crown`);
   const friends = FACTIONS.filter(o => o.index !== h && o.index !== 0 && !o.bandit && o.alive && (w.dip[o.index]?.allied || w.dip[o.index]?.vassal) && !w.atWar(h, o.index));
   if (friends.length) out.push(`${friends.map(o => o.name).join(' and ')} will join you against them`);
-  out.push(`${H.name} has about ${Math.round(w.strength(h))} men under arms to your ${Math.round(w.strength(0))}`);
+  out.push(`${H.name} has about ${Math.round(w.strength(h))} men under arms to your ${Math.round(w.strength(0))}: ${strengthWords(w, h)}`);
   return out;
 }
 
