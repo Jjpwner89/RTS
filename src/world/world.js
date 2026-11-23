@@ -264,9 +264,10 @@ export class World {
   // How many men a holding keeps at home before sending the rest to its lord.
   keepHome(p) {
     const K = KINDS[p.kind], h = p.owner !== null ? FACTIONS[p.owner] : null, ai = h?.ai, settling = ai?.stage === 0;
-    // While its host gathers, a house keeps only a skeleton guard where no foe presses, as
-    // you may strip yours (Orchestrator, 2026-11-22): the rest marches to the host (rivals.js).
-    if (ai?.plan?.phase === 'muster' && p.eco && !pressedAt(h, p)) return SKELETON + 4 * (p.eco.level || 0);
+    // While its host gathers, to march on a place or out to meet a foe's host, a house keeps
+    // only a skeleton guard where no foe presses, as you may strip yours (Orchestrator,
+    // 2026-11-22): the rest marches to the host (rivals.js).
+    if ((ai?.plan?.phase === 'muster' || (ai?.meet && ai.meet.host == null)) && p.eco && !pressedAt(h, p)) return SKELETON + 4 * (p.eco.level || 0);
     // A house arming for war strips the places no enemy is near, as you would (rivals.js).
     const rear = ai?.stance === 'war' && ai.rear?.includes(p.id);
     return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.5 : 1) * (rear ? 0.5 : 1));

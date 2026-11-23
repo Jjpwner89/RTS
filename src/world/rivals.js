@@ -117,6 +117,51 @@ function committed(w, h, mine, B) {
   return n;
 }
 
+// A foe's host in the field, met as you would meet it (Orchestrator, 2026-11-23): a house at war
+// whose places a foe's host presses, and which could put at least MEET_AT of that host's
+// strength in the field, gathers at the place the host is headed for (its places keep a
+// skeleton and send the rest; its arrière-ban comes there), then marches out on the road the
+// host is coming by, with all it has gathered up to what a host of its rank holds, and the
+// two fight where they meet (World.checkMeetings). Once that host is gone, beaten or turned
+// back, its own comes home. It gives up gathering if the host is on it first. Returns the place
+// it gathers at while it gathers (h.ai.meet).
+const MEET_AT = 0.8, MEET_WAIT = 300;
+export function meetHost(w, h, mine, foeHosts, plan) {
+  const ai = h.ai, M = ai.meet, byId = id => w.armies.find(a => a.id === id && !a.gone);
+  if (M) {
+    const F = byId(M.foe), G = w.byId[M.at], host = M.host != null ? byId(M.host) : null;
+    const over = !F || F.retreating || !mine.some(p => dist(p, F) < 500);
+    if (M.host != null) {
+      if (!host) { ai.meet = null; return null; }
+      if (over && !host.retreating) { if (!(G?.owner === h.index && w.order(host, G))) w.retreat(host); ai.meet = null; }
+      return null;
+    }
+    if (over || G?.owner !== h.index || w.time - M.since > MEET_WAIT || dist(F, G) < 40) { ai.meet = null; return null; }
+    const need = power(F.units) * MEET_AT, spare = spareAt(w, G);
+    if (spare < need) return G;
+    const cap = ARMY_CAP[rankOf(mine.filter(p => p.kind !== 'camp').length)] || ARMY_CAP.Reeve;
+    const units = takeUnits(G.garrison, Math.min(spare, cap * power(G.garrison) / Math.max(1, headcount(G.garrison))));
+    if (!units.length) return G;
+    const a = w.spawnArmy(h.index, units, G, `The ${h.short} host`, 'march');
+    // Out by the road it comes on, toward where it came from: marching on the same road, they meet.
+    const to = F.at && F.at !== G ? F.at : F.last && F.last !== G ? F.last : F.path[0];
+    if (!to || to === G || !w.order(a, to)) { w.removeArmy(a); mergeInto(G.garrison, units); ai.meet = null; return null; }
+    a.meets = F.id;
+    M.host = a.id;
+    if (G.visible || a.visible || F.side === 0) w.log(`${a.name} marches out of ${G.name} to meet ${F.name}: about ${roughly(headcount(a.units))} men.`, F.side === 0 ? 1 : 2);
+    return null;
+  }
+  if (ai.stance !== 'war' || plan?.phase === 'march') return null;
+  const field = fieldOf(w, h, mine);
+  const F = foeHosts.filter(a => !a.retreating && !a.halted && a.mode !== 'raid' && headcount(a.units) >= 40 && mine.some(p => dist(p, a) < 400) && field >= power(a.units) * MEET_AT)
+    .sort((a, b) => power(b.units) - power(a.units))[0];
+  if (!F) return null;
+  const G = F.target?.owner === h.index ? F.target : mine.filter(p => p.kind !== 'camp').sort((p, q) => dist(p, F) - dist(q, F))[0];
+  if (!G || dist(F, G) < 60) return null;
+  ai.meet = { foe: F.id, at: G.id, since: w.time };
+  return G;
+}
+
 // The house's own place nearest to `target` by road.
 function nearestOwn(w, h, target) {
   let best = null, bd = Infinity;
@@ -179,7 +224,7 @@ function houseMind(w, h) {
   climb(w, h);
   const stage = stageOf(h);
   if (!h.seat || h.seat.owner !== h.index) h.seat = mine[0];
-  const muster = plan?.staging?.owner === h.index ? plan.staging : h.seat;
+  let muster = plan?.staging?.owner === h.index ? plan.staging : h.seat;
 
   // Build up or arm, as you choose (chooseStance). Arming, it raises men at the muster place
   // while the people can spare them; building, it keeps a modest field reserve and sends men
@@ -192,6 +237,9 @@ function houseMind(w, h) {
   const foe = s => s != null && s !== h.index && s !== w.bandits && w.atWar(h.index, s);
   const foeHosts = w.armies.filter(a => !a.gone && !a.wagon && foe(a.side));
   ai.pressed = mine.filter(p => foeHosts.some(a => dist(p, a) < 400)).map(p => p.id);
+  // A foe's host near: it gathers where that host is headed and marches out to meet it (meetHost).
+  const meetAt = !h.bandit && !h.invader ? meetHost(w, h, mine, foeHosts, plan) : null;
+  if (meetAt) muster = meetAt;
   ai.muster = plan?.phase === 'muster' && plan.staging?.owner === h.index
     ? { at: plan.target.id, from: plan.staging.id, short: Math.max(0, Math.ceil(w.defence(plan.target) * B.need + 20 - spareAt(w, plan.staging))) } : null;
   // Its rear: places with no enemy place or army within a short march (World.keepHome).
@@ -203,7 +251,7 @@ function houseMind(w, h) {
   // against a place, or to the place of its that a foe's host is nearest.
   if (!h.bandit && !h.invader && arming) {
     const near = mine.filter(p => ai.pressed.includes(p.id)).sort((p, q) => Math.min(...foeHosts.map(a => dist(p, a))) - Math.min(...foeHosts.map(a => dist(q, a))))[0];
-    const to = plan?.phase === 'muster' && plan.staging?.owner === h.index ? plan.staging : near;
+    const to = meetAt || (plan?.phase === 'muster' && plan.staging?.owner === h.index ? plan.staging : near);
     if (to) houseCall(w, h, to);
   }
   if (h.arms >= 6 && (arming || spareAt(w, muster) < SETTLED_RESERVE) && w.raiseFromPeople(h, muster, Math.min(12, Math.floor(h.arms)))) ai.raisedAt = w.time;
@@ -222,7 +270,7 @@ function houseMind(w, h) {
   const last = ai.lastPressed ||= {};
   for (const id of ai.pressed) last[id] = w.time;
   const calm = p => !pressedAt(h, p) && w.time - (last[p.id] ?? -Infinity) >= CALM;
-  const gathering = plan?.phase === 'muster';   // (its places keep a skeleton and send the rest: World.keepHome)
+  const gathering = plan?.phase === 'muster' || !!meetAt;   // (its places keep a skeleton and send the rest: World.keepHome)
   if (!gathering && real.some(p => calm(p) && p.eco.pop < keepAtWork(p.eco, false) - 6)) {
     for (const p of real.filter(calm)) {
       if (plan?.phase === 'muster' && p === plan.staging) continue;

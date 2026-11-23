@@ -931,6 +931,41 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // Hosts meet in the field (Orchestrator, 2026-11-23; rivals.js meetHost): a house a foe's host
+  // presses gathers where it is headed, marches out on its road with 0.8 of its strength, and
+  // the two fight where they meet; one too weak to stand stays behind its walls.
+  await check('host meets host: a pressed house gathers, marches out on the foe\'s road and fights it there; a weak one stays home', () => scratch(async (make, FACTIONS) => {
+    const R = await import('./world/rivals.js'), { headcount } = await import('./world/world.js'), out = [];
+    const s = make(), hs = FACTIONS.filter(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.some(p => p.owner === x.index && p.kind !== 'camp' && p.links.some(q => q.owner !== x.index)));
+    const h = hs[0], G = s.pois.find(p => p.owner === h.index && p.kind !== 'camp' && p.links.some(q => q.owner !== h.index)), from = G.links.find(q => q.owner !== h.index);
+    const o = FACTIONS.find(x => x.index > 0 && x !== h && !x.bandit && !x.invader && x.ai);
+    s.declareWar(h.index, o.index);
+    h.ai.stance = 'war'; h.ai.plan = null; h.ai.meet = null;
+    const F = s.spawnArmy(o.index, [{ key: 'spear', count: 100, name: 'Foe spears' }], from, 'Foe host', 'march');
+    s.order(F, G);
+    F.x = from.x + (G.x - from.x) * 0.3; F.z = from.z + (G.z - from.z) * 0.3;
+    const mine = () => s.pois.filter(p => p.owner === h.index), foes = () => s.armies.filter(a => !a.gone && a.side === o.index);
+    // Too weak to stand: it stays home.
+    for (const p of mine()) p.garrison = [{ key: 'spear', count: 10, name: 'Guard' }];
+    h.arms = 0; for (const p of mine()) if (p.eco) p.eco.pop = 0;
+    if (R.meetHost(s, h, mine(), foes(), null)) out.push('a house with 10 men a place went out to meet 100');
+    // Strong enough: it gathers at the place the host is headed for, and marches out on its road.
+    h.ai.meet = null;
+    G.garrison = [{ key: 'spear', count: 200, name: 'Guard' }];
+    const at = R.meetHost(s, h, mine(), foes(), null);
+    if (at !== G) out.push(`with 200 men it gathers at ${at?.name}, not ${G.name} where the host is headed`);
+    R.meetHost(s, h, mine(), foes(), null);
+    const host = s.armies.find(a => !a.gone && a.side === h.index && a.meets === F.id);
+    if (!host) return [...out, 'with the men gathered, no host marched out to meet it'];
+    if (host.target !== from) out.push(`its host marches for ${host.target?.name}, not ${from.name} by the road the foe comes on`);
+    if (headcount(host.units) + headcount(G.garrison) !== 200) out.push(`${headcount(host.units)} marched and ${headcount(G.garrison)} stayed, of 200`);
+    // Where they meet they fight.
+    host.x = F.x; host.z = F.z;
+    s.checkMeetings();
+    if (!(F.gone || F.retreating || host.gone || host.retreating)) out.push('the two hosts met on the road and did not fight');
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.
