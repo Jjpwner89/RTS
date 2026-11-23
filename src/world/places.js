@@ -108,14 +108,14 @@ export function tallyOf(p) {
   return { house: n(pop / 5, 3, 24), farm: n(pop / 14, 1, 7), storehouse: 1, woodcutter: 1, hunter: 1 };
 }
 
-// What a held place grew into while you were away, worn onto its buildings: workshops at
-// the levels a village of its size and standing could pay for (economy.js UPGRADES), and
+// What a held place grew into while you were away, worn onto its buildings: workshops and
+// houses at the levels a village of its size and standing could pay for (economy.js UPGRADES), and
 // a keep never smaller than its people. Positions stay as remembered, or as first laid out.
 export function grownLevels(town, e) {
   if (!e) return;
   const top = e.pop >= 60 && e.level >= 3 ? 3 : e.pop >= 30 && e.level >= 2 ? 2 : 1;
   for (const b of town.buildings) {
-    if (b.state !== 'active' || b.kind === 'house' || b.kind === 'keep' || b.B.hall || b.B.great) continue;
+    if (b.state !== 'active' || b.kind === 'keep' || b.B.hall || b.B.great) continue;
     b.level = Math.max(b.level || 1, top);
   }
   const byPop = e.pop >= 150 ? 5 : e.pop >= 100 ? 4 : e.pop >= 60 ? 3 : e.pop >= 30 ? 2 : 1;

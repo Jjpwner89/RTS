@@ -402,26 +402,69 @@ export function houseModel(style = 0) {
 
 // An upgraded house (level 2 or 3, townview.js) as the pack's own model, with a stone chimney standing up through
 // its roof toward one gable, and never much smaller across than the house it replaced (`was`, its level 1), so an
-// upgrade reads as a step up.
-export function houseUpgraded(geo, was) {
+// upgrade reads as a step up. Level 3 is plainly the better house again: as wide as the old one at least, its ground
+// storey stone where level 2 is plaster, and a chimney at each end.
+export function houseUpgraded(geo, was, level = 2) {
   const size = g => { if (!g.boundingBox) g.computeBoundingBox(); const b = g.boundingBox; return Math.max(b.max.x - b.min.x, b.max.z - b.min.z); };
-  const k = Math.min(1.6, Math.max(1, 0.8 * size(was) / size(geo)));
+  const k = Math.min(1.6, Math.max(1, (level >= 3 ? 1.05 : 0.8) * size(was) / size(geo)));
   const g = (geo.index ? geo.toNonIndexed() : geo.clone()).scale(k, k, k);
   g.computeBoundingBox();
-  // where: of a few spots across the house, one well under its roof (the model's highest point within a metre of it)
-  // and off toward an end, so it reads as a chimney and not a post; it stands a metre above the roof there
-  const b = g.boundingBox, p = g.attributes.position, mx = (b.min.x + b.max.x) / 2, mz = (b.min.z + b.max.z) / 2;
-  const hx = (b.max.x - b.min.x) / 2, hz = (b.max.z - b.min.z) / 2;
-  let x = mx, z = mz, best = -Infinity, roof = b.max.y;
-  for (const u of [-0.5, -0.25, 0, 0.25, 0.5]) for (const v of [-0.5, -0.25, 0, 0.25, 0.5]) {
-    const cx = mx + u * hx, cz = mz + v * hz;
-    let h = 0;
-    for (let i = 0; i < p.count; i++) if ((p.getX(i) - cx) ** 2 + (p.getZ(i) - cz) ** 2 < 1) h = Math.max(h, p.getY(i));
-    const score = h / b.max.y + 0.3 * Math.max(Math.abs(u), Math.abs(v)) + 0.05 * u;
-    if (h > 0.6 * b.max.y && score > best) { best = score; x = cx; z = cz; roof = h; }
+  const b = g.boundingBox, p = g.attributes.position;
+  const parts = [];
+  if (level >= 3) {
+    // a ground storey of stone: over each plaster panel, coursed stone from its foot to 45% of the plaster's height
+    // (1.3 m at least), standing a hair proud of it
+    const c = g.attributes.color, seen = new Set(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), n = new THREE.Vector3();
+    const plaster = i => { const r = c.getX(i), gr = c.getY(i), bl = c.getZ(i); return Math.min(r, gr, bl) >= 0.3 && Math.max(r, gr, bl) - Math.min(r, gr, bl) <= 0.12; };
+    let high = 0;
+    for (let i = 0; i < p.count; i++) if (plaster(i)) high = Math.max(high, p.getY(i));
+    const sill = Math.max(1.3, 0.45 * high);
+    for (let i = 0; i < p.count; i += 3) {
+      if (!plaster(i)) continue;
+      A.fromBufferAttribute(p, i); B.fromBufferAttribute(p, i + 1); C.fromBufferAttribute(p, i + 2);
+      n.crossVectors(B.clone().sub(A), C.clone().sub(A)).normalize();
+      if (Math.abs(n.y) > 0.2) continue;
+      // facing out from the house's middle
+      if (n.x * ((A.x + B.x + C.x) / 3 - (b.min.x + b.max.x) / 2) + n.z * ((A.z + B.z + C.z) / 3 - (b.min.z + b.max.z) / 2) < 0) n.negate();
+      const lo = Math.min(A.y, B.y, C.y), top = Math.min(sill, Math.max(A.y, B.y, C.y));
+      if (top - lo < 0.3) continue;
+      // the panel's run along the wall, from its corners
+      const t = new THREE.Vector3(-n.z, 0, n.x), ts = [A, B, C].map(v => v.x * t.x + v.z * t.z), d = A.x * n.x + A.z * n.z;
+      const t0 = Math.min(...ts), t1 = Math.max(...ts), key = [n.x, n.z, d, t0, t1].map(v => v.toFixed(1)).join();
+      if (seen.has(key) || t1 - t0 < 0.3) continue;
+      seen.add(key);
+      const m = (t0 + t1) / 2, k2 = 0.05;
+      parts.push(part(box(t1 - t0, top - lo, 0.1), '#857b6c', { x: t.x * m + n.x * (d + k2), y: (lo + top) / 2, z: t.z * m + n.z * (d + k2), ry: Math.atan2(n.x, n.z) }));
+      const at = (y, dd) => ({ x: t.x * m + n.x * (d + dd), y, z: t.z * m + n.z * (d + dd), ry: Math.atan2(n.x, n.z) });
+      parts.push(part(box(t1 - t0 + 0.04, 0.14, 0.16), '#5f574c', at(top, k2)));
+      for (let y = lo + 0.42; y < top - 0.2; y += 0.42) parts.push(part(box(t1 - t0, 0.05, 0.12), '#6a6155', at(y, k2 + 0.01)));   // the courses
+    }
   }
-  const top = roof + 1;
-  const parts = [part(box(0.75, top, 0.75), STONE, { x, y: top / 2, z }), part(box(0.9, 0.16, 0.9), STONE_DARK, { x, y: top + 0.08, z })];
+  // where: of a few spots across the house, those well under its roof (the model's highest point within a metre of
+  // it) and off toward an end, so each reads as a chimney and not a post; each stands a metre above the roof there
+  const mx = (b.min.x + b.max.x) / 2, mz = (b.min.z + b.max.z) / 2, hx = (b.max.x - b.min.x) / 2, hz = (b.max.z - b.min.z) / 2;
+  const spots = [];
+  for (const u of [-0.5, -0.25, 0, 0.25, 0.5]) for (const v of [-0.5, -0.25, 0, 0.25, 0.5]) {
+    const x = mx + u * hx, z = mz + v * hz;
+    let h = 0;
+    for (let i = 0; i < p.count; i++) if ((p.getX(i) - x) ** 2 + (p.getZ(i) - z) ** 2 < 1) h = Math.max(h, p.getY(i));
+    if (h > 0.6 * b.max.y) spots.push({ x, z, roof: h, score: h / b.max.y + 0.3 * Math.max(Math.abs(u), Math.abs(v)) + 0.05 * u });
+  }
+  // (only where roof lies all round it, not at an eave or in the gap between two wings)
+  const under = s => {
+    const sides = new Set();
+    for (let i = 0; i < p.count; i++) {
+      const dx = p.getX(i) - s.x, dz = p.getZ(i) - s.z;
+      if (dx * dx + dz * dz < 0.64 && p.getY(i) > 0.6 * b.max.y) sides.add((dx > 0) * 2 + (dz > 0));
+    }
+    return sides.size === 4;
+  };
+  const roofed = spots.filter(under).sort((a, c) => c.score - a.score), chimneys = roofed.slice(0, 1);
+  if (level >= 3) { const far = roofed.find(s => Math.hypot(s.x - roofed[0].x, s.z - roofed[0].z) > Math.max(hx, hz)); if (far) chimneys.push(far); }
+  for (const { x, z, roof } of chimneys) {
+    const top = roof + 1;
+    parts.push(part(box(0.75, top, 0.75), STONE, { x, y: top / 2, z }), part(box(0.9, 0.16, 0.9), STONE_DARK, { x, y: top + 0.08, z }));
+  }
   for (const q of parts) { q.deleteAttribute('uv'); if (!g.attributes.normal) q.deleteAttribute('normal'); }
   return mergeGeometries([g, ...parts]);
 }
