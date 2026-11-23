@@ -135,7 +135,7 @@ export const TUNING = {
   B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
   C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
   D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
-  E: { key: 'E', name: 'Slower still, steadier', defStep: 0.065, soak: 0.09, dmg: 0.6, room: 1.12, crowd: 2, follow: true, swarm: 14, palisade: 0.6, shock: 0.5, breakAt: 0.4 },
+  E: { key: 'E', name: 'Much slower, steadier', defStep: 0.065, soak: 0.09, dmg: 0.5, room: 1.12, crowd: 2, follow: true, swarm: 14, palisade: 0.6, shock: 0.5, breakAt: 0.4 },
 };
 
 // Formations: spacing and depth multiply the unit's own; the rest change the fight.
