@@ -1001,6 +1001,74 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // Coalitions meet as one (Orchestrator, 2026-11-23): a league partner's men wait outside the
+  // leader's place, march out with its host and fight the foe's host with it, as one (World.wing);
+  // a big clash near your lands is news; a host you meet in the field brings its wing, and after
+  // the battle each house's share goes home (World.lend).
+  await check('league meets as one: a partner\'s men join the host, both fight the foe together, the news says so, and you face the wing too', () => scratch(async (make, FACTIONS) => {
+    const R = await import('./world/rivals.js'), { headcount, power } = await import('./world/world.js'), out = [];
+    const s = make(), logs = [], clashes = [];
+    s.log = (t, l) => logs.push([t, l]);
+    s.hooks.clash = (A, nA, D, nD) => clashes.push([A.length, nA, D.length, nD]);
+    const houses = FACTIONS.filter(x => x.index > 0 && x.ai && !x.bandit && !x.invader);
+    const h = houses.find(x => s.pois.some(p => p.owner === x.index && p.eco && p.links.some(q => q.owner !== x.index)));
+    const G = s.pois.find(p => p.owner === h.index && p.eco && p.links.some(q => q.owner !== h.index)), from = G.links.find(q => q.owner !== h.index);
+    const [k, o] = houses.filter(x => x !== h);
+    // k's place near the gathering, o the foe; h and k in a league against o.
+    const q = s.pois.filter(p => p !== G && p !== from && p.eco && p.kind !== 'camp' && p.owner !== 0).sort((a, b) => Math.hypot(a.x - G.x, a.z - G.z) - Math.hypot(b.x - G.x, b.z - G.z))[0];
+    q.owner = k.index;
+    if (s.atWar(h.index, k.index)) s.makePeace(h.index, k.index);
+    s.declareWar(h.index, o.index); s.declareWar(k.index, o.index);
+    s.leagues = [{ target: o.index, members: [h.index, k.index], since: s.time }];
+    for (const x of [h, k]) { x.ai.plan = null; x.ai.meet = null; x.ai.wing = null; x.arms = 0; }
+    h.ai.stance = 'war'; k.ai.stance = 'build';
+    for (const p of s.pois.filter(p => p.owner === h.index || p.owner === k.index)) { p.garrison = [{ key: 'spear', count: 10, name: 'Guard' }]; if (p.eco) p.eco.pop = 0; }
+    G.garrison = [{ key: 'spear', count: 140, name: 'Guard' }];
+    q.garrison = [{ key: 'spear', count: 160, name: 'Partner' }];
+    const F = s.spawnArmy(o.index, [{ key: 'spear', count: 200, name: 'Foe spears' }], from, 'Foe host', 'march');
+    s.order(F, G);
+    F.x = from.x + (G.x - from.x) * 0.3; F.z = from.z + (G.z - from.z) * 0.3;
+    const held = x => s.pois.filter(p => p.owner === x.index), foes = () => s.armies.filter(a => !a.gone && a.side === o.index);
+    // Alone h could not stand against 200; with k's men it gathers.
+    if (R.meetHost(s, h, held(h), foes(), null) !== G) return ['with a league partner\'s 160 near, the house did not gather to meet the foe'];
+    R.meetHost(s, k, held(k), foes(), null);
+    const x = s.armies.find(a => !a.gone && a.side === k.index && a.wing?.at === G.id);
+    if (!x) return ['the league partner sent nobody to the gathering'];
+    // It waits outside the leader's place.
+    Object.assign(x, { x: G.x, z: G.z, at: G, path: [] });
+    s.arrive(x, G, q);
+    if (x.retreating || x.at !== G) out.push('the partner\'s men did not wait outside the leader\'s place');
+    R.meetHost(s, h, held(h), foes(), null);
+    const host = s.armies.find(a => !a.gone && a.side === h.index && a.meets === F.id);
+    if (!host) return [...out, 'with the partner\'s men there, no host marched out'];
+    if (x.meets !== F.id || x.target !== host.target) out.push('the partner\'s men did not march with the host');
+    // They meet the foe together.
+    F.visible = true;
+    for (const a of [host, x]) { a.x = F.x; a.z = F.z; }
+    const before = headcount(host.units) + headcount(x.units);
+    s.checkMeetings();
+    if (clashes.length !== 1 || clashes[0][0] !== 2) out.push(`the foe fought ${clashes.length} fights, with ${clashes[0]?.[0]} armies on the league's side, not one fight with both`);
+    if (!(F.gone || F.retreating)) out.push(`${before} met 200 and the foe was not beaten`);
+    const word = logs.find(([t]) => /^Word from the road/.test(t));
+    if (!word || word[1] !== 1) out.push(`a ${before + 200}-man clash in sight is no news: ${logs.map(l => l[0]).join(' | ') || 'no log'}`);
+    else if (!/the league/.test(word[0])) out.push(`the news does not name the league: ${word[0]}`);
+    // You meet a host with its partner's beside it: you fight both, and after it each goes home with its share.
+    for (const a of s.armies.filter(a => !a.gone && a.side !== 0)) s.removeArmy(a);
+    s.declareWar(0, h.index); s.declareWar(0, k.index); s.encounter = null;
+    const E = s.spawnArmy(h.index, [{ key: 'spear', count: 100, name: 'H spears' }], G, 'The H host', 'march');
+    const P = s.spawnArmy(k.index, [{ key: 'spear', count: 60, name: 'K spears' }], G, 'The K host', 'march');
+    const Y = s.spawnArmy(0, [{ key: 'spear', count: 300, name: 'Yours' }], G, 'Your army', 'march');
+    s.checkMeetings();
+    const enc = s.encounter;
+    if (!enc || enc.kind !== 'field') return [...out, 'your army met a host and its partner and was not asked'];
+    if (headcount(enc.defenders) !== 160) out.push(`you faced ${headcount(enc.defenders)} men, not the 160 of both hosts`);
+    s.autoResolve(enc);
+    const back = s.armies.find(a => !a.gone && a.side === k.index);
+    if (!back || !back.retreating) out.push('after the battle the partner\'s share did not go home');
+    if (E.lent) out.push('the host still holds its partner\'s men after the battle');
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.

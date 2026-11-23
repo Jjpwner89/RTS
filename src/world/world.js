@@ -37,6 +37,12 @@ export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
 const SPEED = 6;        // world units a second along a road
 const MEET = 14;        // opposing armies this close fight
+// Everyone near a meeting fights in it (Orchestrator, 2026-11-23): armies this close to either
+// host, at war with the other side and at peace with its own, join its side (World.wing).
+const WING = 30;
+// A field clash this big, where you can see it or near your lands, is news (World.clash), and
+// this big goes in the chronicle.
+const NEWS_MEN = 300, CHRON_MEN = 600;
 // A rival place's smithy makes kit for one man every ninety seconds (yours, run hard, make
 // one every twelve), and families settle in its houses as they do in yours.
 const SMITHY = 1 / 90, ARRIVALS = 1 / 18;
@@ -83,6 +89,10 @@ export const ARMY_CAP = { Reeve: 150, Lord: 300, Count: 600, Duke: 1000, King: 1
 // against its own (ratio, 0 to 1): what that side could kill, 0.12 to 0.57 men a man of theirs
 // (creator, 2026-11-22: 828 men against 30 lost about 100 when it was a share of the winner's own).
 export const winCost = ratio => ratio * (0.12 + 0.45 * ratio);
+// An auto-resolved fight's survivors: a share f of each band lost, and the rest learn from it
+// as in a fought battle (battle.js veterans): half a step, a whole one for a win.
+const cutUnits = (units, f, won) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)), xp: Math.round(((u.xp || 0) + (won ? 1 : 0.5)) * 10) / 10, battles: (u.battles || 0) + 1 }))
+  .filter(u => u.count >= 3);
 export const SKELETON = 12;   // a place's guard while its house's host gathers, plus 4 a level (keepHome)
 const NEXT_RANK = { Reeve: 'Lord', Lord: 'Count', Count: 'Duke', Duke: 'King' };
 // Why the cap is what it is, for a tooltip: "An army of a count holds at most 600 men (1,000 as a duke)."
@@ -616,6 +626,8 @@ export class World {
       }
       return;
     }
+    // Sent to join a partner's host (rivals.js meetHost), it waits outside its place.
+    if (a.wing?.at === p.id && !this.canAttack(a.side, p)) return;
     if (!this.canAttack(a.side, p)) {
       if (a.side !== 0) this.retreat(a);
       // yours waits outside, and says why, so a march on a house at peace is never silent
@@ -910,6 +922,7 @@ export class World {
     this.encounter = enc;
     enc.army.halted = true;
     if (enc.enemy) enc.enemy.halted = true;
+    if (enc.kind === 'field' && enc.enemy) this.lend(enc.enemy, enc.army);
     enc.defenders = enc.kind === 'assault' ? enc.poi.garrison : enc.enemy.units;
     this.hooks.ask(enc);
   }
@@ -1073,10 +1086,8 @@ export class World {
     const attackerWins = pa > pd;
     const ratio = Math.min(pa, pd) / Math.max(pa, pd, 1);
     const winLoss = winCost(ratio), loseLoss = 0.55 + 0.3 * ratio;
-    // Survivors learn as in a fought battle (battle.js veterans): half a step, a whole one for a win.
-    const cut = (units, f, won) => units.map(u => ({ ...u, count: Math.round(u.count * (1 - f)), xp: Math.round(((u.xp || 0) + (won ? 1 : 0.5)) * 10) / 10, battles: (u.battles || 0) + 1 }))
-      .filter(u => u.count >= 3);
-    return { attackerWins, A: cut(A, attackerWins ? winLoss : loseLoss, attackerWins), D: cut(D, attackerWins ? loseLoss : winLoss, !attackerWins) };
+    const lossA = attackerWins ? winLoss : loseLoss, lossD = attackerWins ? loseLoss : winLoss;
+    return { attackerWins, lossA, lossD, A: cutUnits(A, lossA, attackerWins), D: cutUnits(D, lossD, !attackerWins) };
   }
 
   defenceBonus(p) { return 1.2 * KINDS[p.kind].defence * (p.kind === 'crown' && workDone(this, 'walls') ? 1.5 : 1); }
@@ -1192,6 +1203,7 @@ export class World {
       const theirsBefore = e.units;
       e.units = theirs;
       wound(e, theirsBefore);
+      this.unlend(e);
       note(this, e.side, won ? 'wonField' : 'lostField');
       if (won) grudge(this, e.side, 'beaten', enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name);
       const cap = this.captains.find(c => c.id === a.captain && c.alive), field = enc.poi?.name || this.pois.reduce((b, p) => Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(b.x - a.x, b.z - a.z) ? p : b).name;
@@ -1627,32 +1639,80 @@ export class World {
   }
 
   checkMeetings() {
+    const free = x => !x.halted && !x.retreating && !x.gone && !x.wagon;
+    let yours = null;
     for (const a of this.armies) {
-      if (a.halted || a.retreating || a.gone || a.wagon) continue;
+      if (!free(a)) continue;
       for (const e of this.armies) {
-        if (e === a || e.wagon || e.side <= a.side || e.halted || e.retreating || e.gone || !this.atWar(a.side, e.side)) continue;
+        if (e === a || e.side <= a.side || !free(e) || !free(a) || !this.atWar(a.side, e.side)) continue;
         if (dist(a, e) >= MEET) continue;
-        if (a.side === 0) {
-          if (!this.encounter) { this.ask({ kind: 'field', army: a, enemy: e, poi: a.at || e.at }); return; }
-          continue;
-        }
+        if (a.side === 0) { yours ||= [a, e]; continue; }
         this.clash(a, e);
       }
     }
+    // The houses' fights first, so a host of your ally's on the road with yours meets them before you are asked.
+    const [a, e] = yours || [];
+    if (a && !this.encounter && free(a) && free(e) && dist(a, e) < MEET) this.ask({ kind: 'field', army: a, enemy: e, poi: a.at || e.at });
   }
 
-  // Two rival armies meet on the road; nobody is watching, so it is settled by numbers.
+  // The armies fighting on a's side when a meets e: a, and every army of the houses' (not
+  // yours: you are asked) within WING of either, at war with e's side and at peace with a's.
+  // A host marching with its league's or its allies' hosts fights as one with them.
+  wing(a, e) {
+    return [a, ...this.armies.filter(x => x !== a && x !== e && !x.gone && !x.wagon && !x.halted && !x.retreating && x.side !== 0 && x.side !== e.side
+      && this.atWar(x.side, e.side) && (x.side === a.side || !this.atWar(x.side, a.side)) && (dist(x, a) < WING || dist(x, e) < WING))];
+  }
+
+  // Rival armies meet on the road; nobody is watching, so it is settled by numbers, each side
+  // with all its armies there (wing), every army losing the same share of its men.
   clash(a, e) {
-    const r = this.resolve(a.units, e.units);
-    const was = [a.units, e.units];
-    a.units = r.A;
-    e.units = r.D;
-    wound(a, was[0]);
-    wound(e, was[1]);
-    const [win, lose] = r.attackerWins ? [a, e] : [e, a];
-    if (a.visible || e.visible) this.log(`${win.name} beat ${lose.name} on the road.`, 2);
-    if (lose.units.length) this.retreat(lose); else this.removeArmy(lose);
-    if (!win.units.length) this.removeArmy(win);
+    const A = this.wing(a, e), D = this.wing(e, a), was = new Map([...A, ...D].map(x => [x, x.units]));
+    const nA = headcount(A.flatMap(x => x.units)), nD = headcount(D.flatMap(x => x.units));
+    const r = this.resolve(A.flatMap(x => x.units), D.flatMap(x => x.units));
+    for (const x of A) x.units = cutUnits(was.get(x), r.lossA, r.attackerWins);
+    for (const x of D) x.units = cutUnits(was.get(x), r.lossD, !r.attackerWins);
+    for (const x of [...A, ...D]) wound(x, was.get(x));
+    const [W, L] = r.attackerWins ? [A, D] : [D, A];
+    this.hooks.clash?.(A, nA, D, nD, W === A);
+    const near = this.pois.filter(p => p.kind !== 'camp').sort((p, q) => dist(p, a) - dist(q, a))[0];
+    // News (Orchestrator, 2026-11-23): a big clash you can see, or near your lands or your sworn houses'.
+    const known = a.visible || e.visible || this.pois.some(p => this.sightOf(p.owner) && dist(p, a) < 400);
+    if (nA + nD >= NEWS_MEN && known && near) {
+      const of = (S, n) => `${this.sideName(S)} (about ${roughly(n)})`, held = this.sideName(W);
+      this.log(`Word from the road: ${of(A, nA)} met ${of(D, nD)} near ${near.name}; ${held} held the field.`, 1);
+      if (nA + nD >= CHRON_MEN) this.chron(`${held[0].toUpperCase()}${held.slice(1)} beat ${this.sideName(L)} in the field near ${near.name}, ${nA + nD} men in all.`);
+    } else if (a.visible || e.visible) this.log(`${W[0].name} beat ${L[0].name} on the road.`, 2);
+    for (const x of L) { if (x.units.length) this.retreat(x); else this.removeArmy(x); }
+    for (const x of W) if (!x.units.length) this.removeArmy(x);
+  }
+  // The same for you (Orchestrator, 2026-11-23): a host you meet in the field fights with its
+  // wing (its league's or its allies' hosts marching with it), as one army for the battle;
+  // after it each takes its share of the survivors and goes home (unlend).
+  lend(e, a) {
+    const W = this.wing(e, a).slice(1);
+    if (!W.length) return;
+    e.lent = W.map(x => ({ side: x.side, name: x.name, n: headcount(x.units) }));
+    e.lentOf = headcount(e.units) + e.lent.reduce((n, L) => n + L.n, 0);
+    for (const x of W) { mergeInto(e.units, x.units); this.removeArmy(x); }
+  }
+  unlend(e) {
+    if (!e.lent) return;
+    const lent = e.lent, all = power(e.units);
+    for (const L of lent) {
+      const units = takeUnits(e.units, all * L.n / e.lentOf);
+      if (!units.length) continue;
+      const x = this.spawnArmy(L.side, units, e.at || e.last, L.name);
+      Object.assign(x, { x: e.x, z: e.z, at: e.at, last: e.last, path: [...e.path] });
+      this.retreat(x);
+    }
+    e.lent = e.lentOf = null;
+  }
+  // How the news names one side of a clash: one house's host, a league's, or its houses together.
+  sideName(S) {
+    const sides = [...new Set(S.map(x => x.side))], short = i => FACTIONS[i]?.short || 'outlaw';
+    if (sides.length === 1) return S.length === 1 && !/host/i.test(S[0].name) ? S[0].name.replace(/^The /, 'the ') : `the ${short(sides[0])} host`;
+    if ((this.leagues || []).some(L => sides.every(i => L.members.includes(i))) || (this.coalition?.members || []).length && sides.every(i => this.coalition.members.includes(i))) return 'the league';
+    return `the ${sides.slice(0, -1).map(short).join(', ')} and ${short(sides.at(-1))} hosts`;
   }
 
   // ---- what you can see ----

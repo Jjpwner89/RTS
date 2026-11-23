@@ -11,7 +11,7 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit, TAX, ARMY_CAP } from './world.js';
+import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit, TAX, ARMY_CAP, SKELETON } from './world.js';
 import { KINDS } from './realm.js';
 import { devTax } from '../economy.js';
 import { houseCall, rankOf } from './arriere.js';
@@ -125,20 +125,53 @@ function committed(w, h, mine, B) {
 // two fight where they meet (World.checkMeetings). Once that host is gone, beaten or turned
 // back, its own comes home. It gives up gathering if the host is on it first. Returns the place
 // it gathers at while it gathers (h.ai.meet).
+//
+// Coalitions meet as one (Orchestrator, 2026-11-23): a house's partners against that foe
+// (partnersOf: its league, or your allies and sworn houses in your wars, and you) count with
+// it. The foe's host pressing any of them, the one whose place it is headed for (or nearest)
+// leads; the others send what their places near it can spare, above a skeleton, to wait
+// outside it (joinMeet), and march out with its host when it marches, so they meet the foe's
+// host together and fight as one (World.wing). Your armies there count, but you lead your own.
 const MEET_AT = 1, MEET_WAIT = 300;   // (even odds or better: Orchestrator, 2026-11-23)
+const WING_REACH = 600;               // a partner's places this near the gathering send their men
+export function partnersOf(w, h, s) {
+  const i = h.index;
+  const L = (w.leagues || []).find(L => L.target === s && L.members.includes(i));
+  if (L) return L.members.filter(j => j !== i && FACTIONS[j]?.alive);
+  if (s === 0 && leagued(w, i)) return w.coalition.members.filter(j => j !== i);
+  const yours = j => !!(w.dip?.[j]?.allied || w.dip?.[j]?.vassal);
+  if (s !== 0 && yours(i) && w.atWar(0, s)) return [0, ...FACTIONS.filter(o => o.index !== i && o.index !== 0 && o.alive && !o.bandit && yours(o.index) && w.atWar(o.index, s)).map(o => o.index)];
+  return [];
+}
+// What a place keeps while its men go to a partner's host: a skeleton, unless a foe's host presses it.
+const skeletonOf = (w, h, p) => !p.eco || pressedAt(h, p) ? w.keepHome(p) : Math.min(w.keepHome(p), SKELETON + 4 * (p.eco.level || 0));
+const wingSpare = (w, j, G) => w.pois.filter(p => p.owner === j && p.kind !== 'camp' && dist(p, G) < WING_REACH)
+  .reduce((n, p) => n + Math.max(0, power(p.garrison) - skeletonOf(w, FACTIONS[j], p)), 0);
+// Your armies at or near the gathering (counted, never moved).
+const yoursNear = (w, G) => w.armies.filter(x => x.side === 0 && !x.gone && !x.wagon && !x.retreating && dist(x, G) < 120).reduce((n, x) => n + power(x.units), 0);
+// The partners' men waiting outside G for the host against F.
+const wingsAt = (w, G, F) => w.armies.filter(x => !x.gone && x.wing?.foe === F.id && x.wing.at === G.id && x.at === G && !x.path.length);
 export function meetHost(w, h, mine, foeHosts, plan) {
   const ai = h.ai, M = ai.meet, byId = id => w.armies.find(a => a.id === id && !a.gone);
+  if (ai.wing) tendWing(w, h, byId);
   if (M) {
     const F = byId(M.foe), G = w.byId[M.at], host = M.host != null ? byId(M.host) : null;
-    const over = !F || F.retreating || !mine.some(p => dist(p, F) < 500);
+    const pals = F ? partnersOf(w, h, F.side) : [];
+    const ours = p => p.owner === h.index || pals.includes(p.owner);
+    const over = !F || F.retreating || !w.pois.some(p => ours(p) && dist(p, F) < 500);
     if (M.host != null) {
       if (!host) { ai.meet = null; return null; }
       if (over && !host.retreating) { if (!(G?.owner === h.index && w.order(host, G))) w.retreat(host); ai.meet = null; }
       return null;
     }
-    if (over || G?.owner !== h.index || w.time - M.since > MEET_WAIT || dist(F, G) < 40) { ai.meet = null; return null; }
-    const need = power(F.units) * MEET_AT, spare = spareAt(w, G);
-    if (spare < need) return G;
+    if (over || G?.owner !== h.index || w.time - M.since > MEET_WAIT || dist(F, G) < 40) {
+      // The partners' men waiting outside go home rather than meet it alone at the gate.
+      if (G && F) for (const x of wingsAt(w, G, F)) w.retreat(x);
+      ai.meet = null; return null;
+    }
+    const wings = wingsAt(w, G, F);
+    const need = power(F.units) * MEET_AT, spare = spareAt(w, G), joined = wings.reduce((n, x) => n + power(x.units), 0) + (pals.includes(0) ? yoursNear(w, G) : 0);
+    if (spare + joined < need || spare <= 0) return G;
     const cap = ARMY_CAP[rankOf(mine.filter(p => p.kind !== 'camp').length)] || ARMY_CAP.Reeve;
     const units = takeUnits(G.garrison, Math.min(spare, cap * power(G.garrison) / Math.max(1, headcount(G.garrison))));
     if (!units.length) return G;
@@ -148,18 +181,73 @@ export function meetHost(w, h, mine, foeHosts, plan) {
     if (!to || to === G || !w.order(a, to)) { w.removeArmy(a); mergeInto(G.garrison, units); ai.meet = null; return null; }
     a.meets = F.id;
     M.host = a.id;
-    if (G.visible || a.visible || F.side === 0) w.log(`${a.name} marches out of ${G.name} to meet ${F.name}: about ${roughly(headcount(a.units))} men.`, F.side === 0 ? 1 : 2);
+    // Its partners' men march with it, on the same road at the same pace.
+    for (const x of wings) if (w.order(x, to)) x.meets = F.id;
+    const men = headcount(a.units) + wings.reduce((n, x) => n + headcount(x.units), 0);
+    const who = wings.length ? `${a.name}, with ${[...new Set(wings.map(x => FACTIONS[x.side].short))].join(' and ')},` : a.name;
+    if (G.visible || a.visible || F.side === 0) w.log(`${who} marches out of ${G.name} to meet ${F.name}: about ${roughly(men)} men.`, F.side === 0 ? 1 : 2);
     return null;
   }
-  if (ai.stance !== 'war' || plan?.phase === 'march') return null;
-  const field = fieldOf(w, h, mine);
-  const F = foeHosts.filter(a => !a.retreating && !a.halted && a.mode !== 'raid' && headcount(a.units) >= 40 && mine.some(p => dist(p, a) < 400) && field >= power(a.units) * MEET_AT)
-    .sort((a, b) => power(b.units) - power(a.units))[0];
-  if (!F) return null;
-  const G = F.target?.owner === h.index ? F.target : mine.filter(p => p.kind !== 'camp').sort((p, q) => dist(p, F) - dist(q, F))[0];
-  if (!G || dist(F, G) < 60) return null;
-  ai.meet = { foe: F.id, at: G.id, since: w.time };
-  return G;
+  if (plan?.phase === 'march') return null;
+  // A house arming leads; any house may send its men to a partner's host (joinMeet).
+  const field = ai.stance === 'war' && !ai.wing ? fieldOf(w, h, mine) : 0;
+  let best = null;
+  for (const F of field ? foeHosts : []) {
+    if (F.retreating || F.halted || F.mode === 'raid' || headcount(F.units) < 40) continue;
+    const pals = partnersOf(w, h, F.side);
+    const ours = w.pois.filter(p => p.kind !== 'camp' && (p.owner === h.index || pals.includes(p.owner)));
+    if (!ours.some(p => dist(p, F) < 400)) continue;
+    let G = ours.includes(F.target) ? F.target : ours.sort((p, q) => dist(p, F) - dist(q, F))[0];
+    // You gather your own; a partner's place it is headed for is that partner's to lead from (joinMeet).
+    if (G.owner === 0) G = mine.filter(p => p.kind !== 'camp').sort((p, q) => dist(p, F) - dist(q, F))[0];
+    if (!G || G.owner !== h.index || dist(F, G) < 60 || dist(F, G) > 500) continue;
+    const joined = pals.reduce((n, j) => n + (j === 0 ? yoursNear(w, G) : wingSpare(w, j, G)), 0);
+    if (field + joined < power(F.units) * MEET_AT) continue;
+    if (!best || power(F.units) > power(best.F.units)) best = { F, G };
+  }
+  if (!best) return joinMeet(w, h, foeHosts, plan);
+  ai.meet = { foe: best.F.id, at: best.G.id, since: w.time };
+  return best.G;
+}
+// A partner gathering against a foe's host: the house sends what its places near the gathering
+// can spare above a skeleton to wait outside it (World.arrive), once.
+function joinMeet(w, h, foeHosts, plan) {
+  const ai = h.ai;
+  if (ai.wing || plan?.phase === 'march') return null;
+  for (const F of foeHosts) {
+    for (const j of partnersOf(w, h, F.side)) {
+      const M = j ? FACTIONS[j].ai?.meet : null, G = M && w.byId[M.at];
+      if (!M || M.foe !== F.id || M.host != null || G?.owner !== j) continue;
+      let sent = 0;
+      for (const p of w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && dist(p, G) < WING_REACH)) {
+        const units = takeUnits(p.garrison, power(p.garrison) - skeletonOf(w, h, p));
+        if (headcount(units) < 10) { mergeInto(p.garrison, units); continue; }
+        const x = w.spawnArmy(h.index, units, p, `The ${h.short} host`, 'march');
+        x.wing = { foe: F.id, at: G.id, lead: j };
+        if (!w.order(x, G)) { w.removeArmy(x); mergeInto(p.garrison, units); continue; }
+        sent += headcount(units);
+      }
+      if (!sent) continue;
+      ai.wing = { foe: F.id, at: G.id, lead: j, since: w.time };
+      if (G.visible || F.side === 0) w.log(`${h.name} sends about ${roughly(sent)} men to ${G.name} to meet ${F.name} with ${FACTIONS[j].name}.`, F.side === 0 ? 1 : 2);
+      return null;
+    }
+  }
+  return null;
+}
+// Its men sent to a partner's host: home once that host has marched without them, gathered for
+// nothing, been beaten, or its foe is gone or turned back.
+function tendWing(w, h, byId) {
+  const W = h.ai.wing, M = FACTIONS[W.lead]?.ai?.meet, F = byId(W.foe);
+  const gathering = M && M.foe === W.foe && M.host == null;
+  const host = M && M.foe === W.foe && M.host != null ? byId(M.host) : null;
+  const mine = w.armies.filter(x => x.side === h.index && !x.gone && x.wing?.foe === W.foe);
+  for (const x of mine) {
+    if (x.retreating) continue;
+    if (!F || F.retreating) { w.retreat(x); continue; }
+    if (x.meets != null ? !host || host.retreating : !gathering) w.retreat(x);
+  }
+  if (!mine.some(x => !x.retreating)) h.ai.wing = null;
 }
 
 // The house's own place nearest to `target` by road.
