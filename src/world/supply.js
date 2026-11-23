@@ -9,7 +9,7 @@
 // fields round the place and eats a quarter of its usual.
 
 import { FACTIONS, power, headcount } from './world.js';
-import { housing, kits, takeKit, AT_WORK } from './holdings.js';
+import { housing, kits, takeKit, stewardSpare, AT_WORK } from './holdings.js';
 import { priceShare, glut, noteTrade } from '../economy.js';
 import { workDone } from './works.js';
 import { rankOf } from './arriere.js';
@@ -139,9 +139,11 @@ export function heal(a, share = 1) {
   a.wounded = (a.wounded || []).filter(w => w.count > 0);
 }
 
+// An army draws on a place's stores only what leaves its people's year safe (holdings.js stewardSpare): a host that ate the autumn's harvest left
+// the place hungry in the fallow winter.
 const fromStores = (e, n) => {
-  let got = 0;
-  for (const g of ['bread', 'food']) { const k = Math.min(n - got, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; got += k; }
+  let got = 0, spare = stewardSpare(e);
+  for (const g of ['bread', 'food']) { const k = Math.min(n - got, spare, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; got += k; spare -= k; }
   return got;
 };
 

@@ -4,7 +4,7 @@
 // kit that becomes soldiers. It is kept as numbers rather than walking villagers, and a
 // lord's steward runs a place less hard than you run a village you watch yourself.
 // What a place holds can be spied on, and is what you find when you storm it.
-import { BUILDINGS, fieldShare, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
+import { BUILDINGS, fieldShare, YEAR_LEN, SEASON_LEN, seasonAt, untilSeason, BUY, weaponKit, outfit, outfitKit, GAME, FIREWOOD, REPUTE, settleRate, FEW, GLUT, priceShare, glut, saleGood } from '../economy.js';
 import { TYPES } from '../battle.js';
 // A steward's place keeps this many planks back from kit for its hall (your villages keep none back: economy.js).
 const AI_PLANKS = 25;
@@ -111,11 +111,58 @@ function outputs(k) {
 export const housing = e => KEEP_HOUSING + (e.buildings.house || 0) * BUILDINGS.house.housing;
 export const builtCount = e => Object.values(e.buildings).reduce((n, k) => n + k, 0);
 
+// ---- a steward's foresight (Orchestrator, 2026-11-23: houses went hungry once the fields lay fallow; "rivals play by the player's
+// rules", so no gentler share, but the foresight of a good player) ----
+// Meals a second the place's food buildings bring in, with its fields at `share` of their summer work: the sums runEconomy makes.
+export function foodRate(e, share) {
+  const B = e.buildings;
+  let jobs = 0;
+  for (const [k, n] of Object.entries(B)) jobs += (BUILDINGS[k]?.jobs || 0) * n;
+  const sh = jobs ? Math.min(1, e.pop * WORKING / jobs) : 0;
+  let r = 0;
+  for (const [k, n] of Object.entries(B)) {
+    const G = BUILDINGS[k]?.gather;
+    if (!G?.out?.food) continue;
+    r += G.out.food * n * BUILDINGS[k].jobs * EFF * sh / G.time * (OLD_YIELD[k] ?? 1) * (G.node === 'field' ? share : 1);
+  }
+  return r;
+}
+// The stores as they will run over the next year, at today's people, men under arms and buildings: the lowest they get, and the
+// minute's meals a place wants left. `short` says the stores will not see it through (a winter, and the spring after it).
+export function ahead(e, now, men = 0) {
+  const eat = (e.pop + men) * EAT, safe = e.pop * EAT * 60;
+  let m = (e.stock.food || 0) + (e.stock.bread || 0), low = m, at = now;
+  const end = now + YEAR_LEN;
+  while (at < end - 1e-6) {
+    const to = Math.min(end, (Math.floor(at / 30) + 1) * 30);
+    m += (foodRate(e, fieldShare(at)) - eat) * (to - at);
+    low = Math.min(low, m);
+    at = to;
+  }
+  return { low, safe, short: low < safe, eat };
+}
+// A place with a market buys food when the stores are short for the year and down to three minutes of meals, with the purse of its lord
+// (its own strongbox if free), at the price your market asks and the same rise as it buys (economy.js BUY, the 'buy:food' glut).
+export function buyFood(e, purse, now) {
+  const r = BUILDINGS.market.recipes.find(x => x.buy && 'food' in x.out);
+  if (!r || !e.buildings.market || !e.ahead?.short) return 0;
+  if ((e.stock.food || 0) + (e.stock.bread || 0) > e.ahead.eat * 180) return 0;
+  const price = r.buy / priceShare(e.glut ??= {}, 'buy:food', now);
+  if (price > r.buy * BUY.most || (purse.gold || 0) < price) return 0;
+  purse.gold -= price;
+  glut(e.glut, 'buy:food', r.out.food, now);
+  e.stock.food = (e.stock.food || 0) + r.out.food;
+  return r.out.food;
+}
+
 // ---- running it ----
 
 // One step of `dt` seconds for place p. Returns gold made for its lord.
 export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
   const e = p.eco, s = e.stock, B = e.buildings;
+  // Looking ahead, every twenty seconds: the steward sees a winter coming (ahead) and builds, keeps and buys for it.
+  e.now = now;
+  if ((e.aheadAt ?? -1e9) + 20 <= now) { e.ahead = ahead(e, now, (p.garrison || []).reduce((n, u) => n + u.count, 0)); e.aheadAt = now; }
   // Who works: as many jobs as there are hands for.
   let jobs = 0;
   for (const [k, n] of Object.entries(B)) jobs += (BUILDINGS[k]?.jobs || 0) * n;
@@ -143,7 +190,9 @@ export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
       && (r.above === undefined || Object.entries(r.in).every(([g, q]) => (s[g] || 0) >= r.above + q))
       && !('planks' in r.in && !('planks' in r.out) && (s.planks || 0) < AI_PLANKS + r.in.planks + (e.wantHall ? BUILDINGS.hall.cost.planks : 0))
       // its market, as yours, won't sell into a glut (economy.js GLUT)
-      && (!r.gold || priceShare(e.glut, saleGood(r), now) >= GLUT.floor));
+      && (!r.gold || priceShare(e.glut, saleGood(r), now) >= GLUT.floor)
+      // ... nor sell the food its year needs
+      && !(r.gold && 'food' in r.in && e.ahead && e.ahead.low - e.ahead.safe < r.in.food));
     if (!list.length) continue;
     for (const r of list) {
       let cycles = n * (BUILDINGS[k].jobs || 1) * work / r.time / list.length;
@@ -165,7 +214,8 @@ export function runEconomy(p, dt, { pace = 1, now = 0 } = {}) {
   // Newcomers on your villages' rules: spare food, mood and the place's name; houses only make room.
   // (the hungry die off no lower than six, and a place already smaller loses nobody to it)
   if (e.hungry) e.pop = Math.max(Math.min(6, e.pop), e.pop - dt / 60);
-  if ((!e.hungry || e.pop < FEW) && e.pop < housing(e)) {
+  // (and none comes to a place whose stores will not see the year through, as yours let nobody settle while hungry)
+  if ((!e.hungry || e.pop < FEW) && e.pop < housing(e) && !(e.ahead?.short && e.pop >= FEW)) {
     const name = ['monastery', 'market', 'well'].reduce((n, k) => n + (B[k] ? REPUTE[k] : 0), 1 + (e.cold ? REPUTE.cold : 0));
     const larder = ((s.food || 0) + (s.bread || 0)) / Math.max(1, e.pop);
     e.pop = Math.min(housing(e), e.pop + dt / 60 * settleRate(larder, STEWARD_MOOD, name, e.pop < FEW));
@@ -208,6 +258,9 @@ function nextBuild(e) {
   if (e.buildings.hall) for (const k of ['tanner', 'armourer', 'stable']) if (!e.buildings[k] && can(k)) return k;
   if (builtCount(e) >= (e.maxBuilt ?? 40)) { clear(e); return null; }
   if (e.hungry || (s.food || 0) < e.pop * 1.5) return 'farm';
+  // A winter the stores will not see through: a hunter's lodge (it feeds all year) while there is game, else another field.
+  // (only while there are idle hands to work it: more fields on the same hands feed nobody)
+  if (e.ahead?.short && Object.entries(e.buildings).reduce((n, [k, c]) => n + (BUILDINGS[k]?.jobs || 0) * c, 0) < e.pop * WORKING - 1) return (e.game ?? 1) > 0.5 && (e.buildings.hunter || 0) < 1 + Math.floor(e.pop / 70) ? 'hunter' : 'farm';
   if (e.cold && (B_count(e, 'woodcutter') < 1 + (e.buildings.house || 0) / 8)) return 'woodcutter';
   // Homes ahead of the people, as you build them, once they are two thirds full (HOMES_AHEAD;
   // Orchestrator, 2026-11-21: places ran at a quarter of their land, a house only going up
@@ -311,8 +364,18 @@ export const HOMES_AHEAD = 0.65;
 // down to work once it is over.
 export const keepAtWork = (e, deep, share = AT_WORK.field) => (deep ? 12 : Math.max(12, housing(e) * share));
 export const pressedAt = (h, p) => !!h?.ai?.pressed?.includes(p.id);
+// What a place can give away, to its men, its armies' carts or a ban's march, and leave its people's year safe: the stock over the lowest
+// point the people alone reach in the next twelve months (ahead() with no men), and never the half meal a head they eat first.
+export function stewardSpare(e) {
+  const A = ahead(e, e.now ?? 0, 0), have = (e.stock.food || 0) + (e.stock.bread || 0);
+  return Math.max(0, Math.min(have - e.pop * PEOPLE_FIRST, A.low - A.safe));
+}
 export function feedMen(e, men, dt) {
-  let need = men * EAT * dt, spare = Math.max(0, (e.stock.food || 0) + (e.stock.bread || 0) - e.pop * PEOPLE_FIRST);
+  // The people first, and their year safe before the men eat: the men have what is over once the people's lowest point in the
+  // next twelve months (the winter and the spring after it, ahead() with no men) keeps a minute's meals, and never the
+  // PEOPLE_FIRST food a head. Winter is five minutes of fallow fields: a garrison that ate the autumn's harvest left the people
+  // hungry by midwinter.
+  let need = men * EAT * dt, spare = stewardSpare(e);
   for (const g of ['bread', 'food']) { const k = Math.min(need, spare, e.stock[g] || 0); e.stock[g] = (e.stock[g] || 0) - k; need -= k; spare -= k; }
   return need / (EAT * dt);
 }

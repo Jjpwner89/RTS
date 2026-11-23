@@ -9,6 +9,7 @@ import { FACTIONS, headcount, unit, mergeInto, roughly, ARMY_CAP } from './world
 import { EAT, capacity, takeFood } from './supply.js';
 import { takeRoster, returnToRoster, fromReg, armedIn } from './ban.js';
 import { callHeard } from './threat.js';
+import { stewardSpare } from './holdings.js';
 
 export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 800, rest: 300, key: 'militia' };
 export const isLevy = u => !!u.until;
@@ -114,9 +115,13 @@ export function houseBan(w, h, room, from = w.time) {
   const until = from + ARRIERE.serve;
   h.arriere = { until, rest: until + ARRIERE.rest };
   let food = men * EAT * ARRIERE.serve;
-  for (const p of places) for (const g of ['bread', 'food']) {
-    const st = p.eco?.stock, k = st ? Math.min(food, st[g] || 0) : 0;
-    if (k) { st[g] -= k; food -= k; }
+  // (only what leaves each place's people their year, holdings.js stewardSpare)
+  for (const p of places) {
+    let spare = p.eco?.stock ? stewardSpare(p.eco) : 0;
+    for (const g of ['bread', 'food']) {
+      const st = p.eco?.stock, k = st ? Math.min(food, spare, st[g] || 0) : 0;
+      if (k) { st[g] -= k; food -= k; spare -= k; }
+    }
   }
   return men;
 }

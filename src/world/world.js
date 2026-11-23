@@ -7,7 +7,7 @@ import { Battle, TYPES } from '../battle.js';
 import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opinion, share, tickVassals, endFeud, prisoners, interact, owe, seatPower, kinWar, kingGift, harmWeight, levyShare, TITLED, DUES, LEVIES, RECONCILE } from './vassals.js';
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
-import { seedEconomy, runEconomy, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
+import { seedEconomy, runEconomy, buyFood, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
 import { Town, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, HOPELESS, LEVY_KINDS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
@@ -341,6 +341,7 @@ export class World {
     const lvl = e.level;
     const pace = h?.trait === 'builder' ? 1.15 : h?.trait === 'raider' || h?.trait === 'hothead' ? 1.05 : 1;
     const traded = runEconomy(p, dt, { pace, now: this.time });
+    buyFood(e, h && !h.bandit && !h.invader && !vassalOf(this, p) ? h : e, this.time);   // a place short of food for the year buys it, as you can (holdings.js)
     const v = vassalOf(this, p);
     noteTrade(p, traded);
     settleTrade(p, dt);

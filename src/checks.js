@@ -1747,6 +1747,33 @@ async function worldChecks(w) {
     } finally { t.lost = true; }
     return out;
   });
+  // A steward's foresight (holdings.js ahead, buyFood): a place sees the winter and the spring after it, and buys the food it will want.
+  await check("a place sees a winter its stores won't carry, and buys food for it with the purse it has", async () => {
+    const H = await import('./world/holdings.js'), out = [];
+    const mk = (farms, stock, extra = {}) => ({ pop: 40, stock: { food: stock }, buildings: { farm: farms, house: 8, market: 1, ...extra }, glut: {} });
+    const rich = H.ahead(mk(9, 3000), 0), poor = H.ahead(mk(1, 100), 0);
+    if (rich.short) out.push(`a place with nine farms and 3,000 meals thinks the year will run short (low ${Math.round(rich.low)})`);
+    if (!poor.short) out.push('a place with one farm and 100 meals for 40 people does not see the year run short');
+    if (!(H.foodRate(mk(3, 0), 1.6) > H.foodRate(mk(3, 0), 1) && H.foodRate(mk(3, 0), 0) === 0)) out.push('fields do not bring more in autumn than summer, or bring something in winter');
+    if (!(H.foodRate(mk(3, 0, { hunter: 2 }), 0) > 0)) out.push('hunters bring nothing in winter');
+    const e = mk(1, 20); e.ahead = H.ahead(e, 1000);
+    const purse = { gold: 500 }, got = H.buyFood(e, purse, 1000);
+    if (got < 10 || purse.gold >= 500) out.push(`a short place with a market and 500 gold bought ${got} meals for ${500 - purse.gold} gold`);
+    const dearer = H.buyFood(e, { gold: 500 }, 1000);
+    if (dearer < 10) out.push('the second purchase failed with gold in hand');
+    if (e.glut['buy:food'] === undefined) out.push('buying food left no mark on the price');
+    if (H.buyFood(e, { gold: 0 }, 1000)) out.push('a place with no gold bought food');
+    const full = mk(9, 3000); full.ahead = H.ahead(full, 0);
+    if (H.buyFood(full, { gold: 500 }, 0)) out.push('a place with plenty bought food');
+    // The people's year comes before the garrison's meals: the men eat only what is over it.
+    const lean = mk(1, 100, { hunter: 1 }); lean.now = 700;
+    const unfed = H.feedMen(lean, 80, 5), fat = mk(3, 3000, { hunter: 1 }); fat.now = 700;
+    if (!(unfed > 70)) out.push(`80 men were fed ${Math.round(80 - unfed)} of 80 from a larder the winter will want`);
+    if (H.feedMen(fat, 80, 5) > 1) out.push('80 men could not eat from a full larder');
+    const noMarket = mk(1, 20, { market: 0 }); noMarket.ahead = H.ahead(noMarket, 1000);
+    if (H.buyFood(noMarket, { gold: 500 }, 1000)) out.push('a place with no market bought food');
+    return out;
+  });
   // The carpenter makes planks until you switch shields on (round 4), for you only: stewards' places
   // keep the shields they always made.
   await check('a new carpenter makes planks only; shields start switched off in your villages, not in stewards\'', async () => {
