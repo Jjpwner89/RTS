@@ -52,6 +52,14 @@
   #stats small { color: var(--dim); }
   #stats #batch-go { font: 500 13px var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); padding: 3px 8px; cursor: pointer; }
   #cards { left: 290px; right: 16px; }
+  #res-toggle { display: none; }
+  /* A narrow window has room for the fight list or the results, not both: the results fold away behind a button. */
+  @media (max-width: 1000px) {
+    #stats { display: none; left: 10px; right: 10px; width: auto; z-index: 4; }
+    body.stats-on #stats { display: block; }
+    body.stats-on #sbx { display: none; }
+    #res-toggle { display: inline-block; position: fixed; top: 60px; left: 10px; z-index: 5; font: 500 13px var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); padding: 3px 10px; cursor: pointer; }
+  }
 </style>
 </head>
 <body class="">
@@ -88,6 +96,7 @@
   <small class="dim">Left-click selects, right-click orders, as in a battle. Everyone else fights the nearest regiment.</small>
 </aside>
 
+<button id="res-toggle" title="Show the fight list or the results">Results</button>
 <aside id="stats"></aside>
 
 <aside id="help">

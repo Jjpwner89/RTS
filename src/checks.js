@@ -1929,8 +1929,10 @@ async function orderChecks() {
 
   // A regiment sent at a much smaller band swarms it (battle.js swarmFoe): it wraps round the
   // band, rather than hold its slots while the few men nearest do the fighting (creator,
-  // 2026-11-22: "only like 4 guys attacked").
-  await check('60 spears sent at 8 bandits swarm them: 70% close in or strike within 8 s, and the band breaks', async () => {
+  // 2026-11-22: "only like 4 guys attacked"). Not a ball, though: no more than `crowd` (4) men go for one foe, so the
+  // regiment closes round the band and keeps its ranks rather than converging on a point and popping out all at once
+  // when it falls (creator, plane playtest, 2026-11-22), so half, not 70%, are close or striking at any time.
+  await check('60 spears sent at 8 bandits swarm them: half close in or strike within 8 s, and the band breaks', async () => {
     const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
     const out = [];
     for (const d of [15, 40]) {
@@ -1948,7 +1950,7 @@ async function orderChecks() {
         if (E.routing || E.alive === 0) broke = t;
       }
       if (contact === null) { out.push(`from ${d} m the spears never reached the bandits in 40 s`); continue; }
-      if (best < 0.7) out.push(`from ${d} m at most ${Math.round(best * 100)}% of the spears closed in on the bandits or struck within 8 s of the first blow`);
+      if (best < 0.5) out.push(`from ${d} m at most ${Math.round(best * 100)}% of the spears closed in on the bandits or struck within 8 s of the first blow`);
       if (broke === null || broke - contact > 15) out.push(`from ${d} m the bandits still stood ${Math.round(40 - contact)} s after the first blow`);
     }
     return out;
@@ -1957,7 +1959,8 @@ async function orderChecks() {
   // ... and the whole regiment closes on a tougher small band: not a drip of men stepping one by
   // one into dead men's slots while the rest wait (creator, 2026-11-22: "they just ran up two at a
   // time after the last group got killed").
-  await check('a regiment fighting a tougher small band keeps 80% of its men in the fight while the band stands', async () => {
+  // (70%, not 80%: four to a man, so not every one of 60 can be on a band of 12.)
+  await check('a regiment fighting a tougher small band keeps 70% of its men in the fight while the band stands', async () => {
     const { Battle } = await import('./battle.js'), { makeHeight } = await import('./terrain.js');
     const out = [];
     for (const [key, n, foe, fn] of [['spear', 60, 'maa', 12], ['spear', 80, 'household', 15]]) {
@@ -1975,7 +1978,7 @@ async function orderChecks() {
         if (share < low) { low = share; at = t - contact; }
       }
       if (contact === null) out.push(`${n} ${key}s never reached ${fn} ${foe}`);
-      else if (low < 0.8) out.push(`${n} ${key}s against ${fn} ${foe}: only ${Math.round(low * 100)}% of them in the fight ${Math.round(at)} s after the first blow, the band still standing`);
+      else if (low < 0.7) out.push(`${n} ${key}s against ${fn} ${foe}: only ${Math.round(low * 100)}% of them in the fight ${Math.round(at)} s after the first blow, the band still standing`);
     }
     return out;
   });

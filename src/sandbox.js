@@ -201,9 +201,6 @@ const describe = s => {
   if (s.dmg !== 1) bits.push(`damage ${Math.round((s.dmg - 1) * 100)}%`);
   if (s.room !== 1) bits.push(`${Math.round((s.room - 1) * 100)}% more room between men`);
   if (s.crowd) bits.push(`at most ${s.crowd} on one man`);
-  if (s.follow) bits.push('the ranks step up with the front, so no gap opens');
-  if (s.swarm !== 40) bits.push(`a big regiment sends men at a small band only ${s.swarm} m off, not 40`);
-  if (s.palisade !== 1) bits.push(`a palisade takes ${Math.round((1 - s.palisade) * 100)}% less from men hacking at it`);
   if (s.shock !== 1) bits.push(`a regiment breaking shakes its neighbours ${Math.round((1 - s.shock) * 100)}% less`);
   if (s.breakAt !== 0.5) bits.push(`the army breaks at ${Math.round(s.breakAt * 100)}% left, not 50%`);
   return bits.join('; ') || 'the numbers as the game has them';
@@ -211,6 +208,7 @@ const describe = s => {
 
 document.getElementById('cmp').onchange = e => { ui.compare = e.target.checked; panel(); build(); };
 document.getElementById('restart').onclick = () => build();
+document.getElementById('res-toggle').onclick = e => { const on = document.body.classList.toggle('stats-on'); e.target.textContent = on ? 'Fights' : 'Results'; };
 
 // ---- the numbers ----
 
