@@ -44,8 +44,7 @@
   <a class="entry" href="fronts/"><b>Marchfront</b>The side project: armies, fronts and supply on one map.</a>
   <a class="entry" href="muster.html"><b>Muster</b>Every soldier in the game on parade: look them over up close or march along beside them.</a>
   </div>
-  <p class="note" id="build"></p>
-  <a class="entry" href="credits.html"><b>Credits</b>The free music, sound and models Hearth and Host is built with, and their licences.</a>
+  <p class="foot"><a href="credits.html">Credits</a> <span class="build" id="buildstamp"></span></p>
 </main>
 <script type="module" src="src/ui/oops.js"></script>
 <script nomodule>document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML='<p style="font:16px/1.5 system-ui;max-width:440px;margin:40px auto;padding:0 16px;color:#222">This browser is too old to run the game. Please use a recent Chrome, Edge, Firefox or Safari (16.4 or newer).</p>'})</script>
@@ -56,7 +55,7 @@
   import { listSaves, minutesIn, ago } from './src/world/saveslots.js';
   import { mountSaves } from './src/ui/savedlist.js';
   import { BUILD } from './src/version.js';
-  document.getElementById('build').textContent = `Build ${BUILD.sha}${BUILD.at ? `, ${BUILD.at}` : ''}`;
+  document.getElementById('buildstamp').textContent = `Build ${BUILD.sha}${BUILD.at ? `, ${BUILD.at}` : ''}`;
   const saves = listSaves(), cur = saves.find(s => s.label === 'Current');
   const entry = document.getElementById('continue');
   if (cur) {

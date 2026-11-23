@@ -536,7 +536,7 @@ function panel() {
       <label>Master <input type="range" min="0" max="1" step="0.05" data-k="master"></label>
       <label>Music <input type="range" min="0" max="1" step="0.05" data-k="music"></label>
       <label>Effects <input type="range" min="0" max="1" step="0.05" data-k="sfx"></label>
-      <div class="row"><button id="sound-mute"></button><a href="credits.html" target="_blank">Credits</a></div>
+      <div class="row"><button id="sound-mute"></button></div>
     </div>`;
   const help = document.getElementById('help-toggle');
   if (help) top.insertBefore(wrap, help); else top.append(wrap);
