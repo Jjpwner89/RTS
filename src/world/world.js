@@ -24,6 +24,7 @@ import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { tickArriere, rankOf } from './arriere.js';
 import * as ban from './ban.js';
+import { hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack } from './relief.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -35,7 +36,7 @@ export const ownerOf = p => (p.owner === null ? NEUTRAL : FACTIONS[p.owner]);
 export { power };   // (economy.js: the village's own defence reckons with it too)
 export const headcount = units => units.reduce((n, u) => n + u.count, 0);
 
-const SPEED = 6;        // world units a second along a road
+export const SPEED = 6;        // world units a second along a road
 const MEET = 14;        // opposing armies this close fight
 // Everyone near a meeting fights in it (Orchestrator, 2026-11-23): armies this close to either
 // host, at war with the other side and at peace with its own, join its side (World.wing).
@@ -493,6 +494,8 @@ export class World {
       return have >= cap ? `A ${this.rank.toLowerCase()} keeps ${cap} household guard${cap > 1 ? 's' : ''} (you have ${have})` : null;
     };
     town.householdCount = () => this.households(0);
+    // Armies of its owner's marching on the village, for a raid band to weigh (economy.js checkRelief).
+    town.reliefComing = () => { const hs = hostsFor(this, p); return hs.length ? reliefSummary(hs) : null; };
     // The village's ban: what is armed, and arming a batch out of the racks (world/ban.js).
     town.banInfo = () => ban.describe(this, p);
     town.banCheck = (key, tier) => ban.armCheck(this, p, town, key, tier);
@@ -616,6 +619,7 @@ export class World {
       return;
     }
     if (p.owner === a.side) {
+      if (a.loot) arriveHome(this, a, p);
       if (a.side !== 0) { mergeInto(p.garrison, a.units); this.removeArmy(a); }
       else if (p.town) { a.gather = null; this.enterTown(a, p, came); }
       else if (a.gather === p.id) {
@@ -1214,6 +1218,7 @@ export class World {
         // An outlaw band met in the open gets the same word as one beaten off a village.
         const dead = headcount(theirsBefore) - headcount(theirs), lost = headcount(before) - headcount(mine);
         this.log(e.outlaws ? `The outlaws are beaten off at ${was}: ${toll(dead, lost)}.` : `${e.name} was beaten at ${was}.`);
+        if (e.loot) takeBack(this, e, enc.poi || a);
         this.retreat(e);
         if (!a.units.length) this.removeArmy(a);
       } else {
@@ -1470,7 +1475,11 @@ export class World {
       const back = this.spawnArmy(0, mine, p, h.army);
       back.wounded = b.regs.filter(r => r.side === 0 && r.initial > left(r))
         .map(r => ({ key: r.T.key, name: r.name, levy: r.levy || null, retinue: !!r.retinue, count: Math.round((r.initial - left(r)) * 0.35), ...carry(r) })).filter(u => u.count > 0);
+      if (t.carried) back.loot = t.carried;
       this.retreat(back);
+      // A host come to relieve the place follows you home, if it is the stronger and the road is not long (relief.js).
+      const hunters = hostsFor(this, p, h.owner).map(x => x.a);
+      if (hunters.length && chase(this, hunters, back)) this.log(`${hunters[0].name} ${hunters.length > 1 ? 'and others are' : 'is'} following you home.`, 1);
     }
     this.hooks.stormEnded?.(p, false, chose);
     this.checkEnd();
@@ -1519,7 +1528,7 @@ export class World {
     this.allowYield(p);
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,
-      onLeave: (survivors, gotAway, dead = {}) => {
+      onLeave: (survivors, gotAway, dead = {}, loot = null) => {
         if (t.fallenSaid && this.hooks.watching() !== p) this.log(`${p.name}: ${t.fallenSaid}`, 1);
         // How a band's raid ended, said where you are: in the village if you are watching it
         // (QC, 2026-11-21: a band beaten off left only "1 battle" on the card).
@@ -1531,11 +1540,13 @@ export class World {
         if (gotAway && H.bandit && p.owner === 0) {
           const took = t.rob(OUTLAW_TAKE.share), gold = Math.min(OUTLAW_TAKE.gold, Math.floor((FACTIONS[0].gold || 0) * OUTLAW_TAKE.share));
           FACTIONS[0].gold -= gold;
+          loot = addLoot(loot, took, gold);   // carried, so whoever catches them on the road has it back (relief.js)
           const list = [...Object.entries(took).filter(([, n]) => n > 0).map(([g, n]) => `${n} ${g}`), gold ? `${gold} gold` : null].filter(Boolean);
           const and = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
           if (list.length) say(`The outlaws got away from ${p.name} with ${and(list)} (${cost}).`, true);
         }
         const back = this.spawnArmy(a.side, survivors, p, a.name);
+        if (loot) back.loot = loot;
         this.retreat(back);
       },
     });
@@ -1851,6 +1862,8 @@ export class World {
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
     if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickHousehold(this); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); tickArriere(this); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    this.reliefClock = (this.reliefClock || 0) - dt;
+    if (this.reliefClock <= 0) { this.reliefClock = 5; warnRelief(this); }
     this.sightClock -= dt;
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);

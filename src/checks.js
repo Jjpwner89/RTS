@@ -1602,6 +1602,78 @@ async function worldChecks(w) {
     } finally { t.lost = true; delete w.byId['checks-ban']; }
     return out;
   });
+  // Raiders weigh the danger (creator, 2026-11-22, world/relief.js): help they can see, or a host closing, clearly
+  // stronger than the band, and it makes off with its plunder; a band that sees nothing stays.
+  await check('a raid band breaks off before a clearly stronger relief, keeps its plunder, and stays when nothing comes', async () => {
+    const R = await import('./world/relief.js'), E = await import('./economy.js'), out = [];
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const t = w.makeTown({ ...p, id: 'checks-relief', name: 'Reliefby' }, { villagers: 12, retinue: false });
+    try {
+      const band = () => [{ key: 'bandit', count: 20, name: 'Test band' }, { key: 'bandit', count: 20, name: 'Test band' }];
+      const start = () => { t.attackers = []; t.battle.regs = t.battle.regs.filter(r => r.side === 0); t.receiveAttack(band(), 1.0, { name: 'Test raiders' }); const g = t.attackers.at(-1); g.time = 5; return g; };
+      let g = start();
+      t.reliefComing = () => null; t.checkRelief(g);
+      if (g.leaving) out.push('a band that saw nothing coming made off');
+      const power = t.strength(g.regs);
+      t.reliefComing = () => ({ power: power * 0.8, men: 30, places: ['X'], eta: 40 });
+      t.checkRelief(g);
+      if (g.leaving) out.push('a band made off before a host weaker than itself');
+      t.reliefComing = () => ({ power: power * (E.RELIEF.ratio + 0.2), men: 100, places: ['X'], eta: 40 });
+      t.checkRelief(g);
+      if (!g.leaving || !g.brokeOff) out.push('a band did not break off before a host clearly stronger than itself');
+      // Help arriving on the village's ground, in the band's sight.
+      g = start(); t.reliefComing = () => null;
+      const a = Math.atan2(g.entry.x, g.entry.z);
+      const relief = t.addTroops([{ key: 'spear', count: 40, name: 'Test relief' }, { key: 'spear', count: 40, name: 'Test relief' }], a);
+      if (!relief.every(r => r.relief)) out.push('men who came in during a raid are not marked as relief');
+      t.checkRelief(g);
+      if (!g.leaving) out.push('a band did not break off before strong help arriving in its sight');
+      // Its plunder: what burns with a store in it goes on the band; a band wiped out gives it back to the village.
+      g = start();
+      const b = t.buildings.find(q => q.state === 'active' && q.B.storage) || t.place('storehouse', 40, 40, { ready: true, free: true }).building;
+      b.store = { wood: 30, stone: 12 };
+      t.ruin(b, g);
+      if (!(g.loot?.goods.wood === 30 && g.loot.goods.stone === 12)) out.push(`a burned store's goods did not go on the band: ${JSON.stringify(g.loot)}`);
+      const before = t.keep.store.wood || 0;
+      for (const r of g.regs) { r.gone = true; for (const sd of r.soldiers) sd.alive = false; }
+      t.updateAttacks(1);
+      if ((t.keep.store.wood || 0) < before + 30) out.push('a band wiped out did not give its plunder back to the village');
+      if (R.lootWords({ goods: { wood: 30 }, gold: 5 }) !== '30 wood and 5 gold') out.push(`lootWords says "${R.lootWords({ goods: { wood: 30 }, gold: 5 })}"`);
+    } finally { t.lost = true; t.attackers = []; }
+    return out;
+  });
+  await check('your party in a place it storms is warned of a host coming, once, with the choice to pull back; the host follows it home', async () => {
+    const R = await import('./world/relief.js'), out = [];
+    const owner = 3, at = { x: 0, z: 0 };
+    const place = { id: 'checks-storm', name: 'Stormby', owner, x: 0, z: 0, town: { hostile: { owner }, strength: () => 100, battle: { regs: [{ side: 0, gone: false, routing: false, alive: 60 }] } } };
+    const host = { id: 901, side: owner, gone: false, wagon: false, retreating: false, halted: false, x: 0, z: -300, path: [place], target: place, last: { name: 'Eldmark', x: 0, z: -300 }, units: [{ key: 'spear', count: 300, name: 'Relief' }] };
+    const asked = [], pulled = [], logs = [];
+    const W = { armies: [host], pois: [place], dip: [], time: 0, hooks: { choice: ev => asked.push(ev) }, log: m => logs.push(m), endStorm: (p, chose) => pulled.push([p.id, chose]) };
+    R.warnRelief(W);
+    if (asked.length !== 1) out.push(`${asked.length} warnings for a host of 300 against 60 men, not 1`);
+    else {
+      if (!/large force is coming/.test(asked[0].text) || !/Eldmark/.test(asked[0].text)) out.push(`the warning reads: ${asked[0].text}`);
+      if (!asked[0].choices.some(c => /Stay/.test(c.label)) || !asked[0].choices.some(c => /Pull back/.test(c.label))) out.push('the warning does not offer both choices');
+      asked[0].choices.find(c => /Pull back/.test(c.label)).run();
+      if (!pulled.length) out.push('"Pull back" did not pull back');
+    }
+    R.warnRelief(W);
+    if (asked.length !== 1) out.push('the same host was warned of twice');
+    host.units = [{ key: 'spear', count: 10, name: 'Few' }];
+    place.town.reliefWarned = new Set(); asked.length = 0;
+    R.warnRelief(W);
+    if (asked.length) out.push('a host weaker than your men raised the alarm');
+    // The chase: a stronger host sent after the beaten party, along a road no longer than the limit.
+    const prey = { id: 7, side: 0, path: [{ x: 0, z: 200 }], target: { name: 'Home', x: 0, z: 400 }, units: [{ key: 'spear', count: 40, name: 'Yours' }] };
+    const hunter = { id: 8, side: owner, gone: false, halted: false, retreating: false, wagon: false, at: place, last: place, units: [{ key: 'spear', count: 300, name: 'Hunters' }] };
+    const ordered = [];
+    const W2 = { route: () => ({ length: 300 }), order: (a, d) => { ordered.push([a.id, d.name]); return true; } };
+    if (R.chase(W2, [hunter], prey) !== 1 || ordered[0]?.[1] !== 'Home') out.push('a stronger host did not follow the beaten party home');
+    W2.route = () => ({ length: 5000 });
+    hunter.chasing = null;
+    if (R.chase(W2, [hunter], prey) !== 0) out.push('a host followed a party along a road far beyond the limit');
+    return out;
+  });
   // A match is real (marriages as ambitions, 2026-11-21): a wed vassal's house is a great house, only
   // someone who can still be wed wants one, and the price is half the dowry, to the nearest 25.
   await check('a vassal is wed only into a real great house, and the match is priced', async () => {

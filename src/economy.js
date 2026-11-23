@@ -396,6 +396,11 @@ const ABOUT_TO_BURN = 120;   // m: a band this near the building it has picked i
 // they were called as soon as raiders stood on the map, and went back to work and out again). Raiders
 // at the map's edge are an alert only; at a walking band's pace, 80 m is about a minute away.
 const CALL_RANGE = 80;
+// Raiders weigh the danger (creator, 2026-11-22; world/relief.js): a band that sees a relief force clearly stronger than
+// itself breaks off and makes for home with its plunder. eta: a host closing on the place this near (seconds) counts as
+// coming; ratio: clearly stronger; sight: how far (m) the band sees on the village's ground; chase: the longest road
+// a relieving host follows a beaten band home.
+export const RELIEF = { eta: 90, ratio: 1.5, sight: 140, chase: 600 };
 const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
@@ -2613,6 +2618,7 @@ export class Town {
         g.mode = 'assault';
         this.event('The besiegers are coming! The assault has begun.', 1);
       }
+      if (g.mode === 'raid' && !g.leaving && !this.hostile) this.checkRelief(g);
       if (g.mode === 'raid' && !g.leaving && (g.burned >= 3 || g.time > 150)) {
         g.leaving = true;
         this.event('The raiders are making off with their plunder.');
@@ -2639,11 +2645,37 @@ export class Town {
     }
   }
 
+  // A raid band weighs the danger: help it can see, or a host closing on the place, clearly stronger than the band
+  // itself (the same power sum as auto-resolve, RELIEF.ratio times over), and it makes off with its plunder. A band
+  // that has burned little and sees nothing coming stays. `r.relief` marks men who came in while the raid was on;
+  // reliefComing() (world.js) is the world's armies marching on the place.
+  checkRelief(g) {
+    const live = g.regs.filter(r => !r.gone && !r.routing && r.alive > 0);
+    const band = this.strength(live);
+    if (!live.length || !band) return;
+    const cx = live.reduce((n, r) => n + r.cx, 0) / live.length, cz = live.reduce((n, r) => n + r.cz, 0) / live.length;
+    const seen = this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && r.alive > 0 && !r.T.engine && Math.hypot(r.cx - cx, r.cz - cz) < RELIEF.sight);
+    const coming = this.reliefComing?.() || null;
+    if (!seen.some(r => r.relief) && !coming) return;
+    const danger = this.strength(seen) + (coming?.power || 0);
+    if (danger < band * RELIEF.ratio) return;
+    g.leaving = true;
+    g.brokeOff = true;
+    const what = coming && !seen.some(r => r.relief) ? `a host of about ${Math.round(coming.men / 10) * 10} men coming` : 'help arriving';
+    this.say(`The raiders have seen ${what} and are making off with their plunder.`, 0);
+  }
+
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
     this.fallenSaid = null;
     if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
     const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...carry(r) })).filter(sp => sp.count > 0);
+    // A band wiped out with its plunder on it: the village has it back (a band that got away carries it home, onLeave).
+    if (g.loot && !survivors.length && !this.lost && !this.hostile) {
+      for (const [k, n] of Object.entries(g.loot.goods)) this.put(this.keep, k, n);
+      if (g.loot.gold) this.purse.gold += g.loot.gold;
+      g.loot = null;
+    }
     if (!this.lost && g.mode !== 'hold' && !this.hostile) this.event('The attackers are gone. The village breathes again.');
     // Beaten, not just gone with their plunder, while the militia was out: a proud village.
     if (!this.lost && !this.hostile && g.mode !== 'hold' && !g.leaving && this.musterAt >= this.time - g.time) {
@@ -2674,7 +2706,7 @@ export class Town {
     }
     // (leaving: they got away with their plunder; dead: who fell on each side in this attack)
     const dead = this.battle.losses.map((n, i) => n - (g.losses?.[i] ?? n));
-    g.onLeave?.(survivors, g.leaving, { ours: dead[0], theirs: dead[1] });
+    g.onLeave?.(survivors, g.leaving, { ours: dead[0], theirs: dead[1] }, g.loot || null);
   }
 
   // Raiders who get away carry off a share of what the stores hold. Returns what they took.
@@ -2708,8 +2740,11 @@ export class Town {
     if (!this.hostile) this.grief += 4;
     if (g) g.burned++;
     for (const v of [...t.workers, ...t.builders]) this.release(v);
-    // Whatever was kept there is carried off or lost in the fire.
+    // Whatever was kept there is carried off, or lost in the fire. A band carries it (g.loot), your own party too
+    // (this.carried): a load that whoever catches them gets back (world/relief.js).
     const lost = Object.values(t.store).reduce((n, k) => n + k, 0);
+    const L = g ? (g.loot ||= { goods: {}, gold: 0 }) : this.hostile ? (this.carried ||= { goods: {}, gold: 0 }) : null;
+    if (L) for (const [k, n] of Object.entries(t.store)) if (n >= 1) L.goods[k] = (L.goods[k] || 0) + Math.floor(n);
     t.store = {};
     this.stockCache = null;
     audio.play('burn', t, this.battle); // audio
@@ -2917,6 +2952,7 @@ export class Town {
       const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0, ...fit });
       added.push(r);
       Object.assign(r, fit);
+      if (this.underAttack && !this.hostile) r.relief = true;   // arrived while the village was being raided: help the raiders can see coming
       r.levy = sp.levy || null;
       r.retinue = !!sp.retinue;
       r.elite = !!sp.elite;
