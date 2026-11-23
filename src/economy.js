@@ -2147,7 +2147,13 @@ export class Town {
     if (v.task?.kind === 'haul') { this.doHaul(v, dt); return; }
     // A full yard stops work until haulers clear it; meanwhile the workers carry crates off themselves.
     if (!v.task && Object.keys(g.out).some(k => (b.store[k] || 0) >= holdOf(k))) {
-      if (!this.selfHaul(v, dt)) b.status = 'Yard full: needs haulers';
+      if (!this.selfHaul(v, dt)) {
+        b.status = 'Yard full: needs haulers';
+        // ... and waits at the building's door, as a hauler or a craftsman does, not wherever he stood when he was
+        // given the work (checks() Duke test world: a farm hand stood for good inside a woodcutter).
+        const d = this.door(b, v);
+        this.walk(v, d.x, d.z, dt);
+      }
       return;
     }
     // A new field: the first crop has to come in before there is anything to cut.
@@ -2764,11 +2770,48 @@ export class Town {
   }
 
   // Attackers fight soldiers who come near; otherwise they make for the nearest building.
+  // Soldiers at rest don't stand inside a building (checks() on the Duke test world: a regiment left standing with one end
+  // in a market, men at its core). A regiment of yours that is not fighting, going anywhere or manning walls, with a man
+  // standing at the heart of a building or the keep, goes to the nearest free ground (standSlot), at most once in 20 s.
+  clearFromBuildings() {
+    const b = this.battle, solid = [this.keep, ...this.buildings.filter(o => o.state === 'active' && o.B.radius && o.B.gather?.node !== 'field')];
+    for (const r of b.regs) {
+      if (r.side !== 0 || !b.usable(r) || r.T.engine || r.engaged > 0 || r.dest || r.targetReg || r.targetWall || r.posts || r.hold || r.burnTarget) continue;
+      if (this.time < (r.clearedAt || 0) + 20) continue;
+      const bad = r.soldiers.some(s => s.alive && !s.gone && !s.perch && solid.some(o => Math.hypot(s.x - o.x, s.z - o.z) < o.B.radius * 0.6));
+      if (!bad) continue;
+      r.clearedAt = this.time;
+      const slot = this.standSlot(r, Math.atan2(r.cx, r.cz), Math.hypot(r.cx, r.cz), this.takenGround([r]));
+      b.orderMove([r], slot.x, slot.z, slot.angle);
+    }
+  }
+
+  // Nobody stands at the heart of a building or the keep (checks(): villagers put there when a village is made, or who
+  // waited for a yard to clear or a site's goods, stood inside a woodcutter, a keep). Once a second, anyone there is
+  // set down just outside it, on the side they stand on.
+  clearVillagers() {
+    const solid = [this.keep, ...this.buildings.filter(o => o.state === 'active' && o.B.radius && o.B.gather?.node !== 'field')];
+    for (const v of this.villagers) {
+      if (v.hidden || v.state === 'soldier' || v.state === 'rebel') continue;
+      for (const o of solid) {
+        const dx = v.x - o.x, dz = v.z - o.z, d = Math.hypot(dx, dz);
+        if (d >= o.B.radius * 0.6) continue;
+        const ux = d > 0.01 ? dx / d : Math.sin(o.angle || 0), uz = d > 0.01 ? dz / d : Math.cos(o.angle || 0), out = o.B.radius + 1.2;
+        v.x = o.x + ux * out; v.z = o.z + uz * out;
+        v.y = this.heightAt(v.x, v.z);
+        v.roadWay = null; v.stuckK = null;
+        break;
+      }
+    }
+  }
+
   thinkAttackers() {
     const b = this.battle;
     thinkTownSiege(this);      // ai.js: hosts that must get past walls
     this.thinkDefenders();
     this.thinkMilitia();
+    if (!this.underAttack && !this.hostile) this.clearFromBuildings();
+    this.clearVillagers();
     if (this.hostile) this.thinkHolders();
     const defenders = b.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping);
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];

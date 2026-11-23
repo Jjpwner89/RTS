@@ -1535,6 +1535,58 @@ async function worldChecks(w) {
     } finally { t.lost = true; }
     return out;
   });
+  // A farm hand whose yard is full waits at the farm's door, not where he was put (checks() on the Duke test world:
+  // one stood for good inside a woodcutter, with the farm's meals all promised to a hauler on the road).
+  await check('a gatherer whose yard is full goes to wait at his door, even from inside another building', async () => {
+    const t = throwaway({ stock: { wood: 50, food: 20 } }, [['woodcutter', 22, 1], ['farm', 45, 1]]), out = [];
+    try {
+      const cutter = t.buildings.find(b => b.kind === 'woodcutter'), farm = t.buildings.find(b => b.kind === 'farm');
+      if (!cutter || !farm) return [`the test village has no ${cutter ? 'farm' : 'woodcutter'}`];
+      const v = t.villagers[0];
+      t.release(v);
+      v.job = farm; farm.workers.push(v); v.state = 'work'; v.task = null;
+      v.x = cutter.x + 0.5; v.z = cutter.z;
+      t.put(farm, 'food', 40); farm.reserved.food = 40;   // a full yard, every meal promised to a hauler still on the road
+      const away = () => Math.hypot(v.x - cutter.x, v.z - cutter.z);
+      for (let i = 0; i < 80; i++) { t.battle.step(0.5); t.update(0.5); if (!(farm.store.food >= 30)) farm.store.food = 40; }
+      if (away() < cutter.B.radius * 0.6) out.push('a farm hand with a full yard stayed inside the woodcutter he was put in');
+      const d = t.door(farm, v);
+      if (Math.hypot(v.x - d.x, v.z - d.z) > 8) out.push(`a farm hand with a full yard is ${Math.round(Math.hypot(v.x - d.x, v.z - d.z))} m from the farm's door after 40 s`);
+    } finally { t.lost = true; }
+    return out;
+  });
+  // Nobody stands at the heart of a building or the keep: a villager put there is set down outside it (clearVillagers).
+  await check('a villager found at the heart of a building or the keep is set down outside it', async () => {
+    const t = throwaway({ stock: { wood: 50, food: 20 } }, [['woodcutter', 22, 1]]), out = [];
+    try {
+      const cutter = t.buildings.find(b => b.kind === 'woodcutter');
+      if (!cutter) return ['the test village has no woodcutter'];
+      const [a, b] = t.villagers;
+      a.x = cutter.x + 0.4; a.z = cutter.z - 0.3; b.x = t.keep.x + 1; b.z = t.keep.z + 1;
+      t.clearVillagers();
+      if (Math.hypot(a.x - cutter.x, a.z - cutter.z) < cutter.B.radius * 0.6) out.push('a villager at the heart of a woodcutter was left there');
+      if (Math.hypot(b.x - t.keep.x, b.z - t.keep.z) < t.keep.B.radius * 0.6) out.push('a villager at the heart of the keep was left there');
+    } finally { t.lost = true; }
+    return out;
+  });
+  // A regiment at rest with men at the heart of a building moves to free ground (clearFromBuildings).
+  await check('a regiment left standing inside a building moves out to free ground', async () => {
+    const t = throwaway({ stock: { wood: 50, food: 20 } }, [['market', 30, 1]]), out = [];
+    try {
+      const m = t.buildings.find(b => b.kind === 'market');
+      if (!m) return ['the test village has no market'];
+      const [r] = t.addTroops([{ key: 'spear', count: 24, name: 'Test standers' }], 1.0);
+      for (let i = 0; i < 40; i++) { t.battle.step(0.5); t.update(0.5); }   // (let it form up where it was sent)
+      r.dest = null; r.destX = null;
+      for (const s of r.soldiers) { s.x = m.x + (Math.random() - 0.5) * 3; s.z = m.z + (Math.random() - 0.5) * 3; }
+      r.x = r.cx = m.x; r.z = r.cz = m.z;
+      const inside = () => r.soldiers.filter(s => s.alive && Math.hypot(s.x - m.x, s.z - m.z) < m.B.radius * 0.6).length;
+      if (inside() < 10) return [`the test could not put the men inside (${inside()})`];
+      for (let i = 0; i < 160; i++) { t.battle.step(0.5); t.update(0.5); if (i % 2 === 0) t.thinkAttackers(); }
+      if (inside()) out.push(`${inside()} of 24 men still stand inside the market after 80 s`);
+    } finally { t.lost = true; }
+    return out;
+  });
   await check('a market buys what you switch on, dearer than it sells, dearer still as it buys', async () => {
     const E = await import('./economy.js'), out = [];
     const M = E.BUILDINGS.market.recipes;
