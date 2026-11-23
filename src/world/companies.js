@@ -19,16 +19,27 @@ const CAPTAINS = ['Bors Hale', 'Ysolt of the Marches', 'Cade Ferro', 'Old Garm',
 // A company's name at the start of a sentence.
 const Name = c => c.name[0].toUpperCase() + c.name.slice(1);
 // What a company costs, the same for you and the houses (creator, 2026-11-22: mercenaries
-// made the snowball "felt like I cheated"; Orchestrator, 2026-11-23: paid at least a
-// man-at-arms' wage, so many by rank, slow back to market; then a middle price, so one
-// company at Lord is a big decision you can afford). A man-at-arms is mail 32, a sword 14
-// (the market's lot prices, treasury.js WARES), a shield and a 60 fee, about 110. A hired man
-// costs about a third of that up front: a company of 45 is 1,500 to 1,600 gold, some 10 to 18
-// minutes of a new lord's income, and its wages take most of the rest. The rank cap and the
-// wages hold the rush back; at 85 a man the first company was 26 to 43 minutes away.
-export const PRICE = { sellsword: 35, hiredxbow: 27 };       // gold per man, up front
-// Paid above a man-at-arms (1.5) and below a knight (3.75): the dearest foot in the realm.
-export const WAGE = { sellsword: 1.75, hiredxbow: 1.75 };   // gold per man per minute (treasury.js WAGES)
+// made the snowball "felt like I cheated"; 2026-11-23: "they should range from hired bandits
+// to knights", "if you save up a lot of money you can get a big bonus, but you really feel
+// it, but not all mercs are super expensive. i think the cap covers most of the merc rush
+// problem"). A ladder of quality, each with its price a man up front and its wage a man a
+// minute, which rise together: a cheap stopgap at the bottom, at the top a hammer you save
+// for and whose wages drain you while it serves. For scale, your own men-at-arms are about
+// 110 a man to kit and train and draw 1.5 a minute; knights draw 3.75. The rank cap (below)
+// is what holds a rush back, not the price.
+//   size: the men in a company of that kind; stay, away: minutes a free company is about on
+//   the market, then off on other work (the dear ones are about less, so seldom on offer).
+export const GRADES = {
+  hiredband: { price: 12, wage: 0.75, size: [40, 60], stay: 20, away: 6 },
+  sellsword: { price: 19, wage: 1, size: [40, 56], stay: 18, away: 8 },
+  hiredxbow: { price: 24, wage: 1.25, size: [36, 50], stay: 15, away: 10 },
+  hiredmaa: { price: 38, wage: 1.75, size: [30, 42], stay: 12, away: 16 },
+  hiredlance: { price: 80, wage: 4.5, size: [18, 26], stay: 9, away: 25 },
+};
+export const PRICE = Object.fromEntries(Object.entries(GRADES).map(([k, g]) => [k, g.price]));   // gold per man, up front
+export const WAGE = Object.fromEntries(Object.entries(GRADES).map(([k, g]) => [k, g.wage]));     // gold per man per minute (treasury.js WAGES)
+// The market's eight companies, by kind: more of the cheap, one each of the dear.
+const MARKET = ['hiredband', 'hiredband', 'sellsword', 'sellsword', 'hiredxbow', 'hiredxbow', 'hiredmaa', 'hiredlance'];
 // How many companies a lord keeps by rank, as the household guard (world.js HOUSEHOLD_CAP):
 // a reeve none (the first conquest is home-grown), a lord one, a count two, a duke three.
 export const COMPANY_CAP = { Reeve: 0, Lord: 1, Count: 2, Duke: 3, King: 4 };
@@ -39,12 +50,30 @@ export const MOOD = -4;                              // a village's mood, per co
 
 export function makeCompanies(w) {
   const markets = w.pois.filter(p => p.kind === 'market' || p.kind === 'ford' || p.kind === 'crown');
-  return NAMES.slice(0, 6).map((name, i) => {
-    const key = i % 3 === 2 ? 'hiredxbow' : 'sellsword';
-    const size = Math.round((key === 'hiredxbow' ? 36 : 44) + w.rand() * 16);
+  const kinds = [...MARKET];
+  for (let i = kinds.length - 1; i > 0; i--) { const j = Math.floor(w.rand() * (i + 1)); [kinds[i], kinds[j]] = [kinds[j], kinds[i]]; }
+  return NAMES.map((name, i) => {
+    const key = kinds[i], G = GRADES[key], size = Math.round(G.size[0] + w.rand() * (G.size[1] - G.size[0]));
+    // some start away on other work, the dear ones more often
+    const away = w.rand() < G.away / (G.stay + G.away);
+    const back = away ? w.time + G.away * 60 * w.rand() : 0;
     return { id: i + 1, name, captain: CAPTAINS[i], key, size, men: size, home: markets[i % Math.max(1, markets.length)]?.id ?? null,
-      employer: null, unpaid: 0, grumbled: false, back: 0 };
+      employer: null, unpaid: 0, grumbled: false, back, away, until: null };
   });
+}
+
+// A free company is about on the market for a while, then off on other work for a while
+// (GRADES stay and away, in minutes, give or take): what is on offer changes, and the dear
+// companies are seldom there.
+function roam(w, c) {
+  const G = GRADES[c.key] || GRADES.sellsword;
+  if (w.time < c.back) return;
+  if (c.away) { c.away = false; c.until = null; }
+  c.until ??= w.time + G.stay * 60 * (0.6 + 0.8 * w.rand());
+  if (w.time < c.until) return;
+  c.away = true;
+  c.back = w.time + G.away * 60 * (0.6 + 0.8 * w.rand());
+  c.until = null;
 }
 
 export const hirePrice = c => Math.round(c.size * PRICE[c.key]);
@@ -62,7 +91,7 @@ export function companyCap(w, side) {
 export function offer(w, c, side) {
   const home = homeOf(w, c);
   if (c.employer === side) return { ok: false, why: 'Already yours' };
-  if (w.time < c.back) return { ok: false, why: `Regrouping for ${Math.ceil((c.back - w.time) / 60)} min` };
+  if (w.time < c.back) return { ok: false, why: c.away ? `Away on other work, back in ${Math.ceil((c.back - w.time) / 60)} min` : `Regrouping for ${Math.ceil((c.back - w.time) / 60)} min` };
   if (home && home.owner !== null && home.owner !== side && w.atWar(side, home.owner)) return { ok: false, why: `${home.name} is held by your enemy` };
   const k = companyCap(w, side);
   if (k.have >= k.cap) return { ok: false, why: k.cap ? `A ${k.rank.toLowerCase()} keeps ${k.cap} ${k.cap > 1 ? 'companies' : 'company'}` : 'From the rank of Lord' };
@@ -137,6 +166,7 @@ export function release(w, c, why) {
   if (was === 0 && why === 'unpaid') w.hooks.sound?.('mob'); // audio: they walk out
   c.employer = null;
   c.back = w.time + REFORM;
+  c.away = false; c.until = null;
   c.men = c.size;
   if ((why === 'unpaid' || why === 'dismissed') && men >= 10 && where && w.rand() < (why === 'unpaid' ? 0.6 : 0.3)) {
     const p = where.links ? where : where.at || where.last;   // a place, or where an army stood
@@ -212,13 +242,13 @@ export function tickHousehold(w) {
 export function tickCompanies(w, dt) {
   w.companies ??= makeCompanies(w);
   for (const c of w.companies) {
-    if (c.employer === null || c.employer === undefined) continue;
+    if (c.employer === null || c.employer === undefined) { roam(w, c); continue; }
     const H = FACTIONS[c.employer];
     c.men = menOf(w, c);
     if (!H?.alive || c.men < 3) {
       if (c.employer === 0 && c.men < 3) w.log(`${Name(c)} are no more: too few left to call a company.`, 1);
       pull(w, c);   // its last men go too (stragglers, or a broken house's), not left standing unpaid under its name
-      c.employer = null; c.back = w.time + REFORM * 2; c.men = c.size;
+      c.employer = null; c.back = w.time + REFORM * 2; c.away = false; c.until = null; c.men = c.size;
       continue;
     }
     if (c.employer === 0 && c.men < c.size * WEAK && !c.askedWeak) { c.askedWeak = true; askWeak(w, c); }
@@ -235,7 +265,7 @@ export function tickCompanies(w, dt) {
 }
 
 // A rival with gold to spare, at war, hires a free company (the merchant house even at
-// peace): as many as you could, one a think, while its purse pays the price and keeps a few
+// peace), the dearest on offer it can afford: as many as you could, one a think, while its purse pays the price and keeps a few
 // minutes' pay in hand, and its `income` a minute still covers every wage it pays, the new
 // company's too (Orchestrator, 2026-11-22: no house-only limit on how many).
 export function rivalHire(w, h, muster, income = Infinity) {
@@ -243,7 +273,8 @@ export function rivalHire(w, h, muster, income = Infinity) {
   const merchant = h.trait === 'merchant';
   const atWar = FACTIONS.some(o => o.alive && !o.bandit && o !== h && w.atWar(h.index, o.index));
   if (!atWar && !merchant) return false;
-  const free = w.companies.filter(c => c.employer === null && offer(w, c, h.index).ok);
+  // the best on offer that it can pay for and keep paying: a rich house may hire lances
+  const free = w.companies.filter(c => c.employer === null && offer(w, c, h.index).ok).sort((a, b) => hirePrice(b) - hirePrice(a));
   const paid = wagesOf(w, h.index).gold;
   const c = free.find(c => h.gold > hirePrice(c) + wage(c) * (merchant ? 4 : 8) && paid + fullWage(c) <= income);
   if (!c) return false;

@@ -22,7 +22,7 @@ import { WAGE as HIRED } from './companies.js';
 // the village militia called out to fight is not soldiers at all, so neither draws a wage.
 // (Orchestrator, 2026-11-21: every wage scaled by 2.5, the household's and elites' too, in
 // the same order, so gold is what caps an army: levy 0.5 < foot 0.75 < mail and horse 0.9
-// < household 1 < man-at-arms 1.5 < knight 3.75; sellswords 1.25, crossbowmen 1.5.) Drilled
+// < household 1 < man-at-arms 1.5 < knight 3.75; hired men by their kind, companies.js GRADES.) Drilled
 // serjeants and yeomen draw 1.2 (economy.js DRILLED), between mail and the household.
 export const WAGES = { levy: 0.5, foot: 0.75, heavy: 0.9 };
 // Men in each place, the cheapest first, who are its home guard and draw nothing. The

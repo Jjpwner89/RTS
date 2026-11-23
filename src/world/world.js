@@ -394,7 +394,7 @@ export class World {
     // Veterans come from any of the house's garrisons; once the house reaches beyond its own
     // lands (rivals.js STAGES) and has gold to keep them, any of its men will do.
     const anyMan = (h.ai?.stage ?? 0) >= 1 && h.gold > 600;
-    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && !DRILLED[u.key] && (anyMan || (u.xp || 0) >= S.veteran) && !TYPES[u.key]?.engine && u.key !== 'sellsword' && u.key !== 'hiredxbow');
+    const vets = held.flatMap(q => q.garrison).filter(u => !u.elite && !DRILLED[u.key] && (anyMan || (u.xp || 0) >= S.veteran) && !TYPES[u.key]?.engine && !TYPES[u.key]?.merc);
     // A great house keeps more of them the more places it holds.
     const room = Math.round(S.cap * Math.max(1, held.length / 2)) - already, men = vets.reduce((n, u) => n + u.count, 0);
     if (room <= 0 || !men) return;

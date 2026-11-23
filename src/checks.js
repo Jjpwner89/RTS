@@ -1041,7 +1041,7 @@ async function worldChecks(w) {
     const h = hs[0], seat = s.pois.find(p => p.owner === h.index && p.kind !== 'camp');
     s.declareWar(h.index, hs[1].index);
     s.companies = C.makeCompanies(s);
-    for (const c of s.companies) c.home = null;
+    for (const c of s.companies) { c.home = null; c.back = 0; c.away = false; }
     h.gold = 100000;
     const mine = () => s.companies.filter(c => c.employer === h.index).length;
     for (let i = 0; i < 3; i++) C.rivalHire(s, h, seat, 0);
@@ -1057,19 +1057,33 @@ async function worldChecks(w) {
     return out;
   }));
 
-  // Mercenaries priced as what they are (creator, 2026-11-22: "felt like I cheated";
-  // Orchestrator, 2026-11-23): about a third of a man-at-arms up front, above one in wages,
-  // so many by rank for you as for a house, and a year before one let go is back.
-  await check('companies: a third of a man-at-arms up front, paid above one, kept by rank, a year back on the market', () => scratch(async (make, FACTIONS) => {
-    const C = await import('./world/companies.js'), { ELITE } = await import('./economy.js'), { WARES } = await import('./world/treasury.js'), out = [];
-    const s = make(), c = (s.companies = C.makeCompanies(s))[0];
-    for (const o of s.companies) o.home = null;
-    const kitted = WARES.mail.price / WARES.mail.lot + WARES.swords.price / WARES.swords.lot + ELITE.maa.fee;   // a man-at-arms, shield aside
-    for (const k of Object.keys(C.PRICE)) {
-      if (C.PRICE[k] < kitted * 0.25 || C.PRICE[k] > kitted * 0.5) out.push(`a ${k} costs ${C.PRICE[k]} a man, not about a third of a man-at-arms' ${Math.round(kitted)}`);
-      if (C.WAGE[k] < ELITE.maa.pay) out.push(`a ${k} draws ${C.WAGE[k]} a minute, under a man-at-arms' ${ELITE.maa.pay}`);
+  // Mercenaries as a ladder of quality (creator, 2026-11-23: "they should range from hired
+  // bandits to knights"; the rank cap holds the rush): price and wage rise together, from
+  // about 12 a man to past 60, the lances paid above your own knights; the dear ones seldom
+  // on the market; so many by rank for you as for a house; a year before one let go is back.
+  await check('companies: a ladder from hired bandits to lances, the dearer paid more and seldom on offer, kept by rank, a year back on the market', () => scratch(async (make, FACTIONS) => {
+    const C = await import('./world/companies.js'), { ELITE } = await import('./economy.js'), { TYPES } = await import('./battle.js'), out = [];
+    const s = make();
+    s.companies = C.makeCompanies(s);
+    const ks = Object.keys(C.GRADES).sort((a, b) => C.PRICE[a] - C.PRICE[b]), low = ks[0], top = ks.at(-1);
+    for (let i = 1; i < ks.length; i++) if (C.WAGE[ks[i]] <= C.WAGE[ks[i - 1]]) out.push(`${ks[i]} cost more than ${ks[i - 1]} but are paid no more`);
+    if (C.PRICE[low] > 15 || C.PRICE[top] < 60) out.push(`prices run ${C.PRICE[low]} to ${C.PRICE[top]} a man, not from about 12 to past 60`);
+    if (C.WAGE[top] < ELITE.knight.pay) out.push(`${top} draw ${C.WAGE[top]} a minute, under your knights' ${ELITE.knight.pay}`);
+    for (const k of ks) if (!TYPES[k]?.merc) out.push(`${k} are not a hired kind`);
+    for (const k of ks) if (!s.companies.some(c => c.key === k)) out.push(`no company of ${k} on the market`);
+    for (const c of s.companies) if (C.hirePrice(c) !== Math.round(c.size * C.PRICE[c.key])) out.push(`${c.name}: ${C.hirePrice(c)} gold for ${c.size} men`);
+    // Three hours of the market: the cheapest about most of the time, the dearest seldom.
+    const t0 = s.time, about = {}, seen = {};
+    for (let t = 0; t < 10800; t += 30) {
+      s.time = t0 + t;
+      C.tickCompanies(s, 30);
+      for (const c of s.companies) { seen[c.key] = (seen[c.key] || 0) + 1; if (s.time >= c.back) about[c.key] = (about[c.key] || 0) + 1; }
     }
-    if (C.hirePrice(c) !== Math.round(c.size * C.PRICE[c.key])) out.push(`${c.name}: ${C.hirePrice(c)} gold for ${c.size} men`);
+    const share = k => (about[k] || 0) / seen[k];
+    if (!(share(low) > 0.6 && share(top) < 0.45 && share(top) > 0.05)) out.push(`on the market ${Math.round(share(low) * 100)}% of the time for ${low}, ${Math.round(share(top) * 100)}% for ${top}`);
+    s.time = t0;
+    const c = s.companies[0];
+    for (const o of s.companies) { o.home = null; o.back = 0; o.away = false; }
     FACTIONS[0].gold = 1e6;
     const mine = s.pois.filter(p => p.owner === 0), free = s.pois.filter(p => p.owner === null && p.kind !== 'camp' && p.kind !== 'crown');
     for (const p of mine.slice(1)) s.takePlace(p, null);
@@ -1078,7 +1092,6 @@ async function worldChecks(w) {
     s.takePlace(free[0], 0);   // a lord: one
     const seat = s.pois.find(p => p.owner === 0 && !p.town) || free[0];
     if (!C.offer(s, c, 0).ok) out.push(`a lord can't hire his first company: ${C.offer(s, c, 0).why}`);
-    s.companies.forEach(o => { if (o !== c) o.back = 0; });
     C.hire(s, c, 0, seat);
     const second = C.offer(s, s.companies[1], 0);
     if (second.ok) out.push('a lord is offered a second company');

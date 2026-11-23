@@ -45,8 +45,13 @@ export const TYPES = {
   // flails and pitchforks, no armour and no drill. Weaker than any levy and quick to break.
   folk: { key: 'folk', armour: 'none', name: 'Village militia', role: 'Everyone called out: improvised weapons, no armour, break easily', count: 40, files: 14, spacing: 1.7, speed: 3.2, hp: 9, atk: 2, def: 2, dmg: 3, reach: 1.8, cooldown: 1.4, morale: 35, militia: true, value: 0.35, look: 'militia' },
   // Hired and household troops: paid in gold, no villagers. Mercenaries lose heart quickly when a fight goes badly.
-  sellsword: { key: 'sellsword', armour: 'mail', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
+  sellsword: { key: 'sellsword', armour: 'leather', name: 'Sellswords', role: 'Hired foot, good fighters, quick to quit', count: 60, files: 15, spacing: 1.5, speed: 3.3, hp: 14, atk: 6, def: 4, dmg: 5, reach: 1.9, cooldown: 1.1, morale: 60, shield: true, merc: true, gold: 6, look: 'sword' },
   hiredxbow: { key: 'hiredxbow', armour: 'leather', name: 'Hired crossbows', role: 'Hired crossbowmen behind big shields', count: 50, files: 17, spacing: 1.7, speed: 2.9, hp: 11, atk: 2, def: 4, dmg: 3, reach: 1.6, cooldown: 1.3, morale: 50, range: 105, reload: 7.5, arrowDmg: 9, pierce: 0.7, quiver: 16, shield: true, merc: true, gold: 8, look: 'crossbow' },
+  // The dearer and cheaper ends of the hiring market (Orchestrator, 2026-11-23: from hired bandits to knights): an outlaw
+  // band that runs first, free companions in mail, and lances of hired knights.
+  hiredband: { key: 'hiredband', armour: 'none', name: 'Hired bandits', role: 'Cut-throats for hire: cheap, quick, first to run', count: 50, files: 12, spacing: 1.7, speed: 3.5, hp: 10, atk: 4, def: 2, dmg: 4, reach: 1.9, cooldown: 1.2, morale: 35, merc: true, gold: 3, look: 'bandit' },
+  hiredmaa: { key: 'hiredmaa', armour: 'mail', name: 'Free companions', role: 'Hired men-at-arms in mail and shield: steady, and dear', count: 40, files: 12, spacing: 1.5, speed: 2.8, hp: 18, atk: 6, def: 6, dmg: 6, reach: 2.0, cooldown: 1.3, morale: 75, shield: true, merc: true, gold: 12, look: 'maa' },
+  hiredlance: { key: 'hiredlance', armour: 'plate', name: 'Mercenary lances', role: 'Hired knights in plate: a charge bought with gold', count: 24, files: 12, spacing: 2.6, depth: 3.4, speed: 7.0, hp: 30, atk: 8, def: 7, dmg: 7, reach: 2.5, cooldown: 1.2, morale: 85, mounted: true, charge: true, chargeMul: 2.5, shield: true, merc: true, gold: 25, look: 'knight' },
   // Norrhold, the north's own host for Part 2 (norrhold: true; not raised in the south).
   // Axemen with long two-handed axes and no shields, who break shield walls; javelin men
   // who throw a few heavy javelins at close range and then fight; and war dogs, fast and
