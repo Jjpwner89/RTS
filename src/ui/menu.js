@@ -97,6 +97,10 @@ function render(focus) {
     why(b, sv.over?.() ? 'The campaign is over' : sv.fight?.() ? 'Saving waits until the battle ends' : sv.can().ok ? '' : sv.can().reason);
     items.append(b);
   }
+  if (sv?.exportFile) items.append(button('Save to a file', () => {
+    const r = sv.exportFile();
+    card.querySelector('#gm-state').textContent = r.ok ? (r.live ? 'Saved to a file, from now.' : `Saved to a file, from your last save (${ago(r.info.savedAt)}).`) : `${r.reason}.`;
+  }, { id: 'gm-export', title: 'A copy of the campaign as a file you keep: for safety, or to carry it to another browser' }));
   if (document.getElementById('sound-toggle')) items.append(button('Sound', () => document.getElementById('sound-toggle').click(), { id: 'gm-sound', title: 'Volume for the music and effects' }));
   items.append(button('Quit to main menu', () => { if (plan()) { view = 'confirm'; render(); } else leave(); }, { id: 'gm-quit', title: 'Back to the main menu' }));
   card.append(items);

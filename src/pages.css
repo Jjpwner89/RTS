@@ -36,3 +36,11 @@ a { color: var(--gold); }
 .sheet th { color: var(--dim); font-weight: 700; }
 .sheet code { font-size: 12.5px; color: var(--dim); }
 [hidden] { display: none !important; }
+
+/* Saved campaigns on the front page */
+.sheet #saves h3 { margin-top: 0; }
+.sheet .saverow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.sheet .saverow .grow { flex: 1 1 260px; }
+.sheet #saves button, .sheet #new-ask button { font: 700 14px var(--body-font); padding: 5px 12px; cursor: pointer; color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow); }
+.sheet .whyline { color: #8a2f1d; margin: 8px 0; }
+.sheet .note { color: var(--dim); font-size: 13px; }

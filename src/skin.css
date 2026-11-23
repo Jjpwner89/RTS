@@ -377,3 +377,12 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 /* What you know of a place, in words: older sightings fade */
 #wpanel .scout { margin: 2px 0 6px; font-size: 13px; }
 #wpanel .stale { opacity: 0.75; font-style: italic; }
+
+/* A saved campaign that can't be opened: a card over the page, nothing behind it going on */
+#loadfail { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(20, 15, 10, 0.78); padding: 16px; }
+#loadfail .modal { position: static; transform: none; max-width: 460px; width: 100%; display: block; }
+#loadfail .gm-items { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+
+#save-tag { font-size: 12px; color: var(--dim); white-space: nowrap; align-self: center; }
+#save-tag.late { color: #c9822e; }
+@media (max-width: 800px), (max-height: 600px) { #save-tag { display: none; } }

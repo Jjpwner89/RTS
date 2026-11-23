@@ -10,10 +10,9 @@ import { relayOld } from './places.js';
 import { vassalOf } from './vassals.js';
 import { BUILDINGS, plainLevy } from '../economy.js';
 
-const KEY = 'rts.campaign.save';
-export const TEST_KEY = 'rts.campaign.test';
+import { KEY, TEST_KEY, VERSION, store, inspect, migrate, keepStorage } from './saveslots.js';
+export { TEST_KEY };
 const keyOf = test => (test ? TEST_KEY : KEY);
-const VERSION = 1;
 
 // ---- what can be saved ----
 
@@ -34,17 +33,42 @@ export function saveInfo(test = false) {
 }
 
 export function readSave(test = false) {
-  try { const s = JSON.parse(localStorage.getItem(keyOf(test))); return s?.version === VERSION ? s : null; } catch { return null; }
+  const r = loadSlot(test);
+  return r.status === 'ok' ? r.data : null;
+}
+
+// The saved campaign ready to load, or why not: { status: 'none' | 'ok' | 'damaged' | 'newer' | 'failed', data?, reason? }.
+// A save of an older version is migrated here. Nothing is ever deleted or replaced by looking at it.
+export function loadSlot(test = false) {
+  let raw = null;
+  try { raw = localStorage.getItem(keyOf(test)); } catch { return { status: 'failed', reason: 'The browser would not let the game read its saved data' }; }
+  if (raw === null) return { status: 'none' };
+  const i = inspect(raw);
+  if (i.status === 'damaged' || i.status === 'newer') return { status: i.status, reason: i.reason, raw };
+  try { return { status: 'ok', data: migrate(JSON.parse(raw)), raw }; } catch (e) { return { status: 'failed', reason: `it could not be brought up to date (${e.message})`, raw }; }
 }
 
 // The campaign as save data, without storing it.
 export function snapshot(w) {
-  return { version: VERSION, seed: w.seed, savedAt: Date.now(), boxed: true, ...pack(w) };
+  if (!w.campaignId) w.campaignId = Math.random().toString(36).slice(2, 10);
+  return { version: VERSION, id: w.campaignId, seed: w.seed, savedAt: Date.now(), boxed: true, ...pack(w) };
 }
 
 export function saveGame(w) {
-  try { localStorage.setItem(keyOf(w.options.test), JSON.stringify(snapshot(w))); markClean(w, Date.now()); return { ok: true }; }
-  catch (e) { return { ok: false, reason: 'The browser would not store it' }; }
+  let raw;
+  try { raw = JSON.stringify(snapshot(w)); } catch (e) { console.error('save: the campaign would not turn into a save', e); return { ok: false, reason: "The campaign couldn't be written down (this is a bug: nothing was overwritten)" }; }
+  const r = store(raw, { test: !!w.options.test });
+  if (r.ok) { markClean(w, Date.now()); keepStorage(); }
+  return r;
+}
+
+// The campaign as a file's worth of text: now if it can be saved this moment, else the last save in the browser.
+// { ok, text, live, info } or { ok: false, reason }.
+export function exportCurrent(w, { busy = false } = {}) {
+  if (canSave(w, { busy }).ok) { const text = JSON.stringify(snapshot(w)); return { ok: true, text, live: true, info: inspect(text) }; }
+  let text = null;
+  try { text = localStorage.getItem(keyOf(w.options.test)); } catch { /* nothing */ }
+  return text ? { ok: true, text, live: false, info: inspect(text) } : { ok: false, reason: `Nothing to save to a file yet: ${canSave(w, { busy }).reason.toLowerCase()}` };
 }
 
 // ---- unsaved progress ----
@@ -250,6 +274,7 @@ export function loadGame(data, hooks) {
   // The map from its seed, quietly: no heralds while it is being put back.
   const quiet = { ...hooks, herald: () => {}, offer: () => {}, ask: () => {}, townAttacked: () => {} };
   const w = new World(data.seed, quiet, data.world.options);
+  w.campaignId = data.id || `seed${data.seed}`;
   if (data.world.part === 2) w.beginPart2();
   for (const p of w.pois) p.town = null;
   // Armies first as empty shells, so anything pointing at one finds it.

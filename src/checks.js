@@ -2624,6 +2624,97 @@ async function houseChecks(w) {
   });
 }
 
+// Saves that cannot be lost (world/saveslots.js): tried on a stand-in browser store, so the real one is untouched.
+async function slotChecks(w) {
+  const S = await import('./world/saveslots.js');
+  group = 'Saves that cannot be lost';
+  const fake = (limit = Infinity) => { const m = new Map(); return { m, getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { const used = [...m].reduce((n, [a, b]) => n + (a === k ? 0 : b.length), 0); if (used + v.length > limit) throw new Error('quota'); m.set(k, v); }, removeItem: k => m.delete(k) }; };
+  const save = (id, time, at, o = {}) => JSON.stringify({ version: S.VERSION, id, seed: 1, savedAt: at, world: { time, options: o }, pois: [] });
+  const MIN = 60000, T0 = 1e12;
+  const times = st => S.listSaves(st).map(s => `${s.key.replace('rts.campaign.', '')}@${s.info.time}`);
+  await check('a new campaign puts the old one on the shelf, and a different one after it', () => {
+    const st = fake(), out = [];
+    S.store(save('a', 100, T0), { storage: st }); S.store(save('b', 5, T0 + MIN), { storage: st });
+    if (!st.m.get(S.SHELF[0])?.includes('"id":"a"')) out.push(`campaign a is not on the shelf: ${times(st)}`);
+    S.store(save('c', 5, T0 + 2 * MIN), { storage: st });
+    if (!st.m.get(S.SHELF[0])?.includes('"id":"b"') || !st.m.get(S.SHELF[1])?.includes('"id":"a"')) out.push(`the shelf does not hold b then a: ${times(st)}`);
+    if (!st.m.get(S.KEY).includes('"id":"c"')) out.push('the new campaign is not the current one');
+    return out;
+  });
+  await check('backups: three of them, each at least ten minutes older than the last, current untouched', () => {
+    const st = fake(), out = [];
+    for (let i = 0; i < 40; i++) S.store(save('a', i * 120, T0 + i * 2 * MIN), { storage: st });   // 80 minutes of saves every 2
+    const b = S.BACKUPS.map(k => st.m.get(k)).filter(Boolean).map(r => JSON.parse(r).savedAt);
+    if (b.length !== 3) out.push(`${b.length} backups, not 3`);
+    for (let i = 1; i < b.length; i++) if (b[i - 1] - b[i] < 10 * MIN) out.push(`backup ${i} and ${i + 1} are only ${(b[i - 1] - b[i]) / MIN} min apart`);
+    if (JSON.parse(st.m.get(S.KEY)).savedAt !== T0 + 39 * 2 * MIN) out.push('the current save is not the latest');
+    if (st.m.has(S.SHELF[0])) out.push('the same campaign went on the shelf');
+    return out;
+  });
+  await check('a damaged save is shelved, never written over', () => {
+    const st = fake(); st.setItem(S.KEY, '{broken'); S.store(save('a', 1, T0), { storage: st });
+    return st.m.get(S.SHELF[0]) === '{broken' ? [] : ['the damaged data is gone'];
+  });
+  await check('ironman keeps no copies of itself', () => {
+    const st = fake(); for (let i = 0; i < 12; i++) S.store(save('i', i, T0 + i * 11 * MIN, { ironman: true }), { storage: st });
+    return S.BACKUPS.some(k => st.m.has(k)) ? ['an ironman campaign has backups'] : [];
+  });
+  await check('restoring and importing keep what they replace, even an older save of the same campaign', () => {
+    const st = fake(), out = [];
+    S.store(save('a', 600, T0 + 20 * MIN), { storage: st });
+    S.store(save('a', 700, T0 + 22 * MIN), { storage: st }); S.store(save('a', 800, T0 + 40 * MIN), { storage: st });
+    const older = st.m.get(S.BACKUPS[0]);
+    const r = S.restore(S.BACKUPS[0], st);
+    if (!r.ok) out.push(`restore failed: ${r.reason}`);
+    if (JSON.parse(st.m.get(S.KEY)).world.time !== JSON.parse(older).world.time) out.push('the restored save is not current');
+    if (!S.listSaves(st).some(s => s.key !== S.KEY && s.info.time === 800)) out.push('the save it replaced (800) is nowhere');
+    const imp = S.importText(save('z', 9, T0 + 50 * MIN), st);
+    if (!imp.ok) out.push(`import failed: ${imp.reason}`);
+    if (!S.listSaves(st).some(s => s.key !== S.KEY && s.info.id === 'a')) out.push('importing lost the campaign it replaced');
+    return out;
+  });
+  await check('a full browser lets go of the oldest copies and keeps the current save', () => {
+    const one = save('a', 1, T0).length, st = fake(one * 3 + 10), out = [];
+    for (let i = 0; i < 6; i++) S.store(save('a', i, T0 + i * 11 * MIN), { storage: st });
+    if (JSON.parse(st.m.get(S.KEY) || '{}').world?.time !== 5) out.push('the newest save was not kept');
+    return out;
+  });
+  await check('a file that is not a save, a newer save and a test campaign are refused', () => {
+    const st = fake(), out = [];
+    for (const [what, text] of [['junk', 'hello'], ['a different JSON', '{"a":1}'], ['too big', 'x'.repeat(S.MAX_IMPORT + 1)], ['newer', save('n', 1, T0).replace('"version":1', '"version":99')], ['a test campaign', save('t', 1, T0, { test: true })]])
+      if (S.importText(text, st).ok) out.push(`${what} was accepted`);
+    if (st.m.size) out.push('a refused file left something in the store');
+    return out;
+  });
+  await check('a save from an earlier build still loads (tools/fixtures/save-v1.json)', async () => {
+    const text = await fetch(new URL('../tools/fixtures/save-v1.json', import.meta.url)).then(r => r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))).catch(e => ({ err: e.message }));
+    if (text.err) return { warn: [`fixture not fetched (${text.err})`] };
+    const i = S.inspect(text);
+    if (i.status !== 'ok' && i.status !== 'old') return [`the fixture reads as ${i.status}: ${i.reason}`];
+    const data = S.migrate(JSON.parse(text));
+    const frame = document.createElement('iframe');
+    frame.style.display = 'none';
+    const map = document.querySelector('script[type="importmap"]')?.outerHTML || '';
+    frame.srcdoc = `<!doctype html><base href="${location.href}">${map}`;
+    document.body.appendChild(frame);
+    try {
+      await new Promise(r => { frame.onload = r; });
+      const url = new URL('world/save.js', import.meta.url).href;
+      const SV = await frame.contentWindow.eval(`import(${JSON.stringify(url)})`);
+      const hooks = new Proxy({}, { get: (_, k) => (k === 'then' ? undefined : () => null) });
+      const w2 = SV.loadGame(frame.contentWindow.JSON.parse(JSON.stringify(data)), hooks);
+      return w2.pois.length === data.pois.length ? [] : [`${w2.pois.length} places after loading, ${data.pois.length} in the file`];
+    } catch (e) { return [`it would not load: ${e.message}`]; } finally { frame.remove(); }
+  });
+  await check('the save in this browser can be opened', () => {
+    if (w.options?.test) return null;
+    let raw = null; try { raw = localStorage.getItem(S.KEY); } catch { return null; }
+    if (!raw) return null;
+    const i = S.inspect(raw);
+    return i.status === 'ok' || i.status === 'old' ? [] : [`the current save reads as ${i.status}: ${i.reason}`];
+  });
+}
+
 // A place you have seen but do not hold is described in words from what you saw, never from what is there now
 // (world/scout.js).
 async function scoutChecks(w) {
@@ -2742,6 +2833,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.sworn) await houseChecks(window.game.world);
   if (window.game?.world?.sworn) await wordsChecks(window.game.world);
   if (window.game?.world?.pois) await scoutChecks(window.game.world);
+  if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();

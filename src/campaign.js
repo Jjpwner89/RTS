@@ -28,7 +28,7 @@ import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treas
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { ARRIERE, arrierePlan, callArriere, musterPlace } from './world/arriere.js';
-import { canSave, saveGame, readSave, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved } from './world/save.js';
+import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved } from './world/save.js';
 import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { turnOut } from './world/militia.js';
@@ -53,11 +53,16 @@ import { LOD } from './models.js';
 import { audio } from './audio.js';
 import { unlocked, ahead } from './ui/unlocks.js';
 import * as news from './ui/news.js';
+import { showLoadFailure, download } from './ui/loadfail.js';
+import { fileName, ago } from './world/saveslots.js';
 
 const params = new URLSearchParams(location.search);
 // ?continue picks up the saved campaign (?continue=test the test one); ?test=lord, count,
 // duke or king makes a fresh test campaign at that rank; otherwise a new one, on ?seed= if given.
-const loaded = params.has('continue') ? readSave(params.get('continue') === 'test')
+// A save that can't be opened is never a reason to start a new campaign: say so and keep the data (ui/loadfail.js).
+const slot = params.has('continue') ? loadSlot(params.get('continue') === 'test') : null;
+if (slot && slot.status !== 'ok') await showLoadFailure(slot, { test: params.get('continue') === 'test' });
+const loaded = slot ? slot.data
   : TEST_RANKS[params.get('test')] ? await testCampaign(params.get('test')) : null;
 async function testCampaign(key) {
   const note = document.createElement('div');
@@ -147,7 +152,7 @@ const hooks = {
   offer: o => asks.push({ kind: 'offer', ...o }),
   choice: ev => { audio.play(String(ev.id).startsWith('petition') ? 'petition' : 'scroll'); asks.push({ kind: 'choice', ev }); }, // audio
 };
-const world = loaded ? loadGame(loaded, hooks) : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
+const world = loaded ? await (async () => { try { return loadGame(loaded, hooks); } catch (e) { console.error('load failed', e); return showLoadFailure({ status: 'failed', reason: `it loaded with an error (${e.message})`, raw: slot?.raw }, {}); } })() : new World(seed, hooks, { size: params.get('size') || 'normal', aggression: params.get('aggression') || 'normal', ironman: params.get('ironman') === '1' });
 // The seasons and the day turn on the campaign's clock (look.js), but a fight in a village or
 // town you are watching keeps the hour it began at, deployment and all, so a storm that forms
 // up at dusk isn't fought in the dark. (A field battle stops the world's clock anyway.) Once
@@ -1341,7 +1346,17 @@ news.watch('decrees', () => {
   // The decrees sit low in the Your realm panel: until they are in view (or the panel is folded), its heading stands in.
   return b?.getClientRects().length && !wp.classList.contains('folded') ? b : wp.classList.contains('is-realm') ? [wp.querySelector('h3'), true] : null;
 });
+// "Saved 4 min ago": amber once it has been ten minutes, or never. (Ironman saves itself; a test campaign has its own slot.)
+function savedTag() {
+  const tag = $('save-tag');
+  if (!tag) return;
+  const at = lastSaved(), late = !world.options.ironman && !world.options.test && (at === null || Date.now() - at > 10 * 60 * 1000);
+  const text = world.options.test ? 'Test campaign' : world.options.ironman ? 'Saves itself' : at === null ? 'Not saved yet' : `Saved ${ago(at)}`;
+  if (tag.textContent !== text) tag.textContent = text;
+  tag.classList.toggle('late', late);
+}
 function topBar() {
+  savedTag();
   $('realm-toggle').hidden = !unlocked(world, 'realm');
   $('place').textContent = mode === 'world' ? 'World map' : mode === 'town' ? current.title || current.poi.name : $('field-title').textContent;
   const holder = mode === 'town' ? current.holder || $('place').textContent : '';
@@ -1468,6 +1483,7 @@ menu.use({
     test: !!world.options.test,
     can: () => canSave(world, { busy: mode === 'field' || !!away }),
     run: () => { const r = saveGame(world); savedAt = world.time; return r; },
+    exportFile: () => { const r = exportCurrent(world, { busy: mode === 'field' || !!away }); if (r.ok) download(fileName(r.info), r.text); return r; },
     unsaved: () => unsaved(world),
     last: lastSaved,
     fight: () => (mode === 'field' ? 'battle' : null),

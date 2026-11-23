@@ -13,7 +13,7 @@
   <h1>RTS prototypes</h1>
   <p>A medieval strategy game in progress: build and fight on one map, rising from a keep to a realm.</p>
   <a class="entry" href="world.html?continue" id="continue" hidden><b>Continue</b><span></span></a>
-  <form class="box" action="world.html">
+  <form class="box" action="world.html" id="new-campaign">
     <b>New campaign</b>Rise from one village to the crown: rival houses, sieges, diplomacy and Kingsbridge, and then the north.
     <div class="opts">
       <label>Realm<select name="size"><option value="small">Small: three houses</option><option value="normal" selected>Normal: five houses</option><option value="large">Large: all six houses</option></select></label>
@@ -21,8 +21,10 @@
       <label class="iron"><input type="checkbox" name="ironman" value="1"> Ironman</label>
     </div>
     <button type="submit">Begin</button>
+    <div id="new-ask" class="whyline" hidden><span></span> <button type="button" data-go>Start the new campaign</button> <button type="button" data-no>Cancel</button></div>
     <small>Ironman: no Save button. The campaign saves itself every few minutes, and a defeat ends it for good.</small>
   </form>
+  <div class="box" id="saves"></div>
   <div class="box tests">
     <b>Test campaigns</b>Jump in at a rank to try templates, vassals and diplomacy: a seed-7 campaign played forward to that point, with gold and building stock to spare. It takes a few seconds to prepare. Test campaigns save to their own slot and never replace your real campaign.
     <div class="opts">
@@ -40,17 +42,32 @@
   <a class="entry" href="credits.html"><b>Credits</b>The free music, sound and models this game is built with, and their licences.</a>
 </main>
 <script type="module" src="src/ui/tooltip.js"></script>
-<script>
-  // The saved campaign, if there is one: when it was saved and how far in.
-  try {
-    const s = JSON.parse(localStorage.getItem('rts.campaign.save'));
-    if (s) {
-      const el = document.getElementById('continue'), t = Math.floor(s.world.time);
-      el.querySelector('span').textContent = `Your campaign at ${Math.floor(t / 3600) ? Math.floor(t / 3600) + 'h ' : ''}${Math.floor(t / 60) % 60}m in${s.world.part === 2 ? ', at war with the north' : ''}, saved ${new Date(s.savedAt).toLocaleString()}. Starting a new campaign replaces it at its first save.`;
-      el.hidden = false;
-    }
-  } catch (e) { /* no save */ }
+<script type="module">
+  // The saved campaign, if there is one: when it was saved and how far in; saved campaigns below; and a new
+  // campaign never takes the old one's place without a word (it goes on the shelf: world/saveslots.js).
+  import { listSaves, minutesIn, ago } from './src/world/saveslots.js';
+  import { mountSaves } from './src/ui/savedlist.js';
+  const saves = listSaves(), cur = saves.find(s => s.label === 'Current');
+  const entry = document.getElementById('continue');
+  if (cur) {
+    const i = cur.info, ok = i.status === 'ok' || i.status === 'old';
+    entry.querySelector('span').textContent = ok
+      ? `Your campaign at ${minutesIn(i.time)} in${i.part === 2 ? ', at war with the north' : ''}, saved ${ago(i.savedAt)}`
+      : `Your saved campaign can't be opened (${i.reason}). Nothing is deleted: open it to see what can be done`;
+    entry.hidden = false;
+  }
   try { if (localStorage.getItem('rts.campaign.test')) document.getElementById('continue-test').hidden = false; } catch (e) { /* no test save */ }
+  mountSaves(document.getElementById('saves'));
+  if (location.hash === '#saves') document.getElementById('saves').scrollIntoView();
+  const form = document.getElementById('new-campaign'), ask = document.getElementById('new-ask');
+  form.addEventListener('submit', e => {
+    if (!cur || (cur.info.status !== 'ok' && cur.info.status !== 'old') || form.dataset.sure === '1') return;
+    e.preventDefault();
+    ask.querySelector('span').textContent = `You have a campaign saved (${minutesIn(cur.info.time)} in, saved ${ago(cur.info.savedAt)}). A new one puts it on the shelf: it stays under Saved campaigns, and you can bring it back.`;
+    ask.hidden = false;
+  });
+  ask.querySelector('[data-go]').onclick = () => { form.dataset.sure = '1'; form.requestSubmit(); };
+  ask.querySelector('[data-no]').onclick = () => { ask.hidden = true; };
 </script>
 </body>
 </html>
