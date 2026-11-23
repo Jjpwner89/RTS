@@ -373,3 +373,7 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
   #realm .line.house .acts { flex: 1 1 100%; white-space: normal; text-align: left; display: flex; flex-wrap: wrap; gap: 4px; }
   #realm .line.house .acts button { margin-left: 0; }
 }
+
+/* What you know of a place, in words: older sightings fade */
+#wpanel .scout { margin: 2px 0 6px; font-size: 13px; }
+#wpanel .stale { opacity: 0.75; font-style: italic; }

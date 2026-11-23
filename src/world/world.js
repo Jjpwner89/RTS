@@ -1752,7 +1752,7 @@ export class World {
       p.visible = this.sightOf(p.owner) || sees(p);
       if (p.visible) {
         p.seen = true;
-        p.known = { owner: p.owner, men: p.town ? null : headcount(p.garrison), level: p.eco?.level ?? null };
+        p.known = { owner: p.owner, men: p.town ? null : headcount(p.garrison), level: p.eco?.level ?? null, at: this.time };
       }
     }
     // How much you can make out: far off, only that an army is there (1); nearer, how big it is (2);
@@ -1854,7 +1854,7 @@ export class World {
     this.half = Math.max(this.half, ...added.map(p => Math.max(Math.abs(p.x), Math.abs(p.z)) + 140));
     startMind(this, inv);
     this.updateVision();
-    for (const p of added) if (p.seen) p.known = { owner: p.owner, men: headcount(p.garrison), level: p.eco?.level ?? null };
+    for (const p of added) if (p.seen) p.known = { owner: p.owner, men: headcount(p.garrison), level: p.eco?.level ?? null, at: this.time };
     this.log('The old wall has fallen. The north is coming.', 1);
     this.hooks.herald?.({ house: inv, title: 'The wall has fallen', text: `“${inv.taunts[0]}” ${inv.lord} brings his host down through the north. Drive them back through ${pass.name}, or lose all you have built.` });
   }

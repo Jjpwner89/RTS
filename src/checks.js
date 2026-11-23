@@ -2603,6 +2603,67 @@ async function houseChecks(w) {
   });
 }
 
+// A place you have seen but do not hold is described in words from what you saw, never from what is there now
+// (world/scout.js).
+async function scoutChecks(w) {
+  const { scoutReport, ageText, heldWords, STALE } = await import('./world/scout.js');
+  group = 'Scout reports';
+  const seen = w.pois.filter(p => p.seen && p.owner !== 0 && !p.town && p.kind !== 'camp');
+  await check('a place you have not seen has no report, and neither has one you hold', () => {
+    const out = [];
+    for (const p of w.pois) {
+      const r = scoutReport(w, p);
+      if (!p.seen && r) out.push(`${p.name} was never seen but has a report`);
+      if (p.owner === 0 && r) out.push(`${p.name} is yours but has a report`);
+    }
+    return out;
+  });
+  await check('a place out of sight is described from the sighting, not from what is there now', () => {
+    const dark = seen.filter(p => !p.visible && p.known);
+    if (!dark.length) return null;
+    const out = [];
+    for (const p of dark) {
+      const r = scoutReport(w, p);
+      if (!r) { out.push(`${p.name}: no report though you saw it`); continue; }
+      if (r.men !== p.known.men) out.push(`${p.name}: says ${r.men} men, the sighting said ${p.known.men}`);
+      if (!r.held.includes(`about ${p.known.men} men`)) out.push(`${p.name}: "${r.held}" does not give the seen count`);
+    }
+    return sample(out, 5);
+  });
+  await check('the places named beside it are places you have seen', () => {
+    const out = [];
+    for (const p of seen) {
+      const r = scoutReport(w, p);
+      if (!r) continue;
+      for (const q of w.pois) if (q !== p && !q.seen && r.near.includes(q.name)) out.push(`${p.name} names ${q.name}, which you have never seen`);
+    }
+    return sample(out, 5);
+  });
+  await check('what you saw long ago says so, and is worded as past', () => {
+    const p = seen.find(q => q.known);
+    if (!p) return null;
+    const vis = p.visible, at = p.known.at;
+    const out = [];
+    try {
+      p.visible = false; p.known.at = w.time - 7 * 60;
+      const r = scoutReport(w, p);
+      if (!r.stale) out.push('seven minutes on is not stale');
+      if (!/seen 7 min ago/.test(r.held)) out.push(`no age in "${r.held}"`);
+      if (!/^Was /.test(r.held) || !/may have changed/.test(r.held)) out.push(`not worded as past: "${r.held}"`);
+      p.known.at = w.time - 20;
+      const f = scoutReport(w, p);
+      if (f.stale) out.push('twenty seconds on is stale');
+      p.visible = true;
+      if (!/in sight now/.test(scoutReport(w, p).held)) out.push('a place in sight does not say so');
+    } finally { p.visible = vis; if (at === undefined) delete p.known.at; else p.known.at = at; }
+    return out;
+  });
+  await check('the words climb with the garrison', () => {
+    const order = [0, 5, 20, 45, 80, 150].map(heldWords);
+    return new Set(order).size === order.length ? [] : [`not six different words for six sizes: ${order.join(' / ')}`];
+  });
+}
+
 // What a tribute demand and the Houses table say about a house's strength, and ceremonies at normal speed.
 async function wordsChecks(w) {
   const { strengthWords } = await import('./world/diplomacy.js');
@@ -2659,6 +2720,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world) await worldChecks(window.game.world);
   if (window.game?.world?.sworn) await houseChecks(window.game.world);
   if (window.game?.world?.sworn) await wordsChecks(window.game.world);
+  if (window.game?.world?.pois) await scoutChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();

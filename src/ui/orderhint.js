@@ -6,6 +6,7 @@
 import { ownerOf } from '../world/world.js';
 import { walledPlace } from '../world/places.js';
 import { TYPES } from '../battle.js';
+import { scoutReport } from '../world/scout.js';
 
 let tip = null;
 const modalOpen = () => [...document.querySelectorAll('.modal.open, #help.open, #deploy, #realm')].some(e => e.getClientRects().length);
@@ -32,7 +33,8 @@ export function orderHint(w, a, p) {
     // A walled place wants engines: say what the army brings, or that it brings none.
     const kit = [...a.units.filter(u => TYPES[u.key]?.engine).reduce((m, u) => m.set(u.name || TYPES[u.key].name, (m.get(u.name || TYPES[u.key].name) || 0) + (u.count || 1)), new Map())].map(([n, c]) => `${c} ${n.toLowerCase()}`);
     const wall = !walledPlace(p) ? '' : kit.length ? `: brings ${kit.join(', ')}` : ': no ram, ladders or engines, so a costly storm';
-    return { warn: risk && !(walledPlace(p) && kit.length && p.owner !== null), text: `Attack ${how(p)}${wall}` };
+    const sr = scoutReport(w, p, a);
+    return { warn: risk && !(walledPlace(p) && kit.length && p.owner !== null), text: `Attack ${how(p)}${wall}${sr ? ` — ${sr.short}` : ''}` };
   }
   // A great house at peace: the order asks you to declare war first (campaign.js 'war').
   const peace = p.owner !== null && p.owner !== 0 && !w.atWar(0, p.owner) && !ownerOf(p).bandit;

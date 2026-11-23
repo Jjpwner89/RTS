@@ -44,6 +44,7 @@ import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
 import { RealmScreen } from './realmscreen.js';
+import { scoutReport } from './world/scout.js';
 import { actions as dipActions, act as dipAct, mood, grudgeLines, warCost, strengthWords } from './world/diplomacy.js';
 import { WorldView } from './world/worldview.js';
 import { WorldControls } from './world/worldcontrols.js';
@@ -680,7 +681,7 @@ function nextAsk() {
     const p = a.poi, H = FACTIONS[p.owner], army = a.army;
     if (!H?.alive || army.gone || world.atWar(0, p.owner)) { if (!army.gone && world.atWar(0, p.owner ?? -1)) { if (army.at === p) world.arrive(army, p); else world.order(army, p); } return nextAsk(); }
     box.querySelector('h2').textContent = army.at === p ? `Attack ${p.name}?` : `March on ${p.name}?`;
-    box.querySelector('p').textContent = `${p.name} belongs to ${H.name}, and you are at peace with them. To attack it you must declare war first: ${warCost(world, p.owner).join('; ')}.`;
+    box.querySelector('p').textContent = `${p.name} belongs to ${H.name}, and you are at peace with them. To attack it you must declare war first: ${warCost(world, p.owner).join('; ')}.${(r => r ? ` What you know of it: ${r.text}` : '')(scoutReport(world, p, army))}`;
     buttons.push([army.at === p ? 'Declare war and attack' : 'Declare war and march', () => { const r = dipAct(world, p.owner, 'war'); if (r?.text) flash(r.text, r.ok ?? true); if (army.at === p) world.arrive(army, p); else if (!world.order(army, p)) flash('They cannot march there now.', false); else selected = army; }]);
     if (army.at !== p) buttons.push([`March there in peace`, () => { if (world.order(army, p)) flash(`${army.name} marches to ${p.name}, and will wait outside: you are at peace with ${H.name}.`, true); }]);
     buttons.push(['Stay', () => {}]);
@@ -974,7 +975,7 @@ function worldPanel() {
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide" title="${capWhy(world.rank)}">Join with ${o.name} (${Math.min(headcount(o.units), Math.max(0, world.armyCap - headcount(it.units)))} of ${headcount(o.units)} fit)</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
-    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
+    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come here: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners here</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. See the cost first">${ico('spears')} Call the arrière-ban here</button>` : '')
         + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
@@ -1099,7 +1100,10 @@ function worldPanel() {
         mb.classList.toggle('warn', !m || !!over);
       }
     } else {
-      set('men', !it.seen ? 'Send an army near to see it' : `About ${it.visible ? headcount(it.garrison) : it.known?.men ?? '?'} men in the garrison`);
+      // What you can tell of a place you do not hold: how strongly, how long ago you saw it, what is near it (world/scout.js).
+      const sr = scoutReport(world, it, selected?.units && selected.side === 0 ? selected : null);
+      set('men', !it.seen ? 'Send an army near to see it' : sr ? `<span class="${sr.stale ? 'stale' : ''}">${sr.held}</span>` : `About ${it.visible ? headcount(it.garrison) : it.known?.men ?? '?'} men in the garrison`);
+      set('scout', sr ? `<span class="${sr.stale ? 'stale' : ''}">${sr.near}.</span>` : '');
       set('status', it.seat !== undefined && it.seen ? `Seat of ${FACTIONS[it.seat].name}` : '');
       set('intel', intelText(it));
       if (lord) {
