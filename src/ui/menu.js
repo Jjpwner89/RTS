@@ -120,7 +120,7 @@ function render(focus) {
   if (document.getElementById('sound-toggle')) items.append(button('Sound and picture', () => document.getElementById('sound-toggle').click(), { id: 'gm-sound', title: 'Volume for the music and effects, and how detailed the picture is' }));
   items.append(button('Quit to main menu', () => { if (plan()) { view = 'confirm'; render(); } else leave(); }, { id: 'gm-quit', title: 'Back to the main menu' }));
   card.append(items);
-  card.append(el('p', { className: 'gm-build' }, `Build ${BUILD.sha}${BUILD.at ? `, ${BUILD.at}` : ''}`));
+  card.append(el('p', { className: 'gm-build' }, `Hearth and Host · build ${BUILD.sha}${BUILD.at ? `, ${BUILD.at}` : ''}`));
   card.querySelector(focus || '#gm-resume')?.focus();
 }
 

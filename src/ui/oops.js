@@ -36,7 +36,7 @@ const agoMin = at => { const m = Math.max(0, Math.round((Date.now() - at) / 6000
 export function details() {
   const w = window.game?.world, s = saveNote();
   const lines = [
-    'RTS error report',
+    'Hearth and Host error report',
     `Build: ${BUILD.sha}${BUILD.at ? ` (${BUILD.at})` : ''}`,
     `Page: ${location.pathname.split('/').pop()}${location.search}`,
     `Browser: ${navigator.userAgent}`,

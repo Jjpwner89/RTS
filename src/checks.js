@@ -2800,7 +2800,7 @@ async function oopsChecks() {
     const wasOpen = menu.isOpen;
     menu.open();
     const card = document.getElementById('gamemenu');
-    if (!/Build /.test(card.textContent)) out.push('no build line in the menu');
+    if (!/build /i.test(card.textContent)) out.push('no build line in the menu');
     const c = document.getElementById('gm-controls');
     if (!c) out.push('no Controls button');
     else {
