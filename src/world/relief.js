@@ -28,6 +28,14 @@ export function summary(hosts) {
   const places = [...new Set(hosts.map(h => h.a.last?.name).filter(Boolean))];
   return { hosts, men: hosts.reduce((n, h) => n + h.men, 0), power: hosts.reduce((n, h) => n + h.power, 0), eta: Math.min(...hosts.map(h => h.eta)), places };
 }
+// A band reaching a place that is not fought in (World.autoRaid, decided at once): does it see a host of the place's
+// friends marching on it, within RELIEF.eta, RELIEF.ratio times its own strength? The summary of that host, or null.
+export function breaksOff(w, band, p) {
+  const hosts = hostsFor(w, p);
+  if (!hosts.length) return null;
+  const S = summary(hosts);
+  return S.power >= power(band.units) * RELIEF.ratio ? S : null;
+}
 const and = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || 'near by';
 
 // ---- the load a band carries ----

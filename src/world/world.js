@@ -24,7 +24,7 @@ import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { tickArriere, rankOf } from './arriere.js';
 import * as ban from './ban.js';
-import { hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack } from './relief.js';
+import { hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -1601,6 +1601,15 @@ export class World {
 
   // Raiders on a holding: if they beat the guard, they burn and steal, then go home.
   autoRaid(a, p) {
+    // The raided place's friends send relief first (this.relieve, if the rivals' rules define it); a band that sees a
+    // host clearly stronger than itself marching on the place turns back without a fight (relief.js).
+    this.relieve?.(p, a);
+    const seen = breaksOff(this, a, p);
+    if (seen) {
+      if (p.visible || p.owner === 0) this.log(`${FACTIONS[a.side].short} raiders at ${p.name} see a host of about ${Math.round(seen.men / 10) * 10} men coming and turn back.`, p.owner === 0 ? 1 : 2);
+      this.retreat(a);
+      return;
+    }
     const r = this.resolve(a.units, p.garrison, this.defenceBonus(p) * 0.9);
     a.units = r.A;
     if (r.attackerWins) {

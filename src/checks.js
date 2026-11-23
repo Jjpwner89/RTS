@@ -1663,6 +1663,16 @@ async function worldChecks(w) {
     place.town.reliefWarned = new Set(); asked.length = 0;
     R.warnRelief(W);
     if (asked.length) out.push('a host weaker than your men raised the alarm');
+    // A band reaching a place decided at once (autoRaid): it turns back from a host clearly stronger marching on it, not a weaker one.
+    const band = { units: [{ key: 'bandit', count: 40, name: 'Band' }] };
+    host.units = [{ key: 'spear', count: 300, name: 'Relief' }];
+    if (!R.breaksOff(W, band, place)) out.push('a band did not turn back from a host of 300 marching on the place');
+    host.units = [{ key: 'spear', count: 15, name: 'Few' }];
+    if (R.breaksOff(W, band, place)) out.push('a band turned back from 15 men');
+    host.units = [{ key: 'spear', count: 300, name: 'Relief' }];
+    host.path = [{ x: 0, z: -9000 }, place];
+    if (R.breaksOff(W, band, place)) out.push('a band turned back from a host half a day away');
+    host.path = [place];
     // The chase: a stronger host sent after the beaten party, along a road no longer than the limit.
     const prey = { id: 7, side: 0, path: [{ x: 0, z: 200 }], target: { name: 'Home', x: 0, z: 400 }, units: [{ key: 'spear', count: 40, name: 'Yours' }] };
     const hunter = { id: 8, side: owner, gone: false, halted: false, retreating: false, wagon: false, at: place, last: place, units: [{ key: 'spear', count: 300, name: 'Hunters' }] };
