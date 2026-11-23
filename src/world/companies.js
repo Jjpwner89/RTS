@@ -11,15 +11,29 @@ import { FACTIONS, headcount, unit } from './world.js';
 import { TYPES } from '../battle.js';
 import { live } from './events.js';
 import { wagesOf } from './treasury.js';
+import { rankOf } from './arriere.js';
 
 const NAMES = ['the Grey Company', 'the Black Lanterns', 'the Red Hounds', 'the Salt Brothers', 'the White Ash Company', 'the Ninefold',
   'the Hollow Crowns', 'the Iron Wake'];
 const CAPTAINS = ['Bors Hale', 'Ysolt of the Marches', 'Cade Ferro', 'Old Garm', 'Wenna Holt', 'Tybalt Crane', 'Ansel Duro', 'Maud Ironside'];
 // A company's name at the start of a sentence.
 const Name = c => c.name[0].toUpperCase() + c.name.slice(1);
-export const WAGE = { sellsword: 1.25, hiredxbow: 1.5 };   // gold per man per minute (treasury.js WAGES)
+// What a company costs, the same for you and the houses (creator, 2026-11-22: mercenaries
+// made the snowball "felt like I cheated"; Orchestrator, 2026-11-23: priced near a kitted,
+// trained man, paid at least a man-at-arms' wage, so many by rank, slow back to market).
+// A hired man comes kitted and drilled, and takes nobody from your work, so he costs about
+// what you would pay to make one: a man-at-arms is mail 32, a sword 14 (the market's lot
+// prices, treasury.js WARES), a shield and a 60 fee, about 110; a serjeant mail, a sword and
+// a 20 fee, about 70. A sellsword (mail, sword and shield, a fighter between the two) 85 a
+// man; a hired crossbowman (leather, crossbow, a big shield, drilled as a yeoman) 65.
+export const PRICE = { sellsword: 85, hiredxbow: 65 };       // gold per man, up front
+// Paid above a man-at-arms (1.5) and below a knight (3.75): the dearest foot in the realm.
+export const WAGE = { sellsword: 1.75, hiredxbow: 1.75 };   // gold per man per minute (treasury.js WAGES)
+// How many companies a lord keeps by rank, as the household guard (world.js HOUSEHOLD_CAP):
+// a reeve none (the first conquest is home-grown), a lord one, a count two, a duke three.
+export const COMPANY_CAP = { Reeve: 0, Lord: 1, Count: 2, Duke: 3, King: 4 };
 const UNPAID_GRUMBLE = 45, UNPAID_DESERT = 150;     // seconds behind with their pay
-const REFORM = 600;                                  // seconds before a broken company is hiring again
+const REFORM = 1200;                                 // seconds before a company let go or deserted is hiring again (a year)
 export const WEAK = 0.25;                                   // under this share of its size, its captain asks you what now
 export const MOOD = -4;                              // a village's mood, per company in it
 
@@ -33,11 +47,16 @@ export function makeCompanies(w) {
   });
 }
 
-export const hirePrice = c => Math.round(c.size * TYPES[c.key].gold * 0.6);
+export const hirePrice = c => Math.round(c.size * PRICE[c.key]);
 export const wage = c => Math.round(Math.max(c.men, 1) * WAGE[c.key] * 10) / 10;
 // What a company asks to be paid once hired: it joins at full strength (hire, below).
 export const fullWage = c => Math.round(c.size * WAGE[c.key] * 10) / 10;
 const homeOf = (w, c) => w.byId[c.home] || null;
+// The companies `side` keeps, and how many its lord's rank allows.
+export function companyCap(w, side) {
+  const rank = side === 0 ? w.rank : rankOf(w.pois.filter(p => p.owner === side && p.kind !== 'camp').length);
+  return { have: (w.companies || []).filter(c => c.employer === side).length, cap: COMPANY_CAP[rank] || 0, rank };
+}
 
 // Can `side` hire company c now, and for how much?
 export function offer(w, c, side) {
@@ -45,6 +64,8 @@ export function offer(w, c, side) {
   if (c.employer === side) return { ok: false, why: 'Already yours' };
   if (w.time < c.back) return { ok: false, why: `Regrouping for ${Math.ceil((c.back - w.time) / 60)} min` };
   if (home && home.owner !== null && home.owner !== side && w.atWar(side, home.owner)) return { ok: false, why: `${home.name} is held by your enemy` };
+  const k = companyCap(w, side);
+  if (k.have >= k.cap) return { ok: false, why: k.cap ? `A ${k.rank.toLowerCase()} keeps ${k.cap} ${k.cap > 1 ? 'companies' : 'company'}` : 'From the rank of Lord' };
   const outbid = c.employer !== null && c.employer !== undefined;
   const price = hirePrice(c) * (outbid ? 2 : 1);
   if (FACTIONS[side].gold < price) return { ok: false, why: `Needs ${price} gold`, price, outbid };

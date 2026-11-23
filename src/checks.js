@@ -876,8 +876,9 @@ async function worldChecks(w) {
   }));
 
   // A house at war hires companies as you may (Orchestrator, 2026-11-22: no house-only limit),
-  // while its income still covers every wage it pays (companies.js rivalHire).
-  await check('companies: a house at war hires as many as its income pays the wages of, no more', () => scratch(async (make, FACTIONS) => {
+  // as many as its rank keeps, while its income still covers every wage it pays (companies.js
+  // rivalHire, companyCap).
+  await check('companies: a house at war hires as many as its rank keeps and its income pays the wages of, no more', () => scratch(async (make, FACTIONS) => {
     const C = await import('./world/companies.js'), { wagesOf } = await import('./world/treasury.js'), out = [];
     const s = make(), hs = FACTIONS.filter(x => x.index > 0 && x.ai && !x.bandit && !x.invader && x.trait !== 'merchant' && s.pois.some(p => p.owner === x.index));
     const h = hs[0], seat = s.pois.find(p => p.owner === h.index && p.kind !== 'camp');
@@ -888,11 +889,45 @@ async function worldChecks(w) {
     const mine = () => s.companies.filter(c => c.employer === h.index).length;
     for (let i = 0; i < 3; i++) C.rivalHire(s, h, seat, 0);
     if (mine()) out.push(`with no income to pay them it hired ${mine()} companies`);
-    for (let i = 0; i < 8; i++) C.rivalHire(s, h, seat, wagesOf(s, h.index).gold + 1000);
-    if (mine() < 3) out.push(`with gold and income to spare it hired only ${mine()} of ${s.companies.length} companies (a house-only limit?)`);
-    const had = mine();
+    // a count's places: it may keep two
+    for (const p of s.pois.filter(p => p.owner === null && p.kind !== 'camp' && p.kind !== 'crown').slice(0, Math.max(0, 5 - s.pois.filter(p => p.owner === h.index && p.kind !== 'camp').length))) s.takePlace(p, h.index);
+    const { cap, rank } = C.companyCap(s, h.index);
+    if (rank !== 'Count' || cap !== 2) out.push(`a house of 5 places is a ${rank} keeping ${cap} companies, not a count keeping 2`);
     C.rivalHire(s, h, seat, wagesOf(s, h.index).gold + 1);
-    if (mine() > had) out.push('it hired past its income');
+    if (mine()) out.push('it hired past its income');
+    for (let i = 0; i < 8; i++) C.rivalHire(s, h, seat, wagesOf(s, h.index).gold + 1000);
+    if (mine() !== cap) out.push(`with gold and income to spare it hired ${mine()} companies, not the ${cap} its rank keeps`);
+    return out;
+  }));
+
+  // Mercenaries priced as what they are (creator, 2026-11-22: "felt like I cheated";
+  // Orchestrator, 2026-11-23): near a kitted, trained man up front, above a man-at-arms in
+  // wages, so many by rank for you as for a house, and a year before one let go is back.
+  await check('companies: priced near a kitted, trained man, paid above a man-at-arms, kept by rank, a year back on the market', () => scratch(async (make, FACTIONS) => {
+    const C = await import('./world/companies.js'), { ELITE } = await import('./economy.js'), { WARES } = await import('./world/treasury.js'), out = [];
+    const s = make(), c = (s.companies = C.makeCompanies(s))[0];
+    for (const o of s.companies) o.home = null;
+    const kitted = WARES.mail.price / WARES.mail.lot + WARES.swords.price / WARES.swords.lot + ELITE.maa.fee;   // a man-at-arms, shield aside
+    for (const k of Object.keys(C.PRICE)) {
+      if (C.PRICE[k] < kitted * 0.5 || C.PRICE[k] > kitted * 1.2) out.push(`a ${k} costs ${C.PRICE[k]} a man, not near a man-at-arms' ${Math.round(kitted)}`);
+      if (C.WAGE[k] < ELITE.maa.pay) out.push(`a ${k} draws ${C.WAGE[k]} a minute, under a man-at-arms' ${ELITE.maa.pay}`);
+    }
+    if (C.hirePrice(c) !== Math.round(c.size * C.PRICE[c.key])) out.push(`${c.name}: ${C.hirePrice(c)} gold for ${c.size} men`);
+    FACTIONS[0].gold = 1e6;
+    const mine = s.pois.filter(p => p.owner === 0), free = s.pois.filter(p => p.owner === null && p.kind !== 'camp' && p.kind !== 'crown');
+    for (const p of mine.slice(1)) s.takePlace(p, null);
+    const why = C.offer(s, c, 0);
+    if (why.ok || !/Lord/.test(why.why || '')) out.push(`a reeve is offered a company: ${JSON.stringify(why)}`);
+    s.takePlace(free[0], 0);   // a lord: one
+    const seat = s.pois.find(p => p.owner === 0 && !p.town) || free[0];
+    if (!C.offer(s, c, 0).ok) out.push(`a lord can't hire his first company: ${C.offer(s, c, 0).why}`);
+    s.companies.forEach(o => { if (o !== c) o.back = 0; });
+    C.hire(s, c, 0, seat);
+    const second = C.offer(s, s.companies[1], 0);
+    if (second.ok) out.push('a lord is offered a second company');
+    C.release(s, c, 'dismissed');
+    const back = Math.round((c.back - s.time) / 60);
+    if (back < 20) out.push(`a company let go is hiring again in ${back} minutes, not a year`);
     return out;
   }));
 

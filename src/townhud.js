@@ -461,7 +461,7 @@ export class TownHud {
       // market you haven't seen are not named: the list says to scout the markets.
       if (this.hooks.companies) {
         const all = this.hooks.companies(), known = all.filter(c => c.known), hidden = all.length - known.length;
-        rows.push(`<h4>Sellswords</h4><p class="note">A price to hire, then wages every minute. Unpaid, they desert. They never work, and a company in the village sours its mood.</p>`,
+        rows.push(`<h4>Sellswords</h4><p class="note">A price to hire, about what a kitted, trained man costs you, then wages above a man-at-arms' every minute. Unpaid, they desert. They never work, and a company in the village sours its mood. A lord keeps one company, a count two, a duke three.</p>`,
           ...known.map(c => `<button data-act="co:${c.id}" class="wide"><span>${c.name[0].toUpperCase() + c.name.slice(1)}: ${c.size} ${c.unit}</span><small></small></button>`),
           ...(hidden ? [`<p class="note">${known.length ? `${hidden} more: unknown` : `${hidden} ${hidden > 1 ? 'companies' : 'company'}: unknown`}. Scout the markets: a company shows once you have seen the market where it waits.</p>`] : []));
       }
