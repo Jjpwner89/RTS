@@ -196,5 +196,6 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     view.showPlan(plan);
   };
   b.siege = ui;
+  bindPanel();   // built now, not on the first frame: a page that has not drawn yet still has its tools
   return ui;
 }

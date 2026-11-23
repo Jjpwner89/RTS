@@ -83,6 +83,7 @@ let paused = true, speed = 1;
 let ceremonyLeft = 0;
 const ceremony = ms => { ceremonyLeft = Math.max(ceremonyLeft, ms / 1000); };
 const pace = () => (ceremonyLeft > 0 ? 1 : speed);
+const ceremonyStep = dt => { ceremonyLeft = Math.max(0, ceremonyLeft - dt); };   // one frame's worth (checks() steps it by hand)
 let mode = 'world', current = null;     // current: the village or battle on screen
 let selected = null;                    // on the world map: an army or a place
 let hud = null, townHud = null;
@@ -1368,7 +1369,7 @@ function frame(now) {
   realm.update();
   nextAsk();
   const left0 = dt * pace();
-  ceremonyLeft = Math.max(0, ceremonyLeft - dt);
+  ceremonyStep(dt);
   if (!paused && !blocked()) {
     let left = left0;
     while (left > 1e-4) {
@@ -1474,4 +1475,4 @@ setMode('world', null);
 worldControls.lookAt(world.home || world.byId.ashford);
 requestAnimationFrame(frame);
 
-window.game = { world, ceremony, pace, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };
+window.game = { world, ceremony, ceremonyStep, pace, get worldView() { return worldView; }, worldControls, crownedThenNorth, bundles, stage, seed, get mode() { return mode; }, get current() { return current; }, get away() { return away; }, enterTown, showWorld, startField };

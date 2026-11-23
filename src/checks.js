@@ -2477,15 +2477,17 @@ async function wordsChecks(w) {
     if (!g?.ceremony || !four || g.mode !== 'world') return null;
     const was = document.querySelector('[data-speed].on'), wasPaused = document.body.classList.contains('paused');
     four.click();
-    // A ceremony already under way (a rank-up just after load) holds 1× for up to 8 s: wait it out; if the speed
-    // is still not back, that is the bug itself (a ceremony that never ends), so it fails.
-    for (let i = 0; i < 100 && g.pace() !== 4; i++) await new Promise(r => setTimeout(r, 100));
+    // A ceremony already under way (a rank-up just after load) holds 1× for up to 8 s: step it out by hand; if the
+    // speed is still not back after ten seconds of frames, that is the bug itself (a ceremony that never ends).
+    for (let i = 0; i < 100 && g.pace() !== 4; i++) g.ceremonyStep(0.1);
     if (g.pace() !== 4) { (was || document.querySelector('[data-speed="1"]')).click(); if (wasPaused) document.getElementById('pause')?.click(); return [`speed 4 is still running at ${g.pace()}× ten seconds on: a ceremony that never lets go of the speed`]; }
     const out = [];
     if (g.pace() !== 4) out.push(`speed 4 runs at ${g.pace()}`);
     g.ceremony(150);
     if (g.pace() !== 1) out.push(`a ceremony runs at ${g.pace()}×, not 1×`);
-    for (let i = 0; i < 30 && g.pace() === 1; i++) await new Promise(r => setTimeout(r, 100));   // (frames drain it: a hidden tab is slow)
+    // Frames drain a ceremony (a slow or hidden tab draws few), so step the frame clock by hand: the rule is
+    // under test, not the frame rate. Ten seconds of 0.1 s frames is more than any ceremony.
+    for (let i = 0; i < 100 && g.pace() === 1; i++) g.ceremonyStep(0.1);
     if (g.pace() !== 4) out.push(`after the ceremony the speed is ${g.pace()}, not the 4 you chose`);
     (was || document.querySelector('[data-speed="1"]')).click();
     if (wasPaused) document.getElementById('pause')?.click();
