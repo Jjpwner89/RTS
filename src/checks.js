@@ -2767,6 +2767,62 @@ async function slotChecks(w) {
   });
 }
 
+// When something breaks, the player is told and can pass it on (ui/oops.js); the menu has a Controls screen and a build stamp.
+async function oopsChecks() {
+  const { menu } = await import('./ui/menu.js');
+  const { BUILD } = await import('./version.js');
+  group = 'Errors, support and controls';
+  await check('an error report names the build, the page, the campaign and the errors', () => {
+    const o = window.oops;
+    if (!o) return ['ui/oops.js is not loaded on this page'];
+    const text = o.details();
+    const out = [];
+    for (const want of ['Build:', 'Page:', 'Browser:', 'Campaign:', 'Last save:', 'Errors']) if (!text.includes(want)) out.push(`the report has no "${want}" line`);
+    if (!text.includes(BUILD.sha)) out.push('the build stamp is not in it');
+    return out;
+  });
+  await check('a failure puts up a banner with Copy, Reload and Dismiss, and Dismiss takes it away', () => {
+    const o = window.oops;
+    if (!o) return null;
+    const before = o.errors.length;
+    o.show('checks(): a made-up error to see the banner');
+    const b = document.getElementById('oops'), out = [];
+    if (!b) return ['no banner after an error'];
+    for (const word of ['Copy details', 'Reload', 'Dismiss', 'safe']) if (!b.textContent.includes(word)) out.push(`the banner lacks "${word}"`);
+    [...b.querySelectorAll('button')].find(x => /Dismiss/.test(x.textContent))?.click();
+    o.errors.length = before;
+    if (document.getElementById('oops')) out.push('Dismiss did not remove it');
+    return out;
+  });
+  await check('this browser meets what the game needs (modules, import maps, WebGL 2)', () => (window.oops?.supportProblem().map(l => `missing: ${l}`) || null));
+  await check('the menu has Controls (listing this page\'s keys) and the build stamp', () => {
+    const out = [];
+    const wasOpen = menu.isOpen;
+    menu.open();
+    const card = document.getElementById('gamemenu');
+    if (!/Build /.test(card.textContent)) out.push('no build line in the menu');
+    const c = document.getElementById('gm-controls');
+    if (!c) out.push('no Controls button');
+    else {
+      c.click();
+      const t = document.getElementById('gamemenu').textContent;
+      for (const want of ['Space', 'Esc']) if (!t.includes(want)) out.push(`Controls does not mention ${want}`);
+      document.getElementById('gm-back')?.click();
+      if (menu.view !== 'main') out.push('Back does not return to the menu');
+    }
+    if (!wasOpen) menu.close();
+    return out;
+  });
+  await check('the sound panel is called Sound and picture, and has a Picture row', () => {
+    const t = document.getElementById('sound-toggle');
+    if (!t) return null;
+    const out = [];
+    if (!/picture/i.test(t.title)) out.push(`the button says "${t.title}"`);
+    if (!document.getElementById('picture') && !window.game) return out;   // (the row is added a moment after load)
+    return out;
+  });
+}
+
 // The first hour: what a new player is shown (campaign.js goalNudge, marchButtons; the Start here card).
 async function firstHourChecks(w) {
   const g = window.game;
@@ -2909,6 +2965,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   const t0 = performance.now();
   pageChecks();
   await menuChecks();
+  await oopsChecks();
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);

@@ -13,6 +13,8 @@
 // selection, ...) mark the keydown with `e.escUsed = true`; the menu opens on an Esc that
 // nobody used. Checks and tests can drive it through window.gameMenu.
 import { why } from './why.js';
+import { controlsFor } from './controlslist.js';
+import { BUILD } from '../version.js';
 
 const MENU_PAGE = 'index.html';
 let host = {};
@@ -80,6 +82,19 @@ function render(focus) {
     (card.querySelector(focus || (p.canSave ? '#gm-save-quit' : '#gm-cancel')))?.focus();
     return;
   }
+  if (view === 'controls') {
+    card.append(el('h2', {}, 'Controls'));
+    const list = el('div', { className: 'gm-controls' });
+    controlsFor().forEach(([title, rows], i) => {
+      const sec = el('details', { open: i === 0 }); sec.append(el('summary', {}, title));
+      for (const [keys, what] of rows) { const r = el('div', { className: 'gm-row' }); r.append(el('kbd', {}, keys), el('span', {}, what)); sec.append(r); }
+      list.append(sec);
+    });
+    card.append(list, el('div', { className: 'gm-items' }));
+    card.lastChild.append(button('Back', () => { view = 'main'; render('#gm-resume'); }, { id: 'gm-back', primary: true }));
+    card.querySelector('#gm-back').focus();
+    return;
+  }
   card.append(el('h2', {}, 'Game menu'));
   if (sv) {
     const last = sv.last();
@@ -101,9 +116,11 @@ function render(focus) {
     const r = sv.exportFile();
     card.querySelector('#gm-state').textContent = r.ok ? (r.live ? 'Saved to a file, from now.' : `Saved to a file, from your last save (${ago(r.info.savedAt)}).`) : `${r.reason}.`;
   }, { id: 'gm-export', title: 'A copy of the campaign as a file you keep: for safety, or to carry it to another browser' }));
-  if (document.getElementById('sound-toggle')) items.append(button('Sound', () => document.getElementById('sound-toggle').click(), { id: 'gm-sound', title: 'Volume for the music and effects' }));
+  items.append(button('Controls', () => { view = 'controls'; render(); }, { id: 'gm-controls', title: 'Every key and mouse button' }));
+  if (document.getElementById('sound-toggle')) items.append(button('Sound and picture', () => document.getElementById('sound-toggle').click(), { id: 'gm-sound', title: 'Volume for the music and effects, and how detailed the picture is' }));
   items.append(button('Quit to main menu', () => { if (plan()) { view = 'confirm'; render(); } else leave(); }, { id: 'gm-quit', title: 'Back to the main menu' }));
   card.append(items);
+  card.append(el('p', { className: 'gm-build' }, `Build ${BUILD.sha}${BUILD.at ? `, ${BUILD.at}` : ''}`));
   card.querySelector(focus || '#gm-resume')?.focus();
 }
 
@@ -157,7 +174,7 @@ function build() {
 // open the game hears no keys at all (Tab, Space and Enter still work on the menu's buttons).
 addEventListener('keydown', e => {
   if (isOpen) {
-    if (e.key === 'Escape') { e.preventDefault(); if (view === 'confirm') { view = 'main'; render('#gm-resume'); } else close(); }
+    if (e.key === 'Escape') { e.preventDefault(); if (view === 'confirm' || view === 'controls') { view = 'main'; render('#gm-resume'); } else close(); }
     else if (e.key === 'Tab') {
       const bs = [...card.querySelectorAll('button:not(:disabled)')];
       if (bs.length) { const i = bs.indexOf(document.activeElement); const n = bs[(i + (e.shiftKey ? bs.length - 1 : 1)) % bs.length]; e.preventDefault(); n.focus(); }

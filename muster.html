@@ -65,6 +65,8 @@
 </div>
 <nav id="troops"></nav>
 <div id="card" hidden></div>
+<script type="module" src="src/ui/oops.js"></script><!-- errors and browsers that can't run it: first of all -->
+<script nomodule>document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML='<p style="font:16px/1.5 system-ui;max-width:440px;margin:40px auto;padding:0 16px;color:#222">This browser is too old to run the game. Please use a recent Chrome, Edge, Firefox or Safari (16.4 or newer).</p>'})</script>
 <script type="module" src="src/ui/menu.js"></script><!-- the game menu: first, so its Esc listener comes before the game's -->
 <script type="module" src="src/checks.js"></script><!-- consistency checks: checks() in the console (HOW_WE_BUILD.md section 4) -->
 <script type="module" src="src/muster.js"></script>

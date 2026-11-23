@@ -531,7 +531,7 @@ function panel() {
   document.head.append(style);
   const wrap = document.createElement('span');
   wrap.id = 'sound';
-  wrap.innerHTML = `<button id="sound-toggle" title="Sound" aria-label="Sound"></button>
+  wrap.innerHTML = `<button id="sound-toggle" title="Sound and picture" aria-label="Sound and picture"></button>
     <div id="sound-panel" hidden>
       <label>Master <input type="range" min="0" max="1" step="0.05" data-k="master"></label>
       <label>Music <input type="range" min="0" max="1" step="0.05" data-k="music"></label>
