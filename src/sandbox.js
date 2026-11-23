@@ -31,6 +31,9 @@ const FIGHTS = [
   { name: 'Storm a palisade', note: 'Foot hack their way through a timber wall held by spears and archers, to see how the breach goes.', gap: 0, runs: 2, fort: { z: -45, r: 26 },
     blue: [['sword', -24, 80, 60], ['spear', 0, 80, 60], ['sword', 24, 80, 60], ['maa', 0, 98, 40]],
     red: [['spear', -10, 36, 50], ['spear', 10, 36, 50], ['archer', 0, 52, 40]] },
+  { name: 'Sally from a walled place', note: 'Your spears and men-at-arms hold a palisade while foot hack at its far side. Select them and attack: they should come out by the gate, re-form and hit as a block.', gap: 0, runs: 2, fort: { z: 45, r: 26, side: 0, hack: true },
+    blue: [['spear', -8, 52, 40], ['spear', 8, 52, 40], ['maa', 0, 40, 40]],
+    red: [['sword', 38, -42, 50], ['sword', 38, -56, 50]] },
   { name: 'A big band onto a small one', note: '120 spearmen go for 30 swordsmen: how a crowd closes on a few.', gap: 0, runs: 3,
     blue: [['spear', 0, 40, 120]], red: [['sword', 0, 22, 30]] },
   { name: 'About 300 a side', note: 'A whole army each: five foot regiments, two of bowmen and a knights’ wing. Mirror match.', gap: 0, runs: 2,
@@ -51,8 +54,14 @@ function makeBattle(fight, seed, tuning) {
     for (const [key, x, z, count] of list) b.addRegiment(side, key, x, side === 0 ? z : -z, side === 0 ? Math.PI : 0, { count });
   }
   if (fight.fort) {
-    buildFort(b.walls, 1, 0, fight.fort.z, fight.fort.r, { material: 'wood', sides: 8, gateAngle: 0 });
-    for (const r of b.regs) if (r.side === 1) b.setHold([r], true);
+    const side = fight.fort.side ?? 1;
+    buildFort(b.walls, side, 0, fight.fort.z, fight.fort.r, { material: fight.fort.material || 'wood', sides: 8, gateAngle: side === 1 ? 0 : Math.PI });
+    for (const r of b.regs) if (r.side === side) b.setHold([r], true);
+    // The foe hack at the wall farthest from the gate (their order, so the autopilot leaves them to it).
+    if (fight.fort.hack) {
+      const wall = b.walls.pieces.filter(p => p.side === side && !p.gate).sort((p, q) => q.x - p.x)[0];
+      for (const r of b.regs) if (r.side !== side && wall) b.orderAttackWall([r], wall, wall.x, wall.z);
+    }
   }
   b.step(0.001);
   return b;
@@ -62,7 +71,7 @@ function makeBattle(fight, seed, tuning) {
 // for 20 s. (The battle's own AI plans and waits; this is plain, so the settings are what differs.)
 function autopilot(b) {
   for (const r of b.regs) {
-    if (r.gone || r.routing || r.regrouping || r.T.engine || r.hold || (r.hand ?? -1) > b.time) continue;
+    if (r.gone || r.routing || r.regrouping || r.T.engine || r.hold || r.targetWall || (r.hand ?? -1) > b.time) continue;
     const t = r.targetReg;
     if (t && !t.gone && !t.routing && !t.regrouping) continue;
     let best = null, bd = Infinity;

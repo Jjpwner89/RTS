@@ -759,13 +759,33 @@ export class Battle {
       }
     }
     P.left = left;
-    if (!left && this.pinchU(P, { x: r.cx, z: r.cz }) > 0) r.pinch = null;
+    if (!left && this.pinchU(P, { x: r.cx, z: r.cz }) > 0) {
+      r.pinch = null;
+      // Through a gate or breach on the way to a foe that isn't at it: form up out here, with the others sent with
+      // them, before closing, so they arrive as a block and not strung out one after another.
+      const t = r.targetReg;
+      if (P.key?.wall && (r.dest || t) && !(t && !t.gone && Math.hypot(t.cx - P.x, t.cz - P.z) < 30)) { r.gatherUntil = this.time + 12; r.gatherAt = P; }
+    }
+  }
+
+  // Is one of the regiments sent with r still on the far side of the gap r has come through?
+  matesStillIn(r) {
+    const P = r.gatherAt;
+    return !!P && !!r.band && r.band.regs.some(o => o !== r && !o.gone && !o.routing && this.pinchU(P, { x: o.cx, z: o.cz }) < -P.len * 0.5 && Math.hypot(o.cx - P.x, o.cz - P.z) < 25);
   }
 
   // The front walks on past the gap only as fast as men come through it to fill out behind.
   pinchPace(r) {
     const P = r.pinch;
-    return P.left && this.pinchU(P, r) > P.len ? Math.max(0.25, P.share) : 1;
+    if (!(P.left && this.pinchU(P, r) > P.len)) return 1;
+    // Out the far side with men still coming through: the front waits just outside, a block's depth beyond the gap,
+    // for the rest to come out and take their places, rather than walk on with the men strung out behind it in a
+    // single file (creator, 2026-11-23). Unless the foe is right at the gap: then there is no time.
+    const t = r.targetReg, F = FORMATIONS[r.formation] || FORMATIONS.line;
+    const near = t && !t.gone && Math.hypot(t.cx - P.x, t.cz - P.z) < 30;
+    const ranks = Math.ceil(r.alive / Math.max(1, Math.min(r.files, r.alive)));
+    if (!near && Math.hypot(r.x - P.x, r.z - P.z) > P.len + 3 + ranks * (r.T.depth || r.T.spacing) * F.depth) return 0;
+    return Math.max(0.25, P.share);
   }
 
   // Where a man bound through the gap heads. The ranks behind stand in their files, a rank's
@@ -1043,6 +1063,9 @@ export class Battle {
       if (this.nav.any && this.breachFor(r, target, gate)) gate = r.targetWall || gate;
       else if (gate && this.shoots(r) && !this.reaches(r, target) && Math.hypot(target.cx - r.cx, target.cz - r.cz) > this.rangeOf(r)) this.coverGate(r, gate, target);
     }
+    // Foot sent together at one foe wait for each other outside a gate they all come through (matesStillIn).
+    const foot = regs.filter(r => this.usable(r) && r.targetReg === target && !r.engine && !this.shoots(r) && !r.T.mounted);
+    for (const r of regs) r.band = foot.length > 1 && foot.includes(r) ? { regs: foot } : null;
   }
 
   // Where an attack (or charge) on t heads, chosen afresh each tick as men die or move: the middle
@@ -2050,7 +2073,8 @@ export class Battle {
         r.angle = turnToward(r.angle, want, dt * (T.mounted ? 1.6 : T.engine ? 0.5 : 1.0));
         // Wheel before marching off, and wait for stragglers.
         const sideways = shuffle ? Math.abs(angleDiff(Math.atan2(dx, dz), r.angle)) : 0;
-        const pace = this.gaitPace(r) * F.speed * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1) * (sideways > 2 ? 0.6 : sideways > 0.6 ? 0.75 : 1)
+        const gathering = r.gatherUntil > this.time && (r.lag > 2.5 || this.matesStillIn(r)) ? 0 : 1;   // (out of a gate: waiting to form up)
+        const pace = this.gaitPace(r) * F.speed * gathering * (turn > 1.2 ? 0.25 : 1) * (r.lag > 4 ? 0.45 : 1) * (sideways > 2 ? 0.6 : sideways > 0.6 ? 0.75 : 1)
           * (r.pinch ? this.pinchPace(r) : 1)
           * (r.targetReg && left < 25 ? 1.35 : 1) * (this.time < r.chargeUntil ? 1.25 : 1) * (r.engine && !this.crewed(r) ? 0 : 1) * this.paceOf(r);
         const stepLen = Math.min(d, pace * dt);
