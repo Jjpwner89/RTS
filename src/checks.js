@@ -2312,6 +2312,10 @@ async function wordsChecks(w) {
     if (!g?.ceremony || !four || g.mode !== 'world') return null;
     const was = document.querySelector('[data-speed].on'), wasPaused = document.body.classList.contains('paused');
     four.click();
+    // A ceremony already under way (a rank-up just after load) holds 1× for up to 8 s: wait it out; if frames
+    // are not running (a hidden tab) it never ends, and there is nothing to measure.
+    for (let i = 0; i < 100 && g.pace() !== 4; i++) await new Promise(r => setTimeout(r, 100));
+    if (g.pace() !== 4) { (was || document.querySelector('[data-speed="1"]')).click(); if (wasPaused) document.getElementById('pause')?.click(); return { warn: ['a ceremony or a stopped page kept the game at 1× for 10 s: not measured'] }; }
     const out = [];
     if (g.pace() !== 4) out.push(`speed 4 runs at ${g.pace()}`);
     g.ceremony(150);
