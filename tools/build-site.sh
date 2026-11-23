@@ -3,7 +3,7 @@
 #   sh tools/build-site.sh _site
 # Left out: notes (*.md, except the credits files the credits page reads), tools/, fronts/ (Marchfront), .github/, .git/,
 # the art in progress and references, the dev-only pages (combat sandbox, march sandbox), and the scouted models and
-# sounds nothing loads yet (assets/scout keeps only the folders the code names). Everything the game loads is kept.
+# sounds nothing loads yet (assets/scout keeps only the folders the code names, less the dead and snowy trees in vegetation/, which nothing loads yet: wire them in, and credit them, before shipping them). Everything the game loads is kept.
 # It stops, asking for the credits to be looked at, if assets/ grows something new at the top.
 set -e
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,6 +26,7 @@ mkdir -p "$out"
 rsync -a \
   --exclude='.git' --exclude='.github' --exclude='.DS_Store' \
   --include='assets/audio/CREDITS.md' --include='assets/textures/CREDITS.md' --include='assets/icons/CREDITS.md' \
+  --exclude='assets/scout/vegetation/dead' --exclude='assets/scout/vegetation/snow' \
   $filters --exclude='assets/scout/*' \
   --exclude='*.md' \
   --exclude='tools' --exclude='fronts' \
