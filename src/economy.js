@@ -262,7 +262,8 @@ export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key),
 // What a regiment carries between the map and the field: its armour and its battle count
 // (r.battles, the short service record on its card).
 // An arrière-ban levy also carries the time it goes home (world/arriere.js).
-export const carry = u => ({ ...gearOf(u), battles: u.battles || 0, ...(u.until ? { until: u.until } : {}) });
+// An armed ban man also carries the place he came from (world/ban.js), so he goes home to it.
+export const carry = u => ({ ...gearOf(u), battles: u.battles || 0, ...(u.until ? { until: u.until } : {}), ...(u.home !== undefined ? { home: u.home } : {}) });
 export { value };   // a man's worth (battle.js), what power() counts
 export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
 // A band's or a garrison's strength, the sum auto-resolve and the attack ask reckon with (world.js).

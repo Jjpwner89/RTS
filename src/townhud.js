@@ -8,6 +8,7 @@ import { ico } from './icons.js';
 import { TYPES } from './battle.js';
 import { watch } from './ui/news.js';
 import { govText } from './world/governor.js';
+import { KINDS as BAN_KINDS, TIERS as BAN_TIERS, BATCH as BAN_BATCH, kitFor as banKit } from './world/ban.js';
 
 // Folds and the "about" notes are the player's choice, kept between visits and sessions.
 const pref = (k, d) => { try { const v = localStorage.getItem(`rts.ui.${k}`); return v === null ? d : v === '1'; } catch { return d; } };
@@ -401,6 +402,8 @@ export class TownHud {
       el.disabled = !ok;
       el.title = title || '';
       if (el.dataset.act.startsWith('raise:')) { const c = this.town.levyCheck(el.dataset.act.slice(6), selected); el.querySelector('small').textContent = title || `${c.n} men · ${gearText(c.fit)}`; }
+      if (el.dataset.act.startsWith('banpick:') || el.dataset.act.startsWith('bantier:')) { const P = this.banPick ||= { key: 'spear', tier: 'leather' }, [what, v] = el.dataset.act.split(':'); el.disabled = false; el.classList.toggle('on', (what === 'banpick' ? P.key : P.tier) === v); }
+      if (el.dataset.act === 'banarm') { const P = this.banPick ||= { key: 'spear', tier: 'leather' }, c = this.town.banCheck(P.key, P.tier); el.querySelector('span').textContent = `Arm ${BAN_BATCH} ${TYPES[P.key].name.toLowerCase()}${P.tier === 'none' ? '' : ' in ' + ARMOUR_NAME[P.tier].toLowerCase()}`; el.querySelector('small').textContent = c.ok ? this.goodsText(banKit(P.key, P.tier)) : c.reason; }
       if (el.dataset.act.startsWith('policy:')) { el.disabled = false; el.classList.toggle('on', (selected.policy || 'best') === el.dataset.act.slice(7)); }
       if (el.dataset.act === 'refit') { const c = this.town.refitCheck(reg); el.querySelector('small').textContent = c.ok ? `at the ${c.rack.B.name.toLowerCase()}: ${gearText(c.fit)}` : c.reason; }
       if (el.dataset.act === 'upgrade') { const c = this.town.upgradeCheck(selected); el.hidden = !!c.done; el.querySelector('small').textContent = c.ok ? 'ready' : c.reason; }
@@ -493,6 +496,13 @@ export class TownHud {
         rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and some drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
         for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
       }
+      if (this.town.banInfo?.().per) {
+        rows.push(`<h4>Arm the ban</h4><p class="note">The arrière-ban of this village: the men of its countryside the rank can call. Arm a batch here and they keep the kit for good: it never comes back to the racks, they take it on every call and bring it home, and what they learn stays with them. It belongs to the land: if the village falls, its armed men go with it.</p>`);
+        rows.push(`<p class="kit" data-f="ban"></p>`);
+        rows.push(`<div class="row policy">${BAN_KINDS.map(k => `<button data-act="banpick:${k}">${TYPES[k].name}</button>`).join('')}</div>`);
+        rows.push(`<div class="row policy">${BAN_TIERS.map(k => `<button data-act="bantier:${k}">${ARMOUR_NAME[k]}</button>`).join('')}</div>`);
+        rows.push(`<button data-act="banarm" class="wide"><span>Arm ${BAN_BATCH}</span><small></small></button>`);
+      }
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
       rows.push(`<p class="kit" data-f="racks"></p>`);
       rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
@@ -544,6 +554,11 @@ export class TownHud {
     if (f === 'progress') return `Built: ${Math.floor(b.progress * 100)}% · builders: ${b.builders.length}`;
     if (f === 'materials') return `Materials here: ${Object.entries(b.B.cost).map(([g, n]) => `${Math.floor(b.store[g] || 0)}/${n} ${gi(g)}`).join(' · ')}`;
     if (f === 'keepraise') { const K = KEEP_RAISE[this.town.keepBought || 0]; return K ? `Raise a ${K.name}` : ''; }
+    if (f === 'ban') {
+      const I = this.town.banInfo(), P = this.banPick ||= { key: 'spear', tier: 'leather' };
+      const rank = I.armed ? [' (green)', ' (blooded)', ' (seasoned)', ' (veteran)'][I.xp >= 6 ? 3 : I.xp >= 3 ? 2 : I.xp >= 1 ? 1 : 0] : '';
+      return `Ban: up to ${I.per} men at a call · ${I.armed} armed${rank}${I.out ? ` · ${I.out} out serving` : ''}${I.units.length ? ': ' + I.units.map(u => `${u.count} ${TYPES[u.key].name.toLowerCase()}${u.armour === 'none' ? '' : ' in ' + ARMOUR_NAME[u.armour].toLowerCase()}`).join(', ') : ''}`;
+    }
     if (f === 'gov') return govText(this.town);
     if (f === 'workers') {
       const t = this.town, want = t.staffed(b), room = t.jobs(b);
@@ -578,6 +593,7 @@ export class TownHud {
     const t = this.town;
     if (t.readOnly) return [false, `${t.readOnly.name}'s to decide`];
     if (act.startsWith('raise:')) { const c = t.levyCheck(act.slice(6), this.selected); return [c.ok, c.reason]; }
+    if (act === 'banarm') { const P = this.banPick ||= { key: 'spear', tier: 'leather' }, c = t.banCheck(P.key, P.tier); return [c.ok, c.reason]; }
     if (act === 'refit') { const c = t.refitCheck(this.reg); return [c.ok, c.reason]; }
     if (act === 'disband') return this.reg && !this.reg.routing ? [true] : [false, 'They are fleeing'];
     if (act === 'upgrade') { const c = t.upgradeCheck(this.selected); return [c.ok, c.reason]; }
@@ -612,6 +628,9 @@ export class TownHud {
     if (act === 'demolish') { t.demolish(this.selected); this.hooks.deselect(); }
     if (act === 'disband' && t.disband(this.reg)) this.hooks.deselect();
     if (act.startsWith('policy:')) this.selected.policy = act.slice(7);
+    if (act.startsWith('banpick:')) (this.banPick ||= { key: 'spear', tier: 'leather' }).key = act.slice(8);
+    if (act.startsWith('bantier:')) (this.banPick ||= { key: 'spear', tier: 'leather' }).tier = act.slice(8);
+    if (act === 'banarm') { const P = this.banPick ||= { key: 'spear', tier: 'leather' }, r = t.armBan(P.key, P.tier); if (!r.ok) this.flash(r.reason); }
     if (act === 'refit') { const r = t.refit(this.reg); if (!r.ok) this.flash(r.reason); }
     if (act === 'upgrade') { const r = t.upgrade(this.selected); if (!r.ok) this.flash(r.reason); }
     if (act === 'governor') t.governor = t.governor === false;

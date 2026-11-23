@@ -133,7 +133,7 @@ function packTown(t) {
     vets: t.villagers.filter(v => v.state !== 'soldier' && v.xp).map(v => v.xp),
     regiments: t.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing).map(r => ({
       key: r.T.key, count: r.soldiers.filter(s => s.alive && !s.gone).length, name: r.name, levy: r.levy || null, retinue: !!r.retinue, x: r.cx, z: r.cz, angle: r.angle,
-      xp: r.xp || 0, elite: !!r.elite, hall: r.hall || null, armour: r.armour ?? null, shield: r.shield ?? null, battles: r.battles || 0, askedWeak: !!r.askedWeak, until: r.until || null,
+      xp: r.xp || 0, elite: !!r.elite, hall: r.hall || null, armour: r.armour ?? null, shield: r.shield ?? null, battles: r.battles || 0, askedWeak: !!r.askedWeak, until: r.until || null, home: r.home ?? null,
     })).filter(r => r.count > 0),
     felled: t.trees.spots.filter(s => !s.standing).map(s => s.i),
     deposits: [...t.nodes.rock, ...t.nodes.ore].map(n => n.left),
@@ -200,6 +200,7 @@ function unpackTown(w, p, s) {
     reg.elite = !!r.elite;
     reg.hall = r.hall || null;
     if (r.until) reg.until = r.until;
+    if (r.home !== null && r.home !== undefined) reg.home = r.home;
     if (r.levy) {
       reg.levy = r.levy;
       for (const sol of reg.soldiers) {

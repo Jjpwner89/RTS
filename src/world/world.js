@@ -23,6 +23,7 @@ import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { tickArriere, rankOf } from './arriere.js';
+import * as ban from './ban.js';
 import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
@@ -335,6 +336,8 @@ export class World {
       if (unfed >= 1) standDown(e, p.garrison, Math.min(Math.ceil(unfed), 6), this.pois.filter(q => q.owner === p.owner && q.eco?.buildings && !q.town));
       h.arms += kits(e);
     }
+    // A house's place with a barracks, and a vassal's, arms its own ban out of its own stock (world/ban.js).
+    if (e.buildings.barracks && ((h && !h.bandit && !h.invader && !v) || v)) ban.aiArm(this, p, e, v ? this.rank : rankOf(this.pois.filter(q => q.owner === p.owner && q.kind !== 'camp').length), dt);
     if (h && !h.bandit && !h.invader && !v && e.buildings.hall) this.trainAt(p, e, h, dt, 'hall');
     if (h && !h.bandit && !h.invader && !v && e.buildings.barracks) this.trainAt(p, e, h, dt, 'barracks');
     if (e.level > lvl && p.visible) this.log(`${p.name} has grown.`, 2);
@@ -479,6 +482,10 @@ export class World {
       return have >= cap ? `A ${this.rank.toLowerCase()} keeps ${cap} household guard${cap > 1 ? 's' : ''} (you have ${have})` : null;
     };
     town.householdCount = () => this.households(0);
+    // The village's ban: what is armed, and arming a batch out of the racks (world/ban.js).
+    town.banInfo = () => ban.describe(this, p);
+    town.banCheck = (key, tier) => ban.armCheck(this, p, town, key, tier);
+    town.armBan = (key, tier) => ban.arm(this, p, town, key, tier);
     town.hallRule = () => ['Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Count';
     // Veterans drill at a barracks into serjeants and yeomen from the rank of Lord (creator, 2026-11-22).
     town.drillRule = () => ['Lord', 'Count', 'Duke', 'King'].includes(this.rank) ? null : 'From the rank of Lord';
@@ -1257,6 +1264,12 @@ export class World {
     p.owner = owner;
     p.free = null;
     const who = i => (i === null ? 'the free folk' : i === this.bandits ? 'outlaws' : FACTIONS[i]?.name);
+    // The ban is tied to the land: its armed men and what they have learned go with the place (world/ban.js).
+    if (owner !== was && p.ban?.units.some(u => u.count > 0)) {
+      const said = `The armed ban of ${p.name} now answers to ${owner === 0 ? 'you' : who(owner)}.`;
+      this.chron(said);
+      if (was === 0 || owner === 0) this.log(said, 1);
+    }
     if (owner === 0 && was !== 0) this.chron(`You took ${p.name} from ${who(was)}.`);
     else if (was === 0) this.chron(gift ? `You gave ${p.name} to ${who(owner)}.` : `${p.name} was lost to ${who(owner)}.`);
     const v = vassalOf(this, p);
@@ -2207,7 +2220,7 @@ function lookouts(p) {
 
 // Men in different armour stay in different regiments (one level to a regiment).
 const sameGear = (a, b) => { const x = gearOf(a), y = gearOf(b); return x.armour === y.armour && x.shield === y.shield; };
-const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...(u.until ? { until: u.until } : {}) });
+const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...(u.until ? { until: u.until } : {}), ...(u.home !== undefined ? { home: u.home } : {}) });
 
 export function mergeInto(garrison, units) {
   for (const u of units) recruit(garrison, u.key, u.count, u.name, null, gearFields(u));
@@ -2217,7 +2230,7 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
   const size = TYPES[key]?.count || 40;
   const like = { key, ...gear };
   while (n > 0) {
-    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && (u.until || 0) === (gear.until || 0));
+    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && (u.until || 0) === (gear.until || 0) && (u.home ?? -1) === (gear.home ?? -1));
     if (!g) garrison.push(g = { ...unit(key, 0, name || `${house ? house.short + ' ' : ''}${(TYPES[key]?.name || key).toLowerCase()}`), ...gear, xp: 0 });
     const k = Math.min(n, size - g.count);
     if (gear.battles) g.battles = Math.max(g.battles || 0, gear.battles);

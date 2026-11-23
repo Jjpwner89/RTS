@@ -1369,6 +1369,52 @@ async function worldChecks(w) {
     } finally { t.attackers = []; t.lost = true; }
     return out;
   });
+  // The armed arrière-ban (creator, 2026-11-22, world/ban.js): a village's ban is a roster of armed men, armed out of
+  // its barracks for good, taken first at a call, and back in the roster with what they learned.
+  await check('the ban is armed out of the racks for good, capped by rank, taken first at a call and returned with its experience', async () => {
+    const B = await import('./world/ban.js'), { ARRIERE } = await import('./world/arriere.js'), out = [];
+    const per = ARRIERE.per[w.rank] || 0;
+    if (!per) return null;
+    const real = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const copy = { ...real, id: 'checks-ban', name: 'Checksby', ban: undefined, town: null };
+    const t = w.makeTown(copy, { villagers: 8, retinue: false });
+    copy.town = t; w.byId[copy.id] = copy;
+    try {
+      const rack = t.place('barracks', 30, 0, { ready: true, free: true }).building;
+      if (!rack) return ['could not place a barracks in the test village'];
+      if (t.armBan('spear', 'leather').ok) out.push('a ban was armed with nothing on the racks');
+      for (const [g, n] of Object.entries(B.kitFor('spear', 'leather', 10 * 6))) t.put(rack, g, n);
+      const goods = () => Object.values(rack.store).reduce((n, x) => n + x, 0), before = goods();
+      const r1 = t.armBan('spear', 'leather');
+      if (!r1.ok) return [`arming a batch failed: ${r1.reason}`];
+      if (before - goods() < 30) out.push(`arming ten spearmen in leather took ${before - goods()} goods off the racks, not at least 30`);
+      if (B.armedIn(copy) !== 10) out.push(`after arming 10, the ban has ${B.armedIn(copy)} armed`);
+      let batches = 1; while (batches < 8 && t.armBan('spear', 'leather').ok) batches++;
+      if (B.banMen(w, copy) > per) out.push(`the ban holds ${B.banMen(w, copy)} armed men, over the rank's ${per}`);
+      if (batches !== Math.floor(per / 10)) out.push(`${batches} batches of ten were armed at a rank that allows ${per}`);
+      // A call takes the armed men first, the best kit first, marked with their home and the time they go home.
+      const armed = B.armedIn(copy), until = w.time + 600, taken = B.takeRoster(copy, armed + 7, until);
+      const got = taken.reduce((n, u) => n + u.count, 0);
+      if (got !== armed) out.push(`a call for ${armed + 7} took ${got} of ${armed} armed men`);
+      if (taken.some(u => u.home !== 'checks-ban' || u.until !== until || u.armour !== 'leather')) out.push('the men taken do not carry their home, their time and their armour');
+      if (B.armedIn(copy)) out.push('the men called are still in the roster');
+      // Home again: back in the roster, with experience averaged by numbers and the most battles kept.
+      const half = taken.map(u => ({ ...u, count: Math.floor(u.count / 2), xp: 4, battles: 3 }));
+      for (const u of half) B.returnToRoster(w, u);
+      const back = B.rosterOf(copy);
+      if (B.armedIn(copy) !== half.reduce((n, u) => n + u.count, 0)) out.push(`${B.armedIn(copy)} came back, not ${half.reduce((n, u) => n + u.count, 0)}`);
+      if (back.some(u => Math.abs(u.xp - 4) > 0.01 || u.battles !== 3)) out.push(`the men who came home lost their experience: ${JSON.stringify(back.map(u => [u.xp, u.battles]))}`);
+      if (B.returnToRoster(w, { key: 'militia', count: 5 })) out.push('plain militia (no home) went into a roster');
+      // A house arms its own place's ban out of its own stock, by the same rule.
+      const e = { buildings: { barracks: 1 }, stock: { spears: 30, shields: 30, mail: 30, leatherarmour: 30 } }, ph = { ...real, id: 'checks-ai', name: 'Aiby', ban: undefined };
+      w.byId['checks-ai'] = ph;
+      const armedAi = B.aiArm(w, ph, e, 'Lord', 100);
+      if (!armedAi || B.armedIn(ph) !== 10) out.push(`a house with kit in stock armed ${B.armedIn(ph)} men`);
+      else if (!(30 - e.stock.mail >= 10 || 30 - e.stock.leatherarmour >= 10)) out.push('a house armed a batch without spending its stock');
+      delete w.byId['checks-ai'];
+    } finally { t.lost = true; delete w.byId['checks-ban']; }
+    return out;
+  });
   // A match is real (marriages as ambitions, 2026-11-21): a wed vassal's house is a great house, only
   // someone who can still be wed wants one, and the price is half the dowry, to the nearest 25.
   await check('a vassal is wed only into a real great house, and the match is priced', async () => {

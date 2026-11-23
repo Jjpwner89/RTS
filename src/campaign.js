@@ -884,7 +884,7 @@ function askBanners(dest) {
 function askArriere(dest) {
   const P = arrierePlan(world, dest), n = P.places.length, f = x => x.toLocaleString('en-GB');
   const text = P.per ? `Every place you hold calls up ${P.per} men from its countryside, beyond its village people, so no villager is taken: ${n} place${n > 1 ? 's' : ''}, ${P.men} men for ${dest.name}.\n\n`
-    + `They are spearmen with no armour and little heart for a hard fight, and they break before your banners do. They cost ${f(P.gold)} gold to call and eat ${f(P.food)} food a minute, fed by your villages in your own lands.\n\n`
+    + `They are spearmen with no armour and little heart for a hard fight, and they break before your banners do${P.armed ? `, all but the ${P.armed} you have armed at your barracks, who bring their kit and what they have learned` : ''}. They cost ${f(P.gold)} gold to call and eat ${f(P.food)} food a minute, fed by your villages in your own lands.\n\n`
     + `They serve ${P.mins} minutes, then go home, and the countryside rests ${ARRIERE.rest / 60} minutes before it answers again.`
     : 'A reeve has no countryside to call. From the rank of Lord, every place you hold sends men from its fields.';
   asks.unshift({ kind: 'choice', ev: { title: `Call the arrière-ban to ${dest.name}`, text, at: dest, choices: [
