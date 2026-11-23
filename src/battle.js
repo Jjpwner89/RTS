@@ -125,15 +125,17 @@ export function lookChain(key) {
 //   dmg: every blow's damage, arrows too.
 //   room: spacing between files and ranks, times the type's own.
 //   crowd: most men who may go for one foe at once (0: all who like), so a front stays a front and doesn't mob.
+//   follow: while the front fights, the regiment's anchor keeps up with it, so no gap opens between the men fighting
+//   and the rest. swarm: how far (m) men of a big regiment go for a smaller band (SWARM.reach, 40 now).
 //   palisade: how much of a blow's damage a wooden wall still takes from men hacking at it (1 now).
 //   shock: how hard a regiment breaking shakes the ones beside it (1: as now), and breakAt: the share of an army
 //   still standing under which, if the foe has clearly more, the whole army breaks at once (0.5 now).
 export const TUNING = {
-  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, room: 1, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
-  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
-  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
-  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 0, palisade: 1, shock: 1, breakAt: 0.5 },
-  E: { key: 'E', name: 'D, locked in, steadier nerve', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 2, palisade: 0.6, shock: 0.5, breakAt: 0.4 },
+  A: { key: 'A', name: 'As now', defStep: 0.05, soak: 0, dmg: 1, room: 1, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
+  B: { key: 'B', name: 'Armour counts for more', defStep: 0.065, soak: 0.09, dmg: 1, room: 1, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
+  C: { key: 'C', name: 'Damage −20%', defStep: 0.05, soak: 0, dmg: 0.8, room: 1, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
+  D: { key: 'D', name: 'B and C, a little more room', defStep: 0.065, soak: 0.09, dmg: 0.8, room: 1.12, crowd: 0, follow: false, swarm: 40, palisade: 1, shock: 1, breakAt: 0.5 },
+  E: { key: 'E', name: 'Slower still, steadier', defStep: 0.065, soak: 0.09, dmg: 0.6, room: 1.12, crowd: 2, follow: true, swarm: 14, palisade: 0.6, shock: 0.5, breakAt: 0.4 },
 };
 
 // Formations: spacing and depth multiply the unit's own; the rest change the fight.
@@ -1894,10 +1896,11 @@ export class Battle {
       for (const o of r.soldiers) if (o.target && live(o)) r._on.set(o.target, (r._on.get(o.target) || 0) + 1);
     }
     let best = null, bs = Infinity;
+    const reach = this.tuning.swarm, crowd = this.tuning.crowd;
     for (const e of t.soldiers) {
       if (!live(e) || e.level !== 0 || e.climb) continue;
       const d = Math.hypot(e.x - s.x, e.z - s.z);
-      if (d > SWARM.reach) continue;
+      if (d > reach || (crowd && e.onMe >= crowd)) continue;
       const score = d + SWARM.crowd * (r._on.get(e) || 0);
       if (score < bs) { bs = score; best = e; }
     }
@@ -1991,10 +1994,19 @@ export class Battle {
     }
 
     if (r.engaged > 0 && !this.shoots(r) && !r.hold && !r.engine) {
-      // Locked in melee: let the anchor settle where the fighting is.
-      const k = Math.min(1, dt * 0.4);
-      r.x += (r.cx - r.x) * k;
-      r.z += (r.cz - r.z) * k;
+      if (this.tuning.follow) {
+        // Locked in melee: the anchor keeps up with the front, along the way the regiment faces, so the ranks
+        // behind step up with the men who are fighting and no gap opens (and none sideways: the line stays put).
+        const sin = Math.sin(r.angle), cos = Math.cos(r.angle);
+        let f = 0, n = 0;
+        for (const s of r.soldiers) if (s.target && live(s) && !s.captain) { f += (s.x - r.x) * sin + (s.z - r.z) * cos; n++; }
+        if (n) { const k = Math.min(1, dt * 0.8), step = Math.max(-1, Math.min(1, f / n)) * k * 2; r.x += sin * step; r.z += cos * step; }
+      } else {
+        // Locked in melee: let the anchor settle where the fighting is.
+        const k = Math.min(1, dt * 0.4);
+        r.x += (r.cx - r.x) * k;
+        r.z += (r.cz - r.z) * k;
+      }
     } else if (r.dest) {
       let tx = r.dest.x, tz = r.dest.z;
       // Round the walls: steer for the next point on the way. The regiment keeps its
@@ -2326,7 +2338,7 @@ export class Battle {
       // Men holding their ground only fight whoever reaches them.
       const engageR = this.shoots(r) ? 2.5 : r.hold || r.posts ? (s.level === 1 ? 3 : 2.8) : r.targetReg ? 9 : 4.5;
       // (a man who went for a smaller band's man (swarmFoe) keeps after him further, until that band routs)
-      const holdR = s.swarm ? SWARM.reach : engageR;
+      const holdR = s.swarm ? this.tuning.swarm : engageR;
       if (s.target && (!live(s.target) || this.spared(s.target.reg) || (s.swarm && s.target.reg.routing && s.target.reg !== r.targetReg) || (s.target.x - s.x) ** 2 + (s.target.z - s.z) ** 2 > (holdR + 2) ** 2
         || (s.level === 0 && (s.target.level === 1 || s.target.climb)))) s.target = null;
       if (s.searchCd <= 0) {
