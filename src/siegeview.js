@@ -12,7 +12,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, WOOD, DARK, STONE, STONE_DARK, METAL } from './view.js';
 import { buildingModel } from './models.js';
 import { MATERIALS, PIECE_MAX } from './walls.js';
-import { NIGHT } from './look.js';
+import { NIGHT, snowy } from './look.js';
 
 const PALE = '#c9b38a', ROPE = '#b8a27a', MOSS = '#6f6a5c';
 
@@ -154,7 +154,7 @@ export class SiegeView {
     this.scene = scene;
     this.battle = battle;
     this.heightAt = heightAt;
-    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    this.mat = snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));   // (snow on wall walks and roofs in winter)
     this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.45 });
     this.geos = {};
     this.group = new THREE.Group();

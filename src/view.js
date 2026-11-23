@@ -8,7 +8,7 @@ import { lookChain } from './battle.js';
 import { iconImage } from './icons.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, gaitFor, gaitSpeed, CADENCE } from './anim.js';
 import { fxFor } from './fx.js';
-import { SUN_DIR, NIGHT, lamps, torchPools } from './look.js';
+import { SUN_DIR, NIGHT, lamps, torchPools, snowy } from './look.js';
 import { Standards, CHEER_FOR } from './parade.js';
 
 // Which look a soldier wears: his own (a captain or lord), else his regiment's kind in its armour and with or
@@ -492,7 +492,7 @@ export function keepTop(geo) {
 }
 
 function buildKeeps(scene, heightAt) {
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const mat = snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
   const keep = keepModel(), houses = [0, 1, 2].map(houseModel);
   HOMES.forEach((h, side) => {
     const y = heightAt(h.x, h.z);

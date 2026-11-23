@@ -13,7 +13,8 @@ import { KINDS, REALM_RADIUS } from './realm.js';
 import { ico } from '../icons.js';
 import { TYPES, lookChain } from '../battle.js';
 import { fxFor } from '../fx.js';
-import { lamps } from '../look.js';
+import { lamps, snowy, SEASON } from '../look.js';
+const WINTER_WASH = new THREE.Color(0.78, 0.77, 0.76);
 
 // The map's half-width follows world.half, which grows when the north opens in Part 2.
 export const WORLD_HALF = REALM_RADIUS + 140;
@@ -214,7 +215,7 @@ export class WorldView {
     const woods = drawTrees(this.scene, h, trees);
     for (const r of world.roads) this.scene.add(this.road(r.a, r.b));
 
-    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    this.mat = snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));   // (snow on the roofs in winter; the figures' own copies take none)
     this.drawOldWall();
     this.places = new Map();
     for (const p of world.pois) {
@@ -970,7 +971,7 @@ export class WorldView {
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
     mesh.renderOrder = 3;
     this.scene.add(mesh);
-    return { cv, ctx: cv.getContext('2d'), tex, N, size, key: '' };
+    return { cv, ctx: cv.getContext('2d'), tex, N, size, key: '', mesh };
   }
 
   // Trees stand taller than the wash, so on the map they wear it themselves: a copy of the tree material that fades
@@ -983,14 +984,15 @@ export class WorldView {
       base.onBeforeCompile(sh, r);
       sh.uniforms.uFogMap = { value: tex };
       sh.uniforms.uFogSize = { value: size };
+      sh.uniforms.uWashTint = { value: this.fog.mesh.material.color };   // (greyer in snow: updateFog)
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nuniform float uFogSize;\nvarying vec2 vFogUv;')
         .replace('#include <fog_vertex>', `#include <fog_vertex>
 { vec4 fw = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
   vFogUv = vec2(fw.x / uFogSize + 0.5, 0.5 - fw.z / uFogSize); }`);   // (the canvas is drawn north up, and flipped)
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform sampler2D uFogMap;\nvarying vec2 vFogUv;')
-        .replace('#include <tonemapping_fragment>', `{ vec4 wash = texture2D(uFogMap, vFogUv); gl_FragColor.rgb = mix(gl_FragColor.rgb, wash.rgb, wash.a); }
+        .replace('#include <common>', '#include <common>\nuniform sampler2D uFogMap;\nuniform vec3 uWashTint;\nvarying vec2 vFogUv;')
+        .replace('#include <tonemapping_fragment>', `{ vec4 wash = texture2D(uFogMap, vFogUv); gl_FragColor.rgb = mix(gl_FragColor.rgb, wash.rgb * uWashTint, wash.a); }
 #include <tonemapping_fragment>`);
     };
     mat.customProgramCacheKey = () => 'tree-under-fog';
@@ -999,6 +1001,8 @@ export class WorldView {
 
   updateFog() {
     const f = this.fog, w = this.world;
+    // in snow the wash goes a shade greyer, so land you can see stays the brighter (look.js uSnow)
+    f.mesh.material.color.setRGB(1, 1, 1).lerp(WINTER_WASH, SEASON.uSnow.value);
     // only redraw when what you can see has changed
     // (a sworn house lights the map like you do: world.sightOf)
     const key = w.pois.map(p => (p.visible ? 2 : p.seen ? 1 : 0)).join('') + FACTIONS.map(h => (w.sworn(h.index) ? 1 : 0)).join('') + w.armies.filter(a => w.sightOf(a.side)).map(a => `${Math.round(a.x / 15)},${Math.round(a.z / 15)}`).join(';');

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fbm, rng } from './noise.js';
-import { SKY, SEASON, look } from './look.js';
+import { SKY, SEASON, look, snowy } from './look.js';
 
 // Seconds, shared by every material that moves (grass, water, clouds).
 export const TIME = { value: 0 };
@@ -78,7 +78,7 @@ export function groundMaterial(land = null) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vWPos; varying vec3 vWN;
-uniform float uTime, uExtent, uFrost; uniform vec3 uGrass; uniform sampler2D uMask; uniform vec2 uHomeA, uHomeB;
+uniform float uTime, uExtent, uFrost, uSnow; uniform vec3 uGrass; uniform sampler2D uMask; uniform vec2 uHomeA, uHomeB;
 float gGrass = 1.;   // how much of the ground here is grass, for its bump (below)
 uniform sampler2D tgrass, tearth, ttrack, tsoil, trock; uniform vec3 mgrass, mearth, mtrack, msoil, mrock;
 ${NOISE}
@@ -138,7 +138,19 @@ vec3 dtl(sampler2D t, vec3 m, vec2 p, float sat) { vec3 d = texture2D(t, p).rgb 
     col = mix(col, stone, pave);
   }
   gGrass *= (1. - smoothstep(.55, .95, mk.g)) * (1. - wear) * max(0., 1. - pave - kerb);
+  float open = (1. - wear * .85) * max(0., 1. - pave - kerb);   // tracks and roads trodden dark through the snow
+#else
+  float open = 1.;
 #endif
+  // Snow in winter (look.js uSnow): lying on level ground, thin and patchy at first and on the rises, never on the
+  // steep sides or where feet and wheels keep the ground open
+  if (uSnow > .001) {
+    float lie = smoothstep(.3, .7, lfbm(p * .03 + 17.) * .6 + uSnow * .75) * (1. - smoothstep(.1, .24, slope)) * open;
+    // a cool white, blue-grey in drifts and hollows, so it never reads as the map's warm parchment fog
+    vec3 snow = mix(vec3(.66, .71, .79), vec3(.82, .85, .9), smoothstep(.25, .75, lfbm(p * .02 + 5.))) * (.95 + .07 * lvn(p * .6));
+    col = mix(col, snow, lie * uSnow * .94);
+    gGrass *= 1. - lie * uSnow;
+  }
   // Cloud shadows drift over the land.
   col *= 1. - smoothstep(.42, .68, lfbm((p + uTime * vec2(3.5, 1.2)) * .006)) * .28;
   // A warmer, slightly softer grade so the greens don't go lime.
@@ -354,10 +366,11 @@ function grassMaterial() {
     Object.assign(sh.uniforms, SEASON);
     // the grass's season, as on the ground
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uGrass; uniform float uFrost;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGrass; uniform float uFrost, uSnow;')
       .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= uGrass;
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(.3, .59, .11))) * vec3(1.3, 1.34, 1.42), uFrost);`);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(.3, .59, .11))) * vec3(1.3, 1.34, 1.42), uFrost);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.82, .85, .89), uSnow * .55);   // tufts poking through the snow, dusted`);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -374,6 +387,7 @@ let treeMat = null;
 export function treeMaterial() {
   if (treeMat) return treeMat;
   treeMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  // (snow on the crowns in winter: snowy(), below)
   treeMat.onBeforeCompile = sh => {
     sh.uniforms.uTime = TIME;
     sh.vertexShader = sh.vertexShader
@@ -391,7 +405,7 @@ vUp = position.y;
       .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= mix(.62, 1.04, smoothstep(2.4, 6.8, vUp));`);
   };
-  return treeMat;
+  return snowy(treeMat, { amount: 0.85 });
 }
 
 const CELL = 60;           // grass is cut into squares so far ones can be skipped

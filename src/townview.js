@@ -8,7 +8,7 @@ import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, setBlend, gaitFor } from './anim.js';
 import { BUILDINGS, crate } from './economy.js';
 import { fxFor } from './fx.js';
-import { lamps } from './look.js';
+import { lamps, snowy } from './look.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 // anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
@@ -184,7 +184,7 @@ function circle(radius, color, opacity) {
 export class TownView {
   constructor(scene, town, heightAt, rand) {
     Object.assign(this, { scene, town, heightAt });
-    this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    this.mat = snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));   // (snow on the roofs in winter)
     this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.55 });
     this.ruinMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: '#3a3430' });
     this.ghostMat = new THREE.MeshBasicMaterial({ color: '#7fe08a', transparent: true, opacity: 0.45, depthWrite: false });

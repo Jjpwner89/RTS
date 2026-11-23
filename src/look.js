@@ -74,8 +74,11 @@ const WEATHER = {
 // On the campaign's clock a year is 1200 seconds (world.js season) and a day DAY seconds. Without a clock (a
 // battle on its own) nothing turns: late spring at midday, as the game always looked.
 export const YEAR = 1200, DAY = 240;
-// The grass's season, for the ground and the grass tufts (scenery.js): a tint and how much winter frost pales it.
-export const SEASON = { uGrass: { value: new THREE.Color(1, 1, 1) }, uFrost: { value: 0 } };
+// The grass's season, for the ground and the grass tufts (scenery.js): a tint and how much winter frost pales it;
+// and how much snow lies (uSnow: 0 to 1, on level ground, roofs and tree tops: snowy()).
+export const SEASON = { uGrass: { value: new THREE.Color(1, 1, 1) }, uFrost: { value: 0 }, uSnow: { value: 0 } };
+// Snow falls over winter's first SNOW_IN seconds, lies all winter and thaws over spring's first SNOW_IN.
+const SNOW_IN = 40;
 // The leaves' season, for trees (terrain.js): a tint for broadleaves (pines keep theirs) and whether birches are bare.
 // (step changes whenever they do)
 export const year = { leaf: new THREE.Color(1, 1, 1), bare: false, step: -1 };
@@ -88,6 +91,8 @@ const SEASONS = [
 ];
 function turnYear(t) {
   const f = ((t % YEAR) + YEAR) % YEAR / YEAR, step = Math.floor(f * 240);   // a step every five seconds
+  const into = (f - 0.75) * YEAR, thaw = f * YEAR, sm = x => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+  SEASON.uSnow.value = into >= 0 ? sm(into / SNOW_IN) : 1 - sm(thaw / SNOW_IN);
   if (step === year.step) return;
   year.step = step;
   const x = f * 4 - 0.5, i = (Math.floor(x) + 4) % 4, k = x - Math.floor(x), w = k * k * (3 - 2 * k);
@@ -221,6 +226,26 @@ function skyDome() {
   dome.onBeforeRender = (r, s, camera) => { dome.position.copy(camera.position); dome.updateMatrixWorld(); SKY_TIME.value = performance.now() / 1000; };
   dome.userData.sky = true;
   return dome;
+}
+
+// Snow on what faces the sky (look.js SEASON.uSnow): roofs, wall walks and tree tops whiten in winter, steep and
+// upright faces don't. Chains onto a material's own onBeforeCompile; for buildings and trees, never men or horses.
+export function snowy(mat, { amount = 1 } = {}) {
+  const was = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    was?.call(mat, sh, r);
+    sh.uniforms.uSnow = SEASON.uSnow;
+    if (sh.fragmentShader.includes('uniform float uSnow;')) return;   // (a copy of a snowy material, made snowy again)
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uSnow;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+if (uSnow > .001) {
+  float up = inverseTransformDirection(normal, viewMatrix).y;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.8, .84, .9), uSnow * ${amount.toFixed(2)} * smoothstep(.45, .75, up));
+}`);
+  };
+  mat.customProgramCacheKey = () => 'snowy' + amount + (was ? was.toString() : '');
+  return mat;
 }
 
 // The sky of whatever scene is being drawn, for materials that reflect it (water).
