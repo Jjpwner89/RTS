@@ -468,30 +468,54 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
 const LAMP_VS = /* glsl */`
 attribute float aSize, aPush, aSeed;
 uniform float uNight, uTime, uH;
-varying float vA;
+varying float vA, vSway, vTall;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.);
   mv.xyz += normalize(-mv.xyz) * aPush;
   gl_Position = projectionMatrix * mv;
   float dark = smoothstep(.85, 1., uNight);
-  gl_PointSize = min(320., aSize * (.4 + .6 * dark) * projectionMatrix[1][1] * uH * .5 / -mv.z);
   float flick = .86 + .14 * sin(uTime * (6. + aSeed * 5.) + aSeed * 40.) * sin(uTime * 2.3 + aSeed * 17.);
   vA = smoothstep(.45 + aSeed * .4, .6 + aSeed * .4, uNight) * (.35 + .65 * dark) * flick;
+#ifdef FLAME
+  // a flame keeps its size as night falls (it is the torch, not its glow), and never shrinks below a few pixels,
+  // so a far one still sparks; its tip sways and it stretches and shrinks with the flicker
+  gl_PointSize = clamp(aSize * projectionMatrix[1][1] * uH * .5 / -mv.z, 3., 160.);
+  vSway = .07 * sin(uTime * (7. + aSeed * 4.) + aSeed * 30.) + .03 * sin(uTime * 13.1 + aSeed * 9.);
+  vTall = .85 + .3 * (flick - .86) / .14 * .5 + .15 * sin(uTime * 9.7 + aSeed * 21.);
+#else
+  gl_PointSize = min(320., aSize * (.4 + .6 * dark) * projectionMatrix[1][1] * uH * .5 / -mv.z);
+#endif
 }`;
 const LAMP_FS = /* glsl */`
 uniform vec3 uColor;
-varying float vA;
+varying float vA, vSway, vTall;
 void main() {
   vec2 q = gl_PointCoord * 2. - 1.;
   float r2 = dot(q, q);
   if (r2 > 1. || vA < .01) discard;
+#ifdef FLAME
+  // a tongue of flame: a round foot low in the sprite narrowing to a swaying tip, white-gold at its heart, orange,
+  // then red at its edge, over the faintest warmth round it (no ball of light)
+  q.y = -q.y;
+  float h = clamp((q.y + .45) / (1.25 * vTall), 0., 1.);
+  float x = q.x - vSway * h * h, w = .3 * pow(1. - h, 1.4);
+  float foot = length(vec2(x, (q.y + .45) * 1.4)) / .3;
+  float d = q.y < -.45 ? foot : abs(x) / w;
+  float f = clamp(1. - d, 0., 1.);
+  vec3 c = mix(vec3(.7, .14, .02), vec3(1., .48, .1), smoothstep(0., .5, f));
+  c = mix(c, vec3(1., .85, .55), smoothstep(.6, 1., f) * (1. - h));
+  gl_FragColor = vec4((c * 1.7 * smoothstep(0., .3, f) + uColor * exp(-r2 * 6.) * .05) * vA, 1.);
+#else
   gl_FragColor = vec4(uColor * vA * (exp(-r2 * 30.) * 2.2 + exp(-r2 * 5.) * .3) * (1. - r2), 1.);
+#endif
 }`;
 const lampSize = new THREE.Vector2();
-// Adds a set of lamps to a scene; set(list) places them: [{ x, y, z, size (metres across, 6), push (0) }].
-export function lamps(scene, color = '#ffa04a') {
+// Adds a set of lamps to a scene; set(list) places them: [{ x, y, z, size (metres across, 6), push (0) }]. flame:
+// each is drawn as a flickering tongue of flame (a carried torch's head, view.js), not a glow.
+export function lamps(scene, color = '#ffa04a', { flame = false } = {}) {
   const geo = new THREE.BufferGeometry();
   const mat = new THREE.ShaderMaterial({
+    defines: flame ? { FLAME: '' } : {},
     uniforms: { uNight: NIGHT, uTime: SKY_TIME, uH: { value: 800 }, uColor: { value: new THREE.Color(color).multiplyScalar(2.2) } },
     vertexShader: LAMP_VS, fragmentShader: LAMP_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
   });
@@ -525,25 +549,30 @@ export function lamps(scene, color = '#ffa04a') {
   };
 }
 
-// Warm pools of torchlight on the ground (regiments by night, view.js): set([{ x, z, radius }]) each frame. Each pool
-// is a small grid laid on the ground (heightAt) and added to what is there, faint at its edge, fading in with the
-// lamps as night falls.
+// Warm pools of torchlight on the ground (under each carried torch by night, view.js): set([{ x, z, radius }]) each
+// frame. Each pool is a small grid laid on the ground (heightAt) and added to what is there, faint at its edge,
+// fading in with the lamps as night falls and wavering a little with its flame.
 const POOL_VS = /* glsl */`
-attribute float aR;
-varying float vR;
-void main() { vR = aR; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
+attribute vec2 aR;
+uniform float uTime;
+varying float vR, vFlick;
+void main() {
+  vR = aR.x;
+  vFlick = .82 + .18 * sin(uTime * (6. + aR.y * 5.) + aR.y * 40.) * sin(uTime * 2.3 + aR.y * 17.);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+}`;
 const POOL_FS = /* glsl */`
 uniform vec3 uColor;
 uniform float uNight;
-varying float vR;
+varying float vR, vFlick;
 void main() {
   float a = smoothstep(.45, .6, uNight) * (.35 + .65 * smoothstep(.85, 1., uNight)), f = 1. - clamp(vR, 0., 1.);
-  gl_FragColor = vec4(uColor * a * f * f, 1.);
+  gl_FragColor = vec4(uColor * a * f * f * vFlick, 1.);
 }`;
 export function torchPools(scene, heightAt, color = '#ff9a4a') {
   const N = 7, geo = new THREE.BufferGeometry();
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uNight: NIGHT, uColor: { value: new THREE.Color(color).multiplyScalar(0.22) } },
+    uniforms: { uNight: NIGHT, uTime: SKY_TIME, uColor: { value: new THREE.Color(color).multiplyScalar(0.34) } },
     vertexShader: POOL_VS, fragmentShader: POOL_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, fog: false,
   });
@@ -563,18 +592,18 @@ export function torchPools(scene, heightAt, color = '#ff9a4a') {
       if (!mesh.visible) return;
       if (list.length > room) {
         room = Math.max(list.length, room * 2, 8);
-        pos = new Float32Array(room * N * N * 3); rr = new Float32Array(room * N * N);
+        pos = new Float32Array(room * N * N * 3); rr = new Float32Array(room * N * N * 2);
         const idx = new Uint32Array(room * cell.length);
         for (let p = 0; p < room; p++) cell.forEach((v, k) => { idx[p * cell.length + k] = v + p * N * N; });
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geo.setAttribute('aR', new THREE.BufferAttribute(rr, 1));
+        geo.setAttribute('aR', new THREE.BufferAttribute(rr, 2));
         geo.setIndex(new THREE.BufferAttribute(idx, 1));
       }
       list.forEach((l, p) => {
         for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
           const u = i / (N - 1) * 2 - 1, v = j / (N - 1) * 2 - 1, x = l.x + u * l.radius, z = l.z + v * l.radius, k = p * N * N + i * N + j;
           pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, z) + 0.15; pos[k * 3 + 2] = z;
-          rr[k] = Math.hypot(u, v);
+          rr[k * 2] = Math.hypot(u, v); rr[k * 2 + 1] = (p * 0.618) % 1;
         }
       });
       geo.setDrawRange(0, list.length * cell.length);

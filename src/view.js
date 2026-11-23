@@ -536,8 +536,9 @@ export class BattleView {
     this.syncSoldiers();
     this.buildArrows();
     this.syncBanners();
-    // by night a few men in each regiment carry torches, lighting the ground round them
-    this.torches = lamps(scene, '#ffb25e');
+    // by night a few men in each regiment carry torches, lighting the ground and the men round them
+    this.torches = lamps(scene, '#ffb25e', { flame: true });
+    this.warm = new THREE.Color();
     this.torchPools = torchPools(scene, heightAt);
     this.torchCount = 0;
     if (keeps) buildKeeps(scene, heightAt);
@@ -667,8 +668,14 @@ export class BattleView {
       for (const g of [pair.gear.geometry, pair.cloth.geometry]) { setClip(g, i, k.c, k.t); setClip(g, i, k.hc, k.ht, true); }
     }
     const hit = dead ? 0 : this.fx.flash(s, this.battle.time);   // fx: a man struck flashes pale for a moment
-    pair.cloth.setColorAt(i, dead ? this.shade.copy(s.tint).multiplyScalar(0.55) : hit ? this.shade.copy(s.tint).lerp(WHITE, hit * 0.75) : s.tint);
-    pair.gear.setColorAt(i, dead ? this.shade.copy(s.gearTint).multiplyScalar(0.6) : hit ? this.shade.copy(s.gearTint).lerp(WHITE, hit * 0.6) : s.gearTint);
+    // by night, a man near one of his regiment's torches is lit warm by it (carryTorches)
+    const at = this.torchLight && !dead ? this.torchOf?.get(s.reg) : undefined;
+    let w = 0;
+    if (at !== undefined) for (let j = 0; j < 4; j++) { const d2 = (s.x - this.torchAt[(at + j) * 2]) ** 2 + (s.z - this.torchAt[(at + j) * 2 + 1]) ** 2; if (d2 < 49) w = Math.max(w, (1 - d2 / 49) ** 2); }
+    if (w) { w *= 2.4 * this.torchLight; this.warm.setRGB(1 + w, 1 + w * 0.62, 1 + w * 0.3); }
+    const lit = c => w ? (c === this.shade ? c : this.shade.copy(c)).multiply(this.warm) : c;
+    pair.cloth.setColorAt(i, lit(dead ? this.shade.copy(s.tint).multiplyScalar(0.55) : hit ? this.shade.copy(s.tint).lerp(WHITE, hit * 0.75) : s.tint));
+    pair.gear.setColorAt(i, lit(dead ? this.shade.copy(s.gearTint).multiplyScalar(0.6) : hit ? this.shade.copy(s.gearTint).lerp(WHITE, hit * 0.6) : s.gearTint));
   }
 
   buildArrows() {
@@ -849,37 +856,45 @@ export class BattleView {
       }
       bn.sprite.material.opacity = r.routing ? 0.45 + 0.3 * Math.sin(b.time * 6) : 1;
     }
-    if (NIGHT.value > 0.15) this.carryTorches();
+    if (NIGHT.value > 0.15) this.carryTorches(); else this.torchLight = 0;
     this.drawOutlines(selection);
     this.fx.battle(b, this, selection);   // fx
   }
 
-  // A few torches carried in each regiment's ranks, by night: small flames at head height on living men spread
-  // along its front (one for every fifteen or so, up to four, six metres apart at least), and a soft warm pool on the ground round the regiment,
-  // so the men read by their own light (none for the gone or unseen).
+  // A few torches carried in each regiment's ranks, by night: small flames held above the heads of living men spread
+  // along its front (one for every fifteen or so, up to four, six metres apart at least), each with a soft warm pool
+  // on the ground under it and a warm light on the men near it (drawDetailed), so the men read by their own light
+  // (none for the gone or unseen).
   carryTorches() {
     const T = this.torches, PER = 4;
     if (this.torchCount !== this.banners.length) {
       this.torchCount = this.banners.length;
-      T.set(Array.from({ length: this.banners.length * PER }, () => ({ x: 0, y: -1e4, z: 0, size: 2.2 })));
+      T.set(Array.from({ length: this.banners.length * PER }, () => ({ x: 0, y: -1e4, z: 0, size: 1.7 })));
+      this.torchAt = new Float32Array(this.banners.length * PER * 2).fill(1e9);
+      this.torchOf = new Map();
     }
+    // how strongly they light, as the pools and flames fade in (look.js)
+    const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    this.torchLight = sm(0.45, 0.6, NIGHT.value) * (0.35 + 0.65 * sm(0.85, 1, NIGHT.value));
     const pools = [];
     this.banners.forEach((bn, i) => {
+      this.torchOf.set(bn.r, i * PER);
       const r = bn.r, men = r.gone || r.unseen ? [] : r.soldiers.filter(s => s.alive && !s.gone);
-      const lift = r.T.mounted ? 3.1 : 2.1;
+      const lift = r.T.mounted ? 3.5 : 2.5;
       // the torches go evenly along the regiment's front: to the man nearest each spot across it
       const ax = Math.cos(r.angle), az = -Math.sin(r.angle), along = s => (s.x - r.cx) * ax + (s.z - r.cz) * az;
-      let far = 0, lo = Infinity, hi = -Infinity;
-      for (const s of men) { far = Math.max(far, (s.x - r.cx) ** 2 + (s.z - r.cz) ** 2); const t = along(s); lo = Math.min(lo, t); hi = Math.max(hi, t); }
+      let lo = Infinity, hi = -Infinity;
+      for (const s of men) { const t = along(s); lo = Math.min(lo, t); hi = Math.max(hi, t); }
       // and at least six metres apart, so a tight crew (an engine's) carries one, not a cluster
       const k = men.length ? Math.min(PER, Math.ceil(men.length / 15), 1 + Math.floor((hi - lo) / 6)) : 0;
       for (let j = 0; j < PER; j++) {
         let s = null, best = Infinity;
         const want = lo + (hi - lo) * (j + 0.5) / k;
         if (j < k) for (const m of men) { const d = Math.abs(along(m) - want); if (d < best) { best = d; s = m; } }
-        if (s) T.move(i * PER + j, s.x, this.heightAt(s.x, s.z) + lift, s.z); else T.move(i * PER + j, 0, -1e4, 0);
+        const n = i * PER + j;
+        if (s) { T.move(n, s.x, this.heightAt(s.x, s.z) + lift, s.z); this.torchAt[n * 2] = s.x; this.torchAt[n * 2 + 1] = s.z; pools.push({ x: s.x, z: s.z, radius: 7 }); }
+        else { T.move(n, 0, -1e4, 0); this.torchAt[n * 2] = 1e9; }
       }
-      if (k) pools.push({ x: r.cx, z: r.cz, radius: Math.min(16, Math.max(5, Math.sqrt(far))) + 3 });
     });
     T.update();
     this.torchPools.set(pools);
