@@ -96,9 +96,14 @@ export function alertAt(w, h) {
 
 // ---- raids ----
 // The bands making for a house's places: an enemy's, or outlaws'.
-const ahead = a => { let d = 0, at = a; for (const q of a.path) { d += Math.hypot(q.x - at.x, q.z - at.z); at = q; } return d; };
+// Its mark is the first of the house's places on its road (it raids the first it comes to), and
+// `left` its road there.
 const bandsOn = (w, h) => w.armies.filter(a => !a.gone && !a.wagon && !a.retreating && a.mode === 'raid' && a.side !== h.index
-  && a.target?.owner === h.index && (a.side === w.bandits || w.atWar(h.index, a.side)));
+  && (a.side === w.bandits || w.atWar(h.index, a.side))).map(a => {
+  let left = 0, at = a;
+  for (const q of a.path) { left += Math.hypot(q.x - at.x, q.z - at.z); at = q; if (q.owner === h.index) return { band: a, p: q, left }; }
+  return null;
+}).filter(Boolean);
 
 // Send relief to `p` against `band` from the house's places within `road` of it (skeleton: what
 // each keeps at home), up to RELIEF.ratio times the band and a little, with what is already on
@@ -135,8 +140,7 @@ export function sendRelief(w, h, p, band, road = THREAT.road, skeleton = q => w.
 export function answerRaids(w, h, skeleton) {
   const ai = h.ai, by = (ai.raidedBy ||= {}), seen = (ai.bandsSeen ||= {});
   let punish = null;
-  for (const band of bandsOn(w, h)) {
-    const p = band.target, left = ahead(band);
+  for (const { band, p, left } of bandsOn(w, h)) {
     if (left > THREAT.sight) continue;
     if (!seen[band.id]) {
       seen[band.id] = w.time;
