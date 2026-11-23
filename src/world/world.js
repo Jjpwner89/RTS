@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, buyFood, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, HOPELESS, LEVY_KINDS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, setWinter, winterFromUrl, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, HOPELESS, LEVY_KINDS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -145,6 +145,8 @@ export class World {
     this.march = MARCH_LIVE;   // how fast armies march by make-up (march.js); not saved: it is the game's rule
     // Chosen when the campaign begins (index.html), kept in the save.
     this.options = { size: 'normal', aggression: 'normal', ironman: false, ...options };
+    // The winter (economy.js WINTERS): ?winter= on the address if given, else what the save kept, else mild; kept in the save.
+    this.options.winter = setWinter(winterFromUrl() || this.options.winter);
     this.rand = rng(seed + 3);
     this.time = 0;
     this.events = [];

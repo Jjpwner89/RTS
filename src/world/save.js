@@ -8,7 +8,7 @@ import { World, FACTIONS } from './world.js';
 import { restoreWorks } from './works.js';
 import { relayOld } from './places.js';
 import { vassalOf } from './vassals.js';
-import { BUILDINGS, plainLevy } from '../economy.js';
+import { BUILDINGS, plainLevy, setWinter, winterFromUrl } from '../economy.js';
 
 import { KEY, TEST_KEY, VERSION, store, inspect, migrate, keepStorage } from './saveslots.js';
 export { TEST_KEY };
@@ -206,6 +206,7 @@ function unpackTown(w, p, s) {
     const a = t.rand() * Math.PI * 2;
     t.addVillager(Math.sin(a) * 16, Math.cos(a) * 16);
   }
+  t.clearVillagers();   // (the ring they stand on at first can cross a building: Town.clearVillagers sets them just outside it)
   (s.vets || []).forEach((xp, i) => { if (t.villagers[i]) t.villagers[i].xp = xp; });
   // Regiments stand where they stood; a levy's men are villagers again if it disbands.
   for (let r of s.regiments) {
@@ -301,6 +302,8 @@ export function loadGame(data, hooks) {
   for (const a of w.armies) a.halted = false;
   const W = data.world;
   for (const k of WORLD_KEYS) if (W[k] !== undefined) w[k] = dec(W[k]);
+  // The winter (economy.js WINTERS): the address's choice, if it names one, over what the save kept, and then kept in the save.
+  w.options.winter = setWinter(winterFromUrl() || w.options?.winter);
   w.part = W.part;
   w.wall.fallen = W.wallFallen;
   w.events = dec(W.events);
