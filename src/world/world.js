@@ -82,6 +82,7 @@ export const ARMY_CAP = { Reeve: 150, Lord: 300, Count: 600, Duke: 1000, King: 1
 // against its own (ratio, 0 to 1): what that side could kill, 0.12 to 0.57 men a man of theirs
 // (creator, 2026-11-22: 828 men against 30 lost about 100 when it was a share of the winner's own).
 export const winCost = ratio => ratio * (0.12 + 0.45 * ratio);
+export const SKELETON = 12;   // a place's guard while its house's host gathers, plus 4 a level (keepHome)
 const NEXT_RANK = { Reeve: 'Lord', Lord: 'Count', Count: 'Duke', Duke: 'King' };
 // Why the cap is what it is, for a tooltip: "An army of a count holds at most 600 men (1,000 as a duke)."
 export function capWhy(rank) {
@@ -261,7 +262,10 @@ export class World {
 
   // How many men a holding keeps at home before sending the rest to its lord.
   keepHome(p) {
-    const K = KINDS[p.kind], ai = p.owner !== null ? FACTIONS[p.owner]?.ai : null, settling = ai?.stage === 0;
+    const K = KINDS[p.kind], h = p.owner !== null ? FACTIONS[p.owner] : null, ai = h?.ai, settling = ai?.stage === 0;
+    // While its host gathers, a house keeps only a skeleton guard where no foe presses, as
+    // you may strip yours (Orchestrator, 2026-11-22): the rest marches to the host (rivals.js).
+    if (ai?.plan?.phase === 'muster' && p.eco && !pressedAt(h, p)) return SKELETON + 4 * (p.eco.level || 0);
     // A house arming for war strips the places no enemy is near, as you would (rivals.js).
     const rear = ai?.stance === 'war' && ai.rear?.includes(p.id);
     return Math.round((20 + p.eco.level * 8) * (K.garrison || 1) * (p.seat !== undefined ? 1.6 : 1) * (settling ? 0.5 : 1) * (rear ? 0.5 : 1));
@@ -285,10 +289,13 @@ export class World {
       // come at a rough rate (the north is a war machine and keeps its own pace).
       const cap = this.popCap(p);
       if (e.pop < cap) e.pop = Math.min(cap, e.pop + dt * ARRIVALS * K.pop);
+      // Its smithy's arms go into its own store (the north's into its war chest); a house
+      // counts them with the kit in its other stores (h.arms is that count, made afresh).
       const arms = h?.invader ? dt * e.pop * 0.0011 * K.arms : dt * SMITHY * K.arms;
-      if (h && !h.bandit) { h.gold += dt * e.pop * TAX * K.gold; h.arms += arms; }
-      else e.arms += arms;
-      const pool = h && !h.bandit ? h : e;
+      if (h && !h.bandit) h.gold += dt * e.pop * TAX * K.gold;
+      if (h?.invader) h.arms += arms;
+      else e.arms = (e.arms || 0) + arms;
+      const pool = h?.invader ? h : e;
       const want = this.keepHome(p), have = headcount(p.garrison);
       if (have < want && pool.arms >= 3 && e.pop > 12) {
         const k = Math.min(Math.floor(pool.arms), want - have, 6);
@@ -297,6 +304,7 @@ export class World {
         const key = h?.bandit ? 'bandit' : h ? pickKind(h, this.rand(), this.time) : 'militia';
         recruit(p.garrison, key, k, h ? `${h.short} ${TYPES[key]?.name?.toLowerCase() || key}` : `${p.name} militia`);
       }
+      if (h && !h.bandit && !h.invader) h.arms += Math.floor(e.arms);
     }
   }
 
@@ -422,17 +430,25 @@ export class World {
         for (const s of stores) { if (s !== p && raised < upto) take(p, s.eco.stock, 12, upto); }
       }
     }
-    if (raised) h.arms = Math.max(0, h.arms - raised);
-    while (raised < n && h.arms >= 1) {
-      const from = this.pois.filter(p => p.owner === h.index && p.eco && !p.eco.buildings && p.eco.pop > (pressedAt(h, p) ? 12 : this.popCap(p) * 0.45))
-        .sort((p, q) => q.eco.pop / this.popCap(q) - p.eco.pop / this.popCap(p))[0];
-      if (!from) break;
-      const k = Math.min(n - raised, 6, Math.floor(h.arms));
-      from.eco.pop -= k;
-      h.arms -= k;
-      recruit(at.garrison, pickKind(h, this.rand(), this.time), k, null, h);
-      raised += k;
+    // Places with no buildings (a camp it holds) arm men from their own smithy's arms, or
+    // with kit carried from a store that has it; with neither, nobody comes (Orchestrator,
+    // 2026-11-22: h.arms counts the kit in its stores, it is not kit of its own).
+    for (const p of this.pois.filter(p => p.owner === h.index && p.eco && !p.eco.buildings).sort((p, q) => q.eco.pop / this.popCap(q) - p.eco.pop / this.popCap(p))) {
+      const floor = pressedAt(h, p) ? 12 : this.popCap(p) * 0.45;
+      while (raised < n && p.eco.pop - floor >= 1) {
+        const k = Math.min(n - raised, 6, Math.floor(p.eco.pop - floor)), own = Math.min(k, Math.floor(p.eco.arms || 0)), was = raised;
+        if (own > 0) {
+          p.eco.arms -= own;
+          p.eco.pop -= own;
+          recruit(at.garrison, pickKind(h, this.rand(), this.time), own, null, h);
+          raised += own;
+          continue;
+        }
+        for (const s of stores) { if (raised < was + k) take(p, s.eco.stock, floor, was + k); }
+        if (raised === was) break;
+      }
     }
+    if (raised) h.arms = Math.max(0, h.arms - raised);
     return raised;
   }
 
@@ -685,7 +701,7 @@ export class World {
       if (v.refusing) { plan.vassals.push({ v, p, men: 0, refusing: true }); continue; }
       const kin = kinWar(this, v);
       if (kin) { plan.vassals.push({ v, p, men: 0, refusing: true, kin }); continue; }
-      const n = headcount(takeUnits(p.garrison.map(g => ({ ...g })), this.vassalWant(v, p)));
+      const n = headcount(takeUnits(p.garrison.map(g => ({ ...g })), this.vassalWant(v, p))) + headcount(this.vassalDraft(v, p, true));
       if (!n) continue;
       plan.vassals.push({ v, p, men: n });
       plan.men += n;
@@ -754,15 +770,24 @@ export class World {
   }
 
   // How much of a vassal's strength at p answers a call to arms.
-  vassalWant(v, p) {
-    const share = levyShare(v) * (decreed(this, 'levy') ? 1.5 : 1) * (1 + seatPower(this, 'marshal'));
-    return power(p.garrison) * Math.min(0.9, share);
+  vassalShare(v) { return Math.min(0.9, levyShare(v) * (decreed(this, 'levy') ? 1.5 : 1) * (1 + seatPower(this, 'marshal'))); }
+  vassalWant(v, p) { return power(p.garrison) * this.vassalShare(v); }
+  // The men a vassal raises from his people for a call (down to the 40% his guard keeps at
+  // work), armed from his place's stores; `dry` counts them without taking anything.
+  vassalDraft(v, p, dry = false) {
+    const e = p.eco;
+    if (!e?.buildings) return [];
+    const floor = Math.max(12, housing(e) * 0.4), E = dry ? { ...e, stock: { ...e.stock } } : e;
+    return arm(E, Math.round(this.vassalShare(v) * Math.max(0, e.pop - floor)), floor, 'best')
+      .map(u => ({ ...unit(u.key, u.count, `${p.name} ${TYPES[u.key].name.toLowerCase()}`), ...gearFields(u) }));
   }
 
   // A vassal's share of the men at one of their places marches for dest, as an army of
   // yours that remembers whose men they are (a.vassal). Returns how many went.
+  // A vassal raises a host for the call as a house does (Orchestrator, 2026-11-22): the same
+  // share of the people his place can spare from work, armed from its own stores, marches too.
   vassalMen(v, p, dest) {
-    const units = takeUnits(p.garrison, this.vassalWant(v, p));
+    const units = [...takeUnits(p.garrison, this.vassalWant(v, p)), ...this.vassalDraft(v, p)];
     if (!units.length) return 0;
     const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
     a.vassal = v.id;

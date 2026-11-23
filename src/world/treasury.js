@@ -66,7 +66,7 @@ function paidOf(w, side) {
     }
   }
   for (const a of w.armies) {
-    if (a.side !== side || a.gone || a.wagon) continue;
+    if (a.side !== side || a.gone || a.wagon || a.vassal) continue;   // (a vassal pays his own men)
     add(a.units.filter(u => !u.until).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { a.units = a.units.filter(o => o !== u); } })), a.name, 0);
   }
   return out;

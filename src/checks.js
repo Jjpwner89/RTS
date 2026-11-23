@@ -441,6 +441,23 @@ async function worldChecks(w) {
   // Great vassals' claims (world/claims.js): each names a real place of yours they don't hold.
   await check('great vassals: every claim names a place of yours they do not hold', async () => (await import('./world/claims.js')).claimProblems(w));
 
+  // Your vassals raise a host for a call as a house does (Orchestrator, 2026-11-22; World.
+  // vassalDraft): their share of the people their place can spare, armed from its stores, on
+  // top of their share of its guard; the banners' preview counts them and takes nothing.
+  await check('vassals: a call raises their share of the people they can spare, and the preview counts them', async () => {
+    const { vassalOf } = await import('./world/vassals.js'), { housing } = await import('./world/holdings.js'), { headcount } = await import('./world/world.js');
+    const out = [], dest = w.home, plan = w.bannerPlan(dest);
+    for (const p of w.pois.filter(p => p.vassal && p.owner === 0 && p !== dest && p.eco?.buildings)) {
+      const v = vassalOf(w, p), e = p.eco, was = JSON.stringify([e.pop, e.stock, p.garrison]);
+      const fresh = headcount(w.vassalDraft(v, p, true)), most = Math.round(w.vassalShare(v) * Math.max(0, e.pop - Math.max(12, housing(e) * 0.4)));
+      if (JSON.stringify([e.pop, e.stock, p.garrison]) !== was) out.push(`counting ${v.name}'s men at ${p.name} took people or kit`);
+      if (fresh > most) out.push(`${v.name} would raise ${fresh} at ${p.name}, more than their share ${most} of those who can be spared`);
+      const row = plan.vassals.find(r => r.p === p);
+      if (row && !row.refusing && row.men < fresh) out.push(`the banners' preview counts ${row.men} from ${v.name}, fewer than the ${fresh} they raise`);
+    }
+    return out;
+  });
+
   // Rival hosts (world/rivals.js): no house's plan sits in muster past three minutes while
   // it could march, or while it has arms and people and raises nobody.
   await check('rival houses: no muster stalls with arms and men', async () => (await import('./world/rivals.js')).musterProblems(w));
@@ -846,6 +863,22 @@ async function worldChecks(w) {
     if (!(even >= 0.35 && even <= 0.6)) out.push(`200 spears beating 200 lose ${Math.round(even * 100)}% of their men`);
     const o = s.autoOdds({ kind: 'field', army: { units: [{ key: 'spear', count: 800, name: 'A' }] }, defenders: [{ key: 'spear', count: 30, name: 'D' }], poi: null });
     if (Math.round(800 * o.winLoss) > 10) out.push(`the box says a win over 30 would cost about ${Math.round(800 * o.winLoss)} of 800`);
+    return out;
+  }));
+
+  // A house's host gathers from every place (Orchestrator, 2026-11-22; World.keepHome): while
+  // it musters, each place no foe presses keeps a skeleton guard and sends the rest.
+  await check('a gathering host: a house keeps a skeleton guard where no foe presses, its usual guard where one does', () => scratch(async (make, FACTIONS) => {
+    const { SKELETON } = await import('./world/world.js'), out = [];
+    const s = make(), h = FACTIONS.find(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.filter(p => p.owner === x.index && p.eco?.buildings).length >= 2);
+    const [p, q] = s.pois.filter(x => x.owner === h.index && x.eco?.buildings), T = s.pois.find(x => x.owner !== h.index && x.eco);
+    h.ai.pressed = [q.id];
+    const usual = [s.keepHome(p), s.keepHome(q)];
+    h.ai.plan = { phase: 'muster', staging: p, target: T, waited: 0 };
+    if (s.keepHome(p) !== SKELETON + 4 * p.eco.level) out.push(`mustering, ${p.name} keeps ${s.keepHome(p)}, not a skeleton of ${SKELETON + 4 * p.eco.level}`);
+    if (s.keepHome(q) !== usual[1]) out.push(`mustering, ${q.name} with a foe near keeps ${s.keepHome(q)}, not its usual ${usual[1]}`);
+    h.ai.plan = { phase: 'march', staging: p, target: T };
+    if (s.keepHome(p) !== usual[0]) out.push(`once the host has marched, ${p.name} keeps ${s.keepHome(p)}, not its usual ${usual[0]}`);
     return out;
   }));
 

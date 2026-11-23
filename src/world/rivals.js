@@ -11,10 +11,10 @@
 // A war builds up the way the creator wants: first raiding parties probe the enemy's
 // villages, then the house gathers a great host at its nearest place (and the enemy
 // hears of it), then the host marches with rams and ladders and lays siege.
-import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit, TAX } from './world.js';
+import { FACTIONS, grace, fierceness, power, headcount, takeUnits, mergeInto, dist, recruit, roughly, unit, TAX, ARMY_CAP } from './world.js';
 import { KINDS } from './realm.js';
 import { devTax } from '../economy.js';
-import { houseCall } from './arriere.js';
+import { houseCall, rankOf } from './arriere.js';
 import { protectedFrom, leagued, leagueHost, wantsBack, grudgeWeight, wouldJoin, callToArms } from './diplomacy.js';
 import { rivalHire } from './companies.js';
 import { standDown, keepAtWork, pressedAt } from './holdings.js';
@@ -222,7 +222,8 @@ function houseMind(w, h) {
   const last = ai.lastPressed ||= {};
   for (const id of ai.pressed) last[id] = w.time;
   const calm = p => !pressedAt(h, p) && w.time - (last[p.id] ?? -Infinity) >= CALM;
-  if (real.some(p => calm(p) && p.eco.pop < keepAtWork(p.eco, false) - 6)) {
+  const gathering = plan?.phase === 'muster';   // (its places keep a skeleton and send the rest: World.keepHome)
+  if (!gathering && real.some(p => calm(p) && p.eco.pop < keepAtWork(p.eco, false) - 6)) {
     for (const p of real.filter(calm)) {
       if (plan?.phase === 'muster' && p === plan.staging) continue;
       const over = headcount(p.garrison) - w.keepHome(p);
@@ -239,9 +240,11 @@ function houseMind(w, h) {
   // its wages from then on (companies.js). Not while the house is still settling.
   if (!h.bandit && stage > 0 && rivalHire(w, h, muster, incomeOf(w, h, mine))) ai.hiredAt = w.time;
 
-  // Send men beyond what each place keeps at home to the muster place.
+  // Send men beyond what each place keeps at home to the muster place: while a host gathers,
+  // all but its skeleton (World.keepHome), as you would.
   for (const p of mine) {
-    if (p === muster || headcount(p.garrison) < w.keepHome(p) * (stage === 2 ? 1.1 : 1.3) + 8) continue;
+    const keep = w.keepHome(p);
+    if (p === muster || headcount(p.garrison) < (gathering ? keep + 6 : keep * (stage === 2 ? 1.1 : 1.3) + 8)) continue;
     if (w.armies.some(a => a.side === h.index && a.mode === 'column' && a.last === p && !a.at)) continue;
     const extra = takeUnits(p.garrison, spareAt(w, p) - 6);
     if (!extra.length) continue;
@@ -496,9 +499,10 @@ function runPlan(w, h, B, plan) {
       if (plan.waited > 600) { (h.ai.passed ||= {})[T.id] = w.time + 900; h.ai.plan = null; h.ai.cool = 90; }
       return;
     }
-    // A contending house marches with most of what it has, not just enough to win: its
-    // hosts are the realm's danger (creator, 2026-11-21: hosts of 20 men).
-    const want = stageOf(h) === 2 ? Math.max(need * 1.15, spare * 0.75) : need * 1.15;
+    // A house marches with all it has gathered, as you would, up to what a host of its rank
+    // holds (Orchestrator, 2026-11-22; ARMY_CAP): its hosts are the realm's danger.
+    const cap = ARMY_CAP[rankOf(w.pois.filter(p => p.owner === h.index && p.kind !== 'camp').length)] || ARMY_CAP.Reeve;
+    const want = Math.min(spare, cap * power(S.garrison) / Math.max(1, headcount(S.garrison)));   // (cap in men, at their worth)
     // Men it can't take out or a host with no road: it looks elsewhere, as when it gives up.
     const pass = () => { (h.ai.passed ||= {})[T.id] = w.time + 900; h.ai.plan = null; h.ai.cool = 90; };
     const units = takeUnits(S.garrison, Math.min(spare, want));
