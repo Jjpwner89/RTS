@@ -166,13 +166,15 @@ export function meetHost(w, h, mine, foeHosts, plan) {
       if (over && !host.retreating) { if (!(G?.owner === h.index && w.order(host, G))) w.retreat(host); ai.meet = null; }
       return null;
     }
-    if (over || G?.owner !== h.index || w.time - M.since > MEET_WAIT || dist(F, G) < 40) {
-      // The partners' men waiting outside go home rather than meet it alone at the gate.
-      if (G && F) for (const x of wingsAt(w, G, F)) w.retreat(x);
+    const wings = G && F ? wingsAt(w, G, F) : [];
+    const need = F ? power(F.units) * MEET_AT : 0, spare = G ? spareAt(w, G) : 0, joined = wings.reduce((n, x) => n + power(x.units), 0) + (pals.includes(0) && G ? yoursNear(w, G) : 0);
+    // Short of men with the host at its gates, or gathered too long: it gives up, and the
+    // partners' men waiting outside go home rather than meet it alone at the gate. Gathered
+    // enough, it goes out even then, and all there fight it together.
+    if (over || G?.owner !== h.index || w.time - M.since > MEET_WAIT || (dist(F, G) < 40 && (spare + joined < need || spare <= 0))) {
+      for (const x of wings) w.retreat(x);
       ai.meet = null; return null;
     }
-    const wings = wingsAt(w, G, F);
-    const need = power(F.units) * MEET_AT, spare = spareAt(w, G), joined = wings.reduce((n, x) => n + power(x.units), 0) + (pals.includes(0) ? yoursNear(w, G) : 0);
     if (spare + joined < need || spare <= 0) return G;
     // It waits for its partners' men on the road, or yet to be sent, while the foe is not at its gates.
     const coming = w.armies.some(x => !x.gone && !x.retreating && x.wing?.foe === F.id && x.wing.at === G.id && x.at !== G);
@@ -183,12 +185,13 @@ export function meetHost(w, h, mine, foeHosts, plan) {
     if (!units.length) return G;
     const a = w.spawnArmy(h.index, units, G, `The ${h.short} host`, 'march');
     // Out by the road it comes on, toward where it came from: marching on the same road, they meet.
-    const to = F.at && F.at !== G ? F.at : F.last && F.last !== G ? F.last : F.path[0];
-    if (!to || to === G || !w.order(a, to)) { w.removeArmy(a); mergeInto(G.garrison, units); ai.meet = null; return null; }
+    // At its gates already, it stands there with its partners' men and they meet it together.
+    const to = F.at && F.at !== G ? F.at : F.last && F.last !== G ? F.last : F.path[0], gates = dist(F, G) < 60;
+    if (!gates && (!to || to === G || !w.order(a, to))) { w.removeArmy(a); mergeInto(G.garrison, units); ai.meet = null; return null; }
     a.meets = F.id;
     M.host = a.id;
     // Its partners' men march with it, on the same road at the same pace.
-    for (const x of wings) if (w.order(x, to)) x.meets = F.id;
+    for (const x of wings) if (gates || w.order(x, to)) x.meets = F.id;
     const men = headcount(a.units) + wings.reduce((n, x) => n + headcount(x.units), 0);
     const who = wings.length ? `${a.name}, with ${[...new Set(wings.map(x => FACTIONS[x.side].short))].join(' and ')},` : a.name;
     if (G.visible || a.visible || F.side === 0) w.log(`${who} marches out of ${G.name} to meet ${F.name}: about ${roughly(men)} men.`, F.side === 0 ? 1 : 2);
@@ -226,12 +229,14 @@ function joinMeet(w, h, foeHosts, plan) {
       const M = j ? FACTIONS[j].ai?.meet : null, G = M && w.byId[M.at];
       if (!M || M.foe !== F.id || M.host != null || G?.owner !== j) continue;
       let sent = 0;
+      // By its own and friendly places only: a free or enemy place on the way would stop it and set it on alone.
+      const safe = w.roadOf(h.index);
       for (const p of w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && dist(p, G) < WING_REACH)) {
         const units = takeUnits(p.garrison, power(p.garrison) - skeletonOf(w, h, p));
         if (headcount(units) < 10) { mergeInto(p.garrison, units); continue; }
         const x = w.spawnArmy(h.index, units, p, `The ${h.short} host`, 'march');
         x.wing = { foe: F.id, at: G.id, lead: j };
-        if (!w.order(x, G)) { w.removeArmy(x); mergeInto(p.garrison, units); continue; }
+        if (!w.order(x, G, safe)) { w.removeArmy(x); mergeInto(p.garrison, units); continue; }
         sent += headcount(units);
       }
       if (!sent) continue;
@@ -392,7 +397,7 @@ function houseMind(w, h) {
     const extra = takeUnits(p.garrison, spareAt(w, p) - 6);
     if (!extra.length) continue;
     const col = w.spawnArmy(h.index, extra, p, `${h.short} column`, 'column');
-    if (!w.order(col, muster)) { w.removeArmy(col); for (const u of extra) p.garrison.push(u); }
+    if (!w.order(col, muster, w.roadOf(h.index))) { w.removeArmy(col); for (const u of extra) p.garrison.push(u); }   // (by its own and friendly places: World.roadOf)
   }
 
   thinkWars(w, h, B, stage);

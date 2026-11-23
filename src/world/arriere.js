@@ -138,7 +138,7 @@ export function houseCall(w, h, dest) {
     const units = banUnits(p, n, `${h.short} arrière-ban`, until);
     if (p === dest) { mergeInto(p.garrison, units); continue; }
     const col = w.spawnArmy(h.index, units, p, `${h.short} arrière-ban`, 'column');
-    if (!w.order(col, dest)) { w.removeArmy(col); mergeInto(p.garrison, units); }
+    if (!w.order(col, dest, w.roadOf(h.index))) { w.removeArmy(col); mergeInto(p.garrison, units); }   // (not through a foe's or a free place, which would stop it)
   }
   if (dest.visible || w.knows(h.index)) w.log(`${h.name} calls its arrière-ban to ${dest.name}: about ${roughly(men)} men of the countryside.`, 2);
   return men;

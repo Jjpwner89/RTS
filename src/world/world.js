@@ -633,8 +633,9 @@ export class World {
       }
       return;
     }
-    // Sent to join a partner's host (rivals.js meetHost), it waits outside its place.
-    if (a.wing?.at === p.id && !this.canAttack(a.side, p)) return;
+    // Sent to join a partner's host (rivals.js meetHost), it waits outside its place, and its
+    // lord hears it has come at once.
+    if (a.wing?.at === p.id && !this.canAttack(a.side, p)) { const ai = FACTIONS[a.wing.lead]?.ai; if (ai) ai.think = 0; return; }
     if (!this.canAttack(a.side, p)) {
       if (a.side !== 0) this.retreat(a);
       // yours waits outside, and says why, so a march on a house at peace is never silent
@@ -675,6 +676,9 @@ export class World {
   // anyone you are not at war with. Never through a free or enemy place, which would stop
   // it and set it on alone.
   friendlyRoad() { return q => !this.canAttack(0, q); }
+  // A house's columns the same way: its own places and those of houses it is at peace with. A free
+  // place stops a house's army too (moveArmy), so not through one of those either.
+  roadOf(side) { return q => q.owner === side || (q.owner !== null && !this.canAttack(side, q)); }
 
   bannerPlan(dest) {
     // (the strongest levies first; never a trained kind: economy.js LEVY_KINDS)
