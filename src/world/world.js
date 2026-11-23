@@ -620,6 +620,15 @@ export class World {
   arrive(a, p, came) {
     a.path = [];
     a.retreating = false;
+    // Sent to march with a partner's host (rivals.js joinMarch): it waits outside the muster,
+    // and outside the place they march on until the host comes; with no host coming, home.
+    if (a.joins && (p.id === a.joins.from || p.id === a.joins.to)) {
+      const H = this.armies.find(x => x.id === a.joins.host && !x.gone && !x.retreating);
+      const fighting = p.town?.underAttack && p.town.attackers.some(g => g.house === a.joins.lead);
+      if (p.id === a.joins.from) { if (!this.canAttack(a.side, p)) return; }
+      else if (!fighting && H && H.at !== p) return;
+      else if (!fighting && !H) { this.retreat(a); return; }
+    }
     // A place being stormed: your men join the fight, its own lord's men come to relieve it,
     // and anyone else waits their turn.
     if (p.town?.hostile) {
@@ -666,10 +675,16 @@ export class World {
       this.removeArmy(guard);
       this.log(`${guard.name} falls back into ${p.name} to meet them.`);
     } else if (guard && this.atWar(a.side, 0)) { this.ask({ kind: 'field', army: guard, enemy: a, poi: p, then: () => this.arrive(a, p, came) }); return; }
-    if (p.owner === 0 && p.town) this.attackTown(a, p, came);
+    if (p.owner === 0 && p.town) {
+      this.attackTown(a, p, came);
+      for (const x of this.joinersOf(a, p)) this.attackTown(x, p, came);   // a partner's men waiting there go in with it
+    }
     else if (a.mode === 'raid') this.autoRaid(a, p);
     else this.autoAssault(a, p);
   }
+
+  // A partner's men waiting outside p for host a (rivals.js joinMarch).
+  joinersOf(a, p) { return this.armies.filter(x => x !== a && !x.gone && !x.retreating && x.joins?.host === a.id && x.joins.to === p.id && x.at === p && !x.path.length); }
 
   enterTown(a, p, came) {
     heal(a);
@@ -1585,16 +1600,22 @@ export class World {
 
   autoAssault(a, p) {
     const was = p.owner, H = FACTIONS[a.side];
+    // A partner's men waiting there fight with it, as one (rivals.js joinMarch); after it, each
+    // goes home with its share, and the place, if taken, is the host's.
+    const J = this.joinersOf(a, p), all = [...a.units, ...J.flatMap(x => x.units)];
+    const part = won => { for (const x of J) { x.units = cutUnits(x.units, part.loss, won); x.joins = null; if (x.units.length) this.retreat(x); else this.removeArmy(x); } };
     // Against hopeless odds it yields: its garrison marches out and more of its people stay.
-    if (yields(p, a.units, FACTIONS[p.owner])) {
+    if (yields(p, all, FACTIONS[p.owner])) {
+      part.loss = 0; part(true);
       if (p.visible || was === 0) this.log(`${p.name} cannot hold against ${a.name} and yields on terms.`, 2);
       return this.tookBy(a, p, 'yielded', p.garrison);
     }
     // Its people turn out if the keep itself is in danger (militia.js).
-    const folk = turnOut(p, a.units, FACTIONS[p.owner]);
-    const r = this.resolve(a.units, [...p.garrison, ...folk], this.defenceBonus(p) * (this.bareWalls(p, a.units) ? WALLED : 1));
+    const folk = turnOut(p, all, FACTIONS[p.owner]);
+    const r = this.resolve(all, [...p.garrison, ...folk], this.defenceBonus(p) * (this.bareWalls(p, all) ? WALLED : 1));
     r.D = sendHome(p, folk, r.D);
-    a.units = r.A;
+    if (J.length) { a.units = cutUnits(a.units, r.lossA, r.attackerWins); part.loss = r.lossA; part(r.attackerWins); }
+    else a.units = r.A;
     if (r.attackerWins) this.tookBy(a, p, 'storm', r.D);
     else {
       p.garrison = r.D;

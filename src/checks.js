@@ -921,7 +921,8 @@ async function worldChecks(w) {
     p.eco.walls = 'wood';
     if (!s.bareWalls(p, men) || s.bareWalls(p, ram)) out.push(`${p.name} palisaded: bare walls ${s.bareWalls(p, men)} with spears, ${s.bareWalls(p, ram)} with a ram`);
     if (Math.abs(s.defence(p) / open - WALLED) > 1e-6) out.push(`a house reckons ${p.name} palisaded at ×${(s.defence(p) / open).toFixed(2)}, not ×${WALLED}`);
-    if (!/bareWalls\(p, a\.units\)/.test(s.autoAssault.toString())) out.push('a rival\'s assault does not ask about bare walls');
+    if (!/bareWalls\(p, (a\.units|all)\)/.test(s.autoAssault.toString()))   // (all: with a partner's men, rivals.js joinMarch)
+      out.push('a rival\'s assault does not ask about bare walls');
     const a = s.spawnArmy(p.owner === 1 ? 2 : 1, men, p.links[0], 'Host', 'march');
     if (Math.abs(s.autoSides({ kind: 'assault', poi: p, army: a, defenders: p.garrison }).bonus / s.defenceBonus(p) - WALLED) > 1e-6) out.push('your auto-resolve does not count the palisade the same');
     return out;
@@ -1300,6 +1301,48 @@ async function worldChecks(w) {
     let punish = null;
     for (let i = 0; i < 2 && !punish; i++) { spawnBand(); punish = T.answerRaids(s, k, q => 20); }
     if (!punish || punish.side !== h.index || punish.home.owner !== h.index) out.push(`three bands from ${h.name} and ${k.name} did not resolve to punish it`);
+    return out;
+  }));
+
+  // A partner's attack (Orchestrator, 2026-11-23, (ii)): a league partner's men wait at the
+  // leader's muster, march with its host, and the two take the place as one.
+  await check('league attacks as one: a partner\'s men wait at the muster, march with the host, and storm the place with it', () => scratch(async (make, FACTIONS) => {
+    const R = await import('./world/rivals.js'), { headcount } = await import('./world/world.js'), out = [];
+    const s = make();
+    const d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    const houses = FACTIONS.filter(x => x.index > 0 && x.alive && x.ai && !x.bandit && !x.invader);
+    const [h, k, o] = houses;
+    const S = s.pois.find(p => p.owner === h.index && p.eco);
+    const T = s.pois.filter(p => p.owner === o.index && p.kind !== 'camp').sort((a, b) => d(a, S) - d(b, S))[0];
+    const q = s.pois.filter(p => p !== S && p !== T && p.eco && p.kind !== 'camp' && p.owner !== 0 && p.owner !== o.index).sort((a, b) => d(a, S) - d(b, S))[0];
+    if (!S || !T || !q) return ['no muster, target and partner place on this map'];
+    q.owner = k.index;
+    for (const [x, y] of [[h, k]]) if (s.atWar(x.index, y.index)) s.makePeace(x.index, y.index);
+    s.declareWar(h.index, o.index, true); s.declareWar(k.index, o.index, true);
+    s.leagues = [{ target: o.index, members: [h.index, k.index], since: s.time }];
+    for (const x of [h, k]) Object.assign(x.ai, { plan: null, meet: null, wing: null, joins: null });
+    q.garrison = [{ key: 'spear', count: 170, name: 'Partner' }];
+    T.garrison = [{ key: 'spear', count: 150, name: 'Foe' }];
+    h.ai.plan = { target: T, staging: S, phase: 'muster', t: 0, waited: 0, host: null, raids: 0 };
+    R.joinMarch(s, k, null);
+    const x = s.armies.find(a => !a.gone && a.side === k.index && a.joins?.from === S.id);
+    if (!x) return [`${k.name} sent nobody to ${h.name}'s muster against ${T.name}`];
+    Object.assign(x, { x: S.x, z: S.z, at: S, path: [] });
+    s.arrive(x, S, q);
+    if (x.retreating || x.gone) return ['the partner\'s men did not wait at the muster'];
+    // The host marches: the partner's men go with it.
+    const host = s.spawnArmy(h.index, [{ key: 'spear', count: 100, name: 'Host' }], S, `The ${h.short} host`, 'assault');
+    s.order(host, T);
+    Object.assign(h.ai.plan, { phase: 'march', host });
+    R.tendMarch(s, k);
+    if (x.joins.host !== host.id || x.target !== T) return ['when the host marched, the partner\'s men did not march with it'];
+    // The partner's men come first and wait; the host comes and they storm it together.
+    Object.assign(x, { x: T.x, z: T.z, at: T, path: [] }); s.arrive(x, T, S);
+    if (x.gone || x.retreating || T.owner !== o.index) return ['the partner\'s men, there first, did not wait for the host'];
+    Object.assign(host, { x: T.x, z: T.z, at: T, path: [] }); s.arrive(host, T, S);
+    if (T.owner !== h.index) out.push(`100 with a partner's 170 against 150 did not take ${T.name} (owner ${T.owner})`);
+    if (x.gone || !x.retreating || headcount(x.units) >= 170) out.push(`after the storm the partner's men did not go home with their share (${headcount(x.units)} men, retreating ${x.retreating})`);
+    R.tendMarch(s, k);
     return out;
   }));
 

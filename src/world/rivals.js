@@ -263,6 +263,56 @@ function tendWing(w, h, byId) {
   if (!mine.some(x => !x.retreating)) h.ai.wing = null;
 }
 
+// A partner's attack (Orchestrator, 2026-11-23, (ii): "the road to the 1,200+ battles"): a house
+// whose league partner, or fellow sworn house of yours, gathers a host at its muster against
+// their common foe's place sends what its places near the muster can spare above a skeleton to
+// wait outside it, once (h.ai.joins); when that host marches, they march on the place too, and
+// the two fight it as one (World.arrive, World.autoAssault). Read only from the leader's plan:
+// the leader marches when its own men are ready, as ever. The men go home if the host gathers
+// for nothing, is beaten or turns back, or they have waited JOIN_WAIT.
+const JOIN_WAIT = Math.round(400 * SLOW);
+export function joinMarch(w, h, plan) {   // (exported for checks())
+  const ai = h.ai;
+  if (ai.joins || ai.wing || ai.meet || plan?.phase === 'march') return;
+  const foes = FACTIONS.filter(o => o !== h && o.alive && !o.bandit && w.atWar(h.index, o.index));
+  for (const o of foes) for (const j of partnersOf(w, h, o.index)) {
+    const P = j ? FACTIONS[j].ai?.plan : null, S = P?.staging, T = P?.target;
+    if (!P || P.phase !== 'muster' || S?.owner !== j || T?.owner !== o.index || P.skirmish) continue;
+    let sent = 0;
+    const safe = w.roadOf(h.index);
+    for (const p of w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && dist(p, S) < WING_REACH)) {
+      const units = takeUnits(p.garrison, power(p.garrison) - skeletonOf(w, h, p));
+      if (headcount(units) < 10) { mergeInto(p.garrison, units); continue; }
+      const x = w.spawnArmy(h.index, units, p, `The ${h.short} host`, T.owner === 0 ? 'siege' : 'assault');
+      x.joins = { lead: j, from: S.id, to: T.id, host: null };
+      if (!w.order(x, S, safe)) { w.removeArmy(x); mergeInto(p.garrison, units); continue; }
+      sent += headcount(units);
+    }
+    if (!sent) continue;
+    ai.joins = { lead: j, from: S.id, to: T.id, since: w.time };
+    w.hooks.join?.({ by: h.index, lead: j, at: T.id, men: sent, time: w.time });
+    if (T.owner === 0 || S.visible || w.knows(h.index)) w.log(`${h.name} sends about ${roughly(sent)} men to ${S.name} to march with ${FACTIONS[j].name} on ${T.name}.`, T.owner === 0 ? 1 : 2);
+    return;
+  }
+}
+export function tendMarch(w, h) {
+  const J = h.ai.joins, P = FACTIONS[J.lead]?.ai?.plan, T = w.byId[J.to];
+  const same = P && P.target?.id === J.to && P.staging?.id === J.from;
+  const host = same && P.phase === 'march' && P.host && !P.host.gone && !P.host.retreating ? P.host : null;
+  const mine = w.armies.filter(x => x.side === h.index && !x.gone && x.joins?.to === J.to && !x.retreating);
+  for (const x of mine) {
+    if (x.joins.host != null) { if (!w.armies.some(a => a.id === x.joins.host && !a.gone && !a.retreating)) w.retreat(x); continue; }
+    if (host) {
+      x.joins.host = host.id;
+      if (!w.order(x, T)) w.retreat(x);
+      else if (T.owner === 0 || T.visible) w.log(`${x.name} marches with ${host.name} on ${T.name}.`, T.owner === 0 ? 1 : 2);
+      continue;
+    }
+    if (!same || P.phase !== 'muster' || w.time - J.since > JOIN_WAIT) w.retreat(x);
+  }
+  if (!w.armies.some(x => x.side === h.index && !x.gone && x.joins?.to === J.to && !x.retreating)) h.ai.joins = null;
+}
+
 // The house's own place nearest to `target` by road.
 function nearestOwn(w, h, target) {
   let best = null, bd = Infinity;
@@ -409,6 +459,8 @@ export function houseMind(w, h) {   // (exported for checks())
 
   thinkWars(w, h, B, stage);
   if (stage > 0 && arming) warRaids(w, h, B, plan);
+  // A partner's host against a common foe: its men march with it (joinMarch).
+  if (!h.bandit && !h.invader) { if (ai.joins) tendMarch(w, h); else joinMarch(w, h, plan); }
   // Bands coming at its places: relief from its others; raided again and again by one side, a
   // host goes for that side's place nearest the raids, unless it is already set on a war (threat.js).
   const punish = !h.bandit && !h.invader ? answerRaids(w, h, p => skeletonOf(w, h, p)) : null;
