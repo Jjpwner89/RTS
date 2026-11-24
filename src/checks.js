@@ -3132,6 +3132,26 @@ async function slotChecks(w) {
   });
 }
 
+// The interface's chimes stay few (the creator, 2026-11-24: "max 5", after some 30 of the same chime
+// in a row): news and new things sound at most five times in any minute, and an introduction that
+// hides and shows again chimes only the first time.
+async function chimeChecks() {
+  group = 'Sound';
+  await check('chimes: at most five in any minute, then one again once the oldest is a minute old', async () => {
+    const { chimeRoom } = await import('./audio.js'), times = [], out = [];
+    const rang = [];
+    for (let i = 0; i < 30; i++) rang.push(chimeRoom(times, 100 + i * 1.2));   // 30 lines of news, 1.2 s apart
+    const n = rang.filter(Boolean).length;
+    if (n !== 5) out.push(`${n} of 30 chimes in 36 s sounded, not 5`);
+    if (!chimeRoom(times, 161)) out.push('no chime a minute after the first');
+    return out;
+  });
+  await check('chimes: a new thing\'s introduction chimes once, however often it hides and shows', async () => {
+    const src = (await (await fetch(new URL('./ui/news.js', import.meta.url))).text());
+    return /if \(!chimed\.has\(key\)\) \{ chimed\.add\(key\); dispatchEvent\(new Event\('ui-unlock'\)\)/.test(src) ? [] : ['news.js raises ui-unlock every time the line shows again'];
+  });
+}
+
 // When something breaks, the player is told and can pass it on (ui/oops.js); the menu has a Controls screen and a build stamp.
 async function oopsChecks() {
   const { menu } = await import('./ui/menu.js');
@@ -3378,6 +3398,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   pageChecks();
   await menuChecks();
   await oopsChecks();
+  await chimeChecks();
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);

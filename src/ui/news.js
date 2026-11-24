@@ -10,6 +10,10 @@ import { UNLOCKS, isFresh, markSeen } from './unlocks.js';
 const where = new Map();
 let slip = null, shown = null, lastTick = 0;
 const sealed = new Set();   // elements wearing a seal, so a stand-in loses it when the thing shows
+// Keys whose introduction has chimed this visit. A line that hides and shows again (it found no
+// clear spot, or a card opened over it) chimes only the first time: it used to chime every time it
+// came back, once a second for as long as it had nowhere to sit.
+const chimed = new Set();
 
 export function watch(key, find) { where.set(key, find); }
 
@@ -48,7 +52,7 @@ export function tick(w) {
   const [key, el] = first;
   if (shown !== key) {
     shown = key;
-    dispatchEvent(new Event('ui-unlock'));
+    if (!chimed.has(key)) { chimed.add(key); dispatchEvent(new Event('ui-unlock')); }
     slip.querySelector('span').textContent = UNLOCKS[key].intro;
     slip.onclick = () => { markSeen(w, key); el.classList.remove('is-new'); slip.classList.remove('show'); shown = null; };
   }

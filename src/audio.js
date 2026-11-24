@@ -117,6 +117,19 @@ const RUN_PACE = 2.6;             // m/s: men on foot faster than this are runni
 const paceMemo = new WeakMap();
 
 const UI = new Set(['click', 'notify', 'alert', 'tab', 'deny', 'open', 'close', 'unlock']);
+// The interface's chimes, news and new things. Together they sound at most CHIME_MAX times in any
+// CHIME_SPAN seconds of real time; the rest are silent (the creator: "max 5", after some 30 of the
+// same chime in a row). Real time, not the audio clock, which stands still while the audio is held up.
+const CHIMES = new Set(['notify', 'alert', 'unlock']);
+const CHIME_MAX = 5, CHIME_SPAN = 60;
+const chimeTimes = [];
+// Whether one more chime may sound at time t, counting it if so. (times and t are given by the checks.)
+export function chimeRoom(times = chimeTimes, t = performance.now() / 1000) {
+  while (times.length && t - times[0] > CHIME_SPAN) times.shift();
+  if (times.length >= CHIME_MAX) return false;
+  times.push(t);
+  return true;
+}
 const MAX_VOICES = 24;
 const FADE = 2.5;               // seconds of music crossfade
 const KEY = 'rts.audio';
@@ -234,6 +247,7 @@ function hear(pos) {
 // Play a named one-shot. pos {x, z} places it in the scene; leave it out for the HUD.
 export function play(name, pos = null, scope = null) {
   if (!ctx || settings.muted) return;
+  if (ctx.state !== 'running' && CHIMES.has(name)) return;   // a held-up context would save them all up for later
   name = ALIAS[name] || name;
   name = VARIANT[name]?.[pos?.reg?.T?.key] || name;
   const S = SOUNDS[name];
@@ -254,6 +268,7 @@ export function play(name, pos = null, scope = null) {
     dropped[name] = (dropped[name] || 0) + 1;   // a busy mix: shown by audio.status()
     return;
   }
+  if (CHIMES.has(name) && !chimeRoom()) { dropped[name] = (dropped[name] || 0) + 1; return; }
   lastPlayed[name] = now;
   if (!pos && !UI.has(name)) lastNews = now;
   const src = ctx.createBufferSource();
