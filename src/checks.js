@@ -3390,6 +3390,77 @@ async function wordsChecks(w) {
   });
 }
 
+// ---- icons: held in memory, and every good draws its own wherever goods are shown ----
+
+// Goods icons came and went (creator, 2026-11-23): each file was asked for the first time it was
+// drawn, and one that failed then stayed blank until a reload (icons.js).
+async function iconChecks() {
+  group = 'Icons';
+  const { ICONS, ico, loadIcon, iconData, fetchIcon } = await import('./icons.js');
+  const { GOODS, GOOD_GROUPS, BUILDINGS, TEMPLATES } = await import('./economy.js');
+  const { TownHud } = await import('./townhud.js');
+  const { stuckKind } = await import('./townlabels.js');
+  const within = (p, ms) => Promise.race([p, new Promise(ok => setTimeout(() => ok(null), ms))]);
+
+  await check('an icon that fails to load is asked for again', async () => {
+    let asks = 0;
+    const get = async () => { if (++asks < 3) throw new Error('the server is away (a check)'); return { ok: true, status: 200, text: async () => '<svg/>' }; };
+    const uri = await within(fetchIcon('wood', { get, wait: 5 }), 2000);
+    return uri?.startsWith('data:image/svg+xml') && asks === 3 ? [] : [`after two failures: asked ${asks} times, got ${String(uri).slice(0, 40)}`];
+  });
+  await check('every icon the tables name is loaded ahead', () => {
+    const used = [...Object.values(GOODS), ...Object.values(BUILDINGS), ...Object.values(TEMPLATES)].map(o => o.icon).filter(Boolean);
+    return [...new Set(used)].filter(n => !ICONS.includes(n)).map(n => `'${n}' is not in icons.js ICONS`);
+  });
+  await check('every icon is in memory and draws a shape', async () => {
+    const out = [];
+    await Promise.all(ICONS.map(async name => {
+      const uri = await within(loadIcon(name), 4000);
+      if (!uri) return out.push(`'${name}' did not load`);
+      const img = new Image();
+      img.src = uri;
+      try { await img.decode(); } catch { return out.push(`'${name}' is not a picture`); }
+      const c = document.createElement('canvas');
+      c.width = c.height = 32;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, 32, 32);
+      const px = ctx.getImageData(0, 0, 32, 32).data;
+      let inked = 0;
+      for (let i = 3; i < px.length; i += 4) if (px[i] > 100) inked++;
+      if (inked < 20) out.push(`'${name}' is blank (${inked} of 1024 dots)`);
+    }));
+    return out;
+  });
+  // The stores panel, the strip of chips by it, and a workshop's recipes, each as the game writes it.
+  await check('every good shows its icon in the stores, the chips and the recipes', () => {
+    const out = [], box = document.createElement('div');
+    box.hidden = true;
+    document.body.appendChild(box);
+    const listed = new Set(GOOD_GROUPS.flatMap(([, goods]) => goods));
+    const draws = (where, g, html) => {
+      box.innerHTML = html;
+      const i = box.querySelector('.ico');
+      if (!i) return out.push(`${where}: ${g} has no icon`);
+      const mask = getComputedStyle(i).maskImage || getComputedStyle(i).webkitMaskImage;
+      if (i.dataset.i !== GOODS[g].icon) out.push(`${where}: ${g} shows '${i.dataset.i}', not '${GOODS[g].icon}'`);
+      else if (!iconData(GOODS[g].icon) || !mask.includes('data:image/svg')) out.push(`${where}: ${g}'s icon is not drawn from memory`);
+    };
+    for (const g of Object.keys(GOODS)) {
+      if (!listed.has(g)) out.push(`stores: ${g} is in no group, so it has no cell`);
+      const cell = document.querySelector(`#stock [data-cell="${g}"]`);
+      draws('stores', g, cell ? cell.innerHTML : TownHud.prototype.goodsList({ [g]: 1 }));
+      const kind = stuckKind(`Waiting for ${GOODS[g].name.toLowerCase()}`);
+      draws('chips', g, `<button class="tbadge chip">${ico(kind.icon)}</button>`);
+      draws('recipes', g, `<button class="recipe">${TownHud.prototype.goodsList({ [g]: 1 })}</button>`);
+    }
+    box.remove();
+    return out;
+  });
+  await check('no icon on screen is waiting on its file', () => [...new Set([...document.querySelectorAll('.ico')]
+    .filter(i => !(getComputedStyle(i).maskImage || getComputedStyle(i).webkitMaskImage).includes('data:'))
+    .map(i => i.dataset.i || i.getAttribute('style')))].map(n => `'${n}'`));
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -3399,6 +3470,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   await menuChecks();
   await oopsChecks();
   await chimeChecks();
+  await iconChecks();
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);
