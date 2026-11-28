@@ -38,7 +38,7 @@ const ghostKind = k => k === 'road' || k?.startsWith('tpl:') ? null : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, prisoners, opinion, outlook, duesShare, levyShare, DUES, LEVIES, TEMPERS, WANTS, SEATS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
-import { GOALS, updateGoals, goalNow } from './world/goals.js';
+import { GOALS, updateGoals, goalNow, northGoals } from './world/goals.js';
 import { coronation } from './world/events.js';
 import { alerts, LEVEL_COLOR, nagShown, nagDismiss } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
@@ -382,11 +382,20 @@ function goals() {
     const next = GOALS[world.goals];
     world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.${next ? ` Next: ${next.text[0].toLowerCase()}${next.text.slice(1)}` : ''}`);
   }
+  const el = $('goals'), north = northGoals(world);
+  const close = mode === 'world' ? '' : ' · click to close';
+  if (north) {   // after the crowning, the war with the north (world/goals.js)
+    const key = 'north:' + mode + north.map(g => g.done + g.tip).join();
+    if (goalsShown === key) return;
+    goalsShown = key;
+    el.hidden = false;
+    el.innerHTML = `<h4>Goals <small>the war in the north${close}</small></h4>` + north.map(g => `<div class="${g.done ? 'done' : 'now'}">${g.done ? '✓' : '▸'} ${g.text}<small>${g.tip}</small></div>`).join('');
+    return;
+  }
   const key = world.goals + ':' + world.part + ':' + mode + ':' + FACTIONS.some(h => h.index && h.ai?.stage);
   if (goalsShown === key) return;
   goalsShown = key;
-  const el = $('goals');
-  el.hidden = world.goals >= GOALS.length || world.part === 2;
+  el.hidden = world.goals >= GOALS.length;
   el.innerHTML = `<h4>Goals <small>${world.goals} of ${GOALS.length} · ${mode === 'world' ? `click for ${el.classList.contains('folded') ? 'all' : 'less'}` : 'click to close'}</small></h4>` + GOALS.map((g, i) =>
     `<div class="${i < world.goals ? 'done' : i === world.goals ? 'now' : 'later'}">${i < world.goals ? '✓' : i === world.goals ? '▸' : '·'} ${g.text}${i === world.goals && g.tip ? `<small>${typeof g.tip === 'function' ? g.tip(world) : g.tip}</small>` : ''}</div>`).join('');
 }

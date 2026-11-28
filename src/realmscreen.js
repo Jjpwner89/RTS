@@ -22,6 +22,7 @@ import { alerts } from './world/alerts.js';
 import { VASSAL_TRIBUTE, strengthWords } from './world/diplomacy.js';
 import { ROAD_UPKEEP, decreed } from './world/decrees.js';
 import { ico } from './icons.js';
+import { northState } from './world/goals.js';
 import { claimOn, isGreat, CLAIM, GREAT } from './world/claims.js';
 import { unlocked } from './ui/unlocks.js';
 
@@ -277,12 +278,16 @@ export class RealmScreen {
     const money = this.money();
     const rivals = FACTIONS.slice(1, w.bandits).filter(h => h.alive);
     const top = rivals.sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
+    // (after the crowning the one to measure yourself by is the north: the houses are sworn to you)
+    const north = northState(w);
+    const against = north ? `Norrhold: ${num(w.strength(w.invader))} · ${north.places} places, ${north.camps} war camp${north.camps === 1 ? '' : 's'}`
+      : top ? `${esc(top.short || top.name)}: ${num(w.strength(top.index))}` : 'no rival left';
     const tile = (label, value, sub = '', cls = '') => `<div class="tile ${cls}"><small>${label}</small><b>${value}</b><small>${sub}</small></div>`;
     const tiles = `<div class="tiles">${tile('Places', towns.length, `${towns.filter(p => p.vassal).length} held by vassals`)}
       ${tile('People', num(people), 'in all your places')}
       ${tile('Soldiers', num(yourMen(w) + vmen), vmen ? `${num(vmen)} of them vassals' men` : 'under your banners')}
       ${tile('Gold a minute', signed(money.net), money.observed !== null ? `${signed(money.observed)} seen in the purse` : 'planned', money.net >= 0 ? 'good' : 'bad')}
-      ${tile('Strength', num(w.strength(0)), top ? `${esc(top.short || top.name)}: ${num(w.strength(top.index))}` : 'no rival left')}</div>`;
+      ${tile('Strength', num(w.strength(0)), against)}</div>`;
 
     const needs = alerts(w).filter(a => a.level >= 2).sort((a, b) => b.level - a.level).slice(0, 7);
     const go = at => !at ? '' : at.vassal && at.owner === 0 ? `<button data-act="pick:${at.vassal}">Deal</button><button data-act="map:${at.id}">Map</button>` : at.units ? `<button data-act="army:${at.id}">Find</button>` : at.town && !at.vassal ? `<button data-act="go:${at.id}">Go</button><button data-act="map:${at.id}">Map</button>` : `<button data-act="map:${at.id}">Map</button>`;
@@ -364,8 +369,9 @@ export class RealmScreen {
         text = `${S.name}${S.men ? ` (${S.men} men)` : ''} marches on ${to.name}, where we have ${ours} men.`;
         btn = [`map:${to.id}`, `Look at ${to.name}`];
       } else {
-        const top = FACTIONS.slice(1, w.bandits).filter(h => h.alive && w.knows(h.index)).sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
-        text = `No foe marches on us. ${num(yourMen(w))} men stand under your banners${top ? `; ${top.name}, the strongest house we know, is ${w.strength(top.index) > w.strength(0) ? 'stronger than us' : 'weaker than us'}` : ''}.`;
+        const north = northState(w);
+        const top = north ? null : FACTIONS.slice(1, w.bandits).filter(h => h.alive && w.knows(h.index)).sort((a, b) => w.strength(b.index) - w.strength(a.index))[0];
+        text = `No foe marches on us. ${num(yourMen(w))} men stand under your banners${north ? `; Norrhold is ${w.strength(w.invader) > w.strength(0) ? 'stronger than us' : 'weaker than us'}` : top ? `; ${top.name}, the strongest house we know, is ${w.strength(top.index) > w.strength(0) ? 'stronger than us' : 'weaker than us'}` : ''}.`;
         // Raids grow with the realm: a wall is the cheap answer, and the one thing the player may not have found.
         const bare = rows.filter(r => !r.t.battle.walls.any);
         if (bare.length && rows.length) text += ` ${bare.length === rows.length ? 'No village of ours has a wall' : bare.length === 1 ? `${bare[0].p.name} has no wall` : `${bare.length} of our villages have no wall`}: the Walls tab in a village builds palisades, towers and gates.`;

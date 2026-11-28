@@ -9,7 +9,7 @@ const has = (w, kind) => towns(w).some(t => t.buildings.some(b => b.kind === kin
 // still settling its own lands, none of them will march on you. The outlaw bands will
 // (QC, 2026-11-21: the tips said nobody would), so while one is still to come, say so and
 // say what to do.
-import { FACTIONS } from './world.js';
+import { FACTIONS, headcount, roughly } from './world.js';
 import { stageOf, OUTLAWS } from './rivals.js';
 import { BUILDINGS, listCost, makerText } from '../economy.js';
 const bands = w => w.options?.aggression !== 'gentle' && (w.outlaws?.wave ?? 0) < OUTLAWS.length
@@ -62,6 +62,26 @@ export const GOALS = [
   { text: 'Take the crown: hold Kingsbridge and half the realm, or win every house to your claim.', short: 'Take the crown', next: () => 'Hold Kingsbridge and half the realm, or win every house', tip: '', done: w => !!w.crowned },
 ];
 
+// Part 2, after the crowning: the game's own win rule (World.checkEnd) is that Norrhold has no place and no army
+// left. What it still has, for the goals panel and the Realm screen (nothing before the crowning).
+export function northState(w) {
+  if (w.part !== 2 || w.invader === undefined) return null;
+  const places = w.pois.filter(p => p.owner === w.invader), armies = w.armies.filter(a => !a.gone && !a.wagon && a.side === w.invader);
+  const camp = p => p.kind === 'warcamp';
+  return {
+    places: places.length, of: w.pois.filter(p => p.beyond).length,
+    camps: places.filter(camp).length, campsOf: w.pois.filter(p => p.beyond && camp(p)).length,
+    armies: armies.length, men: [...places.map(p => p.garrison), ...armies.map(a => a.units)].reduce((n, u) => n + headcount(u), 0),
+  };
+}
+export function northGoals(w) {
+  const n = northState(w);
+  if (!n) return null;
+  const men = n.men ? `about ${roughly(n.men).toLocaleString('en-US')} men` : 'no men';
+  return [{ text: 'Drive Norrhold back through the Gate.', done: !n.places && !n.armies,
+    tip: `Take every northern place and break every northern army. War camps still theirs: ${n.camps} of ${n.campsOf}. Places: ${n.places} of ${n.of}. Their host: ${men}${n.armies ? `, ${n.armies} ${n.armies === 1 ? 'army' : 'armies'} on the march` : ''}.` }];
+}
+
 // Ticks off what is done; returns the goal to announce, if any (at most one).
 // The goal shown is always the first one not passed: past the furthest one done, so a
 // lord who took a village before raising a levy skips "Arm them" (Manager, 2026-11-21:
@@ -70,6 +90,8 @@ export const GOALS = [
 // with no goals counted yet (a new or test campaign, an old save) is set quietly, without
 // a toast for everything it already holds.
 export function goalNow(w) {
+  const n = northState(w);
+  if (n) return n.places || n.armies ? { title: 'Drive Norrhold back', next: `Theirs still: ${n.camps} war camp${n.camps === 1 ? '' : 's'}, ${n.places} place${n.places === 1 ? '' : 's'}, ${n.armies} on the march` } : null;
   const g = GOALS[w.goals ?? 0];
   if (!g || w.part === 2) return null;
   return { title: g.short, next: g.next(w, w.home?.town) || '' };

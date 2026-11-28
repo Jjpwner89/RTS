@@ -3954,6 +3954,25 @@ async function lateChecks(w) {
     if (!s.encounter) out.push('it settled itself though you had taken command');
     return out;
   }));
+  await check('after the crowning the goals say how the north is beaten and how far along you are', () => league(async s => {
+    const G = await import('./world/goals.js'), { unit } = await import('./world/world.js'), out = [];
+    if (G.northGoals(s)) return ['the north has goals before the crowning'];
+    s.coalition = null;
+    s.beginPart2();
+    const n = G.northState(s), [g] = G.northGoals(s) || [];
+    if (!n?.places || !n.campsOf || !g) return [`no state of the north: ${JSON.stringify(n)}`];
+    if (G.goalNow(s)?.title !== 'Drive Norrhold back') out.push(`the village screen's goal line says ${JSON.stringify(G.goalNow(s))}`);
+    if (!/Drive Norrhold back through the Gate/.test(g.text) || !g.tip.includes(`${n.camps} of ${n.campsOf}`) || !/Their host: about/.test(g.tip)) out.push(`"${g.text}" "${g.tip}"`);
+    for (const p of s.pois) if (p.owner === s.invader) p.owner = 0;
+    s.armies = s.armies.filter(a => a.side !== s.invader);
+    s.spawnArmy(s.invader, [unit('spear', 20, 'Last of them')], s.home, 'A last host');
+    if (G.northGoals(s)[0].done) out.push('done with a northern army still in the field');
+    s.armies = s.armies.filter(a => a.side !== s.invader);
+    if (!G.northGoals(s)[0].done) out.push('not done with no northern place or army left');
+    s.checkEnd();
+    if (s.winner !== 0) out.push('the goal is done and the game is not won');
+    return out;
+  }));
   await check('no portrait is asked for that is not painted', async () => {
     const R = await import('./world/realm.js'), out = [];
     if (/<img/.test(R.faceOf(R.INVADER))) out.push('Norrhold\'s missing portrait is still asked for');
