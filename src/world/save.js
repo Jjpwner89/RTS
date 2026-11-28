@@ -24,6 +24,15 @@ export function canSave(w, { busy = false } = {}) {
   return { ok: true };
 }
 
+// Autosave held off for minutes (a village fought over, a revolt) is said on screen, once for each such spell: it used
+// to skip in silence. `overdue`: seconds of play past when it should have saved; `at`: wall-clock of the last save.
+export const OVERDUE = 180;
+export function unsavedNotice(overdue, reason, at) {
+  if (overdue < OVERDUE) return null;
+  const when = at ? `since ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'yet';
+  return `Not saved ${when}: ${reason[0].toLowerCase()}${reason.slice(1)}.`;
+}
+
 export function hasSave(test = false) {
   try { return !!localStorage.getItem(keyOf(test)); } catch { return false; }
 }
@@ -160,6 +169,7 @@ function packTown(t) {
       xp: r.xp || 0, elite: !!r.elite, hall: r.hall || null, armour: r.armour ?? null, shield: r.shield ?? null, battles: r.battles || 0, askedWeak: !!r.askedWeak, until: r.until || null, home: r.home ?? null,
     })).filter(r => r.count > 0),
     felled: t.trees.spots.filter(s => !s.standing).map(s => s.i),
+    leaving: t.leavingMen(),
     deposits: [...t.nodes.rock, ...t.nodes.ore].map(n => n.left),
     roads: t.roads,
     lanes: t.lanes || null,
@@ -328,6 +338,12 @@ export function loadGame(data, hooks) {
   }
   w.encounter = null;
   w.hooks = hooks;
+  // Men who were walking out of a village after a peace are on the road home.
+  for (const s of data.towns) for (const l of s.leaving || []) {
+    const a = w.spawnArmy(l.house, l.units, w.pois[s.i], l.name);
+    if (l.loot) a.loot = l.loot;
+    w.retreat(a);
+  }
   w.updateVision();
   w.log('Campaign loaded.');
   if (w.madePlain) w.log(`${w.madePlain} levied men-at-arms and knights are plain levies now: those are trained in a knights' hall, from veterans. Their spare kit is in the racks.`);

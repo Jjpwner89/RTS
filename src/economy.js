@@ -426,6 +426,9 @@ const CALL_RANGE = 80;
 // a relieving host follows a beaten band home.
 export const RELIEF = { eta: 30, ratio: 1.5, sight: 140, chase: 600 };   // eta was 90 s; the creator chose 30 with the slower march (2026-11-23)
 const TRUCE_STUCK = 60;  // s a band at peace may get no nearer its way out of a village before it is let out (makeTruce)
+// A backstop: an attack whose men reach no new ground and harm nothing for this long (s) is over. `look`: how often
+// it is weighed; `ground`: how far from everywhere a band has stood counts as new ground.
+export const STALL = { after: 300, look: 5, ground: 15 };
 const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
@@ -2730,7 +2733,9 @@ export class Town {
   // camps outside first (g.prepare seconds), fighting only those who come out to it,
   // then assaults. `house` is the attacking house's index on the world map.
 
-  get underAttack() { return this.attackers.length > 0; }
+  // Men at peace who are only walking out (makeTruce) are not an attack: no alarm, newcomers come, and the campaign
+  // can be saved (the save keeps them, leavingMen). A raid making off with its plunder still is one: you may catch it.
+  get underAttack() { return this.attackers.some(g => !g.truce); }
 
   edgePoint(angle) { return { x: Math.sin(angle) * 215, z: Math.cos(angle) * 215 }; }
 
@@ -2747,7 +2752,7 @@ export class Town {
     // village's own land: its people see them burn it, and you must be able to order men at
     // them (a band in the trees by the village could not be clicked, nor answered).
     if (!this.hostile) b.openGround = { x: this.keep.x, z: this.keep.z, r: HOME_LAND };
-    this.attackers.push({ regs, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0, losses: [...b.losses] });
+    this.attackers.push({ regs, name, mode, entry, time: 0, burned: 0, leaving: false, onLeave, house, prepare: mode === 'siege' ? prepare : 0, losses: [...b.losses] });
     this.lastRaid = this.time;
     this.lastRegs = regs;
     this.event(mode === 'siege' ? `${name} has made camp to the ${compass(entry)} and is readying an assault!`
@@ -2760,9 +2765,10 @@ export class Town {
   // walks a leaving band out; battle.js callTruce stops the blows on both sides). Returns how many.
   makeTruce(house, name) {
     let men = 0;
+    const fought = this.underAttack;
     for (const g of this.attackers) {
       if (g.house !== house || g.mode === 'hold' || g.truce) continue;
-      g.truce = this.battle.time;
+      g.truce = true;
       g.leaving = true;
       this.battle.callTruce(g.regs);
       men += g.regs.filter(r => !r.gone).reduce((n, r) => n + r.alive, 0);
@@ -2771,6 +2777,7 @@ export class Town {
     // an offer to yield to them is off with the fight
     if (this.battle.terms?.side === 0 && this.attackers.every(g => g.truce)) this.battle.terms = null;
     this.say(`Peace is made: ${name}'s men here lay down the fight and march for home.`, 0);
+    if (fought && !this.underAttack && !this.hostile) this.fightOver();
     return men;
   }
 
@@ -2804,6 +2811,7 @@ export class Town {
         if (t.hp <= 0) this.ruin(t, g);
       }
     }
+    if (!this.hostile) this.checkStalled(dt);
     if (this.timedRaids && !this.underAttack) {
       this.raid.next -= dt;
       if (this.raid.next <= 0) this.startRaid();
@@ -2830,11 +2838,56 @@ export class Town {
     this.say(`The raiders have seen ${what} and are making off with their plunder.`, 0);
   }
 
+  // Whatever the cause, an attack never sits on a village for ever (STALL): once its men have reached no
+  // new ground, and nothing and nobody has been harmed, for a long while, it ends itself, and says so.
+  checkStalled(dt) {
+    const groups = this.attackers.filter(g => g.mode !== 'hold');
+    if (!groups.length) { this.stall = null; return; }
+    const s = this.stall ||= { idle: 0, clock: 0, low: new Map(), stood: new Map(), dead: 0, works: 0, state: '' };
+    if ((s.clock += dt) < STALL.look) return;
+    const b = this.battle, W = b.walls;
+    let moved = false;
+    const dead = b.losses.reduce((n, k) => n + k, 0);
+    if (dead > s.dead) moved = true;
+    s.dead = dead;
+    for (const o of [this.keep, ...this.buildings, ...W.structures()]) {
+      if (o.hp === undefined) continue;
+      const low = s.low.get(o);
+      if (low === undefined) s.low.set(o, o.hp);
+      else if (o.hp < low - 1) { s.low.set(o, o.hp); moved = true; }
+    }
+    const works = W.ladders.length + b.mines.reduce((n, m) => n + (m.progress || 0), 0);
+    if (works > s.works) moved = true;
+    s.works = works;
+    const state = groups.map(g => `${g.mode}${g.leaving ? '-leaving' : ''}`).join();
+    if (state !== s.state) moved = true;
+    s.state = state;
+    for (const g of groups) for (const r of g.regs) {
+      if (r.gone) continue;
+      const seen = s.stood.get(r) || s.stood.set(r, []).get(r);
+      if (seen.some(p => Math.hypot(p.x - r.cx, p.z - r.cz) < STALL.ground)) continue;
+      seen.push({ x: r.cx, z: r.cz });
+      moved = true;
+    }
+    s.idle = moved ? 0 : s.idle + s.clock;
+    s.clock = 0;
+    if (s.idle < STALL.after) return;
+    const men = groups.reduce((n, g) => n + g.regs.reduce((k, r) => k + (r.gone ? 0 : r.alive), 0), 0);
+    console.warn(`${this.placeName || 'village'}: an attack by ${men} men reached no new ground and did no harm for ${STALL.after} s; ended`);
+    this.say(`The attack has come to nothing: the ${men} men of it give up and go.`, 0);
+    this.stall = null;
+    for (const g of groups) {
+      g.leaving = true;
+      for (const r of g.regs) if (!r.gone) { b.clearPosts(r); b.disband(r); }
+      this.endAttack(g);
+    }
+  }
+
   endAttack(g) {
     this.attackers = this.attackers.filter(o => o !== g);
     this.fallenSaid = null;
-    if (!this.underAttack && !this.lost && !this.hostile) this.blooded();
-    const survivors = g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...carry(r) })).filter(sp => sp.count > 0);
+    const over = !g.truce && !this.underAttack;   // (a truce's end was weighed when it was made, makeTruce)
+    const survivors = this.survivorsOf(g);
     // A band wiped out with its plunder on it: the village has it back (a band that got away carries it home, onLeave).
     if (g.loot && !survivors.length && !this.lost && !this.hostile) {
       for (const [k, n] of Object.entries(g.loot.goods)) this.put(this.keep, k, n);
@@ -2847,15 +2900,32 @@ export class Town {
       this.defendedAt = this.time;
       this.event('The militia beat them off. The village is proud: they defended their homes.');
     }
+    if (over) this.fightOver();
+    // (leaving: they got away with their plunder; dead: who fell on each side in this attack)
+    const dead = this.battle.losses.map((n, i) => n - (g.losses?.[i] ?? n));
+    g.onLeave?.(survivors, g.leaving, { ours: dead[0], theirs: dead[1] }, g.loot || null);
+  }
+
+  survivorsOf(g) { return g.regs.map(r => ({ key: r.T.key, name: r.name, count: r.soldiers.filter(s => s.alive).length, ...carry(r) })).filter(sp => sp.count > 0); }
+
+  // Men at peace still on their way out, for a save: on loading they are on the road home (world/save.js).
+  leavingMen() {
+    return this.attackers.filter(g => g.truce && g.mode !== 'hold').map(g => ({ house: g.house, name: g.name, units: this.survivorsOf(g), loot: g.loot || null }))
+      .filter(g => g.units.length);
+  }
+
+  // The village is no longer under attack: the fallen are counted, the militia go home and your soldiers go back.
+  fightOver() {
+    if (!this.lost && !this.hostile) this.blooded();
     // What it cost, counting those who fell in its last moments (before the militia go
     // home, so each is counted as the fight left them).
-    if (!this.underAttack) for (const v of this.villagers) if (v.state === 'soldier' && !v.soldier.alive) this.fell(v);
+    for (const v of this.villagers) if (v.state === 'soldier' && !v.soldier.alive) this.fell(v);
     // home at once, not on the next think: a militia standing at peace for that moment
     // would still offer Stand down, and a save made then would keep them under arms
-    if (!this.underAttack) this.thinkMilitia();
+    this.thinkMilitia();
     // Soldiers who went out against the raiders by themselves go back to where they stood
     // (not left out in the field, with the village open behind them).
-    if (!this.underAttack) for (const r of this.battle.regs) {
+    for (const r of this.battle.regs) {
       const h = r.homeSpot, last = r.homeTarget;
       r.homeSpot = r.homeTarget = null;
       r.fallBack = false;
@@ -2863,15 +2933,12 @@ export class Town {
       const theirs = r.targetReg ? r.targetReg.gone : !r.dest || (last && Math.hypot(r.dest.x - last.cx, r.dest.z - last.cz) < 30);
       if (h && r.side === 0 && this.battle.usable(r) && theirs && !r.targetWall && !r.posts && Math.hypot(r.cx - h.x, r.cz - h.z) > 12) this.battle.orderMove([r], h.x, h.z, h.angle);
     }
-    if (!this.underAttack && !this.lost && !this.hostile) {
+    if (!this.lost && !this.hostile) {
       const word = this.fallenWord();
       if (word) this.event(word, 1);
       this.fallenSaid = word;   // for the world's log, when nobody is watching (world.attackTown)
       this.fallen = {};
     }
-    // (leaving: they got away with their plunder; dead: who fell on each side in this attack)
-    const dead = this.battle.losses.map((n, i) => n - (g.losses?.[i] ?? n));
-    g.onLeave?.(survivors, g.leaving, { ours: dead[0], theirs: dead[1] }, g.loot || null);
   }
 
   // Raiders who get away carry off a share of what the stores hold. Returns what they took.
@@ -2975,15 +3042,14 @@ export class Town {
     const targets = [...this.buildings.filter(o => o.state !== 'ruined'), this.keep];
     for (const g of this.attackers) {
       for (const r of g.regs) {
-        if (r.gone || r.routing || r.regrouping || r.ai === 'siege') continue;
+        if (r.gone || r.routing || r.regrouping || (r.ai === 'siege' && !g.leaving)) continue;
         if (g.mode === 'hold') { if (!g.onWalls) this.holdPost(r, defenders); continue; }
         if (g.leaving) {
-          // Men at peace who find no way out (shut inside walls), getting no nearer it for a long while, are let out, and said.
-          if (g.truce) {
-            const left = Math.hypot(g.entry.x - r.cx, g.entry.z - r.cz);
-            if (!r.nearest || left < r.nearest.left - 5) r.nearest = { left, at: b.time };
-            else if (b.time - r.nearest.at > TRUCE_STUCK) { console.warn(`${r.name}: no way out of the village after the peace (${Math.round(left)} m to go for ${TRUCE_STUCK} s); let out`); b.disband(r); continue; }
-          }
+          this.letGo(r, g);
+          // Men leaving who find no way out (shut inside walls), getting no nearer it for a long while, are let out, and said.
+          const left = Math.hypot(g.entry.x - r.cx, g.entry.z - r.cz);
+          if (!r.nearest || left < r.nearest.left - 5 || (r.engaged > 0 && !g.truce)) r.nearest = { left, at: b.time };
+          else if (b.time - r.nearest.at > TRUCE_STUCK) { console.warn(`${r.name}: no way out of the village (${Math.round(left)} m to go for ${TRUCE_STUCK} s); let out`); b.disband(r); continue; }
           // Back down the road and away; only men who are caught still fight.
           r.targetReg = null;
           r.dest = { x: g.entry.x, z: g.entry.z, angle: Math.atan2(g.entry.x - r.cx, g.entry.z - r.cz) };
@@ -3016,6 +3082,17 @@ export class Town {
         if (!r.dest || Math.hypot(r.dest.x - dx, r.dest.z - dz) > 3) r.dest = { x: dx, z: dz, angle: a };
       }
     }
+  }
+
+  // A band that is leaving drops whatever it was at: siege orders, a wall, a ladder, a mine. A siege order
+  // left on it kept it from ever being walked home (23 raiders stood at Ashley Castle for 20 minutes).
+  letGo(r, g) {
+    if (!(r.ai || r.targetWall || r.wallPoint || r.burnTarget || r.after || r.cover || r.mine || r.posts || r.hold)) return;
+    const b = this.battle;
+    r.ai = r.wallPoint = r.burnTarget = r.cover = r.mine = r.raidTarget = r.targetReg = null;
+    r.x = r.cx; r.z = r.cz;
+    b.orderMove([r], g.entry.x, g.entry.z, Math.atan2(g.entry.x - r.cx, g.entry.z - r.cz));
+    r.targetWall = r.after = null;
   }
 
   // ---- storming someone else's village ----

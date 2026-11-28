@@ -28,7 +28,7 @@ import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treas
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
 import { ARRIERE, arrierePlan, callArriere, musterPlace } from './world/arriere.js';
-import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved } from './world/save.js';
+import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved, unsavedNotice } from './world/save.js';
 import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { turnOut } from './world/militia.js';
@@ -1515,8 +1515,16 @@ function exitSave() {
   savedAt = world.time;
   return r;
 }
+let toldUnsaved = null;   // the savedAt a "Not saved since" notice was given for
 function autosave() {
-  if (world.time - savedAt < (world.options.ironman ? 45 : 120) || mode === 'field' || away || !canSave(world).ok) return;
+  const every = world.options.ironman ? 45 : 120;
+  if (world.time - savedAt < every || mode === 'field' || away) return;
+  const c = canSave(world);
+  if (!c.ok) {
+    const text = toldUnsaved !== savedAt && world.winner === null && unsavedNotice(world.time - savedAt - every, c.reason, lastSaved());
+    if (text) { toldUnsaved = savedAt; console.warn(`autosave: ${text}`); world.log(text, 1); flash(text); }
+    return;
+  }
   savedAt = world.time;
   if (saveGame(world).ok) flash('Saved.', true);
 }

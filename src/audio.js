@@ -398,7 +398,7 @@ export function frame(camera, cam, scene = {}) {
     if (r.T.key === 'wardog' && (r.dest || r.engaged > 0)) tick('dog', at, dt, 1.5, battle);
     wasEngaged.set(r, r.engaged > 0);
   }
-  const attackers = town?.attackers?.length > 0;
+  const attackers = !!town?.attackers?.some(g => !g.truce);
   const assault = scene.siege || town?.attackers?.some(g => g.mode === 'assault' || g.mode === 'siege');
   // Arrows in the air and stones landing count as fighting for the music, if not the din.
   const active = fighting || battle?.arrows?.length > 0 || !!battle?.impacts?.some(i => battle.time - i.time < 10);

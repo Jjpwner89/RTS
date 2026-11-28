@@ -1389,7 +1389,8 @@ async function worldChecks(w) {
     if (alive(raiders) + alive([guard]) >= start) return ['the test fight never started'];
     s.makePeace(0, h.index);
     const then = { raiders: alive(raiders), guard: alive([guard]) };
-    if (!t.underAttack) out.push('the raiders vanished at the peace');
+    if (!t.attackers.length) out.push('the raiders vanished at the peace');
+    if (t.underAttack) out.push('the village is still "under attack" after the peace');
     run(8);
     if (!raiders.some(r => !r.gone)) out.push('the raiders were gone 8 s after the peace: they should walk out');
     if (alive(raiders) !== then.raiders || alive([guard]) !== then.guard) out.push(`men still fell after the peace (raiders ${then.raiders} to ${alive(raiders)}, guard ${then.guard} to ${alive([guard])})`);
@@ -1398,8 +1399,8 @@ async function worldChecks(w) {
     if (guard.targetReg) out.push('you could still order an attack on men at peace with you');
     const warn = console.warn, stuck = [];
     console.warn = (...x) => stuck.push(x.join(' '));
-    try { run(420, () => !t.underAttack); } finally { console.warn = warn; }
-    if (t.underAttack) out.push('420 s on the raiders were still in the village');
+    try { run(420, () => !t.attackers.length); } finally { console.warn = warn; }
+    if (t.attackers.length) out.push('420 s on the raiders were still in the village');
     if (stuck.some(x => x.includes('no way out'))) out.push('the raiders found no way out and had to be let out');
     const home = s.armies.find(x => x.side === h.index && x.name === 'Test raiders');
     if (!home || !home.retreating) out.push('the raiders did not set out for home on the map');
@@ -3756,6 +3757,104 @@ async function villageChecks(w) {
   }));
 }
 
+// ---- late game (scout, 2026-11-28) ----
+
+// A walled test village: a square of stone round the keep, a gate between two towers on the side raiders come from.
+function walledSquare(t) {
+  const W = t.battle.walls, n = (x, z) => W.node(x, z, 0, { snap: false });
+  const pts = [[-5.5, 30], [-30, 30], [-30, -30], [30, -30], [30, 30], [5.5, 30]].map(([x, z]) => ({ x, z, n: n(x, z) }));
+  for (let i = 0; i < pts.length - 1; i++) {
+    const A = pts[i], B = pts[i + 1], k = Math.max(1, Math.ceil(Math.hypot(B.x - A.x, B.z - A.z) / 10));
+    let prev = A.n;
+    for (let j = 1; j <= k; j++) { const next = j === k ? B.n : n(A.x + (B.x - A.x) * j / k, A.z + (B.z - A.z) * j / k); W.addPiece(prev, next, 0, 'stone', true); prev = next; }
+  }
+  const gate = W.addPiece(pts.at(-1).n, pts[0].n, 0, 'stone', true);
+  W.makeGate(gate, { ready: true });
+  W.placeTower(-5.5, 30, 0, 'stone', { ready: true });
+  W.placeTower(5.5, 30, 0, 'stone', { ready: true });
+  W.changed();
+  return gate;
+}
+
+async function lateChecks(w) {
+  const E = await import('./economy.js'), S = await import('./world/save.js');
+  group = 'Late game';
+  const real = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+  if (!real) return;
+  // (warnings the test itself provokes are kept off the console)
+  const village = async fn => {
+    const copy = { ...real, id: 'checks-late', name: 'Lateby', ban: undefined, vassal: undefined, town: null };
+    const t = w.makeTown(copy, { villagers: 8, retinue: false, stock: { wood: 100, food: 200 } });
+    copy.town = t;
+    const warn = console.warn, warned = [];
+    console.warn = (...a) => warned.push(a.join(' '));
+    try { return await fn(t, warned); } finally { console.warn = warn; t.lost = true; t.attackers = []; }
+  };
+  const run = (t, secs, until) => {
+    for (let i = 0; i < secs * 10; i++) {
+      t.battle.step(0.1); t.update(0.1);
+      if (i % 10 === 0) t.thinkAttackers();
+      if (until?.()) return true;
+    }
+    return !!until?.();
+  };
+  const band = () => [{ key: 'spear', count: 12, name: 'Test raiders' }];
+
+  await check('raiders besieging a wall walk home once they are leaving', () => village((t, warned) => {
+    walledSquare(t);
+    t.receiveAttack(band(), 0, { name: 'Test raiders' });
+    const g = t.attackers[0], r = g.regs[0];
+    run(t, 5);
+    if (r.ai !== 'siege') return [`outside a shut wall the raiders are not under siege orders (${r.ai})`];
+    g.leaving = true;
+    if (!run(t, 130, () => !t.attackers.length)) return [`130 s after making off they are still there, ${Math.round(Math.hypot(r.cx - g.entry.x, r.cz - g.entry.z))} m from the road, orders: ${r.ai}`];
+    return warned.some(m => /let out/.test(m)) ? ['they had to be let out rather than walking'] : [];
+  }));
+  await check('a broken gate between its towers is a way through, in and out', () => village(t => {
+    const gate = walledSquare(t), b = t.battle, out = [];
+    if (b.nav.reachable(1, 0, 60, 0, 10)) out.push('a shut gate lets the enemy through');
+    b.walls.damage(gate, 1e9, 'ram');
+    if (!b.nav.reachable(1, 0, 60, 0, 10)) out.push('with the gate broken an attacker still cannot walk in');
+    if (!b.nav.reachable(1, 0, 10, 0, 60)) out.push('with the gate broken a raider inside still cannot walk out');
+    return out;
+  }));
+  await check('an attack that gets nowhere and harms nothing ends itself, and says so', () => village((t, warned) => {
+    t.receiveAttack(band(), 0, { name: 'Test raiders' });
+    const g = t.attackers[0], r = g.regs[0], out = [];
+    const sit = secs => { for (let i = 0; i < secs / E.STALL.look; i++) t.checkStalled(E.STALL.look); };
+    sit(E.STALL.after * 0.9);
+    if (!t.attackers.length) return ['it ended before its time'];
+    r.cx += E.STALL.ground * 2;   // they reach new ground
+    sit(E.STALL.after * 0.9);
+    if (!t.attackers.length) out.push('it ended though they had moved on');
+    sit(E.STALL.after * 0.3);
+    if (t.attackers.length) out.push(`still there after ${E.STALL.after} s of nothing`);
+    else if (!warned.some(m => /did no harm/.test(m))) out.push('it ended without a warning');
+    else if (!t.battle.events.some(e => /come to nothing/.test(e.text))) out.push('it ended without a word in the village');
+    return out;
+  }));
+  await check('men walking out after a peace are no attack: newcomers come, and the save keeps them', () => village(t => {
+    t.receiveAttack(band(), 0, { name: 'Test raiders', house: 1 });
+    const out = [];
+    t.makeTruce(1, 'Test house');
+    if (!t.attackers.length) return ['they vanished at the peace'];
+    if (t.underAttack) out.push('still "under attack" while they walk out');
+    if (t.settlers().limit?.key === 'attack') out.push('newcomers still held back by the attack');
+    const kept = t.leavingMen();
+    if (kept.length !== 1 || kept[0].units.reduce((n, u) => n + u.count, 0) !== 12) out.push(`the save would keep ${JSON.stringify(kept)} of the 12 walking out`);
+    t.receiveAttack(band(), 0, { name: 'Fresh raiders', house: 2 });
+    if (!t.underAttack) out.push('a fresh raid during their walk out is not an attack');
+    return out;
+  }));
+  await check('autosave held off for minutes says so', () => {
+    const out = [], why = 'A village is being fought over';
+    if (S.unsavedNotice(S.OVERDUE - 1, why, Date.now()) !== null) out.push('it speaks before its time');
+    const said = S.unsavedNotice(S.OVERDUE, why, Date.now());
+    if (!/^Not saved since .+: a village is being fought over\.$/.test(said || '')) out.push(`it says "${said}"`);
+    return out;
+  });
+}
+
 // ---- torches keep to their bearers (view.js) ----
 
 // They jumped from man to man and blinked on the march (creator, 2026-11-23).
@@ -3807,6 +3906,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await seasonChecks(window.game.world);
   if (window.game?.world?.pois) await firstHourChecks(window.game.world);
   if (window.game?.world?.pois) await villageChecks(window.game.world);
+  if (window.game?.world?.pois) await lateChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
