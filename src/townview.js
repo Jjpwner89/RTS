@@ -8,7 +8,7 @@ import { unitModel, buildingModel, LOD, HOUSE_STYLES } from './models.js';
 import { animReady, animGeometry, animMaterial, animDepthMaterial, clipOf, setClip, setBlend, gaitFor } from './anim.js';
 import { BUILDINGS, crate } from './economy.js';
 import { fxFor } from './fx.js';
-import { lamps, snowy } from './look.js';
+import { lamps, snowy, torchPools, wallLight } from './look.js';
 const REBEL = new THREE.Color('#e8402c');   // villagers in revolt, so the crowd reads at a glance
 
 // anim: the clip a baked villager plays (anim.js), from what the economy has him doing: walking, carrying, felling,
@@ -184,7 +184,7 @@ function circle(radius, color, opacity) {
 export class TownView {
   constructor(scene, town, heightAt, rand) {
     Object.assign(this, { scene, town, heightAt });
-    this.mat = snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));   // (snow on the roofs in winter)
+    this.mat = wallLight(scene).on(snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));   // (snow on the roofs in winter, torchlight on the walls by night)
     this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.55 });
     this.ruinMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: '#3a3430' });
     this.ghostMat = new THREE.MeshBasicMaterial({ color: '#7fe08a', transparent: true, opacity: 0.45, depthWrite: false });
@@ -269,21 +269,59 @@ export class TownView {
     this.selectRing = circle(1, '#ffd970', 0.9);
     this.findRing = circle(1, '#7fd0ff', 0.95);   // a deposit the Find button points at
     for (const o of [this.ghostRange, this.territoryRing, this.selectRing, this.findRing]) { o.visible = false; scene.add(o); }
-    // By night, lit windows in every standing building and the keep (look.js lamps).
-    this.lights = lamps(scene);
+    // By night, a torch on every standing building and two on the keep (look.js lamps).
+    this.lights = lamps(scene, '#ffb25e');
+    this.lightPools = torchPools(scene, heightAt);
     this.lightsKey = '';
   }
 
-  // A lamp in each standing building, a little above the door, shown on the side the camera sees; three in the keep.
+  // By night a torch on each standing building and two on the keep, on the face turned to the keep where it has a
+  // wall there, else on a side: in a sconce on the wall, or on a post before it where there is no wall (a field, a
+  // yard). Each lights the ground under it and the walls beside it (look.js).
   placeLights() {
-    const list = [], k = this.keep, kr = k.geometry.boundingSphere || (k.geometry.computeBoundingSphere(), k.geometry.boundingSphere);
-    for (const [dx, dz] of [[0, 0], [2, 1], [-2, 1]]) list.push({ x: k.position.x + dx, y: k.position.y + 2.4 + Math.abs(dx), z: k.position.z + dz, size: 4, push: kr.radius * 0.7 });
+    const torches = [], pools = [], lit = [], ray = new THREE.Raycaster(), from = new THREE.Vector3(), to = new THREE.Vector3(), dir = new THREE.Vector3();
+    const put = (mesh, aside, high) => {
+      const g = mesh.geometry, bb = g.boundingBox || (g.computeBoundingBox(), g.boundingBox);
+      const wide = Math.max(bb.max.x, -bb.min.x), deep = Math.max(bb.max.z, -bb.min.z), far = wide + deep + 3;
+      mesh.updateMatrixWorld();
+      let hit = null;
+      // [outward x, outward z, how far the building reaches that way]: its own front (+z) first, then its sides
+      for (const [fx, fz, reach] of [[0, 1, bb.max.z], [1, 0, bb.max.x], [-1, 0, -bb.min.x]]) {
+        const ax = fz * aside, az = fx * aside;
+        mesh.localToWorld(from.set(ax + fx * far, high, az + fz * far));
+        mesh.localToWorld(to.set(ax, high, az));
+        dir.subVectors(to, from).normalize();
+        ray.set(from, dir);
+        const q = ray.intersectObject(mesh, false)[0];
+        // a wall in the outer part of it, not something across an open yard
+        if (q && far - q.distance > reach * 0.45) { hit = q; break; }
+      }
+      let x, y, z, stick;
+      if (hit) {
+        x = hit.point.x - dir.x * 0.32; z = hit.point.z - dir.z * 0.32; y = hit.point.y + 0.35; stick = 0.8;
+      } else {
+        mesh.localToWorld(from.set(aside, 0, deep + 0.5));
+        mesh.localToWorld(to.set(aside, 0, 0));
+        dir.subVectors(to, from).normalize();
+        x = from.x; z = from.z; y = this.heightAt(x, z) + 2.1; stick = 1.82;
+      }
+      // (never lower than a man's head, nor sunk into a rise of the ground)
+      y = Math.max(y, this.heightAt(x, z) + 1.5);
+      torches.push({ x, y, z, size: 1.8, stick });
+      pools.push({ x: x - dir.x * 0.8, z: z - dir.z * 0.8, radius: 5.5 });
+      lit.push({ x, y, z, reach: 6.5 });
+    };
+    const keep = this.keep, kg = keep.geometry, kr = kg.boundingSphere || (kg.computeBoundingSphere(), kg.boundingSphere);
+    for (const side of [-1, 1]) put(keep, side * Math.min(2.4, kr.radius * 0.3), 2.8);
     for (const [b, o] of this.meshes) {
       if (b.state !== 'active') continue;
-      const g = o.mesh.geometry, r = (g.boundingSphere || (g.computeBoundingSphere(), g.boundingSphere)).radius;
-      list.push({ x: b.x, y: o.mesh.position.y + Math.min(2.2, r * 0.45), z: b.z, size: 3 + r * 0.3, push: r * 0.75 });   // window-sized, not orbs
+      const g = o.mesh.geometry, box = g.boundingBox || (g.computeBoundingBox(), g.boundingBox);
+      put(o.mesh, (box.max.x - box.min.x) * 0.2, Math.min(1.9, Math.max(0.8, box.max.y * 0.45)));
     }
-    this.lights.set(list);
+    this.lights.set(torches);
+    this.lightPools.set(pools);
+    wallLight(this.scene).set('buildings', lit);
+    this.torchPlaces = torches;   // (checks.js looks at them)
   }
 
   // The keep's level: see keepLevelOf.

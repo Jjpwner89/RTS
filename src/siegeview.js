@@ -12,7 +12,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, box, cyl, WOOD, DARK, STONE, STONE_DARK, METAL } from './view.js';
 import { buildingModel } from './models.js';
 import { MATERIALS, PIECE_MAX } from './walls.js';
-import { NIGHT, snowy } from './look.js';
+import { lamps, torchPools, wallLight, snowy } from './look.js';
 
 const PALE = '#c9b38a', ROPE = '#b8a27a', MOSS = '#6f6a5c';
 
@@ -127,14 +127,6 @@ const ARM_AT = { mangonel: { y: 2.3, z: 0.4 }, trebuchet: { y: 7.2, z: 0 } };
 const BAKED_PIVOT = { mangonel: { y: 1.91, z: 0.71 }, trebuchet: { y: 6.56, z: 3.32 } };   // (bake.js pivots())
 const ENGINE_BACK = { ram: 0, mangonel: 1.6, trebuchet: 3 };
 
-// A soft round glow for torchlight.
-function glowTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
 // A sap's mouth: a dark pit, a timber frame over it, and the heap of spoil beside it (grown by scale).
 function sapPit() {
   return mergeGeometries([
@@ -154,7 +146,7 @@ export class SiegeView {
     this.scene = scene;
     this.battle = battle;
     this.heightAt = heightAt;
-    this.mat = snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));   // (snow on wall walks and roofs in winter)
+    this.mat = wallLight(scene).on(snowy(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));   // (snow on wall walks and roofs in winter, torchlight by night)
     this.siteMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.45 });
     this.geos = {};
     this.group = new THREE.Group();
@@ -187,11 +179,9 @@ export class SiegeView {
     // Mines: each sap gets a pit, a timber frame and a spoil heap that grows as they dig.
     this.mineViews = new Map();
     // Torches on walls, gates and towers, lit only at night.
-    this.torchFlames = fx(new THREE.ConeGeometry(0.22, 0.75, 6), '#ffb347', 300, 0.95);
-    this.torchGlow = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: glowTexture(), size: 9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#ff9a3c' }));
-    this.torchGlow.frustumCulled = false;
-    scene.add(this.torchGlow);
-    this.torches = [];
+    this.torches = lamps(scene, '#ffb25e');
+    this.torchPools = torchPools(scene, heightAt);
+    this.torchPlaces = [];
   }
 
   geo(name) {
@@ -335,31 +325,19 @@ export class SiegeView {
       else list.push([p.x - out.x * (p.M.thick / 2 - 0.2), p.base + p.M.height + 0.9, p.z - out.z * (p.M.thick / 2 - 0.2)]);
     }
     for (const n of W.nodes) if (n.tower?.state === 'up') list.push([n.tower.x, n.tower.base + MATERIALS[n.tower.material].towerTop + 1.6, n.tower.z]);
-    this.torches = list.slice(0, 300);
-    this.torchGlow.geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.torches.flat(), 3));
-    this.torchGlow.geometry.computeBoundingSphere();
+    // (never silently: a wall long enough to run out of torches says so)
+    if (list.length > 300) console.warn(`siege view: ${list.length} torches on the walls, only 300 lit`);
+    this.torchPlaces = list.slice(0, 300);
+    this.torches.set(this.torchPlaces.map(([x, y, z]) => ({ x, y, z, size: 1.8, stick: 0.9 })));
+    this.torchPools.set(this.torchPlaces.map(([x, , z]) => ({ x, z, radius: 6 })));
+    wallLight(this.scene).set('walls', this.torchPlaces.map(([x, y, z]) => ({ x, y, z, reach: 6 })));
   }
 
+  // Put up again whenever the walls change; look.js shows them only after dark.
   updateTorches() {
-    // a night battle, or night falling on the campaign's clock (look.js): lit late in dusk, the glow small and faint
-    // while any light is left in the sky, full only in the last of it (as look.js lamps)
-    const n = this.battle.weather === 'night' ? 1 : NIGHT.value, night = n > 0.6;
-    this.torchGlow.visible = night;
-    if (!night) { this.torchFlames.count = 0; return; }
-    const x = Math.min(1, Math.max(0, (n - 0.85) / 0.15)), k = x * x * (3 - 2 * x);
-    this.torchGlow.material.opacity = 0.2 + 0.5 * k;   // a halo round the flame, not an orb hiding the wall
-    this.torchGlow.material.size = 4.5 * (0.45 + 0.55 * k);
-    if (this.torchVersion !== this.battle.walls.version) { this.torchVersion = this.battle.walls.version; this.placeTorches(); }
-    const d = this.dummy, t = this.battle.time;
-    d.rotation.set(0, 0, 0);
-    this.torches.forEach(([x, y, z], i) => {
-      d.position.set(x, y, z);
-      d.scale.set(1, 0.8 + 0.35 * Math.abs(Math.sin(t * 9 + i * 1.3)), 1);
-      d.updateMatrix();
-      this.torchFlames.setMatrixAt(i, d.matrix);
-    });
-    this.torchFlames.count = this.torches.length;
-    this.torchFlames.instanceMatrix.needsUpdate = true;
+    if (this.torchVersion === this.battle.walls.version) return;
+    this.torchVersion = this.battle.walls.version;
+    this.placeTorches();
   }
 
   // Doors swing up for their own men, and stay open once forced.

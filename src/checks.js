@@ -3718,6 +3718,36 @@ async function villageChecks(w) {
   }));
 }
 
+// ---- torches keep to their bearers (view.js) ----
+
+// They jumped from man to man and blinked on the march (creator, 2026-11-23).
+async function torchChecks() {
+  group = 'Torches';
+  const { BattleView } = await import('./view.js');
+  const regiment = (n, T = {}) => {
+    const r = { T, angle: 0, cx: 0, cz: 0 };
+    r.soldiers = Array.from({ length: n }, (_, i) => ({ reg: r, alive: true, gone: false, x: (i % 20) * 1.5 - 15, z: Math.floor(i / 20) * 1.5 }));
+    return r;
+  };
+  const of = (view, r) => view.bearersOf.call(view, r, 4);
+  await check('a torch stays with its man while the ranks move, and passes on only when he falls', () => {
+    const view = { bearersOf: BattleView.prototype.bearersOf }, r = regiment(60), out = [], first = [...of(view, r)];
+    if (first.filter(Boolean).length !== 4) out.push(`60 men carry ${first.filter(Boolean).length} torches, not 4`);
+    // the ranks turn, close up and string out
+    for (let k = 0; k < 50; k++) {
+      r.angle = k * 0.7;
+      for (const s of r.soldiers) { s.x = Math.sin(k + s.x) * (k % 7); s.z = Math.cos(k * 3 + s.z) * 9; }
+      if (of(view, r).some((s, j) => s !== first[j])) { out.push('a torch changed hands on the march'); break; }
+    }
+    first[1].alive = false;
+    const after = of(view, r);
+    if (after.filter(Boolean).length !== 4 || after[1] === first[1]) out.push('a fallen man\'s torch was not taken up');
+    if ([0, 2, 3].some(j => after[j] !== first[j])) out.push('another torch changed hands when one man fell');
+    return out;
+  });
+  await check('an engine\'s crew carries one torch', () => of({ bearersOf: BattleView.prototype.bearersOf }, regiment(30, { engine: {} })).filter(Boolean).length === 1 ? [] : ['not one']);
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -3729,6 +3759,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   await chimeChecks();
   await iconChecks();
   await noticeChecks();
+  await torchChecks();
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);

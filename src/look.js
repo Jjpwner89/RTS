@@ -152,7 +152,7 @@ export function dayDial(t) {
   return { html, name, key: `${name}${x}${y}` };
 }
 
-// How dark it is, 0 by day to 1 at night: lamps and torches light, stars come out (lamps(), siegeview.js torches).
+// How dark it is, 0 by day to 1 at night: torches light (lamps()) and stars come out.
 export const NIGHT = { value: 0 };
 const AZIMUTH = Math.atan2(SUN_DIR.z, SUN_DIR.x), tmp = new THREE.Color();
 // the campaign starts in the morning, and noon falls 30 s in
@@ -494,12 +494,13 @@ export async function bench({ n = 12, rounds = 3, qualities = [look.quality] } =
   for (const q of qualities) out[q] = { gpuMinMs: low(gpu[q]), gpuMs: med(gpu[q]), gpuP90Ms: p90(gpu[q]), cpuMs: med(cpu[q]), ...info[q] };
   return out;
 }
-// ---- lamps ----
-// Warm lights that come on as night falls (NIGHT): lit windows and hearths in villages, fires in camps, torches
-// carried by regiments. Each is a glow facing the camera, a bright core in a soft halo, drawn a little toward the
-// camera (push, metres) so a lamp set inside a house shows on the wall you see. They come on one by one late in
-// dusk, small and dim while any light is left in the sky, and grow to full only in the last of it (creator,
-// 2026-11-22: dusk was hard to see for all the torches; QC: still blobs at NIGHT 0.85); they flicker. Cheap: one draw for all of a view's lamps, and none by day.
+// ---- torches ----
+// Warm light that comes on as night falls (NIGHT): torches carried by regiments, torches in sconces on buildings
+// and walls, small fires in the places on the map. Each is a tongue of flame, on its stick where there is one, with
+// no halo round it: the creator called the old halos orbs (2026-11-23). What they light is the ground under them
+// (torchPools) and the walls beside them (wallLight). They come on one by one late in dusk, dim while any light is
+// left in the sky (creator, 2026-11-22: dusk was hard to see for all the torches). Their flame sways but their light
+// holds steady. Cheap: one draw for a view's flames and one for its sticks, and none by day.
 const LAMP_VS = /* glsl */`
 attribute float aSize, aPush, aSeed;
 uniform float uNight, uTime, uH;
@@ -508,18 +509,13 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.);
   mv.xyz += normalize(-mv.xyz) * aPush;
   gl_Position = projectionMatrix * mv;
-  float dark = smoothstep(.85, 1., uNight);
-  float flick = .86 + .14 * sin(uTime * (6. + aSeed * 5.) + aSeed * 40.) * sin(uTime * 2.3 + aSeed * 17.);
-  vA = smoothstep(.45 + aSeed * .4, .6 + aSeed * .4, uNight) * (.35 + .65 * dark) * flick;
-#ifdef FLAME
+  float flick = .95 + .05 * sin(uTime * (6. + aSeed * 5.) + aSeed * 40.) * sin(uTime * 2.3 + aSeed * 17.);
+  vA = smoothstep(.45 + aSeed * .4, .6 + aSeed * .4, uNight) * (.55 + .45 * smoothstep(.85, 1., uNight)) * flick;
   // a flame keeps its size as night falls (it is the torch, not its glow), and never shrinks below a few pixels,
-  // so a far one still sparks; its tip sways and it stretches and shrinks with the flicker
+  // so a far one still sparks; its tip sways and it stretches and shrinks a little
   gl_PointSize = clamp(aSize * projectionMatrix[1][1] * uH * .5 / -mv.z, 3., 160.);
   vSway = .07 * sin(uTime * (7. + aSeed * 4.) + aSeed * 30.) + .03 * sin(uTime * 13.1 + aSeed * 9.);
-  vTall = .85 + .3 * (flick - .86) / .14 * .5 + .15 * sin(uTime * 9.7 + aSeed * 21.);
-#else
-  gl_PointSize = min(320., aSize * (.4 + .6 * dark) * projectionMatrix[1][1] * uH * .5 / -mv.z);
-#endif
+  vTall = .93 + .07 * sin(uTime * 9.7 + aSeed * 21.);
 }`;
 const LAMP_FS = /* glsl */`
 uniform vec3 uColor;
@@ -528,7 +524,6 @@ void main() {
   vec2 q = gl_PointCoord * 2. - 1.;
   float r2 = dot(q, q);
   if (r2 > 1. || vA < .01) discard;
-#ifdef FLAME
   // a tongue of flame: a round foot low in the sprite narrowing to a swaying tip, white-gold at its heart, orange,
   // then red at its edge, over the faintest warmth round it (no ball of light)
   q.y = -q.y;
@@ -540,60 +535,139 @@ void main() {
   vec3 c = mix(vec3(.7, .14, .02), vec3(1., .48, .1), smoothstep(0., .5, f));
   c = mix(c, vec3(1., .85, .55), smoothstep(.6, 1., f) * (1. - h));
   gl_FragColor = vec4((c * 1.7 * smoothstep(0., .3, f) + uColor * exp(-r2 * 6.) * .05) * vA, 1.);
-#else
-  gl_FragColor = vec4(uColor * vA * (exp(-r2 * 30.) * 2.2 + exp(-r2 * 5.) * .3) * (1. - r2), 1.);
-#endif
 }`;
 const lampSize = new THREE.Vector2();
-// Adds a set of lamps to a scene; set(list) places them: [{ x, y, z, size (metres across, 6), push (0) }]. flame:
-// each is drawn as a flickering tongue of flame (a carried torch's head, view.js), not a glow.
-export function lamps(scene, color = '#ffa04a', { flame = false } = {}) {
+// Shows what torches own only after dark, checked each frame by the scene's own drawing.
+function afterDark(scene, object, any) {
+  object.visible = false;
+  const was = scene.onBeforeRender;
+  scene.onBeforeRender = function (...a) { was.apply(this, a); object.visible = any() && NIGHT.value > 0.45; };
+}
+// Adds a set of torches to a scene; set(list) places their flames: [{ x, y, z, size (metres across, 1.6),
+// push (metres toward the camera, 0), stick (metres of stick under the flame, 0 for none) }]. room: how many
+// sticks it can carry at most.
+export function lamps(scene, color = '#ffa04a', { room = 1024 } = {}) {
   const geo = new THREE.BufferGeometry();
   const mat = new THREE.ShaderMaterial({
-    defines: flame ? { FLAME: '' } : {},
     uniforms: { uNight: NIGHT, uTime: SKY_TIME, uH: { value: 800 }, uColor: { value: new THREE.Color(color).multiplyScalar(2.2) } },
     vertexShader: LAMP_VS, fragmentShader: LAMP_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
   });
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
   points.renderOrder = 10;
-  points.visible = false;
   points.onBeforeRender = r => { mat.uniforms.uH.value = r.getDrawingBufferSize(lampSize).y; };
   scene.add(points);
-  let n = 0;
-  // shown only after dark (checked each frame by the scene's own drawing)
-  const was = scene.onBeforeRender;
-  scene.onBeforeRender = function (...a) { was.apply(this, a); points.visible = n > 0 && NIGHT.value > 0.45; };
+  // the sticks, dark wood a little warmed by what burns on it
+  const sticks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.11, 1, 0.11).translate(0, -0.5, 0), new THREE.MeshBasicMaterial({ color: '#4a2f1b' }), room);
+  sticks.count = 0;
+  sticks.frustumCulled = false;
+  scene.add(sticks);
+  let n = 0, length = [];
+  const m = new THREE.Matrix4(), TOP = 0.28;   // the flame's foot sits this far under its centre
+  const stand = (i, x, y, z) => { if (i < room) sticks.setMatrixAt(i, m.makeScale(1, length[i] || 1e-4, 1).setPosition(x, y - TOP, z)); };
+  afterDark(scene, points, () => n > 0);
+  afterDark(scene, sticks, () => n > 0 && length.some(Boolean));
   return {
-    points,
+    points, sticks,
     set(list) {
       n = list.length;
       const pos = new Float32Array(n * 3), size = new Float32Array(n), push = new Float32Array(n), seed = new Float32Array(n);
+      length = list.map(l => l.stick || 0);
+      if (n > room && length.some(Boolean)) console.warn(`torches: ${n} flames but room for ${room} sticks; the rest burn without`);
       list.forEach((l, i) => {
-        pos.set([l.x, l.y, l.z], i * 3); size[i] = l.size ?? 6; push[i] = l.push ?? 0;
-        seed[i] = (Math.sin(l.x * 12.9898 + l.z * 78.233) * 43758.5453 % 1 + 1) % 1;
+        pos.set([l.x, l.y, l.z], i * 3); size[i] = l.size ?? 1.6; push[i] = l.push ?? 0;
+        seed[i] = (i * 0.6180339) % 1;
+        stand(i, l.x, l.y, l.z);
       });
+      sticks.count = Math.min(n, room);
+      sticks.instanceMatrix.needsUpdate = true;
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
       geo.setAttribute('aPush', new THREE.BufferAttribute(push, 1));
       geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
     },
-    // moves lamp i (for lamps that follow something), then update() once all are moved
-    move(i, x, y, z) { geo.attributes.position?.array.set([x, y, z], i * 3); },
-    update() { if (geo.attributes.position) geo.attributes.position.needsUpdate = true; },
+    // moves torch i (for torches that follow someone), then update() once all are moved
+    move(i, x, y, z) { geo.attributes.position?.array.set([x, y, z], i * 3); stand(i, x, y, z); },
+    update() { if (geo.attributes.position) geo.attributes.position.needsUpdate = true; sticks.instanceMatrix.needsUpdate = true; },
   };
 }
 
-// Warm pools of torchlight on the ground (under each carried torch by night, view.js): set([{ x, z, radius }]) each
-// frame. Each pool is a small grid laid on the ground (heightAt) and added to what is there, faint at its edge,
-// fading in with the lamps as night falls and wavering a little with its flame.
+// ---- warm light on walls ----
+// The torches fixed to buildings and walls light what stands round them. Their light is drawn once into a map of
+// the ground seen from above (how much, and how high the torch is), which the walls' material reads: any number
+// of torches for one lookup. wallLight(scene) is the scene's own; set(key, list) replaces one owner's torches
+// ([{ x, y, z, reach }]) and on(material) lets a material be lit.
+const LIT_N = 512, LIT_HALF = 300;   // texels a side, and metres from the middle each way
+export function wallLight(scene) { return scene.userData.wallLight ||= makeWallLight(); }
+function makeWallLight() {
+  const data = new Uint16Array(LIT_N * LIT_N * 2), amount = new Float32Array(LIT_N * LIT_N), high = new Float32Array(LIT_N * LIT_N);
+  const map = new THREE.DataTexture(data, LIT_N, LIT_N, THREE.RGFormat, THREE.HalfFloatType);
+  map.magFilter = map.minFilter = THREE.LinearFilter;
+  map.needsUpdate = true;
+  const owners = {}, step = 2 * LIT_HALF / LIT_N;
+  function redraw() {
+    amount.fill(0);
+    data.fill(0);
+    const lit = new Set();
+    for (const l of Object.values(owners).flat()) {
+      const reach = l.reach ?? 6, i0 = Math.max(0, Math.floor((l.x - reach + LIT_HALF) / step)), i1 = Math.min(LIT_N - 1, Math.ceil((l.x + reach + LIT_HALF) / step));
+      const j0 = Math.max(0, Math.floor((l.z - reach + LIT_HALF) / step)), j1 = Math.min(LIT_N - 1, Math.ceil((l.z + reach + LIT_HALF) / step));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const d = Math.hypot((i + 0.5) * step - LIT_HALF - l.x, (j + 0.5) * step - LIT_HALF - l.z), v = Math.max(0, 1 - d / reach) ** 1.5, k = j * LIT_N + i;
+        if (v > amount[k]) { amount[k] = v; high[k] = l.y; lit.add(k); }
+      }
+    }
+    // (the height is stored times the amount, so blending between texels keeps it true)
+    for (const k of lit) { data[k * 2] = THREE.DataUtils.toHalfFloat(amount[k]); data[k * 2 + 1] = THREE.DataUtils.toHalfFloat(amount[k] * high[k]); }
+    map.needsUpdate = true;
+  }
+  return {
+    map,
+    amountAt: (x, z) => amount[Math.floor((z + LIT_HALF) / step) * LIT_N + Math.floor((x + LIT_HALF) / step)] || 0,
+    set(key, list) { owners[key] = list; redraw(); },
+    on(mat) {
+      const was = mat.onBeforeCompile, key = mat.customProgramCacheKey?.bind(mat);
+      mat.onBeforeCompile = (sh, r) => {
+        was?.call(mat, sh, r);
+        sh.uniforms.uLit = { value: map };
+        sh.uniforms.uLitNight = NIGHT;
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLitAt;')
+          .replace('#include <project_vertex>', `#include <project_vertex>
+{ vec4 at = vec4(transformed, 1.);
+#ifdef USE_INSTANCING
+  at = instanceMatrix * at;
+#endif
+  vLitAt = (modelMatrix * at).xyz; }`);
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nuniform sampler2D uLit; uniform float uLitNight; varying vec3 vLitAt;')
+          .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+if (uLitNight > .45) {
+  vec2 lit = texture2D(uLit, vLitAt.xz / ${(2 * LIT_HALF).toFixed(1)} + .5).rg;
+  if (lit.r > .004) {
+    float up = vLitAt.y - lit.g / lit.r;
+    float fall = (1. - smoothstep(.6, 3., up)) * (1. - smoothstep(2.5, 7., -up));
+    float dark = smoothstep(.45, .6, uLitNight) * (.35 + .65 * smoothstep(.85, 1., uLitNight));
+    totalEmissiveRadiance += diffuseColor.rgb * vec3(1., .46, .15) * lit.r * fall * dark * 0.9;
+  }
+}`);
+      };
+      mat.customProgramCacheKey = () => 'walllit' + (key ? key() : '');
+      return mat;
+    },
+  };
+}
+
+// Warm pools of torchlight on the ground, under each torch by night: set([{ x, z, radius }]), each frame for
+// torches that move. Each pool is a small grid laid on the ground (heightAt) and added to what is there, faint at
+// its edge, fading in with the torches as night falls.
 const POOL_VS = /* glsl */`
 attribute vec2 aR;
 uniform float uTime;
 varying float vR, vFlick;
 void main() {
   vR = aR.x;
-  vFlick = .82 + .18 * sin(uTime * (6. + aR.y * 5.) + aR.y * 40.) * sin(uTime * 2.3 + aR.y * 17.);
+  vFlick = .95 + .05 * sin(uTime * (6. + aR.y * 5.) + aR.y * 40.) * sin(uTime * 2.3 + aR.y * 17.);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
 }`;
 const POOL_FS = /* glsl */`
@@ -604,7 +678,7 @@ void main() {
   float a = smoothstep(.45, .6, uNight) * (.35 + .65 * smoothstep(.85, 1., uNight)), f = 1. - clamp(vR, 0., 1.);
   gl_FragColor = vec4(uColor * a * f * f * vFlick, 1.);
 }`;
-export function torchPools(scene, heightAt, color = '#ff9a4a') {
+export function torchPools(scene, heightAt, color = '#ff9a4a', { lift = 0.15 } = {}) {
   const N = 7, geo = new THREE.BufferGeometry();
   const mat = new THREE.ShaderMaterial({
     uniforms: { uNight: NIGHT, uTime: SKY_TIME, uColor: { value: new THREE.Color(color).multiplyScalar(0.34) } },
@@ -614,17 +688,17 @@ export function torchPools(scene, heightAt, color = '#ff9a4a') {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
   mesh.renderOrder = 9;
-  mesh.visible = false;
   scene.add(mesh);
-  let room = 0, pos, rr;
+  let room = 0, count = 0, pos, rr;
+  afterDark(scene, mesh, () => count > 0);
   // one grid's triangles, repeated for each pool
   const cell = [];
   for (let i = 0; i < N - 1; i++) for (let j = 0; j < N - 1; j++) { const a = i * N + j; cell.push(a, a + 1, a + N, a + 1, a + N + 1, a + N); }
   return {
     mesh,
     set(list) {
-      mesh.visible = list.length > 0 && NIGHT.value > 0.45;
-      if (!mesh.visible) return;
+      count = list.length;
+      if (!count) return;
       if (list.length > room) {
         room = Math.max(list.length, room * 2, 8);
         pos = new Float32Array(room * N * N * 3); rr = new Float32Array(room * N * N * 2);
@@ -637,7 +711,7 @@ export function torchPools(scene, heightAt, color = '#ff9a4a') {
       list.forEach((l, p) => {
         for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
           const u = i / (N - 1) * 2 - 1, v = j / (N - 1) * 2 - 1, x = l.x + u * l.radius, z = l.z + v * l.radius, k = p * N * N + i * N + j;
-          pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, z) + 0.15; pos[k * 3 + 2] = z;
+          pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, z) + lift; pos[k * 3 + 2] = z;
           rr[k * 2] = Math.hypot(u, v); rr[k * 2 + 1] = (p * 0.618) % 1;
         }
       });
