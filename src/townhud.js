@@ -186,7 +186,7 @@ export class TownHud {
       <button data-act="standdown" class="wide muster" hidden><span>Stand the militia down</span><small>back to their work</small></button>
       ${GOOD_GROUPS.map(([label, goods]) => `
         <h4 data-grp="${label}" title="What you can spend now, from every store and yard. Goods promised to building sites are not counted: hover a good to see them.">${label}</h4>
-        <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${gi(g)}<b data-g="${g}">0</b><i class="trend" data-trend="${g}"></i></span>`).join('')}</div>`).join('')}`;
+        <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${ico(GOODS[g].icon, GOODS[g].color)}<b data-g="${g}">0</b><i class="trend" data-trend="${g}"></i></span>`).join('')}</div>`).join('')}`;
     this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
     this.trendEls = new Map([...this.stockEl.querySelectorAll('[data-trend]')].map(e => [e.dataset.trend, e]));
     this.hist = null;
@@ -615,7 +615,7 @@ export class TownHud {
     if (!p?.classList.contains('kit')) return;
     p.dataset.kit ??= p.innerHTML;
     const makers = !c.ok && c.makers?.length ? c.makers : null;
-    const want = makers ? `Made by: ${makers.join(' · ')}` : null;
+    const want = makers ? makers.map(upper).join(' · ') : null;
     if (want) { if (p.textContent !== want) p.textContent = want; }
     else if (p.dataset.shown) p.innerHTML = p.dataset.kit;
     p.dataset.shown = want ? '1' : '';

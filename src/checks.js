@@ -4083,6 +4083,11 @@ async function newcomerChecks(w) {
     return sample(cells.filter(el => !el.parentElement.hidden).map(el => [el.dataset.g, +el.textContent, Math.floor(Math.max(0, t.free(el.dataset.g)) + 1e-6)])
       .filter(([, shown, real]) => Math.abs(shown - real) > 4).map(([g, shown, real]) => `the panel shows ${shown} ${g}, ${real} can be spent`));
   });
+  await check('hovering a good, icon or number, tells what its number counts', () => {
+    const t = shownTown(), cells = [...document.querySelectorAll('#stock [data-cell]')].filter(c => !c.hidden);
+    if (!t || t.hostile || !cells.length) return null;
+    return sample(cells.filter(c => c.querySelector('[title]') || !/to spend now/.test(c.dataset.tip || '')).map(c => `${c.dataset.cell}: "${c.querySelector('[title]')?.title || c.dataset.tip || 'nothing'}"`));
+  });
   await check('every goal has a short name and a next step', () => scratchVillage(w, { wood: 60 }, t => G.GOALS.map(g => {
     const next = g.next?.(w, t);
     return g.short && typeof next === 'string' && next.length > 3 && next.length < 90 ? null : `"${g.text}": short "${g.short}", next "${next}"`;
