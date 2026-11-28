@@ -10,10 +10,10 @@ const has = (w, kind) => towns(w).some(t => t.buildings.some(b => b.kind === kin
 // (QC, 2026-11-21: the tips said nobody would), so while one is still to come, say so and
 // say what to do.
 import { FACTIONS, headcount, roughly } from './world.js';
-import { stageOf, OUTLAWS } from './rivals.js';
+import { stageOf, outlawsToCome } from './rivals.js';
 import { BUILDINGS, listCost, makerText } from '../economy.js';
-const bands = w => w.options?.aggression !== 'gentle' && (w.outlaws?.wave ?? 0) < OUTLAWS.length
-  ? ' Outlaw bands will come for your stores, though: keep your retinue at home, and when a band reaches the village, select the retinue and right-click the outlaws.' : '';
+const bands = w => outlawsToCome(w)
+  ? ` ${w.options?.aggression === 'gentle' ? 'A small band of outlaws' : 'Outlaw bands'} will come for your stores, though: keep your retinue at home, and when a band reaches the village, select the retinue, press Attack and click the outlaws.` : '';
 const calm = w => (FACTIONS.filter(h => h.index && h.alive && !h.bandit && !h.invader).every(h => stageOf(h) === 0)
   ? ' The great houses are all still settling their own lands: none will march on you yet.' : ' Some great house is reaching beyond its own lands now: keep men at home.') + bands(w);
 

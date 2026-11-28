@@ -949,7 +949,8 @@ The common fault: **each rank adds tools but doesn't take away the old chores.**
   - **Played on seed 7:**
     - With the retinue at home, the first band (14 men) broke at once. One retinue man fell, and the retinue came out blooded.
     - With the retinue sent to work, the first band (10 men) burned two houses and got away with 82 food, 43 wood and 105 gold. The second (17 men, at minute 13) took 140 food, 43 wood and 120 gold.
-  - **Exceptions:** they don't come in a Gentle game, while the outlaws are paid off, or under the king's peace.
+  - **Gentle** (creator, 2026-11-28: "yes there should be a raider early"): the bands come too, at 0.7 of the size, and the second only if the first was beaten off.
+  - **Exceptions:** none come while the outlaws are paid off or under the king's peace.
   - The opening message now warns of them.
   - **Why:** the creator's "brutal early". It makes the retinue a real choice: twenty swords or twenty more workers.
 - **Your own lands feed your armies** (supply.js). An army within 220 paces of a place of yours (or a vassal's or ally's; `HOMELAND`, about 40 seconds' march) does not desert.

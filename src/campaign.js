@@ -415,7 +415,7 @@ function goals() {
     el.innerHTML = `<h4>Goals <small>the war in the north${close}</small></h4>` + north.map(g => `<div class="${g.done ? 'done' : 'now'}">${g.done ? '✓' : '▸'} ${g.text}<small>${g.tip}</small></div>`).join('');
     return;
   }
-  const key = world.goals + ':' + world.part + ':' + mode + ':' + FACTIONS.some(h => h.index && h.ai?.stage);
+  const key = world.goals + ':' + world.part + ':' + mode + ':' + FACTIONS.some(h => h.index && h.ai?.stage) + ':' + world.outlaws?.wave + world.outlaws?.beaten;
   if (goalsShown === key) return;
   goalsShown = key;
   el.hidden = world.goals >= GOALS.length;

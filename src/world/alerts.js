@@ -70,12 +70,14 @@ export function alerts(w) {
 
   // Enemy columns you can see, marching on a place of yours.
   for (const a of w.armies) {
-    if (a.gone || a.side === 0 || a.wagon || !a.visible || a.retreating) continue;
+    // (the first winter's outlaws are announced as they set out, so they are listed from then, seen or not)
+    if (a.gone || a.side === 0 || a.wagon || !(a.visible || a.outlaws) || a.retreating) continue;
     const to = a.target;
     if (!to || to.owner !== 0) continue;
     const eta = ahead(a) / armyStep(w, a);
     const raid = a.mode === 'raid' || FACTIONS[a.side]?.bandit;
-    const S = seenAs(a);
+    // (the outlaws' number was said as they set out, so it is said here too)
+    const S = a.outlaws ? { name: 'Outlaws', men: headcount(a.units) } : seenAs(a);
     add(4, `${S.name}${S.men ? ` (${S.men})` : ''} ${raid ? 'raiding toward' : 'marching on'} ${to.name}, ${mins(eta)} away`, a, raid ? 'raid' : 'invader');
   }
 

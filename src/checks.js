@@ -4466,6 +4466,67 @@ async function trackpadChecks() {
   });
 }
 
+// The creator, 2026-11-28: "yes there should be a raider early", on Gentle too.
+async function gentleOutlawChecks() {
+  group = 'Outlaws';
+  const { World, FACTIONS, openingLine } = await import('./world/world.js'), R = await import('./world/rivals.js'), { alerts } = await import('./world/alerts.js');
+  // A throwaway campaign, run only through the outlaws' own mind; the houses on screen are put back after.
+  const play = (aggression, fn) => {
+    const mine = [...FACTIONS];
+    try {
+      const w = new World(7, {}, { size: 'small', aggression });
+      const said = [];
+      w.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k in o ? o[k] : () => {}) });
+      w.log = text => said.push(text);
+      const H = FACTIONS[w.bandits];
+      const until = t => { for (; w.time <= t; w.time += 5) R.outlawMind(w, H); };
+      const bands = () => w.armies.filter(a => a.outlaws && !a.gone);
+      return fn({ w, said, until, bands });
+    } finally { FACTIONS.length = 0; FACTIONS.push(...mine); }
+  };
+  await check('on Gentle one small band sets out at minute 5 to 6, announced and listed under Needs you', () => play('gentle', ({ w, said, until, bands }) => {
+    const out = [];
+    w.time = 20;
+    until(295);
+    if (bands().length) out.push('a band came before minute 5');
+    until(365);
+    const a = bands()[0];
+    if (!a) return [...out, 'no band by minute 6'];
+    const n = a.units[0].count;
+    if (!(n >= 5 && n <= 13)) out.push(`a gentle band of ${n} men`);
+    if (!said.some(s => /Outlaws out of the greenwood/.test(s))) out.push('nothing said as they set out');
+    if (!alerts(w).some(x => x.text.startsWith(`Outlaws (${n}) raiding toward`) && x.level >= 4)) out.push(`Needs you says "${alerts(w).map(x => x.text).join(' / ')}"`);
+    const normal = play('normal', p => { p.w.time = 20; p.until(365); return p.bands()[0]?.units[0].count; });
+    if (!(n < normal)) out.push(`the gentle band (${n}) is no smaller than the normal one (${normal})`);
+    return out;
+  }));
+  await check('a gentle game sends its second band only if the first was beaten off', () => {
+    const second = beaten => play('gentle', ({ w, until, bands }) => {
+      w.time = 20;
+      until(365);
+      for (const a of bands()) w.removeArmy(a);
+      if (beaten) R.outlawsBeaten(w);
+      if (R.outlawsToCome(w) !== beaten) return 'told wrong';
+      until(845);
+      return bands().length;
+    });
+    const yes = second(true), no = second(false);
+    return yes === 1 && no === 0 ? [] : [`after a beaten band ${yes} came, after one that got away ${no}`];
+  });
+  await check('the opening words, the title page and How to play agree with the options', async () => {
+    const out = [], gentle = openingLine({ aggression: 'gentle' }), normal = openingLine({ aggression: 'normal' });
+    if (!/small band/.test(gentle) || /quarter hour/.test(gentle)) out.push(`Gentle opens: "${gentle}"`);
+    if (!/quarter hour/.test(normal) || /small band/.test(normal)) out.push(`Normal opens: "${normal}"`);
+    const title = await (await fetch('./index.html', { cache: 'no-store' })).text();
+    if (/no outlaw/i.test(title) || !/small band of outlaws/.test(title)) out.push('the title page does not say that Gentle has a small outlaw band');
+    const help = document.getElementById('help')?.textContent || '';
+    if (/not in a gentle game/.test(help)) out.push('How to play still says a gentle game has no outlaws');
+    const now = window.game?.world, first = now?.events?.find(e => /outlaws haunt the woods/.test(e.text));
+    if (first && first.text !== openingLine(now.options)) out.push('this campaign opened with other words than its options call for');
+    return out;
+  });
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -4493,6 +4554,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await newcomerSmallChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (window.game) await trackpadChecks();
+  if (window.game?.world) await gentleOutlawChecks();
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();

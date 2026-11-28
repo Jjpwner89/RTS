@@ -860,25 +860,39 @@ function invaderMind(w, h) {
 // The first winter's outlaws: twice in the first quarter hour a small band comes out of
 // the woods for the stores of your home village. Its size follows what is worth taking
 // and what guards it, so the retinue at home turns it, and a retinue sent to work leaves
-// the militia to hold (or not). Not in a gentle game, nor while outlaws are paid off or
-// the king's peace holds.
+// the militia to hold (or not). A gentle game has them too (creator, 2026-11-28: "there should
+// be a raider early"), in smaller bands, and the second only if the first was beaten off.
+// None while outlaws are paid off or the king's peace holds.
 export const OUTLAWS = [{ at: 300, spread: 60, men: 8 }, { at: 720, spread: 120, men: 12 }];
 const OUTLAW_MAX = 18;
-function outlawMind(w, h) {
+export const GENTLE_BAND = 0.7;   // a gentle game's band, against the same village's in a normal one
+// Whether another band is still to be expected (a gentle game's second waits on the first being beaten off).
+export const outlawsToCome = w => {
+  const o = w.outlaws, wave = o?.wave ?? 0;
+  if (wave >= OUTLAWS.length) return false;
+  return !(w.options?.aggression === 'gentle' && wave > 0 && !o.beaten);
+};
+// A band of them was beaten off, in your village or on the road (world.js).
+export function outlawsBeaten(w) { if (w.outlaws) w.outlaws.beaten = true; }
+export function outlawMind(w, h) {
   // (a save from before the outlaws, or a test campaign, skips the bands whose time is past)
-  const o = w.outlaws ??= { wave: (i => i < 0 ? OUTLAWS.length : i)(OUTLAWS.findIndex(W => w.time < W.at + W.spread)), at: null };
-  if (o.wave >= OUTLAWS.length || w.options?.aggression === 'gentle') return;
+  const o = w.outlaws ??= { wave: 0, at: null };
+  while (o.wave < OUTLAWS.length && o.at === null && w.time > OUTLAWS[o.wave].at + OUTLAWS[o.wave].spread) o.wave++;
+  if (o.wave >= OUTLAWS.length) return;
+  const gentle = w.options?.aggression === 'gentle';
   const W = OUTLAWS[o.wave];
   o.at ??= W.at + w.rand() * W.spread;
   if (w.time < o.at) return;
   const home = w.home;
   o.wave++;
   o.at = null;
+  // A gentle game sends its second band only to a village that saw the first one off.
+  if (gentle && o.wave > 1 && !o.beaten) return;
   if (!home || home.owner !== 0 || !home.town || home.town.underAttack || w.banditPeace > w.time || w.decrees?.on?.peace) return;
   const t = home.town;
   const armed = t.garrison().reduce((n, r) => n + r.alive, 0);
   const worth = ['food', 'wood', 'gold'].reduce((n, g) => n + Math.max(0, +t.free?.(g) || 0), 0) + (FACTIONS[0].gold || 0);
-  const n = Math.min(OUTLAW_MAX, Math.round(W.men + armed * 0.2 + worth / 150));
+  const n = Math.round(Math.min(OUTLAW_MAX, Math.round(W.men + armed * 0.2 + worth / 150)) * (gentle ? GENTLE_BAND : 1));
   // They come down the road from the woods, a minute or so out.
   const from = home.links[Math.floor(w.rand() * home.links.length)];
   if (!from) return;
@@ -889,7 +903,7 @@ function outlawMind(w, h) {
   // a band is small enough to count: its true size (QC, 2026-11-21: "about 20" for 15)
   w.log(`Outlaws out of the greenwood are on the road to ${home.name}: ${n} men, come for your stores.${armed ? ' Order your retinue at them when they reach the village.' : ' Nobody in the village is under arms.'}`, 1);
   w.hooks.sound?.('outlaws'); // audio: outlaws on the road
-  if (first) w.hooks.herald?.({ house: h, title: 'Outlaws on the road', text: `A band of ${n} outlaws is coming for ${home.name}'s stores. Keep your retinue at home: when the band reaches the village, select the retinue and right-click the outlaws to fight them, or call your people out to meet them. Beaten off, they take nothing; let them be, and they leave with a share of the stores and the purse.` });
+  if (first) w.hooks.herald?.({ house: h, title: 'Outlaws on the road', text: `A band of ${n} outlaws is coming for ${home.name}'s stores. Keep your retinue at home: when the band reaches the village, select the retinue, press Attack and click the outlaws (or right-click them), or call your people out to meet them. Beaten off, they take nothing; let them be, and they leave with a share of the stores and the purse.` });
 }
 
 // Outlaws in their camps raid whatever is near, yours included once you are settled.

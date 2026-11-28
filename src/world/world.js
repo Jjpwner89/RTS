@@ -13,7 +13,7 @@ import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
 import { generateRealm, generateBeyond, KINDS, BANDITS, INVADER, REALM_RADIUS } from './realm.js';
-import { thinkHouses, startHouseMinds, startMind } from './rivals.js';
+import { thinkHouses, startHouseMinds, startMind, outlawsBeaten } from './rivals.js';
 import { supplyArmies, moveWagon, catchWagons, tickTrade, followCart, provision, takeFood, capacity, wound, heal, foodLeft, homeland, mouths, EAT, WINTER_EAT, QUARTERED } from './supply.js';
 import { govern } from './governor.js';
 import { turnOut, yields, standsOrYields, gritOf, handOver, takeIn, driftHome, fledWord, mourn, sendHome } from './militia.js';
@@ -88,6 +88,8 @@ export const armourPolicy = h => (h ? ARMOUR_POLICY[h.trait] ?? 'best' : 'best')
 const SIGHT = { place: 250, army: 190 };
 // The price of a free place's fealty: gold for each of its people and each man of its
 // garrison, half again for a market, abbey or castle, and more again from a duke.
+// The campaign's first words: what is safe, and what is coming (rivals.js outlawMind).
+export const openingLine = options => `The great houses are all still settling their own lands: none will march on you for a while. But outlaws haunt the woods and know what a new village keeps, and ${options?.aggression === 'gentle' ? 'a small band of them will come for your stores after about five minutes' : 'a band will come for your stores within the first quarter hour'}. Keep your retinue at home while you see to food, wood and homes, and when the outlaws come, select it, press Attack and click them (or right-click them).`;
 // What outlaws carry off when they get away from a village of yours: a share of its
 // stores, and of the treasury up to a cap.
 const OUTLAW_TAKE = { share: 0.35, gold: 120 };
@@ -202,7 +204,7 @@ export class World {
     startDiplomacy(this);
     this.updateVision();
     // The opening says you are safe for now (creator, 2026-11-20).
-    this.log(`The great houses are all still settling their own lands: none will march on you for a while. But outlaws haunt the woods and know what a new village keeps${this.options?.aggression === 'gentle' ? '' : ', and a band will come for your stores within the first quarter hour'}. Keep your retinue at home while you see to food, wood and homes, and when the outlaws come, select it and right-click them.`);
+    this.log(openingLine(this.options));
   }
 
   log(text, side = 0) { this.events.push({ time: this.time, side, text }); }
@@ -1243,6 +1245,7 @@ export class World {
         // An outlaw band met in the open gets the same word as one beaten off a village.
         const dead = headcount(theirsBefore) - headcount(theirs), lost = headcount(before) - headcount(mine);
         this.log(e.outlaws ? `The outlaws are beaten off at ${was}: ${toll(dead, lost)}.` : `${e.name} was beaten at ${was}.`);
+        if (e.outlaws) outlawsBeaten(this);
         if (e.loot) takeBack(this, e, enc.poi || a);
         this.retreat(e);
         if (!a.units.length) this.removeArmy(a);
@@ -1563,6 +1566,7 @@ export class World {
         const say = (text, bad) => { if (this.hooks.watching() === p) t.event(text, bad ? 1 : 0); else this.log(text, bad ? 1 : 0); };
         const cost = toll(dead.theirs || 0, dead.ours || 0);
         if (H.bandit && p.owner === 0 && !t.lost && !gotAway) say(`The outlaws are beaten off at ${p.name}: ${cost}.`);
+        if (a.outlaws && !t.lost && !gotAway) outlawsBeaten(this);
         if (t.lost || !survivors.length) return;
         // Outlaws who get away take a share of the stores and the purse with them.
         if (gotAway && H.bandit && p.owner === 0) {
