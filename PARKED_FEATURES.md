@@ -35,3 +35,11 @@ Parked 2026-11-23 for V1, since the creator's sister plays on a laptop. The game
 
 ### A Claude director
 Parked since the first design notes. Now and then, Claude reads a simple summary of the game and turns a few dials: a rival's mood, an event, an invasion's timing. Build the game so its state can be summarised and those dials exist.
+
+## For V2 "Heroes"
+
+### Villagers with names
+Parked 2026-11-28 by the creator, for V2 when characters come into the game: "a quick pop-up when you select a villager that gives a name, and some random details about them… this would be a bigger change so should be parked until we do v2 and add characters".
+- **The idea:** click a villager and a small card names them and gives a few details: their trade, where they came from, a battle they fought in.
+- **What it would build on:** veterans already carry experience and battles home; captains already keep names, traits and a memory. A villager's card would draw on the same records.
+
