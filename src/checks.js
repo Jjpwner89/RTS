@@ -3085,6 +3085,37 @@ async function menuChecks() {
     } finally { menu.use(real); }
     return out;
   });
+  // Ironman loses nothing on the way out (creator, 2026-11-23: Quit dropped up to 45 s): it saves on Quit
+  // and when the page is left, whenever saving is allowed; in a fight it asks and writes nothing.
+  await check('ironman saves on the way out, on Quit and a closed tab, but never in a battle', () => {
+    const real = menu.host, out = [];
+    let saves = 0, ok = true, over = false;
+    const sv = { ironman: true, test: true, can: () => ok ? { ok: true } : { ok: false, reason: 'A village is being fought over' }, run: () => { saves++; return { ok: false, reason: 'Held for the check' }; },
+      unsaved: () => true, last: () => Date.now() - 30000, fight: () => null, over: () => over };
+    const left = () => { saves = 0; dispatchEvent(new PageTransitionEvent('pagehide')); return saves; };
+    const warn = console.warn;
+    console.warn = () => {};   // the held save says it wasn't saved
+    try {
+      menu.use({ ...real, save: sv });
+      if (left() !== 1) out.push(`leaving the page saved ${saves} times, not once`);
+      // Quit saves first; a save that fails is said, not walked past (this one is held so the page stays)
+      menu.open(); saves = 0; document.getElementById('gm-quit').click();
+      if (saves !== 1) out.push(`Quit saved ${saves} times, not once`);
+      if (!/couldn't be saved: held for the check/.test(document.querySelector('#gamemenu .gm-text')?.textContent || '')) out.push('a failed save on Quit was not said');
+      menu.close();
+      ok = false;
+      if (left() !== 0) out.push('leaving during a fight wrote the campaign');
+      const p = menu.plan();
+      if (!p || !/will be lost.*can't be saved right now/.test(p.text) || p.canSave) out.push(`leaving during a village fight: ${p ? `"${p.text}"` : 'no question'}`);
+      sv.test = false;
+      if (!menu.warnsOnUnload()) out.push('closing the tab during a village fight does not warn');
+      ok = true; over = true;
+      if (left() !== 0) out.push('a finished campaign was written on leaving');
+      over = false; sv.ironman = false;
+      if (left() !== 0) out.push('a campaign that is not ironman was saved on leaving');
+    } finally { console.warn = warn; menu.close(); menu.use(real); }
+    return out;
+  });
   // Walls: the one shared Defences panel is in the page with all its tools whenever a village of yours is on screen
   // (it was lost with the old build bar when a second village was entered, and the Walls tab came up empty).
   const bar = document.getElementById('build');
@@ -3097,7 +3128,7 @@ async function menuChecks() {
   const sv = window.game?.world && menu.host.save;
   if (sv) await check("the campaign's unsaved state follows the menu's question", async () => {
     const { unsaved } = await import('./world/save.js');
-    const want = sv.fight() || (!sv.ironman && !sv.over() && unsaved(window.game.world));
+    const want = sv.fight() || (!sv.over() && (!sv.ironman || !sv.can().ok) && unsaved(window.game.world));
     return !!menu.plan() === !!want ? [] : [`plan() says ${menu.plan() ? 'ask' : 'no question'}, the campaign says ${want ? 'unsaved' : 'clean'}`];
   });
 }

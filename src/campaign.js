@@ -1421,6 +1421,7 @@ function topBar() {
 // ---- the loop ----
 
 let last = performance.now();
+let stepping = false;   // true while the world is being stepped: left true, a step threw part way (exitSave)
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -1429,6 +1430,7 @@ function frame(now) {
   const left0 = dt * pace();
   ceremonyStep(dt);
   if (!paused && !blocked()) {
+    stepping = true;
     let left = left0;
     while (left > 1e-4) {
       const h = Math.min(0.05, left);
@@ -1450,6 +1452,7 @@ function frame(now) {
       left -= h;
       if (blocked() || asks.some(a => !isSoft(a))) break;
     }
+    stepping = false;
   }
   if (selected?.gone) selected = null;
   const cam = stage.camera;
@@ -1497,6 +1500,21 @@ function frame(now) {
 // Every two minutes of play, between fights, the campaign saves itself; the Save button
 // saves at once. Continue on the menu (world.html?continue) picks it up.
 let savedAt = world.time;
+// Ironman's save on the way out (ui/menu.js: Quit, a closed tab). It leaves the slot alone if the game
+// stopped on an error part way through a step, or if what is there now is another campaign, gone, or
+// further on than this page (played in another tab): ironman keeps no copies to fall back on.
+function exitSave() {
+  const c = canSave(world, { busy: mode === 'field' || !!away });
+  if (!c.ok) return c;
+  if (stepping) return { ok: false, reason: 'The game stopped on an error, so your last save is kept as it was' };
+  const s = loadSlot(!!world.options.test);
+  if (s.status === 'none') return { ok: false, reason: "This campaign's save is no longer in the browser" };
+  if (s.status !== 'ok') return { ok: false, reason: s.reason };
+  if (s.data.id !== world.campaignId || s.data.world.time > world.time + 1) return { ok: false, reason: 'The save has moved on since this page was opened (another tab?), so it is kept' };
+  const r = saveGame(world);
+  savedAt = world.time;
+  return r;
+}
 function autosave() {
   if (world.time - savedAt < (world.options.ironman ? 45 : 120) || mode === 'field' || away || !canSave(world).ok) return;
   savedAt = world.time;
@@ -1532,7 +1550,7 @@ menu.use({
     ironman: !!world.options.ironman,
     test: !!world.options.test,
     can: () => canSave(world, { busy: mode === 'field' || !!away }),
-    run: () => { const r = saveGame(world); savedAt = world.time; return r; },
+    run: () => { if (world.options.ironman) return exitSave(); const r = saveGame(world); savedAt = world.time; return r; },
     exportFile: () => { const r = exportCurrent(world, { busy: mode === 'field' || !!away }); if (r.ok) download(fileName(r.info), r.text); return r; },
     unsaved: () => unsaved(world),
     last: lastSaved,

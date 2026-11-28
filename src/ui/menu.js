@@ -1,7 +1,8 @@
 // The game menu: one for every page (world, village, battle, muster). A Menu button in the
 // top bar and Esc (when Esc has nothing else to close or cancel) open it; opening it pauses
 // the game. Resume, Save, Sound, Quit to the main menu. Quit asks only when something would
-// be lost: progress since the last save, or a battle in progress inside the campaign.
+// be lost: progress since the last save, or a battle in progress inside the campaign. Ironman
+// saves itself on the way out (Quit, a closed tab, a reload) whenever saving is allowed.
 //
 // The page loads this file first (so its key listener comes before the game's) and then calls
 //   menu.use({ pause: { get, set }, save: { ... } })
@@ -18,7 +19,7 @@ import { BUILD } from '../version.js';
 
 const MENU_PAGE = 'index.html';
 let host = {};
-let isOpen = false, view = 'main', wasPaused = null, leaving = false, returnFocus = null;
+let isOpen = false, view = 'main', wasPaused = null, leaving = false, returnFocus = null, failed = null;
 let btn = null, veil = null, card = null;
 
 const el = (tag, attrs = {}, text) => Object.assign(document.createElement(tag), attrs, text === undefined ? {} : { textContent: text });
@@ -39,9 +40,12 @@ function plan() {
   const fight = sv.fight?.() || null;
   let dirty = true;
   try { dirty = sv.unsaved(); } catch { /* a snapshot that won't build counts as unsaved */ }
-  const lost = !sv.ironman && dirty;                       // ironman saves itself
-  if (!fight && !lost) return null;
   const can = sv.can();
+  // Ironman saves itself, on the way out too (ironSave), so it has nothing to lose while saving is
+  // allowed. While it isn't (a battle, a village fought over) leaving would be a way out of a lost
+  // fight, so it asks as any campaign does.
+  const lost = dirty && (!sv.ironman || !can.ok);
+  if (!fight && !lost) return null;
   const last = sv.last();
   const since = last == null ? 'This campaign has not been saved yet: all of it will be lost.' : `Progress since your last save (${ago(last)}) will be lost.`;
   let text;
@@ -57,6 +61,25 @@ function saveNow() {
   return r?.ok !== false ? { ok: true } : { ok: false, reason: r.reason || "It couldn't be saved" };
 }
 
+// Ironman writes the campaign as you leave, whenever saving is allowed. { ok, reason }
+function ironSave() {
+  const sv = host.save;
+  if (!sv?.ironman || sv.over?.() || !sv.can().ok) return { ok: true };
+  return saveNow();
+}
+
+// Quit to main menu: ask if something would be lost, or if ironman's save on the way out failed.
+function quit() {
+  failed = null;
+  if (!plan()) {
+    const r = ironSave();
+    if (r.ok) return leave();
+    failed = r.reason;
+  }
+  view = 'confirm';
+  render();
+}
+
 function button(label, onclick, { primary = false, id, title } = {}) {
   const b = el('button', { type: 'button', onclick }, label);
   if (id) b.id = id;
@@ -69,7 +92,7 @@ function render(focus) {
   card.replaceChildren();
   const sv = host.save;
   if (view === 'confirm') {
-    const p = plan() || { text: '', canSave: false };
+    const p = failed ? { fight: null, text: `It couldn't be saved: ${failed.charAt(0).toLowerCase()}${failed.slice(1)}.`, canSave: false } : plan() || { text: '', canSave: false };
     card.append(el('h2', {}, p.fight ? 'Leave the battle?' : 'Leave the game?'), el('p', { className: 'gm-text' }, p.text));
     const items = el('div', { className: 'gm-items' });
     const warn = el('p', { className: 'whyline', hidden: true });
@@ -98,7 +121,7 @@ function render(focus) {
   card.append(el('h2', {}, 'Game menu'));
   if (sv) {
     const last = sv.last();
-    card.append(el('p', { className: 'gm-text', id: 'gm-state' }, sv.ironman ? 'Ironman: the campaign saves itself, and no save button is needed.'
+    card.append(el('p', { className: 'gm-text', id: 'gm-state' }, sv.ironman ? 'Ironman: the campaign saves itself, when you leave too (not during a battle); no save button is needed.'
       : last == null ? 'Not saved yet.' : `Last saved ${ago(last)}.${sv.test ? ' (A test campaign, in its own slot.)' : ''}`));
   }
   const items = el('div', { className: 'gm-items' });
@@ -118,7 +141,7 @@ function render(focus) {
   }, { id: 'gm-export', title: 'A copy of the campaign as a file you keep: for safety, or to carry it to another browser' }));
   items.append(button('Controls', () => { view = 'controls'; render(); }, { id: 'gm-controls', title: 'Every key and mouse button' }));
   if (document.getElementById('sound-toggle')) items.append(button('Sound and picture', () => document.getElementById('sound-toggle').click(), { id: 'gm-sound', title: 'Volume for the music and effects, and how detailed the picture is' }));
-  items.append(button('Quit to main menu', () => { if (plan()) { view = 'confirm'; render(); } else leave(); }, { id: 'gm-quit', title: 'Back to the main menu' }));
+  items.append(button('Quit to main menu', quit, { id: 'gm-quit', title: 'Back to the main menu' }));
   card.append(items);
   card.append(el('p', { className: 'gm-build' }, `Hearth and Host · build ${BUILD.sha}${BUILD.at ? `, ${BUILD.at}` : ''}`));
   card.querySelector(focus || '#gm-resume')?.focus();
@@ -197,6 +220,15 @@ addEventListener('beforeunload', e => {
   e.preventDefault();
   e.returnValue = '';
 });
+
+// A closed tab, a reload or any other way off the page saves an ironman campaign first. (After Quit
+// it is already saved, or you chose to leave without.)
+addEventListener('pagehide', () => {
+  if (leaving) return;
+  const r = ironSave();
+  if (!r.ok) console.warn(`ironman: not saved on leaving: ${r.reason}`);
+});
+addEventListener('pageshow', e => { if (e.persisted) leaving = false; });   // back from the browser's page cache
 
 export const menu = {
   use(h) { host = h || {}; build(); return menu; },
