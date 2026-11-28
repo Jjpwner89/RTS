@@ -66,7 +66,7 @@ export function hostStatus(w, H) {
     if (x.wounded) continue;
     const n = count(x.u);
     S.total += n;
-    if (x.u.until) { S.ban += n; S.banLeft = Math.min(S.banLeft, x.u.until - w.time); if (x.u.src !== undefined) S.banFrom.add(x.u.src); }
+    if (x.u.until) { S.ban += n; if (!x.army?.musterFor) S.banLeft = Math.min(S.banLeft, x.u.until - w.time); if (x.u.src !== undefined) S.banFrom.add(x.u.src); }
     if (x.army?.musterFor === H.id) { S.coming += n; S.eta = Math.max(S.eta, timeLeft(w, x.army)); }
     else if (x.place === at || (x.army && x.army.at === at && !x.army.path.length)) S.here += n;
     else {
@@ -330,12 +330,15 @@ export function hostEntered(w, units, p) {
 
 // The regiments that would stay behind at p as a garrison of `want` men: the fewest whole
 // regiments of the host that make it up with what stays there anyway, bows and spears first,
-// as the banners' guard is reckoned. Your retinue goes with you.
+// as the banners' guard is reckoned. Your retinue goes with you, and the arrière-ban stays only
+// when nobody else can make up the guard: it would go home and leave the place bare.
 export function garrisonLeft(w, id, p, want) {
   const all = standing(p), going = all.filter(r => r.hostId === id);
-  const staying = p.town.garrison().filter(r => !going.includes(r) && !r.T.militia).reduce((n, r) => n + r.alive, 0);
+  const need = want - p.town.garrison().filter(r => !going.includes(r) && !r.T.militia && !r.until).reduce((n, r) => n + r.alive, 0);
+  if (need <= 0) return [];
   const can = going.filter(r => !r.retinue).map(r => ({ reg: r, men: r.alive, stays: false })).sort((x, y) => keepRank(x.reg) - keepRank(y.reg));
-  return want - staying > 0 ? [...guardOf(can, want - staying)].map(c => c.reg) : [];
+  const sworn = can.filter(c => !c.reg.until);
+  return [...guardOf(sworn.reduce((n, c) => n + c.men, 0) >= need ? sworn : can, need)].map(c => c.reg);
 }
 
 // The garrison a host leaves unless you choose otherwise: none when first it musters, the
@@ -437,6 +440,12 @@ export function disbandHost(w, id) {
   }
   let stranded = 0;
   const back = (units, at, src, food, along, wounded) => { if (units.length && !sendBack(w, units, at, src, food, along, wounded)) stranded += headcount(units); };
+  // (men of no village are picked out before any are sent off: sendBack takes the marks away)
+  const comeOut = (units, p) => {
+    const field = units.filter(u => u.src === undefined);
+    for (const g of groups(units.filter(u => !field.includes(u)))) back(g, p, g[0].src, 0);
+    if (field.length) { for (const u of field) unmark(u); w.spawnArmy(0, field, p, `Army of ${p.name}`); }
+  };
   const groups = units => {
     const by = new Map();
     for (const u of units) { const k = `${u.vas ?? ''}:${u.src ?? ''}`; (by.get(k) || by.set(k, []).get(k)).push(u); }
@@ -473,12 +482,7 @@ export function disbandHost(w, id) {
       for (const r of home) { unmark(r); if (r.levy) t.disband(r, true); }
       const away = regs.filter(r => !home.includes(r) && !r.routing);
       for (const r of regs) if (r.routing) unmark(r);
-      if (away.length) {
-        const units = t.takeTroops(away);
-        for (const g of groups(units.filter(u => u.src !== undefined))) back(g, p, g[0].src, 0);
-        const field = units.filter(u => u.src === undefined);
-        if (field.length) { for (const u of field) unmark(u); w.spawnArmy(0, field, p, `Army of ${p.name}`); }
-      }
+      if (away.length) comeOut(t.takeTroops(away), p);
     }
     const held = (p.garrison || []).filter(u => u.hostId === id);
     if (!held.length) continue;
@@ -487,9 +491,7 @@ export function disbandHost(w, id) {
     const away = held.filter(u => !stay.includes(u));
     if (!away.length) continue;
     p.garrison = p.garrison.filter(u => !away.includes(u));
-    for (const g of groups(away.filter(u => u.src !== undefined))) back(g, p, g[0].src, 0);
-    const field = away.filter(u => u.src === undefined);
-    if (field.length) { for (const u of field) unmark(u); w.spawnArmy(0, field, p, `Army of ${p.name}`); }
+    comeOut(away, p);
   }
   w.hosts = w.hosts.filter(h => h !== H);
   w.log(`${H.name} is disbanded: ${num(men)} men go their ways.${stranded ? ` ${num(stranded)} have no friendly road home and wait where they are.` : ''}`, stranded ? 1 : 0);

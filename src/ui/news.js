@@ -47,7 +47,7 @@ export function tick(w) {
   for (const el of want) { el.classList.add('is-new'); sealed.add(el); }
   // Never over a decision: while a card, the deploy bar or the help is open, the line waits.
   // (The Realm screen is a place to look, not a decision: its own new tabs are introduced inside it.)
-  if (first && [...document.querySelectorAll('#prompt, #result, #end, #deploy, #help, #terms, #duel, #realm')].some(b => visible(b) && !b.contains(first[1]))) first = null;
+  if (first && [...document.querySelectorAll('#prompt, #result, #end, #deploy, #help, #terms, #duel, #realm, #muster')].some(b => visible(b) && !b.contains(first[1]))) first = null;
   if (!first) { slip.classList.remove('show'); shown = null; return; }
   const [key, el] = first;
   if (shown !== key) {

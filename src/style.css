@@ -388,6 +388,36 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 #realm .money .sum th, #realm .money .sum td { font-weight: 700; border-top: 1px solid var(--edge); }
 #realm .note { color: var(--dim); font-size: 12px; margin: 10px 0 0; }
 #realm h4 { margin: 14px 0 4px; color: var(--gold); }
+/* The Muster sheet (mustersheet.js), after the Realm screen. */
+#muster { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 88px); display: flex; flex-direction: column; z-index: 20; }
+#muster[hidden] { display: none; }
+#muster header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid; flex-wrap: wrap; }
+#muster h2 { margin: 0; font-size: 18px; color: var(--gold); }
+#muster .where { flex: 1; color: var(--dim); }
+#muster select { font: inherit; border: 1px solid; border-radius: 4px; padding: 2px 6px; }
+#muster .body { overflow: auto; padding: 4px 16px 12px; min-height: 0; flex: 1; }
+#muster h4 { display: flex; align-items: baseline; gap: 8px; margin: 12px 0 0; }
+#muster h4 small { color: var(--ink); font-weight: normal; }
+#muster h4 .acts { margin-left: auto; display: flex; gap: 4px; }
+#muster h4 button, #muster td button { padding: 2px 9px; font-size: 12px; }
+#muster .note, #muster small, #muster .dim { color: var(--dim); font-size: 12px; }
+#muster .note { margin: 2px 0 4px; }
+#muster table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+#muster td { padding: 5px 8px 5px 0; vertical-align: middle; border-bottom: 1px solid; }
+#muster td:first-child { width: 46%; }
+#muster td.n { width: 15%; text-align: right; }
+#muster td:last-child { width: 24%; padding-left: 12px; }
+#muster td small { display: block; }
+#muster label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+#muster label small { display: block; }
+#muster input { width: 15px; height: 15px; flex: none; }
+#muster tr.off label { cursor: default; }
+#muster tr.off label > span { opacity: 0.6; }
+#muster footer { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-top: 1px solid; }
+#muster footer .totals { flex: 1; font-size: 13px; }
+#muster footer p { margin: 2px 0; }
+#muster footer .go { padding: 8px 26px; font-size: 15px; }
+#muster footer .go:disabled { opacity: 0.45; }
 #toast { z-index: 40; }
 #realm { width: min(1180px, calc(100vw - 32px)); }
 #realm nav { flex-wrap: wrap; }
@@ -464,7 +494,7 @@ body.readonly :is(#build, #defences, #march, #orders) { display: none !important
 :root { --hud: 1; }
 @media (max-width: 1200px), (max-height: 720px) { :root { --hud: 0.85; } }
 @media (max-width: 800px), (max-height: 600px) { :root { --hud: 0.7; } }
-:is(#top, #herald, #log, #toast, #goals, #wpanel, #alerts, #cards, #stock, #build, #info, #defences, #help, #prompt, #result, #end, #realm, #deploy, #orders) { zoom: var(--hud); }
+:is(#top, #herald, #log, #toast, #goals, #wpanel, #alerts, #cards, #stock, #build, #info, #defences, #help, #prompt, #result, #end, #realm, #muster, #deploy, #orders) { zoom: var(--hud); }
 /* The top bar packs tighter as soon as the panels shrink (battle numbers wrap, help is "?"), and
    tighter again in the smallest windows. */
 @media (max-width: 1200px), (max-height: 720px) {

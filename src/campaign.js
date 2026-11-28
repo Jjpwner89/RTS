@@ -27,9 +27,7 @@ import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
-import { ARRIERE, arrierePlan, musterPlace, banState } from './world/arriere.js';
-import { musterHost, musterRows } from './world/muster.js';
-import { hostCards, hostClick } from './mustersheet.js';
+import { hostCards, hostClick, MusterSheet } from './mustersheet.js';
 import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved, unsavedNotice } from './world/save.js';
 import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
@@ -966,49 +964,6 @@ function showResult(title, text, button, fn, book = false) {
   box.classList.add('open');
 }
 
-// Call the banners shows who would come before anyone moves (ruling, 2026-11-21).
-function askBanners(dest) {
-  const plan = world.bannerPlan(dest), list = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
-  // Who stays and why, so a call never comes back empty in silence (Manager, 2026-11-21).
-  const guard = v => { const regs = v.keep - v.keptLevies; return list([v.keptLevies && `its ${v.keptLevies} levies`, regs && `${regs} of its garrison`].filter(Boolean)); };
-  const said = v => {
-    if (v.p === dest) return `${v.p.name} raises ${v.raised} fresh levies there.`;
-    const sends = v.men ? `sends ${v.men}${v.retinue ? ` (${v.retinue === v.men ? 'your retinue' : `your retinue of ${v.retinue} among them`})` : ''}` : 'sends nobody';
-    return `${v.p.name}${v.raised ? ` raises ${v.raised} fresh levies and` : ''} ${sends}${v.keep ? `${v.men ? ';' : ':'} it keeps ${guard(v)} as its guard` : ''}.`;
-  };
-  const lines = plan.villages.map(said);
-  if (plan.villages.some(v => v.keep && v.p !== dest)) lines.push(`Each village keeps ${plan.guard} men home against raids, in whole regiments, or all it has if fewer; your retinue always comes.`);
-  const sent = plan.vassals.filter(x => x.men).map(x => `${x.v.name} sends ${x.men} from ${x.p.name}`);
-  if (sent.length) lines.push(`Of your vassals, ${list(sent)}.`);
-  const no = [...new Set(plan.vassals.filter(x => x.refusing && !x.kin).map(x => x.v.name))];
-  if (no.length) lines.push(`${list(no)} will send nobody.`);
-  for (const k of new Map(plan.vassals.filter(x => x.kin && !x.v.refusing).map(x => [x.v.id, x])).values()) lines.push(`${k.v.name} won't march against their spouse's kin, ${k.kin.name}.`);
-  lines.push(plan.men ? `In all, ${plan.men} men march for ${dest.name}, to join the ${plan.here} there. Armies in the field stay where they are.` : `Nobody has men to spare past their guard: ${plan.here} stand ready at ${dest.name}.`);
-  const ok = plan.men > 0 || plan.raised > 0;
-  asks.unshift({ kind: 'choice', ev: { title: `Call the banners to ${dest.name}`, text: lines.join(' '), at: dest, choices: [
-    { label: plan.men ? `Call them (${plan.men} men)` : 'Raise the levies', ok, why: 'No village or vassal has men to spare', run: () => { muster(dest, 'villages', 'vassals'); } },
-    { label: 'Not now', ok: true, run: () => {} },
-  ] } });
-}
-
-// The arrière-ban shows its men and its price before it is called (ruling, 2026-11-21).
-// (the rows of the Muster in these groups, called as one host)
-function muster(dest, ...groups) {
-  const r = musterHost(world, dest, new Set(musterRows(world, dest).filter(x => x.ok && groups.includes(x.group)).map(x => x.key)));
-  if (!r.ok) flash(r.why);
-}
-function askArriere(dest) {
-  const P = arrierePlan(world, dest), n = P.places.length, f = x => x.toLocaleString('en-GB');
-  const busy = P.all.filter(p => !P.places.includes(p)).map(p => { const s = banState(world, p); return `${p.name} (${s.is === 'out' ? 'out, home' : 'resting, again'} in ${Math.max(1, Math.ceil(s.secs / 60))} min)`; });
-  const text = n ? `${n === P.all.length ? 'Every place you hold' : `${n} of your ${P.all.length} places`} call${n === 1 ? 's' : ''} up ${P.per} men from its countryside, beyond its village people, so no villager is taken: ${P.men} men for ${dest.name}.\n\n`
-    + `They are spearmen with no armour and little heart for a hard fight, and they break before your banners do${P.armed ? `, all but the ${P.armed} you have armed at your barracks, who bring their kit and what they have learned` : ''}. They cost ${f(P.gold)} gold to call and eat ${f(P.food)} food a minute, fed by your villages in your own lands.\n\n`
-    + `They serve ${P.mins} minutes from the day they reach the muster, then go home, and that place's countryside rests ${ARRIERE.rest / 60} minutes before it answers again.${busy.length ? `\n\nNot ready: ${busy.join(', ')}.` : ''}`
-    : P.per ? `${P.why}.${busy.length ? ` ${busy.join(', ')}.` : ''}` : 'A reeve has no countryside to call. From the rank of Lord, every place you hold sends men from its fields.';
-  asks.unshift({ kind: 'choice', ev: { title: `Call the arrière-ban to ${dest.name}`, text, at: dest, choices: [
-    { label: `Call ${f(P.men)} men for ${f(P.gold)} gold`, ok: P.ok, why: P.why, run: () => { muster(dest, 'ban'); } },
-    { label: 'Not now', ok: true, run: () => {} },
-  ] } });
-}
 // " · 60 levies home in 7 min", for an army card.
 function levyLine(a) {
   const ls = a.units.filter(u => u.until);
@@ -1113,6 +1068,8 @@ function marketBox(p) {
 }
 
 let panelKey = null;
+// The one button for raising men (specs/MUSTER.md).
+const musterButton = () => `<button data-act="host" data-f="musterbtn" class="wide" title="Call men from your villages, vassals and countryside${['Duke', 'King'].includes(world.rank) ? ', and your armies in the field,' : ''} to one place as one host. You see who comes and what it costs first">${ico('crown')} Muster a host</button>`;
 function worldPanel() {
   const el = $('wpanel'), it = selected;
   const own = it && (it.units ? it.side === 0 : it.owner === 0);
@@ -1124,7 +1081,7 @@ function worldPanel() {
   if (key !== panelKey) {
     panelKey = key;
     if (!it) el.innerHTML = `<h3>Your realm</h3><p data-f="rank" class="status"></p><p data-f="realm"></p><p data-f="gold"></p><div class="houses" data-f="houses"></div><div class="vassals" data-f="vassals"></div><div class="decrees" data-f="decrees"></div>`
-      + (world.home?.owner === 0 && world.home.town && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come to ${world.home.name}: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners to ${world.home.name}</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. They gather at your place nearest your army in the field, or nearest the enemy. See the cost first">${ico('spears')} Call the arrière-ban to ${musterPlace(world).name}</button>` : '')
+      + (world.rank !== 'Reeve' ? musterButton() : '')
       + `<button data-act="chronicle" class="wide">${ico('chronicle')} Read the chronicle</button>`
       + `<p class="note">Click a house to deal with its lord. Click a place or an army to select it; double-click one of your villages to go there.</p>`;
     else if (it.wagon?.trade) el.innerHTML = `<h3>${ico('caravan', '#e8c45a')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Caravans carry gold between market towns. When one arrives, its lord is paid, and the market at the other end takes half as much again. An enemy or outlaw army that meets it takes the gold; one of your armies can ride with it as an escort.</p>`;
@@ -1132,6 +1089,7 @@ function worldPanel() {
     else if (it.wagon?.run) el.innerHTML = `<h3>${ico('village')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Spare goods and a few families for another of your villages. A raider who meets it on the road seizes the lot; one of your armies can ride with it.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
     else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p><div data-f="hosts"></div>`
+      + (own && !it.wagon && world.rank !== 'Reeve' ? musterButton() : '')
       + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the cart until it arrives. A raider must beat it first.">${ico('caravan', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
@@ -1139,9 +1097,8 @@ function worldPanel() {
       + (own ? `<p class="note">To march: click a place and press <b>March</b> on its card, or right-click it. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><div data-f="hosts"></div><div data-f="march" class="marchbtns"></div><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
-      + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
-        + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come here: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners here</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. See the cost first">${ico('spears')} Call the arrière-ban here</button>` : '')
-        + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
+      + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button>${world.rank === 'Reeve' ? '<button data-act="muster">Muster the garrison</button>' : ''}</div>`
+        + (own && world.rank !== 'Reeve' ? musterButton() : '')
         // (creator, 2026-11-20) Supplies are asked for by the village that needs them: another
         // of your villages sends half its spare food and building goods here.
         + (own ? (q => q.length ? `<div class="runs"><p class="note">Ask another of your villages for supplies: it sends half its spare food and building goods here, and four families if it can spare them.</p>`
@@ -1150,7 +1107,7 @@ function worldPanel() {
           + `<button data-act="grant" class="wide" data-f="grant">${ico('crown')} Give it to a new vassal</button>`
           + living(world).map(v => `<button data-act="grant:${v.id}" class="wide">Give it to ${v.name}</button>`).join('')
           + world.knightable().map(c => `<button data-act="knight:${c.id}" class="wide" title="Captain ${c.name} becomes a loyal vassal and leaves the army">${ico('crown', '#e8c45a')} Knight Captain ${c.name} with it</button>`).join('') + '</div>' : '')
-        : it.vassal ? `<div data-f="vassal"></div>
+        : it.vassal ? `${own && world.rank !== 'Reeve' ? musterButton() : ''}<div data-f="vassal"></div>
           <div class="dues"><span>Dues</span><button data-act="v:dues-" title="Lighter dues please them">−</button><b data-f="dues"></b><button data-act="v:dues+" title="Heavier dues anger them">+</button></div>
           <div class="dues"><span>Levies</span><button data-act="v:levy-" title="Lighter levies please them">−</button><b data-f="levy"></b><button data-act="v:levy+" title="Heavier levies anger them">+</button></div>
           <div class="row"><button data-act="v:gift">${ico('gold', '#e8c45a')} Gift (${GIFT} gold)</button><button data-act="v:honour" title="Free, now and then: they are pleased, the proud among the others less so">${ico('crown')} Honour them</button></div>
@@ -1248,7 +1205,6 @@ function worldPanel() {
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     set('works', worksBox(it));
     set('market', marketBox(it));
-    if (it.owner === 0) { const n = musterRows(world, it).filter(x => x.ok && x.group === 'armies').length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); why(el.querySelector('[data-f="gather"]'), n ? '' : 'None of your armies is free to march here.'); }
     if (it.town) {
       const can = world.canGrant(it);
       for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; b.title = can.ok ? can.warn || '' : can.why; b.classList.toggle('warn', !!can.warn); }
@@ -1398,11 +1354,10 @@ $('wpanel').onclick = e => {
     if (a) selected = a; else flash('Nobody fit to march.');
   }
   if (act === 'garrison' && it.at?.town) world.enterTown(it, it.at, it.last);
-  if (act === 'banners') { askBanners(it && !it.units ? it : world.home); panelKey = null; }
-  if (act === 'arriere') { askArriere(it && !it.units && it.owner === 0 ? it : musterPlace(world)); panelKey = null; }
+  // From a place of yours, it gathers there; from an army, where that army waits; else where the sheet thinks best.
+  if (act === 'host') openMuster({ dest: !it || it.house ? null : !it.units ? it : !it.path.length ? it.at : null });
   if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
-  if (act === 'gather' && it && !it.units) muster(it, 'armies');
   if (act?.startsWith('decree:')) { const r = toggleDecree(world, act.slice(7)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('work:')) { const r = startWork(world, it, act.slice(5)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('buy:') && it) { const r = buy(world, it, act.slice(4)); flash(r.ok ? r.text : r.why, r.ok); }
@@ -1426,12 +1381,27 @@ const realm = new RealmScreen(world, {
   enter: p => enterTown(p),
   select: it => { if (mode === 'field') return; showWorld(); selected = it; if (!it.house) worldControls.lookAt(it); },
   visit: p => { if (mode !== 'field' && world.overseer(p)) visitVassal(p); },
+  muster: opts => openMuster(opts),
   flash: (text, good) => flash(text, good),
 });
-$('realm-toggle').onclick = () => realm.toggle();
+$('realm-toggle').onclick = () => { musterSheet.hide(); realm.toggle(); };
+// The Muster sheet (mustersheet.js): raise a host.
+const musterSheet = new MusterSheet(world, {
+  flash: text => flash(text),
+  done: (p, r) => { if (mode !== 'field') { showWorld(); selected = p; worldControls.lookAt(p); } panelKey = null; },
+});
+function openMuster(opts) {
+  if (mode === 'field') return;
+  if (world.rank === 'Reeve') return flash('From the rank of Lord: hold a second place.');
+  realm.hide();
+  musterSheet.show(opts);
+}
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && musterSheet.open) { e.escUsed = true; e.stopImmediatePropagation(); musterSheet.hide(); }
+}, true);
 addEventListener('keydown', e => {
   if (e.target.closest?.('input, select, textarea')) return;
-  if (e.key === 'Tab') { e.preventDefault(); if (unlocked(world, 'realm') || realm.open) realm.toggle(); else flash('The Realm screen comes with the rank of Lord: hold a second place.'); }
+  if (e.key === 'Tab') { e.preventDefault(); musterSheet.hide(); if (unlocked(world, 'realm') || realm.open) realm.toggle(); else flash('The Realm screen comes with the rank of Lord: hold a second place.'); }
   else if (e.key === 'Escape' && realm.open) { e.escUsed = true; e.stopImmediatePropagation(); realm.hide(); }
 }, true);
 $('help-close').onclick = () => { $('help').classList.remove('open'); paused = false; };
@@ -1534,7 +1504,8 @@ function worldLog() {
 news.watch('realm', () => $('realm-toggle'));
 // A new Realm tab wears its seal inside the screen; with the screen shut, the Realm button stands in for it.
 for (const k of ['vassals', 'houses', 'council']) news.watch(`tab:${k}`, () => (!$('realm').hidden && document.querySelector(`#realm nav [data-act="tab:${k}"]`)) || [$('realm-toggle'), true]);
-news.watch('gather', () => $('wpanel').querySelector('[data-f="gather"]'));
+news.watch('muster', () => $('wpanel').querySelector('[data-f="musterbtn"]'));
+news.watch('gather', () => $('wpanel').querySelector('[data-f="musterbtn"]'));
 news.watch('decrees', () => {
   const wp = $('wpanel'), b = wp.querySelector('[data-f="decrees"] button');
   // The decrees sit low in the Your realm panel: until they are in view (or the panel is folded), its heading stands in.
@@ -1582,6 +1553,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   realm.update();
+  if (mode === 'field') musterSheet.hide(); else musterSheet.update();
   nextAsk();
   const left0 = dt * pace();
   ceremonyStep(dt);

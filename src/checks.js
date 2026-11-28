@@ -4220,6 +4220,7 @@ async function newcomerSmallChecks(w) {
 
 // A throwaway world of seed 7 where you hold your seat and `more` places reached from it through
 // your own land, with gold to spend; the houses of the world on screen are put back after.
+// `fn` must not await: a frame drawn meanwhile would read the throwaway world's houses.
 async function musterWorld(more, fn) {
   const { World, FACTIONS } = await import('./world/world.js'), mine = [...FACTIONS];
   try {
@@ -4268,16 +4269,16 @@ async function hostWorld(fn, { more = 3, vassal = true } = {}) {
     return s;
   }, FACTIONS));
 }
-const HOSTMEN = async s => { const M = await import('./world/muster.js'); return [...M.yours(s)].filter(x => !x.wounded && x.u.hostId !== undefined); };
 const sizes = list => list.reduce((n, x) => n + (x.u.count ?? x.u.alive), 0);
 
 async function musterChecks() {
-  const A = await import('./world/arriere.js'), { headcount } = await import('./world/world.js');
+  const A = await import('./world/arriere.js'), M = await import('./world/muster.js'), { headcount, FACTIONS: HOUSES } = await import('./world/world.js'), { snapshot, loadGame } = await import('./world/save.js');
+  const HOSTMEN = s => [...M.yours(s)].filter(x => !x.wounded && x.u.hostId !== undefined);
   group = 'Muster';
-  await check('the ban is kept per place: calling one leaves the next ready; its clock starts on arrival, or five minutes on; sent home, it rests', () => musterWorld(3, async make => {
+  await check('the ban is kept per place: calling one leaves the next ready; its clock starts on arrival, or five minutes on; sent home, it rests', () => musterWorld(3, make => {
     const s = make(), out = [], [home, B, C] = s.held, R = A.ARRIERE, per = R.per[s.rank], of = p => A.yourLevies(s).filter(u => u.src === p.id);
     const men = p => of(p).reduce((n, u) => n + (u.count ?? u.alive), 0);
-    const M = await import('./world/muster.js'), call = (at, p) => M.musterHost(s, at, new Set([`ban:${p.id}`]));
+    const call = (at, p) => M.musterHost(s, at, new Set([`ban:${p.id}`]));
     const first = call(home, B);
     if (!first.ok) return [`calling ${B.name} was refused: ${first.why}`];
     if (men(B) !== per) out.push(`${B.name} sent ${men(B)} men, not ${per}`);
@@ -4298,34 +4299,33 @@ async function musterChecks() {
     if (A.banState(s, B).is !== 'ready') out.push(`${B.name} is not ready after its rest`);
     return out;
   }));
-  const M = await import('./world/muster.js');
   const picksOf = (s, home, groups) => new Set(M.musterRows(s, home).filter(r => r.ok && groups.includes(r.group)).map(r => r.key));
   const MIX = ['here', 'villages', 'vassals', 'ban'];
-  await check('the plan\'s total is what the call raises, in men and gold: banners, the ban and a mix', () => hostWorld(async (make) => {
+  await check('the plan\'s total is what the call raises, in men and gold: banners, the ban and a mix', () => hostWorld(make => {
     const out = [];
     for (const groups of [['villages', 'vassals'], ['ban'], MIX]) {
       const s = make(), home = s.held[0], picks = picksOf(s, home, groups), P = M.musterPlan(s, home, picks);
-      const { FACTIONS } = await import('./world/world.js'), gold = FACTIONS[0].gold;
+      const gold = HOUSES[0].gold;
       if (!P.ok) { out.push(`${groups}: refused, ${P.why}`); continue; }
-      const r = M.musterHost(s, home, picks), got = sizes(await HOSTMEN(s));
+      const r = M.musterHost(s, home, picks), got = sizes(HOSTMEN(s));
       if (got !== P.men || r.men !== P.men) out.push(`${groups}: the plan said ${P.men} men; ${got} bear the host's mark, the call says ${r.men}`);
-      if (Math.abs(gold - FACTIONS[0].gold - P.gold) > 1e-6) out.push(`${groups}: the plan said ${P.gold} gold; it cost ${gold - FACTIONS[0].gold}`);
+      if (Math.abs(gold - HOUSES[0].gold - P.gold) > 1e-6) out.push(`${groups}: the plan said ${P.gold} gold; it cost ${gold - HOUSES[0].gold}`);
       for (const g of groups) if (!P.picked.some(x => x.group === g)) out.push(`the test world offers nothing in ${g}`);
     }
     return out;
   }));
-  await check('one Muster is one host: every man of it marked, one log line and one notice, and March the host takes it out as one army', () => hostWorld(async make => {
+  await check('one Muster is one host: every man of it marked, one log line and one notice, and March the host takes it out as one army', () => hostWorld(make => {
     const out = [], s = make(), home = s.held[0], r = M.musterHost(s, home, picksOf(s, home, MIX));
     if (!r.ok) return [r.why];
     if (s.logs.length !== 1) out.push(`${s.logs.length} log lines for one call: ${s.logs.map(l => l[0]).join(' | ')}`);
     if (s.notices.length !== 1) out.push(`${s.notices.length} notices for one call`);
-    const ids = new Set((await HOSTMEN(s)).map(x => x.u.hostId));
+    const ids = new Set(HOSTMEN(s).map(x => x.u.hostId));
     if (ids.size !== 1) out.push(`${ids.size} host marks from one call`);
     if (!s.armies.some(a => a.musterFor === r.host.id)) out.push('no column set out');
     marchIn(s, 40);
     if (s.armies.some(a => a.side === 0 && !a.gone && a.musterFor)) out.push('a column is still on its way after arriving');
     if (s.logs.some(l => / marched into | joins /.test(l[0]))) out.push(`a column said so on arrival: ${s.logs.map(l => l[0]).join(' | ')}`);
-    const after = sizes(await HOSTMEN(s));
+    const after = sizes(HOSTMEN(s));
     if (after !== r.men) out.push(`${r.men} mustered, ${after} still bear the mark once in`);
     const st = M.hostStatus(s, r.host);
     if (st.here !== r.men || st.coming) out.push(`it reads ${st.here} here and ${st.coming} coming of ${r.men}`);
@@ -4338,7 +4338,7 @@ async function musterChecks() {
     if (army.name !== r.host.name) out.push(`the army is called ${army.name}`);
     return out;
   }));
-  await check('a host stays a host: it takes a place, marches on less the garrison left, is saved, and is disbanded home', () => hostWorld(async make => {
+  await check('a host stays a host: it takes a place, marches on less the garrison left, is saved, and is disbanded home', () => hostWorld(make => {
     const out = [], s = make(), home = s.held[0], r = M.musterHost(s, home, picksOf(s, home, MIX));
     marchIn(s, 40);
     const army = M.marchHost(s, r.host.id, home), size = army.units.reduce((n, u) => n + u.count, 0);
@@ -4356,24 +4356,59 @@ async function musterChecks() {
     if (n !== MP.men) out.push(`March the host on took ${n}, not ${MP.men}`);
     if (s.armies.filter(a => !a.gone && a.side === 0 && a.units.some(u => u.hostId === r.host.id)).length !== 1) out.push('it marched on as more than one army');
     // a save keeps every mark
-    const { snapshot, loadGame } = await import('./world/save.js');
-    const tally = async w2 => (await HOSTMEN(w2)).map(x => `${x.u.hostId}/${x.u.src ?? '-'}/${x.u.vas ?? '-'}/${x.u.until ? 'ban' : '-'}:${x.u.count ?? x.u.alive}`).sort().join(' ');
-    const before = await tally(s), s2 = loadGame(JSON.parse(JSON.stringify(snapshot(s))), s.hooks);
-    if (await tally(s2) !== before) out.push('a save and reload changed the marks');
+    const tally = w2 => HOSTMEN(w2).map(x => `${x.u.hostId}/${x.u.src ?? '-'}/${x.u.vas ?? '-'}/${x.u.until ? 'ban' : '-'}:${x.u.count ?? x.u.alive}`).sort().join(' ');
+    const before = tally(s), s2 = loadGame(JSON.parse(JSON.stringify(snapshot(s))), s.hooks);
+    if (tally(s2) !== before) out.push('a save and reload changed the marks');
     if (!s2.hosts?.some(h => h.id === r.host.id && h.name === r.host.name && h.marched)) out.push('a save lost the host');
     // disbanded: no mark left; the ban home at once, the rest on their way
-    const lv = (await HOSTMEN(s2)).filter(x => x.u.until).length;
+    const lv = HOSTMEN(s2).filter(x => x.u.until).length;
+    // (everyone under arms anywhere, or just stood down into a village as a villager)
+    const everyone = () => sizes([...M.yours(s2)].filter(x => !x.wounded && !x.u.until)) + s2.pois.reduce((n, p) => n + (p.town ? p.town.population : 0), 0)
+      - s2.pois.reduce((n, p) => n + (p.town ? p.town.garrison().reduce((k, g) => k + (g.levy ? g.alive : 0), 0) : 0), 0);
+    const had = everyone();
+    // part of it left as a garrison on the way, so a village holds men raised elsewhere when it is disbanded
     const d = M.disbandHost(s2, r.host.id);
     if (!d.ok) return [...out, d.why];
-    if ((await HOSTMEN(s2)).length) out.push('men still bear the mark after it was disbanded');
-    if (lv && A.yourLevies(s2).length) out.push('the ban still serves after the host was disbanded');
-    const going = s2.armies.filter(a => a.parted && !a.gone);
-    if (!going.length) out.push('nobody set out for home');
     marchIn(s2, 400);
+    const got = everyone();
+    if (Math.abs(got - had) > 0.5) out.push(`disbanding changed the number of your people from ${had} to ${got}`);
+    if (HOSTMEN(s2).length) out.push('men still bear the mark after it was disbanded');
+    if (lv && A.yourLevies(s2).length) out.push('the ban still serves after the host was disbanded');
     if (s2.armies.some(a => a.parted && !a.gone)) out.push('men going home never got there');
     if ((s2.hosts || []).length) out.push('the disbanded host is still on the books');
     return out;
   }));
+  // (the sources themselves: a path nobody calls on this screen would not show otherwise)
+  await check('one way to raise men: nothing reads or writes the old single ban, and none of the old buttons or calls is left', async () => {
+    const out = [], files = ['campaign', 'realmscreen', 'mustersheet', 'world/world', 'world/arriere', 'world/muster', 'world/save', 'world/vassals', 'world/diplomacy', 'world/rivals', 'world/threat', 'world/alerts'];
+    const gone = [/\bw(orld)?\.arriere\b/, /\bh\.arriere\b/, /'arriere',\s*'leagues'/, /data-act="(banners|arriere|gather)"/, /\b(callBanners|callArriere|askBanners|askArriere|gatherAt|callToArms\(v,|stageColumns)\b/];
+    for (const f of files) {
+      const r = await fetch(new URL(`./${f}.js`, import.meta.url));
+      if (!r.ok) { out.push(`${f}.js did not load (${r.status})`); continue; }
+      const text = await r.text();
+      for (const re of gone) { const m = text.match(re); if (m) out.push(`${f}.js still has "${m[0]}"`); }
+    }
+    if (document.querySelector('[data-act="banners"], [data-act="arriere"], [data-act="gather"]')) out.push('an old muster button is on screen');
+    return out;
+  });
+  await check('the sheet shows the plan it carries out: its rows, totals and the one button', async () => {
+    const { MusterSheet } = await import('./mustersheet.js'), S = MusterSheet.shown, g = window.game;
+    if (!S || !g?.world || g.mode !== 'world' || g.world.rank === 'Reeve') return null;
+    const was = S.open, keep = [S.dest, S.picks, S.only], out = [];
+    S.show();
+    const P = M.musterPlan(g.world, S.dest, S.picks), el = S.el;
+    const ticked = [...el.querySelectorAll('input[data-row]:checked')].map(i => i.dataset.row).sort().join(), want = P.picked.map(r => r.key).sort().join();
+    if (ticked !== want) out.push(`ticked ${ticked}, the plan holds ${want}`);
+    const foot = el.querySelector('footer .totals').textContent;
+    if (!foot.includes(`${P.total.toLocaleString('en-GB')} of ${P.cap.toLocaleString('en-GB')} men`)) out.push(`the foot says "${foot.trim().slice(0, 80)}", the plan ${P.total} of ${P.cap}`);
+    if (!foot.includes(`${P.gold.toLocaleString('en-GB')} gold`)) out.push(`the foot names no ${P.gold} gold`);
+    if (el.querySelectorAll('footer button').length !== 1 || el.querySelector('footer button').disabled === P.ok) out.push('the Muster button does not match the plan');
+    if (el.querySelectorAll('input[data-row]').length !== P.rows.length) out.push(`${el.querySelectorAll('input[data-row]').length} rows drawn of ${P.rows.length}`);
+    S.hide();
+    [S.dest, S.picks, S.only] = keep;
+    if (was) { S.el.hidden = false; S.html = null; S.update(true); }
+    return out;
+  });
   await check('a house\'s ban is kept per place on the same rules: called nearest first, clock on arrival', () => musterWorld(0, (make, FACTIONS) => {
     const out = [], R = A.ARRIERE;
     const s = make(), h = FACTIONS.find(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.filter(p => p.owner === x.index && p.kind !== 'camp').length >= 3);

@@ -116,7 +116,6 @@ export class RealmScreen {
     this.pick = null;          // the vassal shown in full
     this.confirm = null;       // an act waiting for a second click
     this.run = { from: null, to: null, what: 'all', fam: true };
-    this.armsTo = null;        // where a vassal is called to arms
     this.ledger = [];          // the purse and dues every ten seconds, for the treasury
     RealmScreen.shown = this;  // the one screen, for checks()
     this.el = document.createElement('aside');
@@ -151,8 +150,7 @@ export class RealmScreen {
     if (!k) return;
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     // Place ids are strings ('p12'): kept as they are.
-    if (k === 'arms') this.armsTo = val;
-    else this.run[k] = val;
+    this.run[k] = val;
     this.update(true);
   }
 
@@ -212,7 +210,9 @@ export class RealmScreen {
       const key = b.dataset.act;
       if ((x === 'arrest' || x === 'revoke' || x === 'marry' || x === 'claim') && this.confirm !== key) { this.confirm = key; return this.update(true); }
       this.confirm = null;
-      const arg = x === 'grant' || x === 'revoke' ? w.byId[y] : x === 'arms' ? w.byId[y] : y;
+      // Their men are called by the Muster sheet, with only their share ticked.
+      if (x === 'muster') { this.hide(); return this.hooks.muster({ vassal: v.id }); }
+      const arg = x === 'grant' || x === 'revoke' ? w.byId[y] : y;
       this.say(w.vassalAct(v, x, arg));
       return this.update(true);
     }
@@ -516,9 +516,9 @@ export class RealmScreen {
 
   tab_vassals() {
     const w = this.w;
-    if (w.rank === 'Reeve') return `<p class="note">From the rank of Lord (two places) you can give a village to a vassal: select it on the map and choose "Give it to a new vassal". They run it, pay you dues and send men to your banners.</p>`;
+    if (w.rank === 'Reeve') return `<p class="note">From the rank of Lord (two places) you can give a village to a vassal: select it on the map and choose "Give it to a new vassal". They run it, pay you dues and send men to your hosts.</p>`;
     const vs = living(w), jail = prisoners(w);
-    if (!vs.length && !jail.length) return `${this.houseVassals()}<p class="note">${w.sworn && FACTIONS.some(h => w.sworn(h.index)) ? 'No knights hold villages for you yet. ' : ''}No vassals yet. Select one of your villages on the map (not your seat) and choose "Give it to a new vassal": they run it on the same rules as you, pay you dues and send men to your banners. Captains who have served well can be knighted and given one.</p>`;
+    if (!vs.length && !jail.length) return `${this.houseVassals()}<p class="note">${w.sworn && FACTIONS.some(h => w.sworn(h.index)) ? 'No knights hold villages for you yet. ' : ''}No vassals yet. Select one of your villages on the map (not your seat) and choose "Give it to a new vassal": they run it on the same rules as you, pay you dues and send men to your hosts. Captains who have served well can be knighted and given one.</p>`;
     const all = [...vs, ...jail];
     if (!all.some(v => v.id === this.pick)) this.pick = (vs.map(v => [v, opinion(w, v).total]).sort((a, b) => a[1] - b[1])[0]?.[0] || all[0]).id;
     const card = v => {
@@ -563,7 +563,6 @@ export class RealmScreen {
 
     // Arms: where they are called to.
     const places = w.pois.filter(p => p.owner === 0 && p.town && !p.vassal);
-    if (!places.some(p => p.id === this.armsTo)) this.armsTo = (w.home?.town ? w.home : places[0])?.id;
     const odds = arrestOdds(w, v), demand = Math.floor((v.gold || 0) / 2);
     const honourWait = Math.max(0, (v.honoured ?? -1e9) + HONOUR_EVERY - w.time);
     const foe = v.feud && w.vassals.find(x => x.id === v.feud);
@@ -585,8 +584,7 @@ export class RealmScreen {
       <h4>Council</h4>${council}
       <h4>Land</h4>${land || '<p class="note">They hold nothing.</p>'}
       <h4>Demands</h4><div class="acts-row">${btn('demand', `${ico('gold', '#e8c45a')} Demand ${demand} gold`, demand >= DEMAND_MIN || `Their purse holds too little to ask for (${num(Math.floor(v.gold || 0))} gold; at least ${DEMAND_MIN * 2} needed)`, v.favours ? 'They owe you: they pay without bad blood' : `Half their purse. −15${T.dues ? ' (more for the greedy)' : ''}; refused if they are resentful`)}
-        <label>Call to arms at <select data-set="arms">${places.map(p => `<option value="${p.id}" ${p.id === this.armsTo ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-        ${btn(`arms:${this.armsTo}`, `${ico('spears')} Call to arms`, v.refusing ? `${v.name} refuses to send anyone` : kinWar(w, v) ? `${v.name} won't march against their spouse's kin, ${kinWar(w, v).name}` : v.landless ? 'They hold no land to raise men from' : !places.length ? 'You run no village to call them to' : true, `Their share of men (${LEVIES[v.levy].name.toLowerCase()} levies${seatPower(w, 'marshal') ? ', more with your marshal' : ''}) marches there. ${v.want === 'glory' ? 'They want a war: they come gladly.' : 'Called again within ten minutes, they grumble (−6).'} Taking a rival's place while their men are out wins them glory.`)}</div>
+        ${btn('muster', `${ico('spears')} Muster a host with their men`, v.refusing ? `${v.name} refuses to send anyone` : kinWar(w, v) ? `${v.name} won't march against their spouse's kin, ${kinWar(w, v).name}` : v.landless ? 'They hold no land to raise men from' : !places.length ? 'You run no village to gather them at' : w.rank === 'Reeve' ? 'From the rank of Lord' : true, `Their share of men (${LEVIES[v.levy].name.toLowerCase()} levies${seatPower(w, 'marshal') ? ', more with your marshal' : ''}). ${v.want === 'glory' ? 'They want a war: they come gladly.' : 'Called again within ten minutes, they grumble (−6).'} Taking a rival's place while their men are out wins them glory.`)}</div>
       ${foe ? `<h4>Their feud</h4><p class="warn">Feuding with ${esc(foe.name)}: both their villages bleed people, and both mind that you do nothing.</p><div class="acts-row">${btn('judge', `Judge for ${esc(v.name)}`, true, `+15 with them, −20 with ${foe.name}; they owe you a favour`)}<button data-act="v:${foe.id}:judge" title="+15 with ${esc(foe.name)}, −20 with ${esc(v.name)}">Judge for ${esc(foe.name)}</button>${btn('reconcile', `${ico('gold', '#e8c45a')} Reconcile them (${RECONCILE})`, me.gold >= RECONCILE || `Needs ${RECONCILE} gold; you have ${num(Math.floor(me.gold))}`, 'Both a little pleased')}</div>` : ''}
       <h4>Justice</h4><div class="acts-row">${sure('arrest') ? `<span class="warn">${odds ? `About ${Math.round(odds * 100)}% they flee to their men and rise.` : 'They will come quietly.'} Every other vassal will mind it (−10).</span> ${btn('arrest', 'Yes, arrest them', true, '', 'warn')}<button data-act="cancel">No</button>`
         : btn('arrest', 'Arrest them', true, `Every village they hold comes back to you and they go to your dungeon. ${odds ? `Defiant: about ${Math.round(odds * 100)}% they flee and rise instead.` : 'They are not defiant: they will come quietly.'}`, 'warn')}</div>

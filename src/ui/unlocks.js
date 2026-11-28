@@ -25,7 +25,8 @@ export const UNLOCKS = {
   'tab:council': { when: rank('Count'), intro: 'New: Council: seat vassals as steward, marshal and envoy.' },
   // The Walls tab is always there; it wears its seal once raids are near (outlaws come in the first quarter hour), or at Lord.
   'tab:walls': { when: w => w.time >= 300 || rankAtLeast(w, 'Lord'), intro: 'New: the Walls tab: palisades, stone walls, towers and gates to keep raiders out.' },
-  gather: { when: rank('Duke'), intro: 'New: Gather your armies here sends every free army to one place, to march out again as one host.' },
+  muster: { when: rank('Lord'), intro: 'New: Muster a host calls your villages, vassals and countryside together as one army.' },
+  gather: { when: rank('Duke'), intro: 'New: the Muster can now call in your armies in the field, to march out again as one host.' },
   decrees: { when: w => w.crowned || w.rank === 'King', intro: 'New: royal decrees, in the Your realm panel: the king\'s peace, the great levy, the tithe and the king\'s roads.' },
   // Sellsword companies wait at market towns: worth a section once you have seen one of them.
   companies: { when: w => (w.companies || []).some(c => c.employer === 0 || w.byId[c.home]?.seen) },

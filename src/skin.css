@@ -20,7 +20,7 @@
 }
 
 body { font-family: var(--body-font); color: var(--ink); }
-:is(#stock, #build, #info, #help, #wpanel, #goals, #alerts, #defences, .modal, #herald, #deploy, #terms, #duel, #paused-tag, #log div, #toast, #end, #orders .group, .wlabel, .card, #realm) {
+:is(#stock, #build, #info, #help, #wpanel, #goals, #alerts, #defences, .modal, #herald, #deploy, #terms, #duel, #paused-tag, #log div, #toast, #end, #orders .group, .wlabel, .card, #realm, #muster) {
   background: var(--surface); border: var(--surface-border); border-radius: var(--surface-radius);
   box-shadow: var(--surface-shadow); outline: var(--surface-outline, none); outline-offset: var(--surface-outline-offset, 0);
   color: var(--ink);
@@ -34,7 +34,7 @@ body { font-family: var(--body-font); color: var(--ink); }
 #goals h4 { color: var(--gold); border-bottom-color: var(--rule); }
 button { font-family: var(--body-font); color: var(--btn-ink); background: var(--btn); border: var(--btn-border); border-radius: var(--btn-radius); box-shadow: var(--btn-shadow, none); }
 button:hover { background: var(--btn-hover); }
-button.on, #build .tab.on, #build .item.on, .modal .row button:first-child, #result button, #deploy .go, #terms .yes, #duel .yes, #help-close { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border, var(--btn-border)); }
+button.on, #muster .go, #build .tab.on, #build .item.on, .modal .row button:first-child, #result button, #deploy .go, #terms .yes, #duel .yes, #help-close { background: var(--btn-on); color: var(--btn-on-ink); border: var(--btn-on-border, var(--btn-border)); }
 /* A choice you can't take looks it, even when it is the first (QC, 2026-11-21). */
 .modal .row button:disabled { background: var(--btn); color: var(--btn-ink); border: var(--btn-border); opacity: 0.5; cursor: default; }
 /* The selected card stands out from across the table: a thick seal-red ring and a lift. */
@@ -290,6 +290,20 @@ body:has(#realm:not([hidden])) :is(#wpanel, #goals, #alerts, #paused-tag) { visi
   #realm .body { padding: 8px 10px 12px; }
   #realm :is(th, td) { padding: 5px 4px; }
   #realm .acts button { margin-left: 2px; padding: 2px 6px; }
+}
+
+/* The Muster sheet (mustersheet.js): parchment like the Realm screen, framed the same way. */
+#muster h2, #muster h4 { color: var(--gold); }
+#muster :is(header, footer, td) { border-color: var(--rule); }
+#muster .warn { color: #8a5a0c; }
+#muster select { background: #f6ecd2; border-color: #7a5a2e; color: var(--ink); }
+#muster input { accent-color: #8d3b16; }
+#muster { width: min(820px, calc((100vw - 16px) / var(--hud))); max-height: calc((100vh - 12px) / var(--hud) - 64px); box-shadow: var(--surface-shadow), 0 0 0 100vmax rgba(20, 12, 4, .38); }
+body:has(#muster:not([hidden])) :is(#wpanel, #goals, #alerts, #paused-tag) { visibility: hidden; }
+@media (max-width: 700px) {
+  #muster .body { padding: 4px 8px 10px; }
+  #muster td:first-child { width: 40%; }
+  #muster footer { flex-wrap: wrap; }
 }
 
 /* The paused hint on the world map sat clipped between the panels; the Pause button already says it (its tooltip has the hint), so the button turns to blue cloth while paused. */

@@ -12,7 +12,6 @@
 // other's id) and look to you to judge it; the discontented band into one faction
 // (w.faction) with a demand, and rise if you refuse it. A vassal may be imprisoned
 // (v.prison) and later pardoned, landless (v.landless) until you give him a village.
-import { musterHost, musterRows } from './muster.js';
 import { worksPride } from './works.js';
 import { decreeOpinion, decreed } from './decrees.js';
 import { PAINTED } from './events.js';
@@ -531,11 +530,6 @@ export function interact(w, v, act, arg) {
     mark(w, v, -15 * (T.dues ? 1.5 : 1), 'You demanded gold of them', 1800);
     remember(w, v, `Made to pay you ${n} gold`);
     return { ok: true, text: `${v.name} pays ${n} gold, with a sour face.` };
-  }
-  if (act === 'arms') {
-    // One vassal's share, mustered as any host is (world/muster.js).
-    const to = arg || w.home, r = musterHost(w, to, new Set([`vas:${v.id}`]));
-    return r.ok ? { ok: true, text: `${v.name} sends ${r.men} men to ${to.name}.` } : { ok: false, text: musterRows(w, to).find(x => x.key === `vas:${v.id}`)?.why || r.why };
   }
   if (act === 'seat' || act === 'unseat') {
     if (act === 'unseat') {
