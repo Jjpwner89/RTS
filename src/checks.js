@@ -3243,6 +3243,20 @@ async function seasonChecks(w) {
   const { seasonOf, leftText, updateSeasonRing } = await import('./ui/seasonring.js');
   const { World, SEASON_NEWS } = await import('./world/world.js');
   group = 'Seasons';
+  await check('a new game opens with no snow or frost, and later springs thaw', async () => {
+    const { yearAt, YEAR } = await import('./look.js');
+    const out = [];
+    for (const t of [0, 1, 10, 39, 100, 149, 200, 299]) {
+      const y = yearAt(t);
+      if (y.snow > 0) out.push(`first spring, ${t}s: snow ${y.snow.toFixed(2)} lies`);
+      if (y.frost > 0.001) out.push(`first spring, ${t}s: the ground is frosted (${y.frost.toFixed(2)})`);
+    }
+    if (yearAt(YEAR - 1).snow < 0.99) out.push('no snow at the end of the first winter');
+    if (yearAt(YEAR + 1).snow < 0.9) out.push('the second spring starts without the winter\'s snow');
+    if (yearAt(YEAR + 41).snow > 0.001) out.push('the second spring has not thawed after 40 s');
+    if (yearAt(0).step === yearAt(YEAR).step) out.push('a new game and a later spring share a step, so trees would not repaint');
+    return out;
+  });
   await check('the seasons turn every five minutes: spring, summer, autumn, winter, spring', () => {
     const out = [], at = (t, name, left) => { const s = seasonOf(t); if (s.name !== name) out.push(`at ${t}s it is ${s.name}, not ${name}`); if (left !== undefined && Math.round(s.left) !== left) out.push(`at ${t}s ${Math.round(s.left)}s are left, not ${left}`); };
     at(0, 'Spring', 300); at(299, 'Spring', 1); at(300, 'Summer', 300); at(599, 'Summer'); at(600, 'Autumn'); at(899, 'Autumn'); at(900, 'Winter'); at(1199, 'Winter'); at(1200, 'Spring'); at(1500, 'Summer');

@@ -89,18 +89,28 @@ const SEASONS = [
   { leaf: [1.62, 0.72, 0.36], grass: [1.12, 0.92, 0.70], frost: 0.08 },
   { leaf: [0.86, 0.88, 0.86], grass: [0.92, 0.95, 0.97], frost: 0.5 },
 ];
-function turnYear(t) {
-  const f = ((t % YEAR) + YEAR) % YEAR / YEAR, step = Math.floor(f * 240);   // a step every five seconds
+// How the year looks at the campaign's second t. A game's first spring has no winter behind it: no
+// snow to thaw, and spring's own colours from the first moment (creator, 2026-11-23: "spring looks
+// like winter at the start"). Every later spring comes out of its winter and thaws.
+export function yearAt(t) {
+  const f = ((t % YEAR) + YEAR) % YEAR / YEAR, first = t >= 0 && t < YEAR / 8;   // (up to the middle of the first spring)
   const into = (f - 0.75) * YEAR, thaw = f * YEAR, sm = x => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
-  SEASON.uSnow.value = into >= 0 ? sm(into / SNOW_IN) : 1 - sm(thaw / SNOW_IN);
-  if (step === year.step) return;
-  year.step = step;
-  const x = f * 4 - 0.5, i = (Math.floor(x) + 4) % 4, k = x - Math.floor(x), w = k * k * (3 - 2 * k);
+  const snow = into >= 0 ? sm(into / SNOW_IN) : first ? 0 : 1 - sm(thaw / SNOW_IN);
+  const x = first ? 0 : f * 4 - 0.5, i = (Math.floor(x) + 4) % 4, k = x - Math.floor(x), w = k * k * (3 - 2 * k);
   const A = SEASONS[i], B = SEASONS[(i + 1) % 4], mix = (a, b) => a.map((v, j) => v + (b[j] - v) * w);
-  year.leaf.setRGB(...mix(A.leaf, B.leaf));
-  SEASON.uGrass.value.setRGB(...mix(A.grass, B.grass));
-  SEASON.uFrost.value = A.frost + (B.frost - A.frost) * w;
-  year.bare = Math.floor(f * 4) === 3;
+  // a step every five seconds; the first spring's are their own, so a new game after another repaints
+  const step = Math.floor(f * 240) + (first ? 1000 : 0);
+  return { snow, step, leaf: mix(A.leaf, B.leaf), grass: mix(A.grass, B.grass), frost: A.frost + (B.frost - A.frost) * w, bare: Math.floor(f * 4) === 3 };
+}
+function turnYear(t) {
+  const y = yearAt(t);
+  SEASON.uSnow.value = y.snow;
+  if (y.step === year.step) return;
+  year.step = y.step;
+  year.leaf.setRGB(...y.leaf);
+  SEASON.uGrass.value.setRGB(...y.grass);
+  SEASON.uFrost.value = y.frost;
+  year.bare = y.bare;
 }
 
 // The day, through the weather: the sun's strength (i) and colour, the sky's light (hemi) and its colour, the sky
