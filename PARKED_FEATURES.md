@@ -17,10 +17,7 @@ Parked 2026-11-23. The creator: "i don't really like campaigning season at the m
 - **What it would need:** a herald that warns of the campaigning season (spring and summer lines were drafted and then softened when this was parked). The full spec is in the seasons plan, section 3 (orchestrator notes, 2026-11-23).
 
 ### A fallow winter by default
-Parked as the default 2026-11-23. It is **built and playable as an option**: add `?winter=hard` to the game's address.
-- **The idea:** fields lie fallow in winter, and their hands haul for the village until spring ("Fallow till spring (2 min)"). Spring sows at 0.6, summer 1.0, autumn 1.6, and the first winter runs at half. A year's food is unchanged; only the timing moves.
-- **The default now:** a milder modifier on farm yield, about spring 0.9, summer 1.1, autumn 1.3, winter 0.5. The creator: "basically the season is just a modifier on farm yield."
-- **The question for the playtest:** does winter feel too easy without fallow? The creator is "interested in the idea".
+**Taken up 2026-11-28** (the creator is leaning to it after the playtest: "im leaning towards fallow winters bc that way i would feel it even if i was prepared"). It becomes the default in the next build, with the mild winter kept behind `?winter=mild`. See IDEAS_2026-11-28.md. Strike this entry once it is built.
 
 ## Economy
 
