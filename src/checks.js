@@ -1021,13 +1021,17 @@ async function worldChecks(w) {
     if (10000 - h.gold !== men * AR.ARRIERE.gold) out.push(`${men} men cost it ${10000 - h.gold} gold, not ${men * AR.ARRIERE.gold}`);
     if (levy() !== men) out.push(`${men} called, ${levy()} on the map`);
     if (AR.houseCall(s, h, dest)) out.push('it called them again while they served');
+    // Those at the muster started at once; the columns still marching have the five minutes more.
     s.time += AR.ARRIERE.serve + 1;
     AR.tickArriere(s);
-    if (levy()) out.push(`${levy()} of its levies still under arms after ten minutes`);
+    if (headcount(dest.garrison.filter(AR.isLevy))) out.push('the levies of the muster place itself are still under arms after their time');
     if (AR.houseCall(s, h, dest)) out.push('it called them again before the countryside had rested');
+    s.time += AR.ARRIERE.late;
+    AR.tickArriere(s);
+    if (levy()) out.push(`${levy()} of its levies still under arms after their time`);
     // A thin purse sends fewer.
     const s2 = make(), h2 = FACTIONS[h.index];
-    s2.time = 0; h2.arriere = null; h2.gold = 30;
+    s2.time = 0; h2.gold = 30;
     const few = AR.houseCall(s2, h2, s2.pois.find(p => p.owner === h2.index && p.kind !== 'camp'));
     if (few !== 10) out.push(`with 30 gold it called ${few} men, not 10`);
     return out;
@@ -4205,6 +4209,90 @@ async function newcomerSmallChecks(w) {
   }));
 }
 
+// ---- the Muster (specs/MUSTER.md) ----
+
+// A throwaway world of seed 7 where you hold your seat and `more` places reached from it through
+// your own land, with gold to spend; the houses of the world on screen are put back after.
+async function musterWorld(more, fn) {
+  const { World, FACTIONS } = await import('./world/world.js'), mine = [...FACTIONS];
+  try {
+    const make = () => {
+      const s = new World(7, {}, { size: 'normal', aggression: 'normal' });
+      s.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k in o ? o[k] : () => {}) });
+      s.logs = []; s.log = (text, side = 0) => s.logs.push([text, side]);
+      const held = [s.home];
+      for (let i = 0; i < held.length && held.length <= more; i++) for (const q of held[i].links) {
+        if (held.length > more || held.includes(q) || q.kind === 'camp' || q.kind === 'crown') continue;
+        s.takePlace(q, 0);
+        held.push(q);
+      }
+      s.held = held;
+      FACTIONS[0].gold = 20000;
+      return s;
+    };
+    return await fn(make, FACTIONS);
+  } finally { FACTIONS.length = 0; FACTIONS.push(...mine); }
+}
+// Brings every one of your armies bound for a place to it, `secs` later.
+function marchIn(s, secs = 30) {
+  s.time += secs;
+  for (const a of s.armies.filter(a => a.side === 0 && !a.gone && a.path.length)) {
+    const to = a.path.at(-1), from = a.path.at(-2) || a.last;
+    Object.assign(a, { x: to.x, z: to.z, last: to, path: [], at: to });
+    s.arrive(a, to, from);
+  }
+}
+
+async function musterChecks() {
+  const A = await import('./world/arriere.js'), { headcount } = await import('./world/world.js');
+  group = 'Muster';
+  await check('the ban is kept per place: calling one leaves the next ready; its clock starts on arrival, or five minutes on; sent home, it rests', () => musterWorld(3, make => {
+    const s = make(), out = [], [home, B, C] = s.held, R = A.ARRIERE, per = R.per[s.rank], of = p => A.yourLevies(s).filter(u => u.src === p.id);
+    const men = p => of(p).reduce((n, u) => n + (u.count ?? u.alive), 0);
+    const first = A.callArriere(s, home, [B]);
+    if (!first.ok) return [`calling ${B.name} was refused: ${first.why}`];
+    if (men(B) !== per) out.push(`${B.name} sent ${men(B)} men, not ${per}`);
+    if (A.banState(s, B).is !== 'out') out.push(`${B.name} is ${A.banState(s, B).is} after being called`);
+    if (A.banState(s, C).is !== 'ready') out.push(`${C.name}, not called, is ${A.banState(s, C).is}`);
+    if (of(B).some(u => Math.abs(u.until - s.time - R.late - R.serve) > 1e-6)) out.push('a column on the road does not start its clock five minutes after the call at the latest');
+    marchIn(s, 40);
+    if (of(B).some(u => Math.abs(u.until - s.time - R.serve) > 1e-6)) out.push(`on arrival its time left is ${of(B).map(u => Math.round(u.until - s.time))}, not ${R.serve}`);
+    if (Math.abs(A.banState(s, B).secs - R.serve) > 1e-6) out.push(`${B.name} reads ${Math.round(A.banState(s, B).secs)} s to go, its men ${R.serve}`);
+    const second = A.callArriere(s, home, [home]);
+    if (!second.ok || of(home).some(u => Math.abs(u.until - s.time - R.serve) > 1e-6)) out.push('men called at the muster itself do not start their clock at once');
+    A.sendBanHome(s, [B]);
+    if (men(B)) out.push(`${men(B)} of ${B.name}'s men still serve after being sent home`);
+    if (A.banState(s, B).is !== 'resting' || Math.abs(A.banState(s, B).secs - R.rest) > 1e-6) out.push(`sent home, ${B.name} is ${A.banState(s, B).is} for ${Math.round(A.banState(s, B).secs)} s, not resting ${R.rest}`);
+    if (men(home) !== per) out.push(`sending ${B.name} home took men of ${home.name} too`);
+    if (A.arrierePlan(s, home).places.some(p => p === B || p === home)) out.push('a place out or resting is offered again');
+    s.time += R.rest + 1;
+    if (A.banState(s, B).is !== 'ready') out.push(`${B.name} is not ready after its rest`);
+    return out;
+  }));
+  await check('a house\'s ban is kept per place on the same rules: called nearest first, clock on arrival', () => musterWorld(0, (make, FACTIONS) => {
+    const out = [], R = A.ARRIERE;
+    const s = make(), h = FACTIONS.find(x => x.index > 0 && x.ai && !x.bandit && !x.invader && s.pois.filter(p => p.owner === x.index && p.kind !== 'camp').length >= 3);
+    if (!h) return ['no house of three places in the test world'];
+    const places = s.pois.filter(p => p.owner === h.index && p.kind !== 'camp'), dest = places[0], per = R.per[A.rankOf(places.length)];
+    h.gold = per * R.gold;   // one place's worth
+    if (A.houseCall(s, h, dest) !== per) out.push('a purse for one place did not call one place');
+    if (A.banState(s, dest).is !== 'out') out.push(`the muster, nearest to itself, was not the place called`);
+    if (places.slice(1).some(p => A.banState(s, p).is !== 'ready')) out.push('a place it did not call is not ready');
+    h.gold = per * R.gold;
+    const men = A.houseCall(s, h, dest);
+    const col = s.armies.find(a => a.side === h.index && a.units.some(u => u.until));
+    if (men && col) {
+      const src = s.byId[col.units[0].src];
+      s.time += 40;
+      Object.assign(col, { x: dest.x, z: dest.z, path: [], at: dest });
+      s.arrive(col, dest, src);
+      if (Math.abs(A.banState(s, src).secs - R.serve) > 1e-6) out.push(`${src.name}'s clock did not start when its column arrived`);
+      if (dest.garrison.some(u => u.src !== undefined)) out.push('a house\'s levies keep their place\'s mark in its garrison and will not fall in together');
+    } else out.push('the second place of the house sent no column');
+    return out;
+  }));
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -4228,6 +4316,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await villageChecks(window.game.world);
   if (window.game?.world?.pois) await lateChecks(window.game.world);
   if (window.game?.world?.pois) await newcomerChecks(window.game.world);
+  if (window.game?.world?.pois) await musterChecks();
   if (window.game?.world?.pois) await newcomerSmallChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();

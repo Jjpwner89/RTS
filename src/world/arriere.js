@@ -2,16 +2,20 @@
 // men from its countryside, beyond its village people, so no villager is taken. Gold to call
 // them, food to keep them (they eat like any army, supply.js EAT, and are fed in your own
 // lands), and home they go after ten minutes. Mass, not quality: spears, no armour, quick
-// to break. Each unit carries the time it goes home (u.until, r.until in a village), through
-// joins, garrisons, fights and saves. The league raises them too (diplomacy.js raiseHost).
-// State: w.arriere = { until, rest } while it serves and rests.
+// to break. Each unit carries the time it goes home (u.until, r.until in a village) and the
+// place whose countryside it is (src), through joins, garrisons, fights and saves. The houses
+// raise them on the same rules (houseBan, houseCall, and the league's levy, diplomacy.js).
+// Each place keeps its own ban (specs/MUSTER.md): p.banState = { until, rest }. A call leaves
+// the places it does not call ready. A place's levies serve `serve` seconds from the moment
+// their column reaches the muster (or its stage), or from `late` seconds after the call,
+// whichever comes first (banArrived); then the place rests `rest` seconds.
 import { FACTIONS, headcount, unit, mergeInto, roughly, ARMY_CAP } from './world.js';
 import { EAT, capacity, takeFood } from './supply.js';
 import { takeRoster, returnToRoster, fromReg, armedIn } from './ban.js';
 import { callHeard } from './threat.js';
 import { stewardSpare } from './holdings.js';
 
-export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 800, rest: 300, key: 'militia' };
+export const ARRIERE = { per: { Lord: 30, Count: 45, Duke: 60, King: 60 }, gold: 3, serve: 800, rest: 300, late: 300, key: 'militia' };
 export const isLevy = u => !!u.until;
 const due = w => u => u.until && u.until <= w.time;
 const mins = s => Math.max(1, Math.ceil(s / 60));
@@ -19,18 +23,43 @@ const mins = s => Math.max(1, Math.ceil(s / 60));
 // The places that answer: every place you hold, a vassal's too, that is not fighting.
 const answering = w => w.pois.filter(p => p.owner === 0 && p.kind !== 'camp' && !p.town?.hostile && !p.town?.underAttack && !p.town?.revolt);
 
-// Who would come and what it costs, without moving anyone.
-export function arrierePlan(w, dest) {
-  const per = ARRIERE.per[w.rank] || 0, places = answering(w);
-  const men = per * places.length, S = w.arriere || {};
+// A place's ban: 'out' (its men serve: secs until they go home), 'resting' (secs until it
+// answers again) or 'ready'.
+export function banState(w, p) {
+  const S = p.banState;
+  if (S?.until > w.time) return { is: 'out', secs: S.until - w.time };
+  if (S?.rest > w.time) return { is: 'resting', secs: S.rest - w.time };
+  return { is: 'ready', secs: 0 };
+}
+const setOut = (p, until) => { p.banState = { until, rest: until + ARRIERE.rest }; };
+
+// Levies reaching the muster or its stage: their time starts now, unless it already has.
+export function banArrived(w, units) {
+  for (const u of units) {
+    if (!u.until || u.src === undefined) continue;
+    u.until = Math.min(u.until, w.time + ARRIERE.serve);
+    const p = w.byId[u.src];
+    if (p?.banState && u.until < p.banState.until) setOut(p, u.until);
+  }
+}
+
+// Who would come and what it costs, without moving anyone: every place that answers and is
+// ready, or of those only the ones in `only` (places).
+export function arrierePlan(w, dest, only = null) {
+  const per = ARRIERE.per[w.rank] || 0, all = answering(w);
+  const places = all.filter(p => banState(w, p).is === 'ready' && (!only || only.includes(p)));
+  const men = per * places.length;
   const armed = places.reduce((n, p) => n + Math.min(per, armedIn(p)), 0);
-  const plan = { dest, per, places, men, armed, gold: men * ARRIERE.gold, food: Math.round(men * EAT * 60), mins: ARRIERE.serve / 60, ok: true, why: '' };
+  const plan = { dest, per, all, places, men, armed, gold: men * ARRIERE.gold, food: Math.round(men * EAT * 60), mins: ARRIERE.serve / 60, ok: true, why: '' };
+  const soonest = is => Math.min(...all.map(p => banState(w, p)).filter(s => s.is === is).map(s => s.secs));
   if (!per) Object.assign(plan, { ok: false, why: 'From the rank of Lord' });
-  else if (S.until > w.time) Object.assign(plan, { ok: false, why: `The arrière-ban is out: home in ${mins(S.until - w.time)} min` });
-  else if (S.rest > w.time) Object.assign(plan, { ok: false, why: `The countryside is back at its fields: again in ${mins(S.rest - w.time)} min` });
   else if (!dest || dest.owner !== 0) Object.assign(plan, { ok: false, why: 'Call them to a place of yours' });
-  else if (!men) Object.assign(plan, { ok: false, why: 'No place of yours can answer' });
-  else if (FACTIONS[0].gold < plan.gold) Object.assign(plan, { ok: false, why: `Needs ${plan.gold} gold` });
+  else if (!all.length) Object.assign(plan, { ok: false, why: 'No place of yours can answer' });
+  else if (!men) {
+    const out = soonest('out'), rest = soonest('resting');
+    Object.assign(plan, { ok: false, why: Number.isFinite(out) ? `The arrière-ban is out: home in ${mins(out)} min`
+      : Number.isFinite(rest) ? `The countryside is back at its fields: again in ${mins(rest)} min` : 'No place of yours can answer' });
+  } else if (FACTIONS[0].gold < plan.gold) Object.assign(plan, { ok: false, why: `Needs ${plan.gold} gold` });
   return plan;
 }
 
@@ -55,15 +84,15 @@ export function musterPlace(w) {
 
 // Each place's men march for dest by friendly roads; columns with no such road gather where
 // the banners would (World.stageColumns). Those called to dest itself go straight in.
-export function callArriere(w, dest) {
-  const plan = arrierePlan(w, dest);
+export function callArriere(w, dest, only = null) {
+  const plan = arrierePlan(w, dest, only);
   if (!plan.ok) return { ok: false, why: plan.why };
   FACTIONS[0].gold -= plan.gold;
-  const until = w.time + ARRIERE.serve, safe = w.friendlyRoad(), staged = [];
-  w.arriere = { until, rest: until + ARRIERE.rest };
+  const safe = w.friendlyRoad(), staged = [];
   let men = 0, from = 0;
   for (const p of plan.places) {
-    const units = banUnits(p, plan.per, `Arrière-ban of ${p.name}`, until);
+    setOut(p, w.time + (p === dest ? 0 : ARRIERE.late) + ARRIERE.serve);
+    const units = banUnits(p, plan.per, `Arrière-ban of ${p.name}`, p.banState.until);
     if (p === dest) { home(w, p, units); men += plan.per; continue; }
     const a = w.spawnArmy(0, units, p, `Arrière-ban of ${p.name}`);
     // Their carts are loaded from the place's stores, as far as they go; a vassal's feeds its own.
@@ -72,7 +101,7 @@ export function callArriere(w, dest) {
     men += plan.per; from++;
   }
   const { stage, there, cut } = w.stageColumns(staged, dest);
-  w.log(`The arrière-ban is called for ${plan.gold} gold: ${men} men of the countryside make for ${dest.name}${from ? ` from ${from} place${from > 1 ? 's' : ''}` : ''}. They serve ${plan.mins} minutes, then go home.`);
+  w.log(`The arrière-ban is called for ${plan.gold} gold: ${men} men of the countryside make for ${dest.name}${from ? ` from ${from} place${from > 1 ? 's' : ''}` : ''}. They serve ${plan.mins} minutes from the day they arrive, then go home.`);
   if (there) w.log(`No road through friendly land reaches ${dest.name} from every place: ${there} of the arrière-ban gather at ${stage.name} instead.`, 1);
   if (cut.length) w.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their levies wait' : 'its levies wait'} at home.`, 1);
   w.chron(`You called the arrière-ban: ${plan.men} men of the countryside.`);
@@ -80,11 +109,32 @@ export function callArriere(w, dest) {
   return { ok: true, men, there, stage };
 }
 
+// Send your levies of these places home now (or, `units` given, just those): they go as when
+// their time is up (an armed man back into his roster), and the place's rest starts now. Men
+// in a village under attack go when the fight is over.
+export function sendBanHome(w, places, units = null) {
+  const from = new Set(places.map(p => p.id));
+  const theirs = u => u.until && from.has(u.src) && (!units || units.includes(u));
+  for (const u of yourLevies(w)) if (theirs(u)) u.until = w.time;
+  for (const p of places) if (!units || !yourLevies(w).some(u => u.src === p.id && u.until > w.time)) p.banState = { until: w.time, rest: w.time + ARRIERE.rest };
+  tickArriere(w, true);
+}
+// Every unit and village regiment of yours that serves in the arrière-ban.
+export function yourLevies(w) {
+  const out = [];
+  for (const a of w.armies) if (!a.gone && a.side === 0 && !a.wagon) out.push(...a.units.filter(isLevy), ...(a.wounded || []).filter(isLevy));
+  for (const p of w.pois) {
+    if (p.owner === 0) out.push(...(p.garrison || []).filter(isLevy));
+    if (p.town && !p.town.hostile) out.push(...p.town.garrison().filter(isLevy));
+  }
+  return out;
+}
+
 // The men a place sends at a call: its armed roster first (world/ban.js), the best kit first, then plain
 // militia to make up `n`. The armed ones carry their place, and go back into its roster when their time is up.
 function banUnits(p, n, name, until) {
-  const armed = takeRoster(p, n, until), fill = n - armed.reduce((k, u) => k + u.count, 0);
-  return fill > 0 ? [...armed, { ...unit(ARRIERE.key, fill, name), until }] : armed;
+  const armed = takeRoster(p, n, until).map(u => ({ ...u, src: p.id })), fill = n - armed.reduce((k, u) => k + u.count, 0);
+  return fill > 0 ? [...armed, { ...unit(ARRIERE.key, fill, name), until, src: p.id }] : armed;
 }
 
 // Levies into a place: into its village, or its garrison if nobody of yours runs it.
@@ -96,34 +146,42 @@ function home(w, p, units) {
 // A rank by places held, the same for you (World.rank) and for a house.
 export const rankOf = n => (n >= 11 ? 'Duke' : n >= 5 ? 'Count' : n >= 2 ? 'Lord' : 'Reeve');
 
-// A great house's own arrière-ban, for the league's host (diplomacy.js raiseHost), on your
-// rules: its rank's men from each of its places, as many as its purse pays for at 3 gold a
-// man and the host has room for; their carts loaded from its stores as far as they go; they
-// serve from `from`, then the countryside rests. Takes the gold and food; returns the men.
+// A great house's own arrière-ban, on your rules: from each of its places whose ban is ready,
+// the nearest `to` first, its rank's men, as many as its purse pays for at 3 gold a man and
+// the host has room for; their carts loaded from its stores as far as they go. They serve from
+// `from` at the latest (banArrived starts a column's clock sooner), then the place rests.
+// Takes the gold and food; returns who comes: [{ p, n }].
+const holdings = (w, h) => w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling);
 export const banCost = (w, h) => {
-  const n = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling).length;
+  const n = holdings(w, h).length;
   return (ARRIERE.per[rankOf(n)] || 0) * n * ARRIERE.gold;
 };
-export function houseBan(w, h, room, from = w.time) {
-  const S = h.arriere || {};
-  if (S.until > w.time || S.rest > w.time) return 0;
-  const places = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling);
-  const per = ARRIERE.per[rankOf(places.length)] || 0;
-  const men = Math.max(0, Math.min(per * places.length, Math.floor(room), Math.floor(h.gold / ARRIERE.gold)));
-  if (!men) return 0;
+export function houseBan(w, h, room, from = w.time + ARRIERE.late, to = null) {
+  const places = holdings(w, h), per = ARRIERE.per[rankOf(places.length)] || 0;
+  const ready = places.filter(p => banState(w, p).is === 'ready');
+  if (to) ready.sort((p, q) => Math.hypot(p.x - to.x, p.z - to.z) - Math.hypot(q.x - to.x, q.z - to.z));
+  let left = Math.max(0, Math.min(Math.floor(room), Math.floor(h.gold / ARRIERE.gold)));
+  const called = [];
+  for (const p of ready) {
+    const n = Math.min(per, left);
+    if (n <= 0) break;
+    left -= n;
+    called.push({ p, n });
+    setOut(p, from + ARRIERE.serve);
+  }
+  const men = called.reduce((k, c) => k + c.n, 0);
+  if (!men) return [];
   h.gold -= men * ARRIERE.gold;
-  const until = from + ARRIERE.serve;
-  h.arriere = { until, rest: until + ARRIERE.rest };
   let food = men * EAT * ARRIERE.serve;
   // (only what leaves each place's people their year, holdings.js stewardSpare)
-  for (const p of places) {
+  for (const { p } of called) {
     let spare = p.eco?.stock ? stewardSpare(p.eco) : 0;
     for (const g of ['bread', 'food']) {
       const st = p.eco?.stock, k = st ? Math.min(food, spare, st[g] || 0) : 0;
       if (k) { st[g] -= k; food -= k; spare -= k; }
     }
   }
-  return men;
+  return called;
 }
 
 // A house calls its arrière-ban as you call yours (Orchestrator, 2026-11-22): when its host
@@ -131,31 +189,32 @@ export function houseBan(w, h, room, from = w.time) {
 // (answer: to meet a threat, not to make one: threat.js callHeard).
 // houseBan takes the gold and food; each place's men march to `dest` as a column and join
 // its garrison there (a place with no road keeps its own at home); they go home when their
-// time is up (tickArriere). As many as a host of its rank holds, less what stands at `dest`.
+// time is up (tickArriere). As many as a host of its rank holds, less what stands at `dest`
+// and what is already marching there.
 export function houseCall(w, h, dest, answer = false) {
-  const places = w.pois.filter(p => p.owner === h.index && p.kind !== 'camp' && !p.falling);
-  const room = (ARMY_CAP[rankOf(places.length)] || 0) - headcount(dest.garrison);
-  const men = houseBan(w, h, room);
+  const bound = w.armies.filter(a => a.side === h.index && !a.gone && a.target === dest).reduce((n, a) => n + headcount(a.units.filter(isLevy)), 0);
+  const room = (ARMY_CAP[rankOf(holdings(w, h).length)] || 0) - headcount(dest.garrison) - bound;
+  const called = houseBan(w, h, room, w.time + ARRIERE.late, dest);
+  const men = called.reduce((k, c) => k + c.n, 0);
   if (!men) return 0;
-  const until = h.arriere.until, per = Math.floor(men / places.length);
-  let left = men;
-  for (const [i, p] of places.entries()) {
-    const n = i === places.length - 1 ? left : Math.min(left, per);
-    if (n <= 0) continue;
-    left -= n;
-    const units = banUnits(p, n, `${h.short} arrière-ban`, until);
-    if (p === dest) { mergeInto(p.garrison, units); continue; }
+  for (const { p, n } of called) {
+    const units = banUnits(p, n, `${h.short} arrière-ban`, p.banState.until);
+    const stay = at => { banArrived(w, units); mergeInto(at.garrison, units.map(unmarked)); };
+    if (p === dest) { stay(p); continue; }
     const col = w.spawnArmy(h.index, units, p, `${h.short} arrière-ban`, 'column');
-    if (!w.order(col, dest, w.roadOf(h.index))) { w.removeArmy(col); mergeInto(p.garrison, units); }   // (not through a foe's or a free place, which would stop it)
+    if (!w.order(col, dest, w.roadOf(h.index))) { w.removeArmy(col); stay(p); }   // (not through a foe's or a free place, which would stop it)
   }
   // News to its neighbours and foes, you among them (threat.js); otherwise word only if you know it.
   if (!callHeard(w, h.index, dest, { kind: 'arriere', answer, men }) && (dest.visible || w.knows(h.index))) w.log(`${h.name} calls its arrière-ban to ${dest.name}: about ${roughly(men)} men of the countryside.`, 2);
   return men;
 }
+// A house's levies in a garrison need no note of their place once their time has started (it
+// never sends them home early), so they fall in with their like.
+export const unmarked = u => { const { src, ...rest } = u; return rest; };
 
-// Every five seconds: levies whose time is up go home, from armies, garrisons and villages.
-// A village under attack keeps its levies until the fight is over.
-export function tickArriere(w) {
+// Every five seconds: levies whose time is up go home, from armies, garrisons and villages
+// (`sent`: you have just sent them). A village under attack keeps its levies until the fight is over.
+export function tickArriere(w, sent = false) {
   const gone = due(w);
   let n = 0;
   for (const a of [...w.armies]) {
@@ -186,5 +245,5 @@ export function tickArriere(w) {
       t.levyMeal = 0;
     }
   }
-  if (n) w.log(`The arrière-ban has served its time: ${n} men go home to their fields.`, 1);
+  if (n) w.log(sent ? `You send the arrière-ban home: ${n} men go back to their fields.` : `The arrière-ban has served its time: ${n} men go home to their fields.`, sent ? 0 : 1);
 }

@@ -24,7 +24,7 @@ import { payElites, tickMarkets } from './treasury.js';
 import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { MARCH_LIVE, armyStep } from './march.js';
-import { tickArriere, rankOf } from './arriere.js';
+import { tickArriere, rankOf, banArrived, unmarked } from './arriere.js';
 import * as ban from './ban.js';
 import { callHeard, sendRelief } from './threat.js';
 import { RELIEF, hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
@@ -680,7 +680,8 @@ export class World {
     }
     if (p.owner === a.side) {
       if (a.loot) arriveHome(this, a, p);
-      if (a.side !== 0) { mergeInto(p.garrison, a.units); this.removeArmy(a); }
+      banArrived(this, a.units);   // levies' time starts here (arriere.js)
+      if (a.side !== 0) { mergeInto(p.garrison, a.units.map(unmarked)); this.removeArmy(a); }
       else if (p.town) { a.gather = null; this.enterTown(a, p, came); }
       else if (a.gather === p.id) {
         // Called to gather here: the armies already waiting take it in.
@@ -859,6 +860,7 @@ export class World {
   }
   // An army waits at a place of yours: inside its village, or in its garrison if it has none.
   waitAt(a, p) {
+    banArrived(this, a.units);   // (a stage counts as the muster, arriere.js)
     if (p.town) return this.enterTown(a, p, p);
     mergeInto(p.garrison, a.units);
     this.removeArmy(a);
@@ -2432,7 +2434,7 @@ function lookouts(p) {
 
 // Men in different armour stay in different regiments (one level to a regiment).
 const sameGear = (a, b) => { const x = gearOf(a), y = gearOf(b); return x.armour === y.armour && x.shield === y.shield; };
-const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...(u.until ? { until: u.until } : {}), ...(u.home !== undefined ? { home: u.home } : {}) });
+const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...(u.until ? { until: u.until } : {}), ...(u.home !== undefined ? { home: u.home } : {}), ...(u.src !== undefined && u.src !== null ? { src: u.src } : {}) });
 
 export function mergeInto(garrison, units) {
   for (const u of units) recruit(garrison, u.key, u.count, u.name, null, gearFields(u));
@@ -2442,7 +2444,7 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
   const size = TYPES[key]?.count || 40;
   const like = { key, ...gear };
   while (n > 0) {
-    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && (u.until || 0) === (gear.until || 0) && (u.home ?? -1) === (gear.home ?? -1));
+    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && (u.until || 0) === (gear.until || 0) && (u.home ?? -1) === (gear.home ?? -1) && (u.src ?? -1) === (gear.src ?? -1));
     if (!g) garrison.push(g = { ...unit(key, 0, name || `${house ? house.short + ' ' : ''}${(TYPES[key]?.name || key).toLowerCase()}`), ...gear, xp: 0 });
     const k = Math.min(n, size - g.count);
     if (gear.battles) g.battles = Math.max(g.battles || 0, gear.battles);

@@ -27,7 +27,7 @@ import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
-import { ARRIERE, arrierePlan, callArriere, musterPlace } from './world/arriere.js';
+import { ARRIERE, arrierePlan, callArriere, musterPlace, banState } from './world/arriere.js';
 import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved, unsavedNotice } from './world/save.js';
 import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
@@ -969,10 +969,11 @@ function askBanners(dest) {
 // The arrière-ban shows its men and its price before it is called (ruling, 2026-11-21).
 function askArriere(dest) {
   const P = arrierePlan(world, dest), n = P.places.length, f = x => x.toLocaleString('en-GB');
-  const text = P.per ? `Every place you hold calls up ${P.per} men from its countryside, beyond its village people, so no villager is taken: ${n} place${n > 1 ? 's' : ''}, ${P.men} men for ${dest.name}.\n\n`
+  const busy = P.all.filter(p => !P.places.includes(p)).map(p => { const s = banState(world, p); return `${p.name} (${s.is === 'out' ? 'out, home' : 'resting, again'} in ${Math.max(1, Math.ceil(s.secs / 60))} min)`; });
+  const text = n ? `${n === P.all.length ? 'Every place you hold' : `${n} of your ${P.all.length} places`} call${n === 1 ? 's' : ''} up ${P.per} men from its countryside, beyond its village people, so no villager is taken: ${P.men} men for ${dest.name}.\n\n`
     + `They are spearmen with no armour and little heart for a hard fight, and they break before your banners do${P.armed ? `, all but the ${P.armed} you have armed at your barracks, who bring their kit and what they have learned` : ''}. They cost ${f(P.gold)} gold to call and eat ${f(P.food)} food a minute, fed by your villages in your own lands.\n\n`
-    + `They serve ${P.mins} minutes, then go home, and the countryside rests ${ARRIERE.rest / 60} minutes before it answers again.`
-    : 'A reeve has no countryside to call. From the rank of Lord, every place you hold sends men from its fields.';
+    + `They serve ${P.mins} minutes from the day they reach the muster, then go home, and that place's countryside rests ${ARRIERE.rest / 60} minutes before it answers again.${busy.length ? `\n\nNot ready: ${busy.join(', ')}.` : ''}`
+    : P.per ? `${P.why}.${busy.length ? ` ${busy.join(', ')}.` : ''}` : 'A reeve has no countryside to call. From the rank of Lord, every place you hold sends men from its fields.';
   asks.unshift({ kind: 'choice', ev: { title: `Call the arrière-ban to ${dest.name}`, text, at: dest, choices: [
     { label: `Call ${f(P.men)} men for ${f(P.gold)} gold`, ok: P.ok, why: P.why, run: () => { const r = callArriere(world, dest); if (!r.ok) flash(r.why); } },
     { label: 'Not now', ok: true, run: () => {} },

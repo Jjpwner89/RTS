@@ -231,8 +231,10 @@ function raiseHost(w) {
   // (arriere.js houseBan). A house that cannot pay sends fewer. The host is one army, within
   // a duke's cap, as yours is.
   let room = Math.max(0, ARMY_CAP.Duke - headcount(units)), levy = 0;
-  for (const i of C.members) { const n = houseBan(w, FACTIONS[i], room, w.time + HOST_GATHER); levy += n; room -= n; share[i] += n; }
-  if (levy) { mergeInto(units, [{ ...unitOf(ARRIERE.key, levy, 'League levies'), until: w.time + HOST_GATHER + ARRIERE.serve }]); from.push(`levies ${levy}`); }
+  // (the levy stands at the muster at once, but its clock waits for the host: as a column's does, arriere.js)
+  const start = w.time + Math.min(HOST_GATHER, ARRIERE.late);
+  for (const i of C.members) { const n = houseBan(w, FACTIONS[i], room, start, S).reduce((k, c) => k + c.n, 0); levy += n; room -= n; share[i] += n; }
+  if (levy) { mergeInto(units, [{ ...unitOf(ARRIERE.key, levy, 'League levies'), until: start + ARRIERE.serve }]); from.push(`levies ${levy}`); }
   const a = w.spawnArmy(lead.index, units, S, 'The league host', 'siege');
   a.league = true;
   C.host = { id: a.id, at: S.id, target: T.id, marchAt: w.time + HOST_GATHER, men: headcount(units.filter(u => !SIEGE.has(u.key))), lead: lead.index, share,
