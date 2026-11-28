@@ -3475,6 +3475,46 @@ async function iconChecks() {
     .map(i => i.dataset.i || i.getAttribute('style')))].map(n => `'${n}'`));
 }
 
+// ---- notices never cover each other (ui/stack.js) ----
+
+// "Building is held up" lay over the autumn herald (creator, 2026-11-23). A herald, a long news
+// line and a toast are put up at once, arranged, measured and taken down again, all at once.
+async function noticeChecks() {
+  group = 'Notices';
+  const log = document.getElementById('log');
+  if (!log) return;
+  const { arrange, saying, boxOf } = await import('./ui/stack.js');
+  const named = ['paused-tag', 'deploy', 'terms', 'duel', 'herald', 'log', 'toast'];
+  const covering = () => {
+    const up = named.map(id => document.getElementById(id)).filter(el => el && saying(el)).map(el => [el.id, boxOf(el)]), out = [];
+    for (let i = 0; i < up.length; i++) for (let j = i + 1; j < up.length; j++) {
+      const [a, p] = up[i], [b, q] = up[j];
+      if (p.left < q.right - 1 && p.right > q.left + 1 && p.top < q.bottom - 1 && p.bottom > q.top + 1) out.push(`#${b} lies over #${a}`);
+    }
+    return out;
+  };
+  await check('the notices on screen are clear of each other', () => { if (!innerWidth || document.hidden) return null; arrange(); return covering(); });
+  await check('a herald, a news line and a toast put up together keep clear', () => {
+    const herald = document.getElementById('herald'), toast = document.getElementById('toast');
+    if (!innerWidth || document.hidden) return null;
+    const was = [herald, toast].filter(Boolean).map(el => [el, el.innerHTML, el.className]);
+    const line = Object.assign(document.createElement('div'), { textContent: 'Building is held up: the farm waits for wood: the woodcutters are not keeping up. Build another woodcutter, or find trees nearer.' });
+    log.prepend(line);
+    if (herald) { herald.innerHTML = '<div class="face">A</div><div><h4>Autumn</h4><p>Harvest. The barns fill; lay in stores for winter.</p></div>'; herald.classList.add('show'); }
+    if (toast) { toast.textContent = 'Saved. Continue from the menu any time.'; toast.classList.add('show'); }
+    try {
+      arrange();
+      const out = covering();
+      for (const el of [herald, toast, log]) if (el && !saying(el)) out.push(`#${el.id} was put up and is not showing`);
+      return out;
+    } finally {
+      line.remove();
+      for (const [el, html, cls] of was) { el.innerHTML = html; el.className = cls; }
+      arrange();
+    }
+  });
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -3485,6 +3525,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   await oopsChecks();
   await chimeChecks();
   await iconChecks();
+  await noticeChecks();
   if (!window.game && !window.muster) results.push({ group: 'Page', name: 'game loaded', status: 'fail', detail: ['no window.game: the page has not finished loading, or failed to'] });
   for (const s of scenes()) { group = s.label[0].toUpperCase() + s.label.slice(1); await battleChecks(s); }
   if (window.game?.world) await worldChecks(window.game.world);

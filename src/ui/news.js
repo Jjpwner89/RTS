@@ -64,7 +64,7 @@ export function tick(w) {
 // screen and off every panel and card that holds buttons (the one the thing sits in included:
 // a build button's notice goes above the bar, not over its neighbours) (a notice never covers a choice,
 // whichever came first). False when there is nowhere clear: the line waits, the seal stays.
-const AVOID = '#wpanel, #info, #build, #stock, #orders, #cards, #alerts, #goals, #defences, #log > div:not(.fade)';
+const AVOID = '#wpanel, #info, #build, #stock, #orders, #cards, #alerts, #goals, #defences, #log > div:not(.fade), #herald.show, #toast.show';
 function place(el) {
   const r = el.getBoundingClientRect(), s = slip.getBoundingClientRect(), pad = 8;
   const boxes = [...document.querySelectorAll(AVOID)].filter(b => b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden').map(b => b.getBoundingClientRect());
