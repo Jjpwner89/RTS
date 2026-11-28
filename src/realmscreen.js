@@ -68,7 +68,7 @@ export function villageRow(w, p) {
   if (t.population >= t.housing) trouble.push(['No room', 1]);
   return {
     p, v, t, pop: t.population, room: t.housing, newcomers: rate.rate, newWhy: rate.block, mood: t.mood,
-    food: t.population ? meals / t.population : 0, wood: t.free('wood'), stone: t.free('stone'), iron: s.iron || 0,
+    food: t.population ? meals / t.population : 0, wood: t.goodCount('wood').spend, stone: t.goodCount('stone').spend, iron: t.goodCount('iron').spend,
     arms: armsCount(s), stock: s, vets: t.veterans().length, men, tax: w.taxOf(p) * 60, governor: t.governor !== false, trouble,
   };
 }

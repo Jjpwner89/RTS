@@ -462,6 +462,21 @@ const compass = p => ['north', 'north-east', 'east', 'south-east', 'south', 'sou
 const listCost = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g].name.toLowerCase()}`).join(', ');
 export { listCost };
 
+// What makes a good, read from the building table: "weaponsmith, from iron and planks". Never
+// written by hand, so a recipe that changes can't leave a stale line behind.
+const andList = a => a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a.at(-1)}` : a.join('');
+export function madeBy(g) {
+  const out = [];
+  for (const B of Object.values(BUILDINGS)) {
+    if (B.camp) continue;
+    if (B.gather?.out?.[g] !== undefined) out.push(B.name.toLowerCase());
+    const r = B.recipes?.find(r => !r.buy && r.out[g] !== undefined);
+    if (r) out.push(`${B.name.toLowerCase()}, from ${andList(Object.keys(r.in).map(k => GOODS[k].name.toLowerCase()))}`);
+  }
+  return out.join(', or the ');
+}
+export const makerText = g => `${GOODS[g].name.toLowerCase()}: ${madeBy(g) || 'bought at a market'}`;
+
 // Calls `each(x, z)` at points in widening rings round (x, z), nearest first, the way a
 // template lays out, until it returns true.
 function inRings(x, z, each, max = 48) {
@@ -631,6 +646,53 @@ export class Town {
     return n;
   }
   free(g) { return this.stock[g] - this.owed(g); }
+
+  // A good's one honest number (first-session scout, 2026-11-28: the row said 47 wood, a warning
+  // 1 and a building "Needs 15"). `spend` is what the village can spend now, and the only figure any
+  // screen states: everything held (stores, yards, carriers' arms) less what building sites still
+  // wait for. The rest is told beside it: `promised` held for those sites, `waiting` what the sites
+  // wait for beyond all that is held, `yard` still lying where it was made.
+  goodCount(g) {
+    const held = this.stock[g] || 0, owed = this.owed(g);
+    const at = new Map();   // where it was made and not yet carried in
+    let road = 0;
+    for (const b of this.buildings) {
+      if (b.state !== 'active' || b.B.storage || !(b.store[g] >= 1)) continue;
+      if (b.B.gather?.out?.[g] === undefined && !b.B.recipes?.some(r => g in r.out)) continue;
+      at.set(b.B.name.toLowerCase(), (at.get(b.B.name.toLowerCase()) || 0) + b.store[g]);
+    }
+    for (const v of this.villagers) if (v.load?.g === g) road += v.load.n;
+    return { spend: Math.max(0, Math.floor(held - owed + 1e-6)), promised: Math.floor(Math.min(held, owed) + 1e-6), waiting: Math.max(0, Math.ceil(owed - held - 1e-6)),
+      yard: [...at].map(([name, n]) => ({ name, n: Math.floor(n) })), road: Math.floor(road) };
+  }
+
+  // The lines under a good's number, for its tooltip.
+  goodNotes(g) {
+    const c = this.goodCount(g);
+    return [`${GOODS[g].name}: ${c.spend} to spend now`,
+      ...(c.promised ? [`+${c.promised} promised to building sites`] : []),
+      ...(c.waiting ? [`Building sites still wait for ${c.waiting} more`] : []),
+      ...c.yard.map(y => `${y.n} still at the ${y.name}${/s$/.test(y.name) ? '' : 's'}, not yet carried in`)];
+  }
+
+  // What a cost is short of, in the same figures: "Short of wood: 8 to spend, needs 15 (30 more is
+  // promised to building sites)". '' when it can be paid.
+  shortText(cost) {
+    const short = Object.entries(cost).filter(([g, n]) => this.free(g) < n).map(([g, n]) => {
+      const c = this.goodCount(g);
+      return `${GOODS[g].name.toLowerCase()}: ${c.spend} to spend, needs ${n}${c.promised ? ` (${c.promised} more is promised to building sites)` : ''}`;
+    });
+    return short.length ? `Short of ${short.join('; ')}` : '';
+  }
+
+  // The cold hearths, in the stores panel's figures (coldNow). The hearths burn what lies in the
+  // village, so wood still in carriers' arms is no use to them yet: say that rather than a number
+  // that disagrees with the row.
+  coldText() {
+    const need = Math.ceil(this.hearths * FIREWOOD / 2), c = this.goodCount('wood');
+    if (c.spend >= need) return `The hearths are cold: ${need} wood is needed, and yours is still in carriers' arms (${c.road}). Haulers need hands.`;
+    return `The hearths are cold: ${c.spend} wood to spend, ${need} needed${c.promised ? ` (${c.promised} more is promised to building sites)` : ''}. Woodcutters and haulers need hands.`;
+  }
   // What a market's buying recipe costs now: its listed price, up with what has been bought lately.
   buyPrice(r) { return r.buy / priceShare(this.glut, 'buy:' + buyGood(r), this.time); }
 
@@ -835,7 +897,7 @@ export class Town {
   // `planned`: buildings not yet placed (a template's layout) to keep clear of as well.
   canPlace(kind, x, z, { free = false, planned = null } = {}) {
     const B = BUILDINGS[kind], p = { x, z };
-    if (!free && !this.canAfford(B.cost)) return { ok: false, reason: `Needs ${listCost(B.cost)}` };
+    if (!free && !this.canAfford(B.cost)) return { ok: false, reason: this.shortText(B.cost) };
     if (B.hall) {
       const why = this.hallRule?.() || (keepLevel(this) < 3 ? 'Needs a keep of level 3 (60 people)' : null);
       if (why) return { ok: false, reason: why };
@@ -888,7 +950,7 @@ export class Town {
     if (!T) return { ok: false, reason: 'No such template' };
     if (T.at && this.population < T.at) return { ok: false, reason: `Needs ${T.at} people` };
     const cost = templateCost(name);
-    if (!this.canAfford(cost)) return { ok: false, reason: `Needs ${listCost(cost)}` };
+    if (!this.canAfford(cost)) return { ok: false, reason: this.shortText(cost) };
     return { ok: true };
   }
 
@@ -1039,12 +1101,12 @@ export class Town {
     const kit = KITS[key].kit, have = g => Math.floor(barracks.store[g] || 0);
     const byKit = Math.min(...Object.entries(kit).map(([g, n]) => Math.floor(have(g) / n)));
     const n = Math.min(this.levyMax?.() || LEVY_MAX, byKit, free);   // a duke's levies come forty strong
-    const short = Object.entries(kit).filter(([g, k]) => have(g) < k * LEVY_MIN)
-      .map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);
+    const lacking = Object.entries(kit).filter(([g, k]) => have(g) < k * LEVY_MIN);
+    const short = lacking.map(([g, k]) => `${k * LEVY_MIN} ${GOODS[g].name.toLowerCase()} here (has ${have(g)})`);
     const reason = byKit < LEVY_MIN ? `Needs ${short.join(' and ')}`
       : free < LEVY_MIN ? `Needs ${LEVY_MIN} villagers` : null;
     const fit = outfit(key, Math.max(1, n), have, barracks.policy || 'best');
-    return { n, ok: !reason, reason, fit };
+    return { n, ok: !reason, reason, fit, makers: byKit < LEVY_MIN ? lacking.map(([g]) => makerText(g)) : [] };
   }
 
   raise(key, barracks) {
@@ -1437,7 +1499,8 @@ export class Town {
     const n = Math.min(S.batch, room, vets, byKit, byGold);
     const short = Object.entries(kit).filter(([g, k]) => this.free(g) < k).map(([g]) => GOODS[g].name.toLowerCase());
     if (byArmour < 1) short.push(S.elite ? 'mail or plate' : GOODS[ARMOUR_GOOD[T.armour]].name.toLowerCase());
-    if (n < 1) return { ok: false, reason: byKit < 1 ? `Short of ${short.join(', ')}` : `Needs ${E.fee} gold each` };
+    if (n < 1) return { ok: false, reason: byKit < 1 ? `Short of ${short.join(', ')}` : `Needs ${E.fee} gold each`,
+      makers: byKit < 1 ? [...Object.entries(kit).filter(([g, k]) => this.free(g) < k).map(([g]) => g), ...(byArmour < 1 ? [S.elite ? 'mail' : ARMOUR_GOOD[T.armour]] : [])].map(makerText) : [] };
     const fit = S.elite ? outfit(key, n, g => Math.floor(this.free(g)), 'best', true)
       : { armour: T.armour, shield: canShield(key) && this.free('shields') >= n };
     return { ok: true, n, fit };
@@ -1537,7 +1600,7 @@ export class Town {
     if (!K || this.keepLevel) return { ok: false, reason: 'The keep is as great as it gets', done: true };
     if (this.population < K.pop) return { ok: false, reason: `Needs a village of ${K.pop} people`, K };
     if (this.purse.gold < K.gold) return { ok: false, reason: `Needs ${K.gold} gold`, K };
-    if (!this.canAfford(K.cost)) return { ok: false, reason: `Needs ${listCost(K.cost)}`, K };
+    if (!this.canAfford(K.cost)) return { ok: false, reason: this.shortText(K.cost), K };
     return { ok: true, K };
   }
   raiseKeep() {
@@ -1595,7 +1658,7 @@ export class Town {
     if (!U || b.state !== 'active' || b.B.hall || b.B.great || b.B.camp) return { ok: false, reason: 'Fully upgraded', done: true };
     if (b.dry) return { ok: false, reason: "Worked out: upgrading won't help" };
     if (U.gold && this.purse.gold < U.gold) return { ok: false, reason: `Needs ${U.gold} gold` };
-    if (!this.canAfford(U.cost)) return { ok: false, reason: `Needs ${listCost(U.cost)}` };
+    if (!this.canAfford(U.cost)) return { ok: false, reason: this.shortText(U.cost) };
     return { ok: true, U };
   }
 
@@ -2294,7 +2357,7 @@ export class Town {
       if (h < o.B.radius - 0.5) return { ok: false, reason: `The ${o.B.name.toLowerCase()} is in the way` };
     }
     const stone = this.roadCost(a, b);
-    if (this.free('stone') < stone) return { ok: false, reason: `Needs ${stone} stone`, stone };
+    if (this.free('stone') < stone) return { ok: false, reason: this.shortText({ stone }), stone };
     return { ok: true, stone, len };
   }
   layRoad(a, b) {

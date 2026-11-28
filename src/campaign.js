@@ -38,7 +38,7 @@ const ghostKind = k => k === 'road' || k?.startsWith('tpl:') ? null : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
 import { offer, wage, fullWage, hire as hireCompany, release } from './world/companies.js';
 import { vassalOf, holdingsOf, living, prisoners, opinion, outlook, duesShare, levyShare, DUES, LEVIES, TEMPERS, WANTS, SEATS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
-import { GOALS, updateGoals } from './world/goals.js';
+import { GOALS, updateGoals, goalNow } from './world/goals.js';
 import { coronation } from './world/events.js';
 import { alerts, LEVEL_COLOR } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
@@ -250,6 +250,8 @@ function townBundle(p, look = null) {
     startPlacing: kind => { if (look) return; st.placing = kind; st.roadFrom = null; st.selected = null; b.controls.setSelection([]); },
     pullBack: () => world.endStorm(p, true),
     templates: () => world.rank !== 'Reeve',
+    goal: () => goalNow(world),
+    showGoals: () => showLadder(!document.body.classList.contains('show-ladder')),
     unlocked: key => unlocked(world, key),
     ahead: key => ahead(world, key),
     companies: () => (world.companies || []).map(c => {
@@ -346,23 +348,39 @@ function goalNudge() {
   }
   nudge(el);
 }
-$('goals').onclick = () => { $('goals').classList.toggle('folded'); goalsShown = -1; };
+// In a village the ladder is away until the goal line in the stores panel asks for it; a click
+// on it, or Esc, puts it away again. The map's own fold is left as it was.
+let ladderWasFolded = false;
+function showLadder(on) {
+  if (on === document.body.classList.contains('show-ladder')) return;
+  const el = $('goals');
+  if (on) { ladderWasFolded = el.classList.contains('folded'); el.classList.remove('folded'); }
+  else el.classList.toggle('folded', ladderWasFolded);
+  document.body.classList.toggle('show-ladder', on);
+  goalsShown = -1;
+}
+$('goals').onclick = () => {
+  if (mode !== 'world') return showLadder(false);
+  $('goals').classList.toggle('folded'); goalsShown = -1;
+};
+addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('show-ladder')) { e.escUsed = true; e.stopImmediatePropagation(); showLadder(false); } }, true);
 function goals() {
   if (mode === 'town') goalSeen.visited = true;
   for (const g of updateGoals(world, goalSeen)) {
     const next = GOALS[world.goals];
     world.log(`Goal done: ${g.text.split(':')[0].replace(/\.$/, '')}.${next ? ` Next: ${next.text[0].toLowerCase()}${next.text.slice(1)}` : ''}`);
   }
-  const key = world.goals + ':' + world.part + ':' + FACTIONS.some(h => h.index && h.ai?.stage);
+  const key = world.goals + ':' + world.part + ':' + mode + ':' + FACTIONS.some(h => h.index && h.ai?.stage);
   if (goalsShown === key) return;
   goalsShown = key;
   const el = $('goals');
   el.hidden = world.goals >= GOALS.length || world.part === 2;
-  el.innerHTML = `<h4>Goals <small>${world.goals} of ${GOALS.length} · click for ${el.classList.contains('folded') ? 'all' : 'less'}</small></h4>` + GOALS.map((g, i) =>
+  el.innerHTML = `<h4>Goals <small>${world.goals} of ${GOALS.length} · ${mode === 'world' ? `click for ${el.classList.contains('folded') ? 'all' : 'less'}` : 'click to close'}</small></h4>` + GOALS.map((g, i) =>
     `<div class="${i < world.goals ? 'done' : i === world.goals ? 'now' : 'later'}">${i < world.goals ? '✓' : i === world.goals ? '▸' : '·'} ${g.text}${i === world.goals && g.tip ? `<small>${typeof g.tip === 'function' ? g.tip(world) : g.tip}</small>` : ''}</div>`).join('');
 }
 
 function setMode(m, b) {
+  showLadder(false);
   if (current?.controls) current.controls.enabled = false;
   if (current?.look && current !== b) stage.dispose(current.scene);
   mode = m;

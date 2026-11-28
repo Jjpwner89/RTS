@@ -3999,6 +3999,86 @@ async function torchChecks() {
   await check('an engine\'s crew carries one torch', () => of({ bearersOf: BattleView.prototype.bearersOf }, regiment(30, { engine: {} })).filter(Boolean).length === 1 ? [] : ['not one']);
 }
 
+// ---- the first session (the newcomer scout, 2026-11-28) ----
+
+// A scratch village of the world's, to try things on.
+async function scratchVillage(w, stock, fn) {
+  const real = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+  const copy = { ...real, id: 'checks-first', name: 'Newby', ban: undefined, vassal: undefined, town: null };
+  const t = w.makeTown(copy, { villagers: 12, retinue: false, stock });
+  copy.town = t;
+  try { return await fn(t, copy); } finally { t.lost = true; }
+}
+// The first clear spot for a building in a village.
+function spotFor(t, kind) {
+  for (let r = 20; r < 90; r += 4) for (let a = 0; a < 6.3; a += 0.3) {
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (t.canPlace(kind, x, z, { free: true }).ok) return { x, z };
+  }
+  return null;
+}
+function putUp(t, kind, ready) {
+  const s = spotFor(t, kind);
+  return s && t.place(kind, s.x, s.z, { free: true, ready }).building;
+}
+
+async function newcomerChecks(w) {
+  if (!w.home) return;
+  const E = await import('./economy.js'), G = await import('./world/goals.js');
+  group = 'First session';
+  await check('a good has one number everywhere: what can be spent now, with the promised wood told apart', () => scratchVillage(w, { wood: 60, stone: 5 }, t => {
+    const out = [];
+    const before = t.goodCount('wood').spend;
+    for (let i = 0; i < 3; i++) if (!putUp(t, 'house', false)) return ['could not place a house in the test village'];
+    const owed = 3 * E.BUILDINGS.house.cost.wood, c = t.goodCount('wood');
+    if (before !== 60 || c.spend !== 60 - owed || c.promised !== owed) out.push(`60 wood and three house sites read as ${c.spend} to spend and ${c.promised} promised (before: ${before})`);
+    if (!t.goodNotes('wood').includes(`+${owed} promised to building sites`)) out.push(`the wood tooltip says "${t.goodNotes('wood').join(' / ')}"`);
+    const want = `wood: ${c.spend} to spend, needs ${c.spend + 1} (${owed} more is promised to building sites)`;
+    const short = t.shortText({ wood: c.spend + 1 });
+    if (short !== `Short of ${want}`) out.push(`short of wood it says "${short}"`);
+    if (t.shortText({ wood: c.spend })) out.push('wood that can be paid is called short');
+    t.spend({ wood: c.spend });
+    const spot = spotFor(t, 'house'), r = spot && t.canPlace('house', spot.x, spot.z);
+    if (r && !/to spend, needs 12/.test(r.reason || '')) out.push(`a house with no wood to spare is refused with "${r.reason}"`);
+    // the hearths warning speaks in the same figures
+    t.spend({ wood: t.stock.wood - 1 });
+    if (t.coldNow && !t.coldText().includes(`${t.goodCount('wood').spend} wood to spend`)) out.push(`the cold hearths line says "${t.coldText()}" with ${t.goodCount('wood').spend} to spend`);
+    return out;
+  }));
+  await check('wood still in a woodcutter\'s yard is counted once and named in the tooltip', () => scratchVillage(w, { wood: 20 }, t => {
+    const hut = putUp(t, 'woodcutter', true) || t.buildings.find(b => b.kind === 'woodcutter');
+    if (!hut) return null;   // no woods in reach on this ground
+    t.put(hut, 'wood', 12);
+    const c = t.goodCount('wood');
+    return c.spend === 32 && t.goodNotes('wood').some(l => /^12 still at the woodcutters/.test(l)) ? [] : [`32 wood, 12 of it at the woodcutter, reads "${t.goodNotes('wood').join(' / ')}"`];
+  }));
+  await check('the stores panel\'s numbers are what can be spent', () => {
+    const t = shownTown(), cells = [...document.querySelectorAll('#stock [data-g]')];
+    if (!t || t.hostile || !cells.length || !window.game.current?.controls) return null;
+    return sample(cells.filter(el => !el.parentElement.hidden).map(el => [el.dataset.g, +el.textContent, Math.floor(Math.max(0, t.free(el.dataset.g)) + 1e-6)])
+      .filter(([, shown, real]) => Math.abs(shown - real) > 4).map(([g, shown, real]) => `the panel shows ${shown} ${g}, ${real} can be spent`));
+  });
+  await check('every goal has a short name and a next step', () => scratchVillage(w, { wood: 60 }, t => G.GOALS.map(g => {
+    const next = g.next?.(w, t);
+    return g.short && typeof next === 'string' && next.length > 3 && next.length < 90 ? null : `"${g.text}": short "${g.short}", next "${next}"`;
+  }).filter(Boolean)));
+  await check('the current goal is on screen in your village', () => {
+    const t = shownTown(), g = window.game;
+    if (g.mode !== 'town' || !t || t.hostile || t.readOnly || !G.goalNow(w)) return null;
+    const el = document.querySelector('#stock .goalline');
+    return el && el.getClientRects().length && el.textContent.includes(G.goalNow(w).title) ? [] : ['no goal line in the stores panel'];
+  });
+  await check('a troop short of arms names the workshop that makes them, from the recipe table', () => scratchVillage(w, { wood: 20 }, t => {
+    const out = [];
+    for (const K of Object.values(E.KITS)) for (const g of Object.keys(K.kit)) if (!E.madeBy(g)) out.push(`nothing is known to make ${g}`);
+    const rack = putUp(t, 'barracks', true);
+    if (!rack) return ['could not place a barracks'];
+    const c = t.levyCheck('spear', rack), smith = Object.values(E.BUILDINGS).find(B => B.recipes?.some(r => r.out.spears));
+    if (!c.makers?.some(m => m.startsWith('spears:') && m.includes(smith.name.toLowerCase()))) out.push(`an empty barracks short of spears names "${c.makers?.join('; ')}", not the ${smith.name.toLowerCase()}`);
+    return out;
+  }));
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -4021,6 +4101,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await firstHourChecks(window.game.world);
   if (window.game?.world?.pois) await villageChecks(window.game.world);
   if (window.game?.world?.pois) await lateChecks(window.game.world);
+  if (window.game?.world?.pois) await newcomerChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {

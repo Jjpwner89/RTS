@@ -123,6 +123,7 @@ export class TownHud {
       this.stockEl.onclick = e => {
         if (e.target.closest('.fold')) { this.fold(!this.stockEl.classList.contains('folded')); setPref('stock-folded', this.stockEl.classList.contains('folded')); return; }
         if (e.target.closest('[data-s="gold"]')) { this.taxOpen = !this.taxOpen; return; }
+        if (e.target.closest('.goalline')) { this.hooks.showGoals?.(); return; }
         // A vassal's village is theirs to run: you may look, not act (creator's call, 2026-11-19).
         if (town.readOnly) return;
         if (e.target.closest('.raid.now')) this.hooks.findAttackers?.();
@@ -171,6 +172,7 @@ export class TownHud {
     // A look-round's taxes are the vassal's to set: no − / + there.
     const lever = (d, title, mark) => this.town.readOnly ? '' : `<button data-tax="${d}" title="${title}">${mark}</button>`;
     this.stockEl.innerHTML = `
+      <button class="goalline" data-s="goal" title="Your goal, and the next step. Click for the whole road to the crown." hidden></button>
       <div class="people"><span data-s="pop"></span><span data-s="idle"></span><button class="fold" title="Fold the stores to one strip, to see more of the village"></button></div>
       <div class="people mood"><span data-s="mood"></span><span class="tax">${lever(-1, 'Lower taxes', '−')}<span data-s="tax"></span>${lever(1, 'Raise taxes', '+')}</span></div>
       <div class="people"><span data-s="gold"></span></div>
@@ -182,7 +184,7 @@ export class TownHud {
       <button data-act="muster" class="wide muster" hidden><span>Muster the militia</span><small></small></button>
       <button data-act="standdown" class="wide muster" hidden><span>Stand the militia down</span><small>back to their work</small></button>
       ${GOOD_GROUPS.map(([label, goods]) => `
-        <h4 data-grp="${label}" title="Everything in every store of the village, added up">${label}</h4>
+        <h4 data-grp="${label}" title="What you can spend now, from every store and yard. Goods promised to building sites are not counted: hover a good to see them.">${label}</h4>
         <div class="goods" data-grp="${label}">${goods.map(g => `<span title="${GOODS[g].name}" data-cell="${g}" hidden>${gi(g)}<b data-g="${g}">0</b><i class="trend" data-trend="${g}"></i></span>`).join('')}</div>`).join('')}`;
     this.goodEls = [...this.stockEl.querySelectorAll('[data-g]')];
     this.trendEls = new Map([...this.stockEl.querySelectorAll('[data-trend]')].map(e => [e.dataset.trend, e]));
@@ -299,8 +301,8 @@ export class TownHud {
 
   // Each good's change over the last minute or so, a minute's worth, so a delivery doesn't flicker it:
   // ▲3 or ▼3 beside the count. Food that is falling with under three minutes in store turns red.
-  trends() {
-    const t = this.town, s = t.stock, now = t.time;
+  trends(s = this.town.stock) {
+    const t = this.town, now = t.time;
     if (!this.hist || this.hist.town !== t) this.hist = { town: t, at: -99, rows: [] };
     const h = this.hist;
     if (now < h.at) { h.rows = []; h.at = -99; }   // the clock went back: a new game
@@ -318,8 +320,10 @@ export class TownHud {
       }
       if (el.textContent !== text) el.textContent = text;
       if (el.className !== `trend ${cls}`) el.className = `trend ${cls}`;
-      const cell = el.parentElement, tip = text ? `${GOODS[g].name}: ${text.startsWith('▲') ? 'rising' : 'falling'} by about ${text.slice(1).split(' ')[0]} a minute over the last minute${cls.includes('low') ? `; at that rate the stores last about ${Math.max(1, Math.floor(s[g] / -per))} min` : ''}` : '';
-      if ((cell.dataset.tip || '') !== tip) { if (tip) cell.dataset.tip = tip; else delete cell.dataset.tip; }
+      const cell = el.parentElement;
+      if (cell.hidden) continue;
+      const tip = [...t.goodNotes(g), ...(text ? [`${text.startsWith('▲') ? 'Rising' : 'Falling'} by about ${text.slice(1)} a minute over the last minute${cls.includes('low') ? `: at that rate it lasts about ${Math.max(1, Math.floor(s[g] / -per))} min` : ''}`] : [])].join('\n');
+      if (cell.dataset.tip !== tip) cell.dataset.tip = tip;
     }
   }
 
@@ -335,11 +339,17 @@ export class TownHud {
     const t = this.town, s = t.stock;
     active = this;
     if (t.hostile) { this.updateStorm(); this.updateInfo(selected, regs); return; }
-    for (const el of this.goodEls) el.textContent = Math.floor(s[el.dataset.g]);
+    // Every number is what can be spent now (economy.js goodCount); the rest is in its tooltip.
+    const spend = Object.fromEntries(Object.keys(s).map(g => [g, Math.max(0, t.free(g))]));
+    for (const el of this.goodEls) el.textContent = Math.floor(spend[el.dataset.g] + 1e-6);
     this.showGoods();
-    this.trends();
+    this.trends(spend);
     this.fitColumn();
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
+    // The current goal, on the village screen too (campaign.js; the village page has none).
+    const goal = t.readOnly ? null : this.hooks.goal?.();
+    this.stockEl.querySelector('.goalline').hidden = !goal;
+    if (goal) set('goal', `<b>▸ ${goal.title}</b>${goal.next ? `<span>${goal.next}</span>` : ''}`);
     const armed = t.underArms;
     set('pop', `${ico('people')} ${t.population} / ${t.housing}${armed ? ` <small>(${armed} under arms)</small>` : ''}`);
     // Veterans, where you plan with them (creator, 2026-11-28: only a selected barracks or hall said how many).
@@ -365,7 +375,7 @@ export class TownHud {
       if (el.dataset.tip !== L.tip) { el.dataset.tip = L.tip; el.setAttribute('aria-label', L.tip); }
       el.classList.toggle('bad', L.bad);
     }
-    set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.starving ? `Meals are short: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? `The hearths are cold: ${Math.round(t.hearthWood())} wood in the stores, ${Math.ceil(t.hearths * 1.5 / 2)} needed. Woodcutters and haulers need hands.` : '');
+    set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.starving ? `Meals are short: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? t.coldText() : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
     const mb = this.stockEl.querySelector('[data-act="muster"]'), sb = this.stockEl.querySelector('[data-act="standdown"]');
@@ -404,7 +414,7 @@ export class TownHud {
       const B = BUILDINGS[el.dataset.build];
       if (B) {
         el.disabled = !!why;
-        const label = el.querySelector('small'), text = why || listCost(B.cost), title = why ? `${why}. ${B.desc}` : B.desc;
+        const label = el.querySelector('small'), text = why || listCost(B.cost), short = !why && t.shortText(B.cost), title = why ? `${why}. ${B.desc}` : short ? `${short}.\n${B.desc}` : B.desc;
         if (label && label.textContent !== text) label.textContent = text;
         if (el.title !== title) el.title = title;
       }
@@ -433,7 +443,11 @@ export class TownHud {
       const [ok, title] = this.allowed(el.dataset.act);
       el.disabled = !ok;
       el.title = title || '';
-      if (el.dataset.act.startsWith('raise:')) { const c = this.town.levyCheck(el.dataset.act.slice(6), selected); el.querySelector('small').textContent = title || `${c.n} men · ${gearText(c.fit)}`; }
+      if (el.dataset.act.startsWith('raise:')) {
+        const c = this.town.levyCheck(el.dataset.act.slice(6), selected);
+        el.querySelector('small').textContent = title || `${c.n} men · ${gearText(c.fit)}`;
+        this.makerLine(el, c, title);
+      }
       if (el.dataset.act.startsWith('banpick:') || el.dataset.act.startsWith('bantier:')) { const P = this.banPick ||= { key: 'spear', tier: 'leather' }, [what, v] = el.dataset.act.split(':'); el.disabled = false; el.classList.toggle('on', (what === 'banpick' ? P.key : P.tier) === v); }
       if (el.dataset.act === 'banarm') { const P = this.banPick ||= { key: 'spear', tier: 'leather' }, c = this.town.banCheck(P.key, P.tier); el.querySelector('span').textContent = `Arm ${BAN_BATCH} ${TYPES[P.key].name.toLowerCase()}${P.tier === 'none' ? '' : ' in ' + ARMOUR_NAME[P.tier].toLowerCase()}`; el.querySelector('small').textContent = c.ok ? this.goodsText(banKit(P.key, P.tier)) : c.reason; }
       if (el.dataset.act.startsWith('policy:')) { el.disabled = false; el.classList.toggle('on', (selected.policy || 'best') === el.dataset.act.slice(7)); }
@@ -442,7 +456,11 @@ export class TownHud {
       if (el.dataset.act.startsWith('engine:') || el.dataset.act.startsWith('hire:')) el.querySelector('small').textContent = title || 'ready';
       // (how many the rank allows, realm-wide: world.js HOUSEHOLD_CAP)
       if (el.dataset.act === 'hire:household' && this.town.householdCount) { const { have, cap } = this.town.householdCount(); if (cap) el.querySelector('small').textContent = `Household guards ${have} of ${cap}${title && have < cap ? ` · ${title}` : ''}`; }
-      if (el.dataset.act.startsWith('train:')) { const c = this.town.trainCheck(el.dataset.act.slice(6), selected); el.querySelector('small').textContent = c.ok ? `${c.n} men` : c.reason; }
+      if (el.dataset.act.startsWith('train:')) {
+        const c = this.town.trainCheck(el.dataset.act.slice(6), selected);
+        el.querySelector('small').textContent = c.ok ? `${c.n} men` : c.reason;
+        this.makerLine(el, c, c.reason);
+      }
       if (el.dataset.act.startsWith('co:')) {
         const c = this.hooks.companies().find(o => o.id === +el.dataset.act.slice(3));
         el.querySelector('small').textContent = c ? `${c.status} · ${c.wage} gold a minute` : '';
@@ -537,10 +555,10 @@ export class TownHud {
       }
       rows.push(`<h4>Call up a levy</h4><p class="note">Arms must be carried here first. Haulers bring them from the workshops and stores.</p>`);
       rows.push(`<p class="kit" data-f="racks"></p>`);
-      rows.push(`<p class="note">Armour from the racks:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
+      rows.push(`<p class="note">Each man takes his weapon from this barracks, and wears what the racks allow:</p><div class="row policy">${Object.entries(POLICIES).map(([k, P]) => `<button data-act="policy:${k}" title="${P.about}">${P.name}</button>`).join('')}</div>`);
       for (const k of LEVY_KINDS) {
         const K = KITS[k];
-        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)} in this barracks, and wears what the racks allow</p>`);
+        rows.push(`<button data-act="raise:${k}" class="wide"><span>${K.name}</span><small></small></button><p class="kit">each needs ${this.goodsList(K.kit)}</p>`);
       }
       rows.push(`<p class="note">Men-at-arms and knights are trained in a knights' hall, from veterans.</p>`);
     }
@@ -574,6 +592,20 @@ export class TownHud {
     else if (r.retinue) rows.push(`<p class="note">Your own household troops. They cost no villagers.</p>`,
       `<button data-act="disband" class="wide"><span>Send them to work</span><small>kit goes to the stores</small></button>`);
     return rows.join('');
+  }
+
+  // Under a troop row that is short of something: the workshop that makes it, in place of the
+  // usual "each needs ..." line, so the panel grows no longer. The row's tooltip says it too.
+  makerLine(btn, c, reason) {
+    const p = btn.nextElementSibling;
+    if (!p?.classList.contains('kit')) return;
+    p.dataset.kit ??= p.innerHTML;
+    const makers = !c.ok && c.makers?.length ? c.makers : null;
+    const want = makers ? `Made by: ${makers.join(' · ')}` : null;
+    if (want) { if (p.textContent !== want) p.textContent = want; }
+    else if (p.dataset.shown) p.innerHTML = p.dataset.kit;
+    p.dataset.shown = want ? '1' : '';
+    if (want && reason) btn.title = `${reason}\n${want}`;
   }
 
   // The same in words, for a tooltip (touch has no hover over the icons).

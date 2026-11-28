@@ -42,9 +42,10 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
   const view = new SiegeView(scene, battle, heightAt);
   const ui = { tool: null, drag: null, hover: null, selected: null, view };
   const afford = cost => { const { gold = 0, ...goods } = cost; return town.purse.gold >= gold && town.canAfford(goods); };
-  // What a greyed tool lacks, for its tooltip: "Short of stone: 12 of 40".
-  const lacking = cost => { const out = Object.entries(cost).map(([g, n]) => [g, g === 'gold' ? town.purse.gold : town.free(g), n]).filter(([, have, n]) => have < n);
-    return out.length ? `Short of ${out.map(([g, have, n]) => `${GOODS[g]?.name.toLowerCase() || g}: ${Math.floor(have)} of ${n}`).join(', ')}` : ''; };
+  // What a greyed tool or a refused wall lacks, in the stores panel's figures (economy.js shortText).
+  const lacking = cost => { const { gold = 0, ...goods } = cost;
+    return [town.shortText(goods), town.purse.gold < gold ? `Needs ${gold} gold (you have ${Math.floor(town.purse.gold)})` : ''].filter(Boolean).join('. '); };
+  const refuse = res => flash(res.reason === 'Not enough goods' && res.cost && lacking(res.cost) || res.reason);
   // Walls keep clear of the keep, buildings and deposits, and stay on your land.
   const avoid = (x, z, r) => {
     if (Math.hypot(x, z) > town.territory) return true;
@@ -85,7 +86,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     if (!s) return;
     if (btn.dataset.act === 'repair') {
       const cost = W.repairCost(s);
-      if (!afford(cost)) { flash(`Needs ${costText(cost)}`); return; }
+      if (!afford(cost)) { flash(lacking(cost)); return; }
       payGoods(town, cost); W.repair(s);
     }
     if (btn.dataset.act === 'demolish') {
@@ -98,7 +99,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     }
     if (btn.dataset.act === 'gate') {
       const res = W.makeGate(s, { afford });
-      if (!res.ok) flash(res.reason); else payGoods(town, res.cost);
+      if (!res.ok) refuse(res); else payGoods(town, res.cost);
     }
     selKey = null;
   };
@@ -129,7 +130,7 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     ui.drag = null;
     if (!start || !g) return;
     const res = W.placeLine(start.x, start.z, g.x, g.z, 0, material(), { avoid, afford });
-    if (!res.ok) { flash(res.reason); return; }
+    if (!res.ok) { refuse(res); return; }
     payGoods(town, res.cost);     // walls go up in runs, so the tool stays until Esc
   };
   hooks.place = (g, e) => {
@@ -137,11 +138,11 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
     if (!g) return true;
     if (ui.tool.startsWith('tower:')) {
       const res = W.placeTower(g.x, g.z, 0, material(), { avoid, afford });
-      if (!res.ok) flash(res.reason); else { payGoods(town, res.cost); if (!e.shiftKey) ui.tool = null; }
+      if (!res.ok) refuse(res); else { payGoods(town, res.cost); if (!e.shiftKey) ui.tool = null; }
     } else if (ui.tool === 'gate') {
       const hit = W.pieceAt(g.x, g.z, 0, 3);
       const res = W.makeGate(hit?.piece, { afford });
-      if (!res.ok) flash(res.reason); else { payGoods(town, res.cost); if (!e.shiftKey) ui.tool = null; }
+      if (!res.ok) refuse(res); else { payGoods(town, res.cost); if (!e.shiftKey) ui.tool = null; }
     }
     return true;
   };
