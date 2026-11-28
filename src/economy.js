@@ -425,6 +425,7 @@ const CALL_RANGE = 80;
 // coming; ratio: clearly stronger; sight: how far (m) the band sees on the village's ground; chase: the longest road
 // a relieving host follows a beaten band home.
 export const RELIEF = { eta: 30, ratio: 1.5, sight: 140, chase: 600 };   // eta was 90 s; the creator chose 30 with the slower march (2026-11-23)
+const TRUCE_STUCK = 60;  // s a band at peace may get no nearer its way out of a village before it is let out (makeTruce)
 const HOME_LAND = 100;   // m from the keep: the village's own land, where raiders are seen and answered (thinkDefenders)
 const WALK = PACE.foot;   // pace B: villagers walk (pace.js); a road's bonus makes it a jog
 
@@ -1136,7 +1137,7 @@ export class Town {
     // the soldiers by 50 m. Seed 7, 2026-11-21.) Their place to come back to is behind the
     // keep, wherever the soldiers stood when they formed (soldiers left out in the field
     // would otherwise leave the militia's home out there too).
-    const foes = this.attackers.flatMap(g => g.regs).filter(r => !r.gone);
+    const foes = this.attackers.flatMap(g => g.regs).filter(r => !r.gone && !r.truce);
     const nearest = (list, o) => list.sort((p, q) => Math.hypot(p.cx - o.x, p.cz - o.z) - Math.hypot(q.cx - o.x, q.cz - o.z))[0];
     const foe = nearest(foes, this.keep);
     const front = foe && nearest(this.battle.regs.filter(r => r.side === 0 && !r.gone && !r.routing && !r.regrouping && !r.T.militia), { x: foe.cx, z: foe.cz });
@@ -1276,7 +1277,7 @@ export class Town {
   // A side's strength in the field, reckoned as auto-resolve reckons it (world.js resolve).
   // Would even everyone called out be under a third of an assault (or a raid) on the place?
   hopeless() {
-    const foes = this.attackers.filter(g => !g.leaving && g.mode !== 'hold').flatMap(g => g.regs);
+    const foes = this.attackers.filter(g => !g.leaving && !g.truce && g.mode !== 'hold').flatMap(g => g.regs);
     const mine = this.battle.regs.filter(r => r.side === 0 && !r.routing && !r.T.engine), n = this.musterCheck().n || 0;
     return this.strength(mine) + power([{ key: 'folk', count: n }]) < this.strength(foes) * HOPELESS;
   }
@@ -1746,7 +1747,7 @@ export class Town {
   nearestEnemy(p, radius) {
     let best = null, bd = radius * radius;
     this.battle.forNear(p.x, p.z, radius, s => {
-      if (s.reg.side === 0) return;
+      if (s.reg.side === 0 || s.reg.truce) return;
       const d = (s.x - p.x) ** 2 + (s.z - p.z) ** 2;
       if (d < bd) { bd = d; best = s; }
     });
@@ -2725,12 +2726,31 @@ export class Town {
     audio.play('horn', null, this.battle); audio.play('drums', null, this.battle); // audio
   }
 
+  // Peace is made with `house` while its men are fighting here (world.js standOff): they lay down
+  // the fight and go back out by the road they came, taking what they already have (thinkAttackers
+  // walks a leaving band out; battle.js callTruce stops the blows on both sides). Returns how many.
+  makeTruce(house, name) {
+    let men = 0;
+    for (const g of this.attackers) {
+      if (g.house !== house || g.mode === 'hold' || g.truce) continue;
+      g.truce = this.battle.time;
+      g.leaving = true;
+      this.battle.callTruce(g.regs);
+      men += g.regs.filter(r => !r.gone).reduce((n, r) => n + r.alive, 0);
+    }
+    if (!men) return 0;
+    // an offer to yield to them is off with the fight
+    if (this.battle.terms?.side === 0 && this.attackers.every(g => g.truce)) this.battle.terms = null;
+    this.say(`Peace is made: ${name}'s men here lay down the fight and march for home.`, 0);
+    return men;
+  }
+
   updateAttacks(dt) {
     for (const g of [...this.attackers]) {
       const live = g.regs.filter(r => !r.gone);
       if (!live.length) { this.endAttack(g); continue; }
       g.time += dt;
-      if (g.mode === 'siege' && g.time >= g.prepare) {
+      if (g.mode === 'siege' && !g.leaving && g.time >= g.prepare) {
         g.mode = 'assault';
         this.event('The besiegers are coming! The assault has begun.', 1);
       }
@@ -2929,6 +2949,12 @@ export class Town {
         if (r.gone || r.routing || r.regrouping || r.ai === 'siege') continue;
         if (g.mode === 'hold') { if (!g.onWalls) this.holdPost(r, defenders); continue; }
         if (g.leaving) {
+          // Men at peace who find no way out (shut inside walls), getting no nearer it for a long while, are let out, and said.
+          if (g.truce) {
+            const left = Math.hypot(g.entry.x - r.cx, g.entry.z - r.cz);
+            if (!r.nearest || left < r.nearest.left - 5) r.nearest = { left, at: b.time };
+            else if (b.time - r.nearest.at > TRUCE_STUCK) { console.warn(`${r.name}: no way out of the village after the peace (${Math.round(left)} m to go for ${TRUCE_STUCK} s); let out`); b.disband(r); continue; }
+          }
           // Back down the road and away; only men who are caught still fight.
           r.targetReg = null;
           r.dest = { x: g.entry.x, z: g.entry.z, angle: Math.atan2(g.entry.x - r.cx, g.entry.z - r.cz) };

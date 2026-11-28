@@ -363,6 +363,9 @@ function setMode(m, b) {
   worldView.hideLabels(m !== 'world');
   document.body.className = `campaign mode-${m}${b?.look ? ' readonly' : ''}`;
   $('cards').innerHTML = '';
+  // A fight's own panels leave with the view of it (a storm ended by a peace while deploying left its
+  // banner over the map); the next view's HUD opens what its battle calls for.
+  for (const id of ['deploy', 'duel', 'terms']) $(id)?.classList.remove('open');
   hud = townHud = null;
   if (m === 'world') stage.use(worldView.scene);
   else {

@@ -217,12 +217,12 @@ function retreat(battle, side, mine, standing, st) {
 function thinkField(battle, side, mine, { hold = false } = {}) {
   const st = (battle.fieldAI ||= [{}, {}])[side];
   // Only what it can see: regiments hidden in woods are not there for it yet.
-  const foes = battle.regs.filter(r => r.side !== side && !r.gone && battle.sees(side, r));
+  const foes = battle.regs.filter(r => r.side !== side && !r.gone && !r.truce && battle.sees(side, r));
   const standing = foes.filter(r => !r.routing && !r.regrouping);
   if (st.withdraw) return retreat(battle, side, mine, standing, st);
   if (!standing.length) {
     // Nothing in sight but the enemy is out there (in fog, say): feel forward toward their side.
-    const hidden = battle.regs.some(r => r.side !== side && !r.gone && !r.routing);
+    const hidden = battle.regs.some(r => r.side !== side && !r.gone && !r.routing && !r.truce);
     if (!hidden || hold) return;
     const h = battle.homes[1 - side];
     for (const r of mine) {
@@ -504,7 +504,7 @@ export function thinkSiegeAttack(battle, side, { regs = null, prepare = false } 
   // A storm under the walls' bows is no place to stroll: whatever it was told last time, at a run.
   battle.hurry(mine);
   const home = battle.fortHome(enemy);
-  const foes = battle.regs.filter(r => r.side === enemy && !r.gone);
+  const foes = battle.regs.filter(r => r.side === enemy && !r.gone && !r.truce);
   const standing = foes.filter(r => !r.routing && !r.regrouping);
   const army = centroid(mine);
   const pieces = W.pieces.filter(p => p.side === enemy && p.state === 'up');
@@ -709,7 +709,7 @@ function quietStretch(battle, enemy, army, pieces, gate) {
 export function thinkSiegeDefence(battle, side, { regs = null } = {}) {
   const W = battle.walls, enemy = 1 - side;
   const mine = (regs || battle.regs.filter(r => r.side === side)).filter(usable);
-  const foes = battle.regs.filter(r => r.side === enemy && usable(r));
+  const foes = battle.regs.filter(r => r.side === enemy && usable(r) && !r.truce);
   if (!mine.length || !foes.length) return;
   const home = battle.fortHome(side);
   const st = battle.defenceAI = battle.defenceAI || {};

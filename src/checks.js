@@ -1346,6 +1346,82 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // Peace holds for the men already in the field (creator, 2026-11-23: a house's raiders fought on after the peace).
+  await check('peace calls the men home: armies raiding, waiting at or marching on the other break off, between houses and with you', () => scratch(async (make, FACTIONS) => {
+    const out = [], s = make();
+    const [h, k] = FACTIONS.filter(x => x.index > 0 && x.alive && x.ai && !x.bandit && !x.invader);
+    const own = i => s.pois.filter(p => p.owner === i && p.kind !== 'camp');
+    const H = own(h.index)[0], K = own(k.index)[0], H2 = own(h.index)[1] || H;
+    const men = () => [{ key: 'spear', count: 30, name: 'Men' }];
+    const send = (side, from, to, mode = 'march') => { const a = s.spawnArmy(side, men(), from, 'Test host', mode); s.order(a, to); return a; };
+    s.declareWar(h.index, k.index, true); s.declareWar(0, h.index, true);
+    const raid = send(h.index, H, K, 'raid'), back = send(k.index, K, H), relief = send(h.index, H, H2 === H ? K : H2);
+    const waiting = s.spawnArmy(h.index, men(), K, 'Waiting host');
+    const mine = send(0, s.home, H), theirs = send(h.index, H, s.home, 'raid');
+    if (H2 === H) s.removeArmy(relief);
+    s.makePeace(h.index, k.index);
+    for (const [a, what] of [[raid, 'a band on its way to raid'], [back, 'the other house\'s host marching on it'], [waiting, 'a host waiting at the other\'s place']])
+      if (!a.retreating || a.target?.owner !== a.side) out.push(`${what} did not turn for home at the peace between houses`);
+    if (H2 !== H && relief.retreating) out.push('a march to the house\'s own place turned back too');
+    if (mine.retreating || theirs.retreating) out.push('a peace between two houses turned your war with one of them');
+    s.makePeace(0, h.index);
+    if (!mine.retreating || mine.target?.owner !== 0) out.push('your army marching on their place did not turn for home');
+    if (!theirs.retreating || theirs.target?.owner !== h.index) out.push('their band marching on your village did not turn for home');
+    return out;
+  }));
+  await check('peace ends a village fight: the raiders lay it down, nobody falls on either side, and they march out and go home', () => scratch(async (make, FACTIONS) => {
+    const { headcount } = await import('./world/world.js'), out = [], s = make();
+    const h = FACTIONS.find(x => x.index > 0 && x.alive && x.ai && !x.bandit && !x.invader);
+    const p = s.home, t = p.town, b = t.battle;
+    s.declareWar(h.index, 0, true);
+    const guard = t.addTroops([{ key: 'spear', count: 30, name: 'Guard' }], 1.0)[0];
+    const a = s.spawnArmy(h.index, [{ key: 'spear', count: 40, name: 'Raiders' }], p.links[0], 'Test raiders', 'raid');
+    s.attackTown(a, p, p.links[0]);
+    const raiders = t.attackers.at(-1).regs, alive = regs => regs.reduce((n, r) => n + r.soldiers.filter(x => x.alive).length, 0);
+    let clock = 0;
+    const run = (secs, until = () => false) => { for (let i = 0; i < secs * 20 && !until(); i++) { b.step(0.05); t.update(0.05); if ((clock += 0.05) >= 1) { clock = 0; t.thinkAttackers(); } } };
+    run(1);
+    // set them on each other, a few paces apart
+    for (const r of raiders) { const dx = guard.cx + 5 - r.cx, dz = guard.cz - r.cz; for (const x of r.soldiers) { x.x += dx; x.z += dz; } r.x = r.cx = r.cx + dx; r.z = r.cz = r.cz + dz; }
+    b.orderAttack([guard], raiders[0]);
+    const start = alive(raiders) + alive([guard]);
+    run(40, () => alive(raiders) + alive([guard]) < start - 3);
+    if (alive(raiders) + alive([guard]) >= start) return ['the test fight never started'];
+    s.makePeace(0, h.index);
+    const then = { raiders: alive(raiders), guard: alive([guard]) };
+    if (!t.underAttack) out.push('the raiders vanished at the peace');
+    run(8);
+    if (!raiders.some(r => !r.gone)) out.push('the raiders were gone 8 s after the peace: they should walk out');
+    if (alive(raiders) !== then.raiders || alive([guard]) !== then.guard) out.push(`men still fell after the peace (raiders ${then.raiders} to ${alive(raiders)}, guard ${then.guard} to ${alive([guard])})`);
+    if (guard.targetReg) out.push('your guard still had them to attack');
+    b.orderAttack([guard], raiders[0]);
+    if (guard.targetReg) out.push('you could still order an attack on men at peace with you');
+    const warn = console.warn, stuck = [];
+    console.warn = (...x) => stuck.push(x.join(' '));
+    try { run(420, () => !t.underAttack); } finally { console.warn = warn; }
+    if (t.underAttack) out.push('420 s on the raiders were still in the village');
+    if (stuck.some(x => x.includes('no way out'))) out.push('the raiders found no way out and had to be let out');
+    const home = s.armies.find(x => x.side === h.index && x.name === 'Test raiders');
+    if (!home || !home.retreating) out.push('the raiders did not set out for home on the map');
+    else if (headcount(home.units) !== then.raiders) out.push(`${headcount(home.units)} marched home of ${then.raiders}`);
+    return out;
+  }));
+  await check('peace calls off your storm: your men pull back and the place stays theirs', () => scratch(async (make, FACTIONS) => {
+    const out = [], s = make();
+    const h = FACTIONS.find(x => x.index > 0 && x.alive && x.ai && !x.bandit && !x.invader);
+    const p = s.pois.find(q => q.owner === h.index && q.eco && q.kind !== 'camp');
+    s.declareWar(0, h.index, true);
+    const a = s.spawnArmy(0, [{ key: 'spear', count: 60, name: 'Stormers' }], p.links[0], 'Test storm');
+    a.last = p.links[0];
+    s.storm({ kind: 'assault', army: a, poi: p });
+    if (!p.town?.hostile) return ['the storm did not start'];
+    s.makePeace(0, h.index);
+    if (p.town || p.owner !== h.index) out.push('the storm went on after the peace');
+    const back = s.armies.find(x => x.side === 0 && x.name === 'Test storm');
+    if (!back || !back.retreating) out.push('your men did not set out for home');
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.

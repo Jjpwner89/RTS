@@ -1071,7 +1071,8 @@ export class Battle {
   orderAttack(regs, target) {
     let gate = null;   // one way in for the whole order, so nobody breaks through alone
     for (const r of this.footFirst(regs)) {
-      if (!this.usable(r) || target.side === r.side) continue;
+      if (!this.usable(r) || target.side === r.side || r.truce) continue;
+      if (target.truce) { this.tell(r, 'We are at peace with them now; we let them go'); continue; }
       this.clearPosts(r);
       r.targetReg = target;
       r.dest = null;
@@ -1229,7 +1230,7 @@ export class Battle {
       if (!t) {
         let bd = 90;
         for (const o of this.regs) {
-          if (o.side === r.side || o.gone || o.routing) continue;
+          if (o.side === r.side || o.gone || o.routing || o.truce) continue;
           const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
           const ahead = Math.abs(angleDiff(Math.atan2(o.cx - r.cx, o.cz - r.cz), r.angle)) < 1.2;
           if (ahead && d < bd) { bd = d; t = o; }
@@ -1240,7 +1241,7 @@ export class Battle {
       if (!t) {
         let bd = 60;
         for (const o of this.regs) {
-          if (o.side === r.side || o.gone || o.routing) continue;
+          if (o.side === r.side || o.gone || o.routing || o.truce) continue;
           const d = Math.hypot(o.cx - r.cx, o.cz - r.cz);
           if (d < bd) { bd = d; t = o; }
         }
@@ -1425,7 +1426,7 @@ export class Battle {
       const home = this.fortHome(side), out = Math.hypot(p.x - home.x, p.z - home.z);
       let at = null, bd = Infinity;
       this.forNear(p.x, p.z, 7, o => {
-        if (o.reg.side === side || o.level !== 0 || o.climb > 0) return;
+        if (o.reg.side === side || o.reg.truce || o.level !== 0 || o.climb > 0) return;
         const d = Math.hypot(o.x - p.x, o.z - p.z);
         if (d < 7 && Math.hypot(o.x - home.x, o.z - home.z) > out - 1 && d < bd) { bd = d; at = o; }
       });
@@ -1433,7 +1434,7 @@ export class Battle {
       p.oilAt = this.time + 20;
       const x = at.x, z = at.z, shaken = new Set();
       this.forNear(x, z, 3.5, o => {
-        if (o.reg.side === side || o.level !== 0 || Math.hypot(o.x - x, o.z - z) > 3.2) return;
+        if (o.reg.side === side || o.reg.truce || o.level !== 0 || Math.hypot(o.x - x, o.z - z) > 3.2) return;
         shaken.add(o.reg);
         this.hurt(o, 9, null);
       });
@@ -1544,7 +1545,7 @@ export class Battle {
       const walled = this.walls.structures().some(s => s.side === side), H = this.holder?.side === side ? this.holder : null;
       if (!walled && !H) continue;
       if (this.time < ((this.termsWait ||= [0, 0])[side])) continue;
-      const men = k => this.regs.filter(r => r.side === k && this.usable(r)).reduce((n, r) => n + r.alive, 0);
+      const men = k => this.regs.filter(r => r.side === k && this.usable(r) && !r.truce).reduce((n, r) => n + r.alive, 0);
       const mine = men(side), theirs = men(1 - side);
       // (a held place with no soldiers left can still yield: its people are spared)
       if (!theirs || (!mine && !H)) continue;
@@ -1929,7 +1930,35 @@ export class Battle {
 
   // Villagers called out (folk) who break and run have thrown down their tools: nobody cuts them
   // down or shoots after them, so taking a place doesn't empty it of its people.
-  spared(r) { return r.routing && r.T.key === 'folk'; }
+  spared(r) { return !!r.truce || (r.routing && r.T.key === 'folk'); }
+
+  // Peace made while these men are in the fight (economy.js Town.makeTruce): they lay it down. Every
+  // order they had is dropped, a rout or a regrouping ends so they leave in their ranks, and from
+  // now on they neither strike, shoot nor can be struck (spared). Whoever was at them lets go.
+  callTruce(regs) {
+    const these = new Set(regs.filter(r => !r.gone));
+    for (const r of these) {
+      this.clearPosts(r);
+      r.truce = true;
+      r.routing = r.regrouping = r.losingHeart = false;
+      r.targetReg = r.targetWall = r.wallPoint = r.burnTarget = r.after = r.cover = r.mine = r.shotBy = r.firingAt = r.dest = null;
+      r.raidTarget = r.ai = r.note = null;
+      r.hold = r.runOnce = false;
+      r.engaged = 0;
+      r.x = r.cx; r.z = r.cz;
+      this.reform(r);
+    }
+    for (const s of this.soldiers) {
+      if (these.has(s.reg)) { s.target = null; s.duel = null; s.swarm = false; }
+      else if (s.target && these.has(s.target.reg)) { s.target = null; s.swarm = false; }
+      if (s.duel && (these.has(s.duel.a?.reg) || these.has(s.duel.b?.reg))) s.duel = null;
+    }
+    if (this.duel && (these.has(this.duel.a?.reg) || these.has(this.duel.b?.reg))) this.duel = null;
+    for (const r of this.regs) if (!these.has(r)) {
+      if (r.targetReg && these.has(r.targetReg)) { r.targetReg = null; r.dest = null; r.x = r.cx; r.z = r.cz; this.reform(r); }
+      if (r.after && these.has(r.after)) r.after = null;
+    }
+  }
 
   // A regiment sent at a band much narrower than itself, once it is at it (in blows, or within
   // ~30 m), wraps round and swarms it rather than hold its slots and let the few men nearest
@@ -1964,6 +1993,7 @@ export class Battle {
   // Who a soldier can come to blows with. On the ground: men on the ground, with no wall between.
   // On the wall: men on the walkway, climbers on ladders, and anyone at the foot of the wall.
   findTarget(s, radius) {
+    if (s.reg.truce) return null;
     let best = null, bestD = radius * radius, low = null, lowD = POUR_REACH * POUR_REACH;
     const up = s.level === 1, crowd = this.tuning.crowd;
     this.forNear(s.x, s.z, radius, o => {
@@ -2000,7 +2030,7 @@ export class Battle {
     // Through the wall (or ladders up): on at the foe it was sent for. And a foe that has
     // gone behind walls is looked for a way in to, once a second.
     // Villagers who have thrown down their tools (spared) are let go, whoever sent the attack.
-    if (r.targetReg && this.spared(r.targetReg)) { r.targetReg = null; r.dest = null; this.tell(r, "They've thrown down their arms; we let them go"); }
+    if (r.targetReg && this.spared(r.targetReg)) { this.tell(r, r.targetReg.truce ? 'We are at peace with them now; we let them go' : "They've thrown down their arms; we let them go"); r.targetReg = null; r.dest = null; }
     // A chase (an attack on a routing foe: the whole regiment runs after it, swarmFoe) ends once
     // they have outrun us, nobody of ours within reach of any of them for a few seconds, or
     // after a long run; the men re-form where they stand.
@@ -2862,7 +2892,7 @@ export class Battle {
   }
 
   hurt(t, dmg, by = null) {
-    if (!t.alive) return;
+    if (!t.alive || t.reg.truce) return;
     t.hp -= dmg;
     t.hurtAt = this.time;   // anim: he flinches (view.js soldierClip)
     if (t.hp <= 0) this.kill(t, by);
@@ -2898,7 +2928,7 @@ export class Battle {
   }
 
   updateMorale(r, dt) {
-    if (r.gone || r.routing) return;
+    if (r.gone || r.routing || r.truce) return;
     const T = r.T;
     const top = T.morale * (1 + r.vet * 0.06) * (1 - this.hunger[r.side] * 0.3) + this.captainBonus(r) * 2 + this.lordBonus(r) * 4
       + (this.hasTrait(r, 'stubborn') ? 8 : 0) - (this.hasTrait(r, 'skittish') ? 8 : 0);
@@ -3009,7 +3039,7 @@ export class Battle {
 
   updateArchers(r, dt) {
     r.firingAt = null;
-    if (r.gone || r.routing || (r.engaged > 0 && !r.posts)) return;
+    if (r.gone || r.routing || r.truce || (r.engaged > 0 && !r.posts)) return;
     this.restock(r, dt);
     if (r.ammo < 1) return;
     const T = r.T, base = this.rangeOf(r);
@@ -3120,8 +3150,8 @@ export class Battle {
   // Hold, the walls, engines and the siege AI's men keep to what they were doing.
   answerFoes() {
     for (const r of this.regs) {
-      if (!this.usable(r) || this.shoots(r) || r.engine || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.ai === 'siege') continue;
-      const ok = o => o.side !== r.side && this.usable(o) && !o.posts && !o.gone && o.alive > 0 && this.sees(r.side, o)
+      if (!this.usable(r) || r.truce || this.shoots(r) || r.engine || r.hold || r.posts || r.dest || r.targetReg || r.targetWall || r.burnTarget || r.ai === 'siege') continue;
+      const ok = o => o.side !== r.side && this.usable(o) && !o.truce && !o.posts && !o.gone && o.alive > 0 && this.sees(r.side, o)
         && (!this.nav.any || this.nav.reachable(r.side, r.cx, r.cz, o.cx, o.cz));
       let best = null, bd = 25;
       for (const o of this.regs) {
@@ -3168,7 +3198,7 @@ export class Battle {
     const worth = rs => rs.reduce((n, r) => n + r.alive * value(r.T.key), 0);
     for (const side of [0, 1]) {
       const own = this.regs.filter(r => r.side === side && this.usable(r) && !r.T.engine);
-      const folk = own.filter(r => r.T.militia), foe = this.regs.filter(r => r.side !== side && this.usable(r) && !r.T.engine);
+      const folk = own.filter(r => r.T.militia), foe = this.regs.filter(r => r.side !== side && this.usable(r) && !r.T.engine && !r.truce);
       const lost = folk.length && folk.length === own.length && worth(foe) >= worth(folk) * 2;
       for (const r of folk) {
         if (lost && !r.losingHeart) this.event(side, `${this.label(r)} see nobody left to stand with them, and lose heart.`);

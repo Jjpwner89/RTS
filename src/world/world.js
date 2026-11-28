@@ -245,9 +245,37 @@ export class World {
     const a = FACTIONS[i], b = FACTIONS[j];
     if (i === 0 || j === 0) { this.log(`Peace is made with ${(i === 0 ? b : a).name}.`); this.chron(`Peace was made with ${(i === 0 ? b : a).name}.`); this.hooks.peace?.(i === 0 ? b : a); }
     else if (this.knows(i) || this.knows(j)) this.log(`${a.name} and ${b.name} have made peace.`, 2);
-    for (const army of this.armies) {
-      const other = army.side === i ? j : army.side === j ? i : null;
-      if (other !== null && army.target && army.target.owner === other && army.side !== 0) this.retreat(army);
+    this.standOff(i, j);
+  }
+
+  // Peace holds for the men already in the field, one rule for every side (creator, 2026-11-23: a
+  // house's raiders fought on in the village after the peace). A storm of the other's place is
+  // pulled back from; men inside the other's village lay down the fight and march out; and every
+  // army of either one raiding, besieging, waiting at or marching on the other's places, or going
+  // out against the other's hosts, breaks off and goes home (retreat, as any beaten-off army does).
+  standOff(i, j) {
+    const against = (side, other) => (side === i && other === j) || (side === j && other === i);
+    for (const p of this.pois) {
+      const t = p.town;
+      if (!t) continue;
+      if (t.hostile && against(0, t.hostile.owner)) { this.endStorm(p, true); continue; }
+      const here = t.hostile ? 0 : p.owner;   // whose men are defending it
+      for (const side of [i, j]) if (against(side, here)) t.makeTruce(side, FACTIONS[side].name);
+    }
+    for (const a of [...this.armies]) {
+      if (a.gone || a.wagon || a.retreating) continue;
+      const foe = a.side === i ? j : a.side === j ? i : null;
+      if (foe === null) continue;
+      const host = id => (id == null ? null : this.armies.find(x => x.id === id));
+      const theirs = (a.path.at(-1) ?? a.at)?.owner === foe || (a.joins && this.byId[a.joins.to]?.owner === foe)
+        || a.wing?.foe != null && host(a.wing.foe)?.side === foe || host(a.meets)?.side === foe || host(a.chasing)?.side === foe;
+      if (!theirs) continue;
+      if (a.siege) this.liftSiege(a, this.byId[a.siege.p]);
+      if (this.encounter && (this.encounter.army === a || this.encounter.enemy === a)) this.encounter = null;
+      a.joins = a.wing = a.meets = a.chasing = a.gather = null;
+      if (a.side === 0) this.log(`${a.name} break off and make for home: you are at peace with ${FACTIONS[foe].name}.`);
+      else if (foe === 0) this.log(`${a.name} break off and march home.`);
+      this.retreat(a);
     }
   }
 
@@ -1519,7 +1547,8 @@ export class World {
       if (t.carried) back.loot = t.carried;
       this.retreat(back);
       // A host come to relieve the place follows you home, if it is the stronger and the road is not long (relief.js).
-      const hunters = hostsFor(this, p, h.owner).map(x => x.a);
+      // (nobody follows you home out of a peace: standOff pulls you back here too)
+      const hunters = h.owner === null || this.atWar(0, h.owner) ? hostsFor(this, p, h.owner).map(x => x.a) : [];
       if (hunters.length && chase(this, hunters, back)) this.log(`${hunters[0].name} ${hunters.length > 1 ? 'and others are' : 'is'} following you home.`, 1);
     }
     this.hooks.stormEnded?.(p, false, chose);
