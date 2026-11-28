@@ -3846,6 +3846,63 @@ async function lateChecks(w) {
     if (!t.underAttack) out.push('a fresh raid during their walk out is not an attack');
     return out;
   }));
+  // A league against you with its host on the map, on a throwaway world; the houses of this one are put back.
+  const league = async fn => {
+    const { World, FACTIONS, headcount, unit } = await import('./world/world.js'), mine = [...FACTIONS];
+    try {
+      const s = new World(7, {}, { size: 'normal', aggression: 'normal' });
+      s.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k in o ? o[k] : () => {}) });
+      s.log = () => {};
+      const hs = FACTIONS.filter(h => h.index > 0 && h.alive && !h.bandit && !h.invader && s.pois.some(p => p.owner === h.index)).slice(0, 3).map(h => h.index);
+      for (const h of hs) s.declareWar(h, 0, true);
+      const seat = s.pois.find(p => p.owner === hs[0]), a = s.spawnArmy(hs[0], [unit('spear', 90, 'League spears')], seat, 'The league host', 'siege');
+      a.league = true;
+      s.coalition = { members: [...hs], since: s.time };
+      s.coalition.host = { id: a.id, at: seat.id, target: s.home.id, marchAt: s.time + 120, men: 90, lead: hs[0], share: Object.fromEntries(hs.map(h => [h, 30])), theirs: [] };
+      return await fn(s, a, hs, headcount);
+    } finally { FACTIONS.length = 0; FACTIONS.push(...mine); }
+  };
+  const D = await import('./world/diplomacy.js');
+  await check('a league member\'s peace takes its own men home, and the league goes on', () => league((s, a, hs, headcount) => {
+    const out = [];
+    s.makePeace(0, hs[0]);   // the lord who leads the host
+    D.thinkDiplomacy(s, 11);
+    const left = s.coalition.members;
+    if (left.length !== 2 || left.includes(hs[0])) out.push(`members after the peace: ${left}`);
+    if (!s.atWar(0, hs[1]) || !s.atWar(0, hs[2])) out.push('the peace of one made peace with another');
+    if (a.gone || a.retreating || a.side === hs[0]) out.push(`the host ${a.gone ? 'is gone' : a.retreating ? 'turned for home' : 'still marches under the lord who left'}`);
+    if (Math.abs(headcount(a.units) - 60) > 2) out.push(`the host has ${headcount(a.units)} of its 90 after one of three left`);
+    return out;
+  }));
+  await check('a league member\'s peace while its host is in your village takes only its own companies out', () => league((s, a, hs, headcount) => {
+    const out = [], p = s.home, t = p.town;
+    a.units = ['A', 'B', 'C'].map(n => ({ ...a.units[0], name: n, count: 30 }));
+    s.coalition.host.near = p.id;
+    s.attackTown(a, p, p.links[0]);
+    s.makePeace(0, hs[0]);
+    D.thinkDiplomacy(s, 11);
+    const walking = t.attackers.filter(g => g.truce), fighting = t.attackers.filter(g => !g.truce);
+    const men = gs => gs.reduce((n, g) => n + g.regs.reduce((k, r) => k + r.alive, 0), 0);
+    if (men(walking) !== 30 || walking.some(g => g.house !== hs[0])) out.push(`${men(walking)} walking out, of ${walking.map(g => g.house)} (30 of house ${hs[0]} meant)`);
+    if (men(fighting) !== 60 || fighting.some(g => g.house === hs[0])) out.push(`${men(fighting)} still attacking, under ${fighting.map(g => g.house)}`);
+    if (s.coalition.members.length !== 2 || !s.atWar(0, hs[1]) || !s.atWar(0, hs[2])) out.push(`the league after it: ${s.coalition.members}`);
+    return out;
+  }));
+  await check('a sworn house reaches for no crown', () => league(async (s, a, hs) => {
+    const R = await import('./world/rivals.js'), { FACTIONS } = await import('./world/world.js'), out = [], h = FACTIONS[hs[1]], said = [];
+    s.makePeace(0, h.index);
+    Object.assign(s.dip[h.index], { vassal: true, backs: true, truceUntil: Infinity });
+    s.log = text => said.push(text);
+    s.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k === 'herald' ? m => said.push(m.title) : k in o ? o[k] : () => {}) });
+    s.meet(h.index);
+    s.time = 1e5;
+    Object.assign(h.ai, { stage: 1, plan: { target: s.crown, staging: h.seat, phase: 'muster', t: 0, waited: 0 } });
+    R.houseMind(s, h);
+    if (R.stageOf(h) > 1) out.push(`a sworn house climbed to stage ${R.stageOf(h)}`);
+    if (said.some(t => /crown|Kingsbridge|win the realm/.test(t))) out.push(`it announced: ${said.find(t => /crown|Kingsbridge|win the realm/.test(t))}`);
+    if (h.ai.plan?.target === s.crown) out.push('it still plans to march on Kingsbridge');
+    return out;
+  }));
   await check('autosave held off for minutes says so', () => {
     const out = [], why = 'A village is being fought over';
     if (S.unsavedNotice(S.OVERDUE - 1, why, Date.now()) !== null) out.push('it speaks before its time');

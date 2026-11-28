@@ -11,6 +11,7 @@ import { ARRIERE, houseBan, banCost } from './arriere.js';
 import { SLOW } from './march.js';
 import { oddsOn } from './rivals.js';
 import { leagueTrain } from './siege.js';
+import { assignCaptain, releaseCaptain } from './captains.js';
 
 const SIEGE = new Set(['ram', 'ladder', 'mangonel', 'trebuchet']);
 
@@ -210,7 +211,7 @@ function raiseHost(w) {
     if (near) { lead = h; break; }
   }
   if (!near) { C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
-  const S = near.p, units = [], from = [];
+  const S = near.p, units = [], from = [], share = {};   // share: each member's men in it (leaveLeague)
   for (const h of C.members) {
     let n = 0;
     for (const p of w.pois.filter(q => q.owner === h)) {
@@ -219,6 +220,7 @@ function raiseHost(w) {
       mergeInto(units, got);
     }
     if (n) from.push(`${FACTIONS[h].short} ${n}`);
+    share[h] = n;
   }
   if (headcount(units) < 30) { for (const u of units) S.garrison.push(u); C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
   units.push(...leagueTrain(w, C.members, T));   // the engines its members built (siege.js)
@@ -228,11 +230,11 @@ function raiseHost(w) {
   // (arriere.js houseBan). A house that cannot pay sends fewer. The host is one army, within
   // a duke's cap, as yours is.
   let room = Math.max(0, ARMY_CAP.Duke - headcount(units)), levy = 0;
-  for (const i of C.members) { const n = houseBan(w, FACTIONS[i], room, w.time + HOST_GATHER); levy += n; room -= n; }
+  for (const i of C.members) { const n = houseBan(w, FACTIONS[i], room, w.time + HOST_GATHER); levy += n; room -= n; share[i] += n; }
   if (levy) { mergeInto(units, [{ ...unitOf(ARRIERE.key, levy, 'League levies'), until: w.time + HOST_GATHER + ARRIERE.serve }]); from.push(`levies ${levy}`); }
   const a = w.spawnArmy(lead.index, units, S, 'The league host', 'siege');
   a.league = true;
-  C.host = { id: a.id, at: S.id, target: T.id, marchAt: w.time + HOST_GATHER, men: headcount(units.filter(u => !SIEGE.has(u.key))), lead: lead.index,
+  C.host = { id: a.id, at: S.id, target: T.id, marchAt: w.time + HOST_GATHER, men: headcount(units.filter(u => !SIEGE.has(u.key))), lead: lead.index, share,
     theirs: w.pois.filter(p => C.members.includes(p.owner)).map(p => p.id) };
   w.meet(lead.index);
   S.seen = true;
@@ -264,6 +266,64 @@ function tickHost(w) {
   if (!a && took) { C.host = { id: null, again: w.time + HOST_AGAIN }; return; }
   return 'broken';
 }
+// A member that makes peace with you (or is made to) leaves the league, and takes its own men home out of the
+// league's host: its share of the men, whether the host is on the map or already fighting in your village. If it
+// led the host, the strongest member left leads it. The league itself goes on, and breaks only by its own rules
+// (its host beaten; fewer than two members; worn out). Without this the host, still in the leaver's name, was
+// turned back by the peace and read as beaten, which made peace with every member.
+export function leaveLeague(w, h) {
+  const C = w.coalition;
+  if (!C?.members.includes(h) || C.ending) return;
+  C.members = C.members.filter(m => m !== h);
+  const H = C.host, next = C.members.filter(m => FACTIONS[m].alive).sort((x, y) => w.strength(y) - w.strength(x))[0];
+  if (H?.id) {
+    const mine = H.share?.[h] ?? 1, all = H.share ? C.members.reduce((n, m) => n + (H.share[m] || 0), mine) : C.members.length + 1;
+    const part = all > 0 ? mine / all : 0;
+    if (H.share) delete H.share[h];
+    const a = hostOf(w);
+    if (a && !a.retreating) {
+      if (next === undefined) w.retreat(a);
+      else splitHost(w, a, H, h, next, part);
+    } else if (!a) splitAssault(w, H, h, next, part);
+  }
+  if (next === undefined) endLeague(w, C, 'has fallen apart');   // (one left is ended by thinkCoalition)
+}
+// The leaver's share of a host on the map goes home as its own army.
+function splitHost(w, a, H, h, next, part) {
+  const short = FACTIONS[h].short, got = part > 0 ? takeUnits(a.units, power(a.units) * part) : [];
+  if (got.length) {
+    const back = w.spawnArmy(h, got, a.at || a.last, `${short}'s men`);
+    Object.assign(back, { x: a.x, z: a.z, at: a.at, last: a.last, path: [...a.path] });
+    w.log(`${headcount(got)} of ${short}'s men leave the league's host for home.`);
+    w.retreat(back);
+  }
+  if (a.side === h) { releaseCaptain(w, a); a.side = next; H.lead = next; assignCaptain(w, a); }
+  H.men = headcount(a.units.filter(u => !SIEGE.has(u.key)));
+}
+// A host already fighting in one of your villages: whole companies of it, as near the leaver's share as may be,
+// are its own again and walk out under the peace (World.standOff); the rest go on under the next lord.
+function splitAssault(w, H, h, next, part) {
+  const P = w.byId[H.near], t = P?.owner === 0 ? P.town : null;
+  for (const g of (t?.attackers || []).filter(g => g.league && !g.truce && g.mode !== 'hold')) {
+    if (next === undefined) { g.house = h; continue; }   // the last of the league: all of it goes with them
+    if (g.house === h) { g.house = next; H.lead = next; }
+    const foot = g.regs.filter(r => !r.gone && r.alive > 0 && !r.engine).sort((x, y) => x.alive - y.alive);
+    const want = foot.reduce((n, r) => n + r.alive, 0) * part, theirs = [];
+    let n = 0;
+    for (const r of foot) {
+      if (part <= 0 || theirs.length >= foot.length - 1 || (theirs.length && n + r.alive / 2 > want)) break;
+      theirs.push(r);
+      n += r.alive;
+    }
+    if (!theirs.length) continue;
+    const short = FACTIONS[h].short;
+    g.regs = g.regs.filter(r => !theirs.includes(r));
+    t.attackers.push({ ...g, regs: theirs, house: h, losses: [...g.losses], loot: null,
+      onLeave: left => { if (left.length) w.retreat(w.spawnArmy(h, left, P, `${short}'s men`)); } });
+    w.log(`${n} of ${short}'s men at ${P.name} leave the league's attack.`);
+  }
+}
+
 function endLeague(w, C, over) {
   w.log(`The coalition against you ${over}.`, 1);
   w.chron(`The coalition against you ${over}.`);
@@ -322,6 +382,7 @@ function thinkCoalition(w) {
     C.members = C.members.filter(h => FACTIONS[h].alive && w.atWar(0, h));
     if (C.members.length && tickHost(w) === 'broken') {
       const lords = C.members.map(h => FACTIONS[h]);
+      C.ending = true;
       for (const H of lords) { w.makePeace(0, H.index); Object.assign(w.dip[H.index], { truceUntil: w.time + TRUCE, score: 0 }); }
       const a = w.armies.find(x => x.id === C.host.id);
       if (a && !a.gone && a.retreating) a.league = false;

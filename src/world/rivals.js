@@ -51,6 +51,13 @@ const bent = h => BENT[h.trait] || BENT.schemer;
 function climb(w, h) {
   const ai = h.ai;
   if (h.invader) { ai.stage = 2; return; }
+  // A house sworn to you reaches for no crown: it goes no further than its own lands' neighbours,
+  // gives up any march on Kingsbridge, and says nothing (King test: a sworn house "made for Kingsbridge").
+  if (w.sworn(h.index)) {
+    ai.stage = Math.min(ai.stage ?? 0, 1);
+    if (ai.plan?.target?.kind === 'crown') ai.plan = null;
+    return;
+  }
   const k = (PACE[h.trait] ?? 1) * fierceness(w).stage;
   let s = w.time >= STAGE_AT[1] * k ? 2 : w.time >= STAGE_AT[0] * k ? 1 : 0;
   // A campaign saved before the stages: the house takes its stage quietly.
@@ -370,9 +377,10 @@ function chooseStance(w, h, B, stage, mine) {
 export function houseMind(w, h) {   // (exported for checks())
   const mine = held(w, h);
   if (!mine.length) return;
-  const B = bent(h), ai = h.ai, plan = ai.plan;
+  const B = bent(h), ai = h.ai;
   ai.cool -= THINK;
   climb(w, h);
+  const plan = ai.plan;   // (after climb, which may drop it)
   const stage = stageOf(h);
   if (!h.seat || h.seat.owner !== h.index) h.seat = mine[0];
   let muster = plan?.staging?.owner === h.index ? plan.staging : h.seat;
@@ -652,6 +660,7 @@ function choosePlan(w, h, B, stage, arming = true) {
     if (!w.canAttack(h.index, p) || h.ai.passed?.[p.id] > w.time) continue;
     const enemy = p.owner !== null && p.owner !== w.bandits;
     if (enemy && !arming) continue;
+    if (p.kind === 'crown' && w.sworn(h.index)) continue;   // sworn to you: Kingsbridge is not for it
     if (p.owner === 0 && stage === 0) { if (!protectedFrom(w, 0, h.index)) skirmish ??= p; continue; }
     // The free villages around your start are yours to win first, for the first twenty
     // minutes. Kept when the rubber bands were cut (Orchestrator, 2026-11-21): it is a fixed

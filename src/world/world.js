@@ -28,7 +28,7 @@ import { tickArriere, rankOf } from './arriere.js';
 import * as ban from './ban.js';
 import { callHeard, sendRelief } from './threat.js';
 import { RELIEF, hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
-import { startDiplomacy, thinkDiplomacy, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
+import { startDiplomacy, thinkDiplomacy, leaveLeague, note, strengthOf, backers, grudge, tauntFor, VASSAL_TRIBUTE } from './diplomacy.js';
 
 // The houses of this campaign by index (you are 0), and the bandits last. Filled in by
 // the World so drawing code can look owners up without holding the world.
@@ -245,6 +245,7 @@ export class World {
     const a = FACTIONS[i], b = FACTIONS[j];
     if (i === 0 || j === 0) { this.log(`Peace is made with ${(i === 0 ? b : a).name}.`); this.chron(`Peace was made with ${(i === 0 ? b : a).name}.`); this.hooks.peace?.(i === 0 ? b : a); }
     else if (this.knows(i) || this.knows(j)) this.log(`${a.name} and ${b.name} have made peace.`, 2);
+    if (i === 0 || j === 0) leaveLeague(this, i === 0 ? j : i);   // (before standOff: its men leave the league's host as their own)
     this.standOff(i, j);
   }
 
@@ -1596,6 +1597,7 @@ export class World {
     if (!H.bandit) this.meet(a.side);
     this.removeArmy(a);
     this.allowYield(p);
+    let band = null;   // whose men these are may change while they fight (a league host, diplomacy.js leaveLeague)
     t.receiveAttack(a.units, this.angle(p, came), {
       mode: a.mode === 'march' ? 'assault' : a.mode, name: a.name, house: a.side,
       onLeave: (survivors, gotAway, dead = {}, loot = null) => {
@@ -1615,11 +1617,13 @@ export class World {
           const and = xs => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0];
           if (list.length) say(`The outlaws got away from ${p.name} with ${and(list)} (${cost}).`, true);
         }
-        const back = this.spawnArmy(a.side, survivors, p, a.name);
+        const back = this.spawnArmy(band?.house ?? a.side, survivors, p, a.name);
         if (loot) back.loot = loot;
         this.retreat(back);
       },
     });
+    band = t.attackers.at(-1);
+    if (a.league) band.league = true;
     this.seatCaptain(t.battle, 1, c, t.lastRegs);
     // The village's own message says it when you are there to see it.
     if (this.hooks.watching() !== p) {
