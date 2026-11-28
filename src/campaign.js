@@ -107,9 +107,10 @@ const hooks = {
     audio.play('horn'); // audio: horn
     const here = mode === 'town' && current.poi === p, t = p.town;
     // A band your men there outweigh many times over does not stop the game: a notice, and the way there if you want it.
-    const theirs = t.strength(t.lastRegs || []), ours = t.strength(t.garrison());
+    const foes = t.attackers.filter(g => !g.leaving && g.mode !== 'hold').flatMap(g => g.regs);
+    const theirs = t.strength(foes), ours = t.strength(t.garrison());
     if (!here && ours >= theirs * ONE_SIDED.ratio) {
-      const n = (t.lastRegs || []).reduce((k, r) => k + r.alive, 0);
+      const n = foes.reduce((k, r) => k + r.alive, 0);
       notify(`${n} men attack ${p.name}; your garrison there far outweighs them.`, { button: 'Take command', run: () => enterTown(p), secs: 12 });
       return;
     }
@@ -1002,6 +1003,7 @@ function notify(text, { button = null, run = null, secs = 7, good = true } = {})
   const el = document.createElement('div'), line = document.createElement('span');
   el.style.cssText = 'display:flex;gap:12px;align-items:center;max-width:min(560px,calc(100vw - 32px));padding:6px 12px;background:var(--panel);border:1px solid var(--edge);border-radius:8px;color:var(--ink);font-size:13px';
   line.textContent = text;
+  if (!good) el.style.borderColor = 'var(--bad)';
   el.append(line);
   let timer = null;
   const card = {
@@ -1639,7 +1641,7 @@ function autosave() {
   const c = canSave(world);
   if (!c.ok) {
     const text = toldUnsaved !== savedAt && world.winner === null && unsavedNotice(world.time - savedAt - every, c.reason, lastSaved());
-    if (text) { toldUnsaved = savedAt; console.warn(`autosave: ${text}`); world.log(text, 1); flash(text); }
+    if (text) { toldUnsaved = savedAt; console.warn(`autosave: ${text}`); notify(text, { good: false, secs: 15 }); }
     return;
   }
   savedAt = world.time;

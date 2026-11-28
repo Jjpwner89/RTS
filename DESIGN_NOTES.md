@@ -102,7 +102,7 @@ Later: leather and armour (hunter hides → tanner → armourer), horses (stable
 - Four places joined by roads. Your seat, Ashford, is in the south and House Varn's seat, Blackmoor, in the north. Between them are two free villages, Hollin and Stowe, each defended by about 40 militia and bowmen.
 - Real time with pause on the map too. Click to select, right-click a place to march there, and double-click one of your villages to go into it. **M** returns to the map.
 - Your villages are the full village game and keep running while you are away. Muster the garrison from the map, or select regiments in a village and press *March out*. An army that marches into one of your villages joins its garrison, and levies become that village's villagers.
-- Attacking a place, or meeting an enemy army, asks you to fight it out (a field battle with your army and theirs; defenders of a place hold near its keep) or auto-resolve. Losers fall back to their nearest holding. A captured free village keeps its people and a few buildings.
+- Attacking a place, or meeting an enemy army, asks you to fight it out (a field battle with your army and theirs; defenders of a place hold near its keep) or auto-resolve (a one-sided fight settles itself: Late-game fixes, 2026-11-28). Losers fall back to their nearest holding. A captured free village keeps its people and a few buildings.
 - House Varn is abstract for now: a garrison at Blackmoor that grows over time, faster for each village it holds. It sends one expedition at a time. It takes the free villages first, leaves yours alone for six minutes, then raids or assaults whichever of your villages is weakest. Attacks on your villages happen inside the village, coming in by the road from the attacker's side. If you are away, the garrison fights on its own. If a keep falls, the village goes to Varn and your survivors run home.
 - Take Blackmoor to win; lose every village and army to lose.
 - The timed bandit raids are gone from the campaign; they stay in the standalone village as practice.
@@ -1239,3 +1239,13 @@ Readable: the army's food line in the campaign panel adds "winter: half again as
 - **Arms totals** (`armsCount`): a man's load of arrows or bolts (10) counts as one. Any new total of arms uses it.
 - **A militiaman walks back to work at `PACE.back`** (3.75 m/s; the muster's run is faster).
 
+## Late-game fixes (2026-11-28, from the late-game scout)
+
+- **A village fight always ends.** A band that is leaving drops its siege orders and walks home (`Town.letGo`). A broken gate or stretch is a way through for both sides, towers or not (`nav.js throughway`). An attack whose men reach no new ground and harm nothing for 5 minutes ends itself, with a console warning and a log line (`STALL`).
+- **Men walking out after a peace are no attack** (`Town.underAttack`): newcomers come and the campaign can be saved; the save keeps them, and on loading they are on the road home. A raid making off with its plunder is still an attack.
+- **Autosave held off for 3 minutes past its time says so**, once, on a card ("Not saved since 14:32: a village is being fought over").
+- **A league member's peace takes its own men home** (`leaveLeague`): its share of the host leaves, another lord leads if it led, and the league goes on. It breaks only by its own rules.
+- **A sworn house reaches for no crown**: it climbs no further than "reaching beyond its lands", never plans on Kingsbridge and announces nothing.
+- **A declined offer is not made again for 15 minutes** unless a battle or a place has been won or lost with that house since. Ransoms too.
+- **One-sided fights settle themselves** (`ONE_SIDED`: 5 to 1 or better in the strength auto-resolve goes by, walls and turned-out folk counted): a card with *Take command* for 8 s of play, then auto-resolve and a log line. A hopeless storm of your own is still put to you, so you can pull back. A band your village garrison outweighs 5 to 1 is a card, not the alarm. Fights between houses and the north were already settled by numbers.
+- **After the crowning** the goals panel and the village goal line show the war in the north (war camps, places, host), and the Realm screen measures you against Norrhold.

@@ -2454,7 +2454,9 @@ function diffSaves(a, b) {
     same(`${p.name} walls`, p.eco?.walls, q.eco?.walls);
     same(`${p.name} garrison`, (p.garrison || []).map(u => `${u.count} ${u.key}`), (q.garrison || []).map(u => `${u.count} ${u.key}`));
   });
-  same('armies', a.armies.map(x => `${x.name}: ${(x.units || []).map(u => u.count).join('+')}`), b.armies.map(x => `${x.name}: ${(x.units || []).map(u => u.count).join('+')}`));
+  // (men walking out of a village after a peace are kept with the village, and are on the road after a reload)
+  const line = x => `${x.name}: ${(x.units || []).map(u => u.count).join('+')}`;
+  same('armies', [...a.armies, ...a.towns.flatMap(t => t.leaving || [])].map(line), b.armies.map(line));
   for (const t of a.towns) {
     const u = b.towns.find(o => o.i === t.i), name = a.pois[t.i]?.name;
     if (!u) { out.push(`${name}: its village is gone after reload`); continue; }
