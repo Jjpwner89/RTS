@@ -7,6 +7,7 @@ const gearText = g => `${ARMOUR_NAME[g.armour]}${g.shield ? ', shields' : ''}`;
 import { ico } from './icons.js';
 import { TYPES } from './battle.js';
 import { watch } from './ui/news.js';
+import { wageFor } from './world/treasury.js';
 import { govText } from './world/governor.js';
 import { KINDS as BAN_KINDS, TIERS as BAN_TIERS, BATCH as BAN_BATCH, kitFor as banKit } from './world/ban.js';
 
@@ -218,20 +219,26 @@ export class TownHud {
     this.buildEl.innerHTML = `<div class="tabs">${tabs}</div><div class="items">${items}</div><div class="walls"></div><div class="hint"><kbd>B</kbd> + letter picks · click to place, again for more · <kbd>Esc</kbd> stops</div>`;
     this.wallsEl = this.buildEl.querySelector('.walls');
     this.buildEl.classList.toggle('folded', pref('build-folded', false));
+    // Looking elsewhere puts down what is in hand: a ghost with no button lit was left for minutes
+    // unnoticed (the scout, 2026-11-28).
+    const putDown = () => { for (let i = 0; i < 3 && this.hooks.cancelPlacement?.(); i++); };
     this.buildEl.onclick = e => {
       const tab = e.target.closest('[data-tab]');
       if (tab) {
         // The open tab again folds the bar to its tabs, to see more of the village.
         const fold = tab.dataset.tab === this.tab && !this.buildEl.classList.contains('folded');
+        if (fold || tab.dataset.tab !== this.tab) putDown();
         this.buildEl.classList.toggle('folded', fold);
         setPref('build-folded', fold);
         this.tab = tab.dataset.tab;
         return;
       }
       const item = e.target.closest('[data-build]');
-      if (item?.dataset.build === 'hire') return this.hooks.findBuilding?.(this.town.keep);
+      if (item?.dataset.build === 'hire') { putDown(); return this.hooks.findBuilding?.(this.town.keep); }
       if (item) this.hooks.startPlacing(item.dataset.build);
     };
+    this.hintEl = this.buildEl.querySelector('.hint');
+    this.hintWas = this.hintEl.innerHTML;
     this.itemEls = [...this.buildEl.querySelectorAll('[data-build]')];
     this.tabEls = [...this.buildEl.querySelectorAll('[data-tab]')];
     // Where each new thing lives, for its introduction (ui/news.js): the button if it is on
@@ -384,11 +391,14 @@ export class TownHud {
     if (mc) { mb.disabled = !mc.ok; put(mb.querySelector('small'), mc.ok ? `all ${mc.n} villagers: weak, but every one counts; work stops` : mc.reason); }
     sb.hidden = !out || t.readOnly;
 
+    // What is in hand, said under the bar.
+    const inHand = !placing ? '' : placing === 'road' ? 'the paved road' : placing.startsWith('tpl:') ? `the ${TEMPLATES[placing.slice(4)]?.name.toLowerCase()}` : `the ${BUILDINGS[placing]?.name.toLowerCase()}`;
+    if (this.hintEl) put(this.hintEl, inHand ? `<b>Placing ${inHand}</b> · <kbd>Esc</kbd> or right-click puts it down` : this.hintWas);
     // Tabs and buildings your rank can't use yet aren't shown at all (DESIGN_NOTES).
     const lord = this.can('towns') && (this.hooks.templates?.() ?? true);
     // A building a rank or two off is shown greyed with its reason (ui/unlocks.js ahead).
     const soon = el => !el.dataset.build.startsWith('tpl:') && el.dataset.build !== 'hire' ? this.hooks.ahead?.(`b:${el.dataset.build}`) : null;
-    const shown = el => el.dataset.build.startsWith('tpl:') ? lord : el.dataset.build === 'hire' ? !!this.hooks.findBuilding : this.can(`b:${el.dataset.build}`) || !!soon(el);
+    const shown = el => el.dataset.build.startsWith('tpl:') ? lord : el.dataset.build === 'hire' ? !!this.hooks.findBuilding && this.can('hire') : this.can(`b:${el.dataset.build}`) || !!soon(el);
     if (this.tab === 'Towns' && !lord) this.tab = 'Village';
     const folded = this.buildEl.classList.contains('folded');
     for (const el of this.tabEls) {
@@ -497,6 +507,7 @@ export class TownHud {
       return rows.join('');
     }
     if (b.kind === 'keep') {
+      const canHire = this.can('hire');
       rows.push(`<p data-f="workers"></p><p data-f="hp"></p><p class="store" data-f="store"></p>`,
         `<p class="note">Home for 12 villagers and a store for any goods. Its two haulers, and anyone without a job, carry crates where they are needed. Villagers shelter here during raids, and broken regiments regroup here. If it falls, the town is lost.</p>`,
         `<h4>The village's mood</h4><p class="note" data-f="mood"></p>`,
@@ -504,16 +515,19 @@ export class TownHud {
         `<button data-act="governor" class="wide"><span data-f="gov"></span><small>builds houses, farms and the like while you are away, and now and then a workshop to raise the tax</small></button>`,
         `<h4>Spend gold</h4>`,
         `<button data-act="feast" class="wide"><span>Hold a feast</span><small></small></button>`,
-        ...(this.can('greatkeep') ? [`<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`] : []),
-        `<h4>Hire men</h4><p class="note">Paid in gold from your treasury. They cost no villagers.</p>`,
-        ...HIRES.filter(h => !this.hooks.companies || h.key === 'household').map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}${h.key === 'household' ? ` + ${Math.round(h.count * HOUSEHOLD_PAY * 10) / 10} a minute` : ''}</span><small></small></button>`));
+        ...(this.can('greatkeep') ? [`<button data-act="keepraise" class="wide"><span data-f="keepraise"></span><small></small></button>`] : []));
+      // Shown when usable (DESIGN_NOTES): a reeve hires nobody, so the keep offers nothing to hire.
+      if (!canHire) return rows.join('');
+      rows.push(`<h4>Hire men</h4><p class="note">Paid in gold from your treasury. They cost no villagers.</p>`,
+        ...HIRES.filter(h => !this.hooks.companies || h.key === 'household').map(h => `<button data-act="hire:${h.key}" class="wide"><span>${h.count} ${h.name.toLowerCase()} · ${h.gold} ${goldIco()}, then ${wageFor([{ key: h.key, count: h.count }])} gold a minute</span><small></small></button>`));
       // Sellsword companies (on the campaign map): a price to hire, then wages every minute. The ones whose
       // market you haven't seen are not named: the list says to scout the markets.
       if (this.hooks.companies) {
         const all = this.hooks.companies(), known = all.filter(c => c.known), hidden = all.length - known.length;
-        rows.push(`<h4>Sellswords</h4><p class="note">From hired bandits at 12 gold a man to mercenary lances at 80, a price to hire and then wages every minute that rise with it. The dear ones are seldom on the market. Unpaid, they desert. They never work, and a company in the village sours its mood. A lord keeps one company, a count two, a duke three.</p>`,
+        // Nothing to show until a company has been seen.
+        if (known.length) rows.push(`<h4>Sellswords</h4><p class="note">From hired bandits at 12 gold a man to mercenary lances at 80, a price to hire and then wages every minute that rise with it. The dear ones are seldom on the market. Unpaid, they desert. They never work, and a company in the village sours its mood. A lord keeps one company, a count two, a duke three.</p>`,
           ...known.map(c => `<button data-act="co:${c.id}" class="wide"><span>${c.name[0].toUpperCase() + c.name.slice(1)}: ${c.size} ${c.unit}</span><small></small></button>`),
-          ...(hidden ? [`<p class="note">${known.length ? `${hidden} more: unknown` : `${hidden} ${hidden > 1 ? 'companies' : 'company'}: unknown`}. Scout the markets: a company shows once you have seen the market where it waits.</p>`] : []));
+          ...(hidden ? [`<p class="note">${hidden} more: unknown. Scout the markets: a company shows once you have seen the market where it waits.</p>`] : []));
       }
       return rows.join('');
     }
@@ -538,13 +552,13 @@ export class TownHud {
     }
     if (b.B.hall && b.state === 'active') {
       rows.push(`<h4>Train elite men</h4><p class="note">Only veterans may train: villagers who fought as levies and came home (${this.town.veterans().length} in the village). A few at a time, for their kit, a fee and minutes of drill each. The hall keeps ${HALL.cap} men at most.${this.hooks.companies ? ` On campaign they draw pay from your treasury: ${ELITE.maa.pay} gold a minute for a man-at-arms, ${ELITE.knight.pay} for a knight.` : ''}</p>`);
-      for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText(KITS[k].kit)}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
+      for (const [k, E] of Object.entries(ELITE)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText(KITS[k].kit)}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList(KITS[k].kit)}, ${E.fee} ${goldIco()} and ${E.drill} s of drill${this.hooks.companies ? `, then ${E.pay} gold a minute each` : ''}</p>`);
     }
     if (b.kind === 'barracks' && b.state === 'active') {
       // Drilled men first: they are the better troops, and the levy list is long.
       if (this.can('drill')) {
         rows.push(`<h4>Drill veterans</h4><p class="note">Veterans (${this.town.veterans().length} in the village) drill here into serjeants and yeoman archers: up to ${DRILL.batch} at a time, each for his kit, a fee and some drill. A barracks keeps ${DRILL.cap} drilled men.${this.hooks.companies ? ` On campaign each draws ${DRILLED.serjeant.pay} gold a minute.` : ''}</p>`);
-        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${E.drill} s of drill</p>`);
+        for (const [k, E] of Object.entries(DRILLED)) rows.push(`<button data-act="train:${k}" class="wide"><span>${KITS[k].name}</span><small></small></button><p class="kit" title="each needs ${this.goodsText({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}, ${E.fee} gold and ${E.drill} s of drill">each needs ${this.goodsList({ ...KITS[k].kit, [ARMOUR_GOOD[TYPES[k].armour]]: 1 })}${TYPES[k].shield ? ' (and a shield if there is one)' : ''}, ${E.fee} ${goldIco()} and ${E.drill} s of drill${this.hooks.companies ? `, then ${E.pay} gold a minute each` : ''}</p>`);
       }
       if (this.town.banInfo?.().per) {
         rows.push(`<h4>Arm the ban</h4><p class="note">The arrière-ban of this village: the men of its countryside the rank can call. Arm a batch here and they keep the kit for good: it never comes back to the racks, they take it on every call and bring it home, and what they learn stays with them. It belongs to the land: if the village falls, its armed men go with it.</p>`);

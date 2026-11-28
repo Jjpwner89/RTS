@@ -19,9 +19,26 @@ function ahead(a) {
   return d;
 }
 
+// Needs you is for things that need the player. A line that only nags (hands without work, a
+// building standing idle) is shown once: it can be dismissed, goes by itself after a while on
+// screen, and the same cause does not bring it back for NAG.rest seconds (the scout, 2026-11-28:
+// "12 of 12 without work" sat there for ten minutes). `w.quiet[cause] = { at, off }` is saved.
+export const NAG = { show: 120, rest: 1200 };
+const resting = (w, key) => {
+  const q = w.quiet?.[key];
+  if (!q || w.time - q.at >= NAG.rest) return false;
+  return !!q.off || w.time - q.at >= NAG.show;
+};
+// The map has shown it: its time on screen starts.
+export function nagShown(w, key) {
+  const q = (w.quiet ||= {})[key];
+  if (!q || w.time - q.at >= NAG.rest) w.quiet[key] = { at: w.time };
+}
+export function nagDismiss(w, key) { (w.quiet ||= {})[key] = { at: w.time, off: true }; }
+
 export function alerts(w) {
   const out = [];
-  const add = (level, text, at, icon, find) => out.push({ level, text, at, icon, find });
+  const add = (level, text, at, icon, find, nag) => out.push({ level, text, at, icon, find, nag });
 
   for (const p of w.pois) {
     const t = p.town;
@@ -41,12 +58,12 @@ export function alerts(w) {
     const wo = t.woodOutlook();
     if (wo) add(3, `${p.name}: ${wo.text}. ${wo.fix[0].toUpperCase()}${wo.fix.slice(1)}`, p, 'warning');
     const jo = !t.underAttack && !t.hostile && t.jobsOutlook();
-    if (jo) add(2, `${p.name}: ${jo.text}`, p, 'people');
-    const dry = t.buildings.filter(b => b.dry && b.state === 'active');
+    if (jo && !resting(w, `jobs:${p.id}`)) add(2, `${p.name}: ${jo.text}`, p, 'people', null, [`jobs:${p.id}`]);
+    const dry = t.buildings.filter(b => b.dry && b.state === 'active' && !resting(w, `dry:${p.id}:${b.id}`));
     if (dry.length) {
       // Click to go to the nearest deposit nobody is working, when there is one.
       const next = dry.map(b => t.nextDeposit(b)).filter(Boolean).sort((a, b) => a.m - b.m)[0];
-      add(2, `${p.name}: ${dry.length > 1 ? `${dry.length} workplaces stand` : `the ${dry[0].B.name.toLowerCase()} stands`} idle, worked out${next ? `: the next deposit is ${next.m} m ${next.to} (click to look)` : `: ${dry.some(b => /^(rock|ore)$/.test(b.B.gather?.node)) ? 'no other deposit left; ' : ''}move or pull down`}`, p, 'warning', next && next.node);
+      add(2, `${p.name}: ${dry.length > 1 ? `${dry.length} workplaces stand` : `the ${dry[0].B.name.toLowerCase()} stands`} idle, worked out${next ? `: the next deposit is ${next.m} m ${next.to} (click to look)` : `: ${dry.some(b => /^(rock|ore)$/.test(b.B.gather?.node)) ? 'no other deposit left; ' : ''}move or pull down`}`, p, 'warning', next && next.node, dry.map(b => `dry:${p.id}:${b.id}`));
     }
   }
 

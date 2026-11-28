@@ -7,6 +7,7 @@
 // of place in the second half of the list, any place of that kind you hold); never the same
 // one twice running. Choices that cost gold say so and can't be picked without it.
 import { FACTIONS, headcount } from './world.js';
+import { wageFor } from './treasury.js';
 
 // Events whose picture is in assets/art/events/. Add the id when its painting lands.
 export const PAINTED = new Set([]);
@@ -96,7 +97,7 @@ const EVENTS = {
     title: () => 'A wandering knight',
     text: (w, p, e) => `${e.name} rides into ${p.name} with a squire and four lances, looking for a lord worth serving.`,
     choices: (w, p, e) => [
-      { label: `Take them into your service (120 gold)`, ok: () => gold() >= 120, run: () => {
+      { label: `Take them into your service (120 gold, then ${wageFor([{ key: 'knight', count: 5, elite: true }])} gold a minute)`, ok: () => gold() >= 120, run: () => {
         pay(120);
         w.spawnArmy(0, [{ key: 'knight', count: 5, name: `${e.name.split(' ').slice(-1)[0]}'s lances`, xp: 2, elite: true }], p, `${e.name}'s lances`);
         return `${e.name} kneels and swears to you. Five lances wait at ${p.name}.`;
@@ -152,7 +153,7 @@ const EVENTS = {
       const c = camp(w, p), men = headcount(c.garrison), hireAt = Math.max(160, men * 3);   // always dearer than peace
       return [
         { label: 'Pay them off (100 gold)', ok: () => gold() >= 100, run: () => { pay(100); w.banditPeace = w.time + 1200; return `${e.name}'s men will leave your lands alone for twenty minutes.`; } },
-        { label: `Hire the band (${hireAt} gold)`, ok: () => gold() >= hireAt && men >= 6, why: men < 6 ? `Only ${men} of them are left: too few to hire` : null, run: () => {
+        { label: `Hire the band (${hireAt} gold, then ${wageFor(c.garrison)} gold a minute)`, ok: () => gold() >= hireAt && men >= 6, why: men < 6 ? `Only ${men} of them are left: too few to hire` : null, run: () => {
           pay(hireAt);
           w.spawnArmy(0, c.garrison.map(u => ({ ...u, name: `${e.name}'s ${u.name.split(' ').slice(-1)[0]}` })), p, `${e.name}'s band`);
           c.garrison = [];
@@ -172,6 +173,8 @@ EVENTS.tournament = {
   title: () => 'A tournament at Kingsbridge',
   text: (w, p, e) => `Heralds cry a tournament at Kingsbridge: a purse of 200 gold, and the eyes of every great house on the lists. ${e.champ ? `Captain ${e.champ.name} asks to ride for you.` : 'You have no captain fit to ride.'}`,
   choices: (w, p, e) => {
+    // (the knights a win brings draw wages: said on the card before you ride)
+    const won = `; a win brings 4 knights at ${wageFor([{ key: 'knight', count: 4, elite: true }])} gold a minute`;
     const joust = (who, odds, hurt) => {
       pay(50);
       if (w.rand() < odds) {
@@ -185,9 +188,9 @@ EVENTS.tournament = {
       return `${who} ${who === 'You' ? 'are' : 'is'} unhorsed in the third course. The purse goes elsewhere.${who === 'You' ? ' You are bruised and cannot ride with an army for five minutes.' : ''}`;
     };
     return [
-      { label: e.champ ? `Send Captain ${e.champ.name} (50 gold)` : 'No captain to send', ok: () => !!e.champ && gold() >= 50, why: e.champ ? null : 'None of your captains is free to ride',
+      { label: e.champ ? `Send Captain ${e.champ.name} (50 gold${won})` : 'No captain to send', ok: () => !!e.champ && gold() >= 50, why: e.champ ? null : 'None of your captains is free to ride',
         run: () => joust(`Captain ${e.champ.name}`, 0.25 + e.champ.level * 0.1, () => {}) },
-      { label: 'Ride yourself (50 gold)', ok: () => gold() >= 50 && !(w.lordHurt > w.time) && (w.lordCaptive ?? null) === null,
+      { label: `Ride yourself (50 gold${won})`, ok: () => gold() >= 50 && !(w.lordHurt > w.time) && (w.lordCaptive ?? null) === null,
         why: () => ((w.lordCaptive ?? null) !== null ? 'You are a captive' : w.lordHurt > w.time ? 'You are still hurt from the lists' : null),
         run: () => joust('You', 0.45, () => { w.lordHurt = w.time + 300; }) },
       { label: 'Stay away', run: () => 'The tournament goes on without you.' },

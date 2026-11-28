@@ -206,6 +206,15 @@ addEventListener('keydown', e => {
     return;
   }
   if (e.key !== 'Escape' || e.repeat || e.target.closest?.('input, select, textarea')) return;
+  // How to play is open: Esc closes it, and nothing else happens.
+  const help = document.getElementById('help');
+  if (help?.classList.contains('open') && help.getClientRects().length) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    document.getElementById('help-close')?.click();
+    help.classList.remove('open');
+    return;
+  }
   // After the game's own handlers have had their say.
   setTimeout(() => { if (!e.escUsed && !e.defaultPrevented && !isOpen && !answering()) { build(); openMenu(); } });
 }, true);

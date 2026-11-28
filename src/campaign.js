@@ -40,7 +40,7 @@ import { offer, wage, fullWage, hire as hireCompany, release } from './world/com
 import { vassalOf, holdingsOf, living, prisoners, opinion, outlook, duesShare, levyShare, DUES, LEVIES, TEMPERS, WANTS, SEATS, GIFT, RECONCILE, moodWord, moodColor } from './world/vassals.js';
 import { GOALS, updateGoals, goalNow } from './world/goals.js';
 import { coronation } from './world/events.js';
-import { alerts, LEVEL_COLOR } from './world/alerts.js';
+import { alerts, LEVEL_COLOR, nagShown, nagDismiss } from './world/alerts.js';
 import { captainOf, lordName, ride, afterBattle, captainLine, captainMemory } from './world/captains.js';
 import { ico } from './icons.js';
 import { RealmScreen } from './realmscreen.js';
@@ -194,6 +194,17 @@ function showHerald() {
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500 + Math.max(0, (msg.text || '').length - 140) * 40);   // a long herald stays longer
 }
 
+// What each answer on the attack card does (world.js blockade, burnFields, treat, pullBack).
+export const ENCOUNTER_TIPS = {
+  'Storm it': 'Go into the place and fight for it yourself: you give the orders',
+  'Fight it': 'Fight the battle yourself: you give the orders',
+  'Leave it to the captain': 'Your captain fights it while you carry on elsewhere; you can take command at any moment',
+  'Auto-resolve': 'Settle it at once, by the odds said above',
+  'Treat with them': 'Pay for the place: it becomes yours and nobody fights',
+  'Starve them out': 'Camp outside until their food runs out. Your army eats too: keep it supplied',
+  'Burn the fields': 'Burn their farms and most of their grain without storming. You lose a few men, their house resents it, and your army stays outside',
+  'Pull back': 'March away without a fight',
+};
 // Sends the selected army to place p (the right-click, and the March buttons on a place's card).
 function orderTo(p) {
   if (!selected || !selected.units || selected.side !== 0) return;
@@ -280,6 +291,7 @@ function townBundle(p, look = null) {
       return true;
     },
     cancelPlacement: () => { if (!st.placing) return false; if (st.roadFrom) { st.roadFrom = null; return true; } st.placing = null; return true; },
+    toastOff: () => townHud?.flash(''),
     hover: g => { st.hoverAt = g; },
     pickBuilding: g => { st.selected = g ? townView.buildingAt(g) : null; return !!st.selected; },
     deselect: () => { st.selected = null; b.controls.setSelection([]); },
@@ -803,11 +815,12 @@ function nextAsk() {
   const row = box.querySelector('.row');
   row.innerHTML = '';
   shown = [];
+  const tipFor = text => (a.kind === 'encounter' ? Object.entries(ENCOUNTER_TIPS).find(([k]) => text.startsWith(k))?.[1] : '') || '';
   for (const [text, fn, off, why, choice] of buttons) {
     const btn = document.createElement('button');
     btn.textContent = text;
     btn.disabled = !!off;
-    if (off && why) btn.title = why;
+    btn.title = [tipFor(text), off && why].filter(Boolean).join('\n');
     if (choice) shown.push([btn, choice]);
     btn.onclick = () => { if (!armed()) return; box.classList.remove('open', 'arming'); softAsk = null; fn(); };
     row.append(btn);
@@ -1353,6 +1366,11 @@ $('wpanel').onclick = e => {
 $('pause').onclick = () => { paused = !paused; };
 for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => { speed = +b.dataset.speed; paused = false; };
 $('help-toggle').onclick = () => $('help').classList.toggle('open');
+// How many great houses this realm really has.
+{
+  const n = FACTIONS.filter(h => h.index && h.alive && !h.bandit && !h.invader).length;
+  $('help-houses').textContent = n === 1 ? 'One great house holds' : `${['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'][n] ?? n} great houses hold`;
+}
 // The realm at a glance: villages side by side, vassals, houses and the purse.
 const realm = new RealmScreen(world, {
   enter: p => enterTown(p),
@@ -1400,16 +1418,23 @@ function alertList() {
   if (away) list.unshift({ level: 5, icon: 'battle', away: true,
     text: `${away.b.title}: ${standing(away.b.battle, 0)} of yours against ${standing(away.b.battle, 1)}. Take command` });
   const shown = list.slice(0, 7), key = shown.map(a => a.level + a.text).join('|') + list.length;
+  // a nagging line's time starts once it is in front of you: on the map, with the panel open
+  if (mode === 'world' && !$('alerts').classList.contains('folded')) for (const a of shown) for (const k of a.nag || []) nagShown(world, k);
   if (key === alertsKey) return;
   alertsKey = key;
   shownAlerts = shown;
   const el = $('alerts');
   el.hidden = !shown.length;
   el.innerHTML = `<h4>Needs you${list.length > shown.length ? ` <small>and ${list.length - shown.length} more</small>` : ''}</h4>`
-    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at || a.away ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level] || '#9fc46e'}">${ico(a.icon)}<span>${a.text}</span></div>`).join('');
+    + shown.map((a, i) => `<div data-alert="${i}" class="${a.at || a.away ? 'go' : ''}" style="--c:${LEVEL_COLOR[a.level] || '#9fc46e'}">${ico(a.icon)}<span>${a.text}</span>${a.nag ? '<button class="nag-x" title="Dismiss: not shown again for a good while">×</button>' : ''}</div>`).join('');
 }
 $('alerts').onclick = e => {
   const a = shownAlerts[+e.target.closest('[data-alert]')?.dataset.alert];
+  if (a?.nag && e.target.closest('.nag-x')) {
+    for (const k of a.nag) nagDismiss(world, k);
+    alertsAt = 0; alertsKey = '';
+    return;
+  }
   if (a?.away) return takeCommand();
   if (!a?.at || a.at.gone) return;
   // a worked-out quarry or mine: go to its village and ring the next deposit

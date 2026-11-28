@@ -2313,7 +2313,7 @@ export class Town {
       t.timer -= dt;
       v.phase += dt * 5;
       b.status = 'Working';
-      audio.tick(g.node, v, dt, 1.2, this.battle); // audio: chopping or picking
+      if (g.node !== 'field') audio.tick(g.node, v, dt, 1.2, this.battle); // audio: chopping or picking (field work is quiet)
       if (t.timer <= 0) { t.phase = 'back'; v.carry = Object.keys(g.out)[0]; }
     } else {
       // Home to the door, or (a door against a town wall, QC at Kingsbridge: two woodcutters walked on
@@ -2678,7 +2678,8 @@ export class Town {
     if (this.larder < 4) need.push('a farm');
     if (s.wood < 60) need.push('a woodcutter');
     if (s.stone < 40) need.push('a quarry');
-    if (!need.length) need.push('a woodcutter', 'a farm', 'a quarry');
+    // With nothing worth building, or places already open for them, there is nothing for you to do.
+    if (open >= idle || !need.length) return null;
     const list = need.length > 1 ? `${need.slice(0, -1).join(', ')} or ${need.at(-1)}` : need[0];
     return { idle, open, text: `${idle} of ${pop} without work: ${open >= idle ? `${open} places are open, they are on their way` : `build ${list}`}` };
   }

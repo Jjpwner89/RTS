@@ -78,6 +78,9 @@ export function wagesOf(w, side) {
   return { gold: rows.reduce((n, e) => n + e.n * e.pay, 0), men: rows.reduce((n, e) => n + e.n, 0),
     elite: rows.filter(e => always(e.key, e.elite)).reduce((n, e) => n + e.n * e.pay, 0) };
 }
+// What men would draw once hired, in gold a minute, for the card that offers them (the scout,
+// 2026-11-28: the wandering knight's card said 120 gold, and his lances then drew 19 a minute).
+export const wageFor = units => Math.round(units.reduce((n, u) => n + u.count * payOf(u.key, u.armour, u.elite), 0) * 10) / 10;
 // Gold a minute of wages (it was the elite's pay alone before every soldier was paid).
 export const elitePay = (w, side) => wagesOf(w, side).gold;
 

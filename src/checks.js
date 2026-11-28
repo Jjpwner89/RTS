@@ -4079,6 +4079,113 @@ async function newcomerChecks(w) {
   }));
 }
 
+async function newcomerSmallChecks(w) {
+  if (!w.home) return;
+  const E = await import('./economy.js'), H = await import('./townhud.js'), { FACTIONS } = await import('./world/world.js'), g = window.game;
+  group = 'First session';
+  await check('a hire that brings a wage says it on the card, a minute', async () => {
+    const Ev = await import('./world/events.js'), { wageFor } = await import('./world/treasury.js'), out = [];
+    const p = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+    const keep = { choice: w.hooks.choice, rand: w.rand, last: w.lastEvent, at: w.eventAt ? { ...w.eventAt } : undefined };
+    const cards = {};
+    try {
+      w.hooks.choice = ev => { cards[ev.id] = ev.choices.map(c => c.label); };
+      w.rand = () => 0.5;
+      for (const id of ['knight', 'tournament']) Ev.fire(w, id, p);
+    } finally { w.hooks.choice = keep.choice; w.rand = keep.rand; w.lastEvent = keep.last; w.eventAt = keep.at; }
+    const knights = n => `${wageFor([{ key: 'knight', count: n, elite: true }])} gold a minute`;
+    if (Math.abs(wageFor([{ key: 'knight', count: 5, elite: true }]) - 5 * E.ELITE.knight.pay) > 0.1) out.push('five lances are not reckoned at five knights\' pay');
+    if (!cards.knight?.[0].includes(`120 gold, then ${knights(5)}`)) out.push(`the wandering knight's card says "${cards.knight?.[0]}"`);
+    if (!cards.tournament?.[1].includes(knights(4))) out.push(`the tournament card says "${cards.tournament?.[1]}"`);
+    return out;
+  });
+  await check('How to play counts the great houses this realm has', () => {
+    const el = document.getElementById('help-houses');
+    if (!el) return null;
+    const n = FACTIONS.filter(h => h.index && h.alive && !h.bandit && !h.invader).length;
+    const said = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'].indexOf(el.textContent.split(' ')[0].toLowerCase());
+    // (a house that has since fallen is still counted as the realm began with it)
+    return said >= n ? [] : [`it says "${el.textContent}" in a realm of ${n}`];
+  });
+  await check('Esc closes How to play, and opens nothing over it', async () => {
+    const help = document.getElementById('help'), M = window.gameMenu;
+    if (!help || !M || M.isOpen || document.querySelector('.modal.open')) return null;
+    const was = help.classList.contains('open'), paused = M.host.pause?.get(), out = [];
+    help.classList.add('open');
+    dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    if (help.classList.contains('open')) out.push('How to play stayed open');
+    if (M.isOpen) { out.push('the game menu opened'); M.close(); }
+    help.classList.toggle('open', was);
+    if (paused !== undefined) M.host.pause.set(paused);
+    return out;
+  });
+  await check('every answer on the attack card has a tooltip', async () => {
+    if (!g?.world) return null;
+    const { ENCOUNTER_TIPS } = await import('./campaign.js');
+    return ['Storm it', 'Fight it', 'Auto-resolve', 'Starve them out', 'Burn the fields', 'Pull back', 'Treat with them', 'Leave it to the captain']
+      .filter(k => !(ENCOUNTER_TIPS[k]?.length > 10)).map(k => `"${k}" says nothing`);
+  });
+  await check('work in a village asks only for sounds that exist', async () => {
+    const { audio } = await import('./audio.js');
+    return Object.values(E.BUILDINGS).filter(B => B.gather && B.gather.node !== 'field' && !audio.knows(B.gather.node)).map(B => `${B.name}: no sound for '${B.gather.node}'`);
+  });
+  await check('a reeve\'s keep offers nothing to hire, and no list of unknown companies', async () => {
+    const { unlocked } = await import('./ui/unlocks.js'), out = [];
+    if (unlocked({ rank: 'Reeve', pois: [] }, 'hire') || !unlocked({ rank: 'Lord', pois: [] }, 'hire')) out.push('hiring does not start at Lord');
+    await scratchVillage(w, { wood: 20 }, t => {
+      const unseen = [{ id: 1, known: false, name: 'a company', size: 30, unit: 'men' }];
+      const html = H.TownHud.prototype.buildingHtml.call({ town: t, can: k => k !== 'hire', hooks: { companies: () => unseen } }, t.keep);
+      if (/data-act="hire:|unknown|Hire men/.test(html)) out.push('the keep still offers something to hire');
+      const lord = H.TownHud.prototype.buildingHtml.call({ town: t, can: () => true, hooks: { companies: () => unseen } }, t.keep);
+      if (!/data-act="hire:household"/.test(lord) || /unknown/.test(lord)) out.push('a lord with no company seen is not offered just the household guard');
+    });
+    return out;
+  });
+  await check('looking at another tab puts down the building in hand', async () => {
+    const c = g?.world ? g.current : null;
+    if (g?.mode !== 'town' || !c?.st || c.look || c.town.hostile || c.st.placing) return null;
+    const bar = document.getElementById('build'), tab = name => bar.querySelector(`[data-tab="${name}"]`);
+    if (!tab('Gather') || bar.classList.contains('folded')) return null;
+    const was = bar.querySelector('.tab.on')?.dataset.tab || 'Village', out = [];
+    const frames = () => new Promise(r => setTimeout(r, 120));
+    if (was !== 'Village') { tab('Village').click(); await frames(); }
+    c.hooks.startPlacing('storehouse');
+    await frames();
+    tab('Gather').click();
+    await frames();
+    if (c.st.placing) { out.push(`still placing the ${c.st.placing} after opening Gather`); c.st.placing = null; }
+    tab(was).click();
+    return out;
+  });
+  await check('a nagging line is shown once, can be put away, and rests before it comes back', async () => {
+    const A = await import('./world/alerts.js'), out = [];
+    const t = { underAttack: false, hostile: null, revolt: false, misery: 0, starving: false, buildings: [], foodOutlook: () => null, woodOutlook: () => null, jobsOutlook: () => ({ text: '6 of 12 without work: build a quarry' }) };
+    const f = { time: 0, pois: [{ id: 'x', name: 'Xby', owner: 0, town: t }], armies: [], companies: [], vassals: [] };
+    const line = () => A.alerts(f).find(a => /without work/.test(a.text));
+    const first = line();
+    if (!first?.nag?.length) return ['the "without work" line is not marked as one to put away'];
+    A.nagShown(f, first.nag[0]);
+    f.time = A.NAG.show - 5;
+    if (!line()) out.push('it left before its time on screen was up');
+    A.nagShown(f, first.nag[0]);
+    f.time = A.NAG.show + 5;
+    if (line()) out.push('it is still there after its time on screen');
+    f.time = A.NAG.rest + 5;
+    if (!line()) out.push('it never comes back, though the cause stands');
+    A.nagDismiss(f, first.nag[0]);
+    if (line()) out.push('dismissed, it stayed');
+    f.time += A.NAG.rest - 10;
+    if (line()) out.push('dismissed, it came back too soon');
+    return out;
+  });
+  await check('hands without work are no business of yours when there is nothing worth building', () => scratchVillage(w, { wood: 400, stone: 300, food: 900 }, t => {
+    for (const v of t.villagers) t.release(v);
+    const j = t.jobsOutlook();
+    return j && !/farm|woodcutter|quarry/.test(j.text) || j && /build a woodcutter, a farm or a quarry/.test(j.text) ? [`it says "${j.text}"`] : [];
+  }));
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -4102,6 +4209,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await villageChecks(window.game.world);
   if (window.game?.world?.pois) await lateChecks(window.game.world);
   if (window.game?.world?.pois) await newcomerChecks(window.game.world);
+  if (window.game?.world?.pois) await newcomerSmallChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {

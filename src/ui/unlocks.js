@@ -10,6 +10,9 @@ export const UNLOCKS = {
   realm: { when: rank('Lord'), intro: 'New: the Realm screen brings every place you hold together: villages, supplies, vassals and the purse.' },
   towns: { when: rank('Lord'), intro: 'New: town templates lay out a whole quarter of buildings at once.' },
   masons: { when: rank('Lord') },
+  // Hired men: the household guard and sellsword companies both start at Lord (world.js HOUSEHOLD_CAP,
+  // companies.js COMPANY_CAP), so a reeve is shown nothing to hire.
+  hire: { when: rank('Lord') },
   greatkeep: { when: rank('Lord') },
   // `ahead`: shown greyed before it unlocks, with `why`, so the next step is in sight (the
   // knights' hall from Lord; creator, 2026-11-22).

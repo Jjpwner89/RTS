@@ -106,6 +106,7 @@ export class Controls {
       document.body.classList.remove('mining');
       const placed = this.hooks.cancelPlacement?.();
       if (!placed) this.setSelection([]);
+      else this.hooks.toastOff?.();
       if (mining || placed || had) e.escUsed = true;
     }
     if (key === 'a' && (e.metaKey || e.ctrlKey)) {
@@ -255,7 +256,7 @@ export class Controls {
   // Optional hooks for maps with buildings: place(ground) while placing,
   // cancelPlacement(), hover(ground), pickBuilding(ground).
   onDown(e) {
-    if (e.button === 2 && this.hooks.cancelPlacement?.()) { this.drag = null; return; }
+    if (e.button === 2 && this.hooks.cancelPlacement?.()) { this.hooks.toastOff?.(); this.drag = null; return; }
     if (e.button === 0 && this.hooks.dragPlacing?.()) { this.drag = { kind: 'place', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false }; return; }
     if (e.button === 0) this.drag = { kind: 'select', x: e.clientX, y: e.clientY, moved: false };
     if (e.button === 2) this.drag = { kind: 'order', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false };

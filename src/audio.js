@@ -586,5 +586,7 @@ export function status() {
     beds: Object.fromEntries(Object.entries(beds).map(([n, b]) => [n, +b.gain.gain.value.toFixed(2)])) };
 }
 
-export const audio = { play, tick, setMood, frame, settings, status };
+// Whether a name plays something (checks()).
+const knows = name => !!SOUNDS[ALIAS[name] || name];
+export const audio = { play, tick, setMood, frame, settings, status, knows };
 export default audio;

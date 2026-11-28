@@ -60,11 +60,14 @@ addEventListener('mouseover', e => {
 }, true);
 addEventListener('mousemove', e => { mouse = { x: e.clientX, y: e.clientY }; if (tip.classList.contains('show')) place(); }, true);
 addEventListener('mousedown', () => tip.classList.remove('show'), true);
+// Esc puts things away, and the slip with them.
+addEventListener('keydown', e => { if (e.key === 'Escape') drop(); }, true);
 document.documentElement.addEventListener('mouseleave', drop);
 // Code may rewrite a title every frame (a reason that changes): pick that up while shown.
 (function follow() {
   if (host && (host.getAttribute('title') !== null || tip.classList.contains('show') || host.dataset.why)) {
-    if (!host.isConnected) drop();
+    // gone from the page, or from sight (a panel hidden under a still pointer)
+    if (!host.isConnected || !host.getClientRects().length) drop();
     else if (tip.classList.contains('show')) lift();
     else { const t = host.getAttribute('title'); if (t !== null) { held = t; host.removeAttribute('title'); } }
   }

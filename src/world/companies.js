@@ -10,7 +10,7 @@
 import { FACTIONS, headcount, unit } from './world.js';
 import { TYPES } from '../battle.js';
 import { live } from './events.js';
-import { wagesOf } from './treasury.js';
+import { wagesOf, wageFor } from './treasury.js';
 import { rankOf } from './arriere.js';
 
 const NAMES = ['the Grey Company', 'the Black Lanterns', 'the Red Hounds', 'the Salt Brothers', 'the White Ash Company', 'the Ninefold',
@@ -189,7 +189,7 @@ function askWeak(w, c) {
   if (!at || !w.hooks.choice) return;
   const price = refillPrice(c);
   const choices = [
-    { label: `Fill the ranks (${price} gold)`, ok: () => FACTIONS[0].gold >= refillPrice(c) && c.employer === 0, why: () => c.employer !== 0 ? 'They have left your service' : `Needs ${refillPrice(c)} gold`, run: () => {
+    { label: `Fill the ranks (${price} gold, then ${fullWage(c)} gold a minute)`, ok: () => FACTIONS[0].gold >= refillPrice(c) && c.employer === 0, why: () => c.employer !== 0 ? 'They have left your service' : `Needs ${refillPrice(c)} gold`, run: () => {
       const cost = refillPrice(c), n = c.size - menOf(w, c);
       FACTIONS[0].gold -= cost;
       // the new men join the biggest part of the company
@@ -223,7 +223,7 @@ export function tickHousehold(w) {
       w.hooks.choice({ id: `household-${p.id}-${r.id}`, image: null, at: p, title: `${r.name} at ${p.name}: ${r.alive} men left`,
         text: `Your ${r.name.toLowerCase()} at ${p.name} is down to ${r.alive} of its ${T.count}. Fill its ranks again, let the last of them go, or keep them as they are?`,
         choices: [
-          { label: `Fill the ranks (${price()} gold)`, ok: () => FACTIONS[0].gold >= price() && !r.gone, why: () => r.gone ? 'They are gone' : `Needs ${price()} gold`, run: () => {
+          { label: `Fill the ranks (${price()} gold, then ${wageFor([{ key: 'household', count: T.count }])} gold a minute)`, ok: () => FACTIONS[0].gold >= price() && !r.gone, why: () => r.gone ? 'They are gone' : `Needs ${price()} gold`, run: () => {
             const cost = price(), n = T.count - r.alive;
             FACTIONS[0].gold -= cost;
             const fresh = t.battle.addRegiment(0, 'household', r.cx, r.cz, r.angle || 0, { count: T.count, name: r.name, xp: r.xp || 0, battles: r.battles || 0 });

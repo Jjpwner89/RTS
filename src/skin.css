@@ -120,10 +120,10 @@ button:disabled[data-why] { cursor: help; }
 /* ---- The village HUD ---- */
 #stock [hidden], #build [hidden] { display: none !important; }
 #stock { overflow-y: auto; scrollbar-width: thin; }
-#stock .people:first-child { align-items: center; gap: 6px; flex-wrap: wrap; }
-#stock .people:first-child [data-s="pop"] { flex: 1; }
-#stock .people:first-child .fold { order: 2; }
-#stock .people:first-child [data-s="idle"] { order: 3; flex-basis: 100%; font-size: 12px; margin-top: -2px; }
+#stock .people:first-of-type { align-items: center; gap: 6px; flex-wrap: wrap; }
+#stock .people:first-of-type [data-s="pop"] { flex: 1; }
+#stock .people:first-of-type .fold { order: 2; }
+#stock .people:first-of-type [data-s="idle"] { order: 3; flex-basis: 100%; font-size: 12px; margin-top: -2px; }
 #stock .fold { flex: none; width: 22px; height: 20px; padding: 0; font-size: 12px; line-height: 1; }
 #stock .mood .tax button { min-width: 22px; padding: 1px 6px; }
 #stock .goods .ico { width: 18px; height: 18px; }
@@ -134,7 +134,6 @@ button:disabled[data-why] { cursor: help; }
 /* The current goal on the village screen: one short line and its next step (campaign.js). */
 #stock .goalline { display: block; width: 100%; margin: 0 0 6px; padding: 4px 6px; text-align: left; font-size: 12px; line-height: 1.3; background: var(--hilite); border: 0; border-left: 3px solid var(--gold); border-radius: 4px; color: var(--ink); }
 #stock .goalline[hidden] { display: none; }
-#stock .people [data-s="pop"] { white-space: nowrap; }
 #stock .goalline b { display: block; }
 #stock .goalline span { display: block; color: var(--dim); }
 /* The whole ladder, opened from that line, beside the stores. */
@@ -225,6 +224,9 @@ body.town #orders, body.campaign.mode-town #orders { flex-wrap: wrap; justify-co
 #help .more { display: none; }
 #help.show-more .more { display: block; }
 #help #help-more { margin: 6px 0; width: 100%; }
+/* Close stays in reach however long the help is. */
+#help #help-close { position: sticky; bottom: 0; z-index: 1; display: block; width: 100%; }
+#alerts .nag-x { flex: none; margin-left: auto; align-self: flex-start; padding: 0 6px; line-height: 1.3; font-size: 13px; }
 
 /* The March button's long wording gives way to a count in a small window (QC round 2: the top bar ran 2px off the edge). */
 #march .short { display: none; }
