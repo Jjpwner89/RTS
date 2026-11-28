@@ -11,7 +11,7 @@
 // w.captains holds every captain; an army holds its captain's id (a.captain).
 import { FACTIONS, headcount } from './world.js';
 import { traitName } from '../battle.js';
-import { grudge } from './diplomacy.js';
+import { grudge, offerResting, offerDeclined } from './diplomacy.js';
 
 const FIRST = ['Aldric', 'Bennet', 'Corin', 'Dunstan', 'Emeric', 'Garrick', 'Hugh', 'Jory', 'Kester', 'Leofric', 'Merek', 'Osbert',
   'Piers', 'Roland', 'Sewell', 'Tobin', 'Warin', 'Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel'];
@@ -165,32 +165,30 @@ function lordTaken(w, a, by, where) {
 // yours. Accept and the gold changes hands; refuse and they ask again later.
 export function tickRansoms(w) {
   const me = FACTIONS[0];
+  // (a ransom you turned down is not put to you again for a long while, as any declined offer: diplomacy.js)
+  const put = (H, kind, o) => { if (!offerResting(w, H.index, kind)) w.hooks.offer?.({ house: H, ...o, decline: () => offerDeclined(w, H.index, kind) }); };
   for (const c of w.captains || []) {
     if (c.captive === undefined || !c.alive || w.time - (c.askedAt ?? 0) < ASK_EVERY) continue;
     c.askedAt = w.time;
     const H = FACTIONS[c.side === 0 ? c.captive : c.side], gold = price(c);
     if (!H?.alive) { if (c.side === 0) delete c.captive; else c.alive = false; continue; }
-    if (c.captive === 0) w.hooks.offer?.({ house: H, title: `${H.lord} offers ransom`, text: `${gold} gold for Captain ${c.name}, level ${c.level}, whom you hold.`,
-      accept: () => { H.gold = Math.max(0, H.gold - gold); me.gold += gold; delete c.captive; w.log(`Captain ${c.name} goes home to ${H.name} for ${gold} gold.`); },
-      decline: () => {} });
-    else if (c.side === 0) w.hooks.offer?.({ house: H, title: `${H.lord} holds your captain`, text: `Captain ${c.name} will be sent home for ${gold} gold.`,
-      accept: () => { if (me.gold < gold) return { text: `You have only ${Math.floor(me.gold)} gold.` }; me.gold -= gold; H.gold += gold; delete c.captive; w.log(`Captain ${c.name} is home, ransomed for ${gold} gold.`); return { text: `Captain ${c.name} is home.` }; },
-      decline: () => {} });
+    if (c.captive === 0) put(H, `ransom:${c.name}`, { title: `${H.lord} offers ransom`, text: `${gold} gold for Captain ${c.name}, level ${c.level}, whom you hold.`,
+      accept: () => { H.gold = Math.max(0, H.gold - gold); me.gold += gold; delete c.captive; w.log(`Captain ${c.name} goes home to ${H.name} for ${gold} gold.`); } });
+    else if (c.side === 0) put(H, `ransom:${c.name}`, { title: `${H.lord} holds your captain`, text: `Captain ${c.name} will be sent home for ${gold} gold.`,
+      accept: () => { if (me.gold < gold) return { text: `You have only ${Math.floor(me.gold)} gold.` }; me.gold -= gold; H.gold += gold; delete c.captive; w.log(`Captain ${c.name} is home, ransomed for ${gold} gold.`); return { text: `Captain ${c.name} is home.` }; } });
   }
   for (const H of FACTIONS) {
     if (H.captive !== 0 || !H.alive || w.time - (H.askedAt ?? 0) < ASK_EVERY) continue;
     H.askedAt = w.time;
-    w.hooks.offer?.({ house: H, title: `${H.name} offers ransom for its lord`, text: `${LORD_PRICE} gold to send ${H.lord} home.`,
-      accept: () => { H.gold = Math.max(0, H.gold - LORD_PRICE); me.gold += LORD_PRICE; delete H.captive; w.log(`${H.lord} goes home for ${LORD_PRICE} gold.`); w.chron?.(`${H.lord} was ransomed for ${LORD_PRICE} gold.`); },
-      decline: () => {} });
+    put(H, 'ransom-lord', { title: `${H.name} offers ransom for its lord`, text: `${LORD_PRICE} gold to send ${H.lord} home.`,
+      accept: () => { H.gold = Math.max(0, H.gold - LORD_PRICE); me.gold += LORD_PRICE; delete H.captive; w.log(`${H.lord} goes home for ${LORD_PRICE} gold.`); w.chron?.(`${H.lord} was ransomed for ${LORD_PRICE} gold.`); } });
   }
   if (w.lordCaptive !== undefined && w.lordCaptive !== null && w.time - (w.lordAskedAt ?? 0) >= ASK_EVERY) {
     w.lordAskedAt = w.time;
     const H = FACTIONS[w.lordCaptive];
     if (!H?.alive) { w.lordCaptive = null; w.log('Your gaolers are broken; you walk free.'); return; }
-    w.hooks.offer?.({ house: H, title: `${H.lord} holds you`, text: `${LORD_PRICE} gold, and you go home. Until then you can ride with no army.`,
-      accept: () => { if (me.gold < LORD_PRICE) return { text: `Your treasury has only ${Math.floor(me.gold)} gold.` }; me.gold -= LORD_PRICE; H.gold += LORD_PRICE; w.lordCaptive = null; w.log('You are ransomed and ride home.'); w.chron?.(`You were ransomed from ${H.name} for ${LORD_PRICE} gold.`); return { text: 'You are home.' }; },
-      decline: () => {} });
+    put(H, 'ransom-you', { title: `${H.lord} holds you`, text: `${LORD_PRICE} gold, and you go home. Until then you can ride with no army.`,
+      accept: () => { if (me.gold < LORD_PRICE) return { text: `Your treasury has only ${Math.floor(me.gold)} gold.` }; me.gold -= LORD_PRICE; H.gold += LORD_PRICE; w.lordCaptive = null; w.log('You are ransomed and ride home.'); w.chron?.(`You were ransomed from ${H.name} for ${LORD_PRICE} gold.`); return { text: 'You are home.' }; } });
   }
 }
 

@@ -32,7 +32,7 @@ import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapsh
 import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
 import { turnOut } from './world/militia.js';
-import { KINDS } from './world/realm.js';
+import { KINDS, faceOf } from './world/realm.js';
 import { BUILDINGS, TEMPLATES, carry } from './economy.js';
 const ghostKind = k => k === 'road' || k?.startsWith('tpl:') ? null : k;
 import { worth, FOCUS_NAMES, WEALTH, builtCount } from './world/holdings.js';
@@ -176,12 +176,10 @@ function herald(msg) { heraldQueue.push(msg); if (heraldQueue.length === 1) show
 function showHerald() {
   const msg = heraldQueue[0];
   if (!msg) return;
-  // A herald comes from a house, or from one of your vassals ({ name, color }, no portrait). The
-  // outlaws have no portrait either (asking for one was a 404 on every outlaw warning).
+  // A herald comes from a house, or from one of your vassals ({ name, color }, no portrait).
   const el = $('herald'), h = msg.house || { name: msg.title, color: '#8a6a3a' };
-  const initials = (h.lord || h.name).split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
   el.style.setProperty('--hc', h.color);
-  el.innerHTML = `<div class="face">${h.id && !h.bandit ? `<img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')">` : initials}</div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
+  el.innerHTML = `<div class="face">${faceOf(h)}</div><div><h4>${msg.title}</h4><p>${msg.text}</p></div>`;
   el.classList.add('show');
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => { heraldQueue.shift(); showHerald(); }, 500); }, 7500 + Math.max(0, (msg.text || '').length - 140) * 40);   // a long herald stays longer
 }
@@ -1191,9 +1189,8 @@ function housePanel(el, h) {
   const key = `h${h.index}:${list.map(a => a.id + a.ok).join()}:${d.married}${d.allied}${d.vassal}${d.backs}`;
   if (key !== panelKey) {
     panelKey = key;
-    const initials = h.lord.split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
     const ties = [d.vassal && 'Your vassal', d.married && 'Joined to you by marriage', d.allied && 'Your ally', d.backs && 'Backs your claim to the crown'].filter(Boolean);
-    el.innerHTML = `<div class="lord"><div class="face" style="background:${h.color}"><img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')"></div>
+    el.innerHTML = `<div class="lord"><div class="face" style="background:${h.color}">${faceOf(h)}</div>
       <div><h3 style="color:${h.color}">${h.lord}</h3><small>${h.name} · the ${h.trait}</small></div></div>
       <p class="note">${h.blurb}</p><p data-f="mood" class="status"></p><p data-f="state"></p><p data-f="grudges" class="note"></p>${ties.length ? `<p>${ties.join(' · ')}</p>` : ''}
       <div class="dip">${list.map(a => `<button data-dip="${a.id}" class="wide${a.warn ? ' warn' : ''}" ${a.ok ? '' : 'disabled'} title="${a.ok ? '' : a.why}">${a.label}${a.ok ? '' : `<small>${a.why}</small>`}</button>`).join('')}</div>

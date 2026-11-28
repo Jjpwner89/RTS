@@ -31,6 +31,14 @@ export const PLAYER_HOUSE = { id: 'player', name: 'Your house', short: 'Your', l
 export const INVADER = { id: 'norrhold', name: 'The Norrhold Host', short: 'Norrhold', lord: 'King Askar of Norrhold', trait: 'invader', color: '#9cc3dc',
   blurb: 'From beyond the old wall. Raids without end, and hosts in their thousands.', invader: true,
   taunts: ['Your wall was old. Your kingdom is older. Both fall.', 'We do not take tribute. We take everything.', 'Count your men, little king. We stopped counting ours.'] };
+// The faces painted (assets/art/portraits/<id>.png). No other is ever asked for (Norrhold's was a 404 on every one
+// of its messages): without one, a lord is his initials on his house's colour.
+export const PORTRAITS = new Set(['carrow', 'dunmore', 'penhallow', 'player', 'player-f', 'stonemere', 'varn', 'wyndham']);
+export function faceOf(h) {
+  const initials = (h.lord || h.name).split(' ').filter(w => /^[A-Z]/.test(w)).slice(-2).map(w => w[0]).join('');
+  return h.id && PORTRAITS.has(h.id) ? `<img src="assets/art/portraits/${h.id}.png" alt="" onerror="this.replaceWith('${initials}')">` : initials;
+}
+
 export const BANDITS = { id: 'bandits', name: 'Bandits', short: 'Bandit', lord: 'Bandit chiefs', trait: 'bandit', color: '#5a5048', blurb: '', bandit: true };
 
 // What each kind of place is good for, on the map and as a village.

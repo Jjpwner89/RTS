@@ -3903,6 +3903,31 @@ async function lateChecks(w) {
     if (h.ai.plan?.target === s.crown) out.push('it still plans to march on Kingsbridge');
     return out;
   }));
+  await check('a declined offer is not made again for a long while, unless the war changes', () => league(async (s, a, hs) => {
+    const { FACTIONS } = await import('./world/world.js'), out = [], h = hs[1], H = FACTIONS[h], d = s.dip[h], offers = [];
+    s.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k === 'offer' ? m => offers.push(m) : k in o ? o[k] : () => {}) });
+    d.score = 40;   // losing, far weaker than you: it sues
+    s.strength = i => (i === 0 ? 1000 : 100);
+    const turn = at => { s.time = at; s.offerAt = -Infinity; D.offerFrom(s, H, d); };
+    turn(1000);
+    if (offers.length !== 1) return [`${offers.length} offers where one was meant`];
+    offers[0].decline();
+    turn(1000 + D.DECLINED_REST - 10);
+    if (offers.length !== 1) out.push('the same offer came again within the rest');
+    D.note(s, h, 'wonField');
+    turn(1000 + D.DECLINED_REST - 5);
+    if (offers.length !== 2) out.push('a battle since did not let it ask again');
+    offers.at(-1).decline();
+    turn(s.time + D.DECLINED_REST + 5);
+    if (offers.length !== 3) out.push('it did not ask again after the rest');
+    return out;
+  }));
+  await check('no portrait is asked for that is not painted', async () => {
+    const R = await import('./world/realm.js'), out = [];
+    if (/<img/.test(R.faceOf(R.INVADER))) out.push('Norrhold\'s missing portrait is still asked for');
+    for (const id of R.PORTRAITS) if (!(await fetch(`assets/art/portraits/${id}.png`, { method: 'HEAD' })).ok) out.push(`${id}.png is listed and not there`);
+    return out;
+  });
   await check('autosave held off for minutes says so', () => {
     const out = [], why = 'A village is being fought over';
     if (S.unsavedNotice(S.OVERDUE - 1, why, Date.now()) !== null) out.push('it speaks before its time');

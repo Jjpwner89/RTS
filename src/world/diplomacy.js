@@ -73,6 +73,7 @@ export const mood = o => (o >= 60 ? 'Devoted' : o >= 30 ? 'Friendly' : o >= 10 ?
 export function note(w, h, kind) {
   if (h === null || h === undefined || h === 0 || h === w.bandits || h === w.invader || !w.dip) return;
   const d = w.dip[h];
+  d.deeds = (d.deeds || 0) + 1;   // a battle or a place won or lost: the war has changed (offerResting)
   const delta = { wonField: 10, lostField: -8, tookPlace: 25, lostPlace: -20, wonSiege: 15 }[kind] || 0;
   d.score += delta;
   if (kind === 'tookPlace') d.opinion -= 8;
@@ -419,6 +420,18 @@ function leagueAgainstYou(w, join, why) {
   raiseHost(w);
 }
 
+// A declined offer, of any kind, is not made again for a long while, unless the war between you has changed since:
+// a battle or a place won or lost (note). A house had offered to bend the knee six times in 25 minutes.
+export const DECLINED_REST = 900;
+export function offerResting(w, h, kind) {
+  const d = w.dip?.[h], x = d?.declined?.[kind];
+  return !!x && w.time < x.until && (d.deeds || 0) === x.deeds;
+}
+export function offerDeclined(w, h, kind) {
+  const d = w.dip?.[h];
+  if (d) (d.declined ||= {})[kind] = { until: w.time + DECLINED_REST, deeds: d.deeds || 0 };
+}
+
 // The AI's own proposals, which you accept or turn down.
 const OFFER_GAP = 120;        // seconds between any two houses' proposals
 const TRIBUTE_EVERY = 1800;   // one house's tribute demands, at most this often
@@ -428,29 +441,29 @@ const TRIBUTE_GAP = 600;      // nor this soon after any house's demand
 // fills more slowly, and a demand waits on it.)
 export const VASSAL_TRIBUTE = 36;   // gold a minute a vassal house pays you while its coffers last (world.js)
 export const TRIBUTE = { gold: 120, buys: 1200 };   // what a demand asks, and the peace paying it buys
-function offerFrom(w, H, d) {
+export function offerFrom(w, H, d) {   // (exported for checks())
   const h = H.index, mine = w.strength(0), theirs = w.strength(h);
   // One house's proposal at a time across the realm: a second waits for its next turn.
-  const ask = (title, text, accept, decline) => {
-    if (w.time - (w.offerAt ?? -Infinity) < OFFER_GAP) return;
+  const ask = (kind, title, text, accept, decline) => {
+    if (w.time - (w.offerAt ?? -Infinity) < OFFER_GAP || offerResting(w, h, kind)) return;
     w.offerAt = w.time;
-    w.meet(h); w.hooks.offer?.({ house: H, title, text, accept, decline });
+    w.meet(h); w.hooks.offer?.({ house: H, title, text, accept, decline: () => { offerDeclined(w, h, kind); return decline(); } });
   };
   if (w.atWar(0, h)) {
     const losing = d.score >= 30 || theirs < mine * 0.6;
     if (losing && theirs < mine * 0.35 && !d.vassal) {
-      ask(`${H.lord} offers to bend the knee`, `${H.name} is beaten. ${H.lord} will become your vassal: peace, a share of their taxes, and their backing for your claim.`,
+      ask('kneel', `${H.lord} offers to bend the knee`, `${H.name} is beaten. ${H.lord} will become your vassal: peace, a share of their taxes, and their backing for your claim.`,
         () => act(w, h, 'vassal', true), () => {});
     } else if (losing || (w.time - d.warSince > 1200 && w.rand() < 0.4)) {
-      ask(`${H.lord} sues for peace`, `“Enough blood has been spilled. Let there be peace between our houses.”`, () => act(w, h, 'peace', true), () => { d.opinion -= 5; });
+      ask('peace', `${H.lord} sues for peace`, `“Enough blood has been spilled. Let there be peace between our houses.”`, () => act(w, h, 'peace', true), () => { d.opinion -= 5; });
     }
     return;
   }
   if (!d.married && d.opinion >= 45 && (H.trait === 'schemer' || w.rand() < 0.5)) {
-    ask(`${H.lord} proposes a marriage`, `A match between your houses. It costs no dowry when they ask, and binds ${H.name} to you.`,
+    ask('marriage', `${H.lord} proposes a marriage`, `A match between your houses. It costs no dowry when they ask, and binds ${H.name} to you.`,
       () => act(w, h, 'marry', true), () => { d.opinion -= 5; });
   } else if (!d.allied && d.opinion >= 40) {
-    ask(`${H.lord} proposes an alliance`, `${H.name} will join your wars, and you theirs.`, () => act(w, h, 'ally', true), () => { d.opinion -= 3; });
+    ask('alliance', `${H.lord} proposes an alliance`, `${H.name} will join your wars, and you theirs.`, () => act(w, h, 'ally', true), () => { d.opinion -= 3; });
   } else if ((H.trait === 'raider' || H.trait === 'schemer') && theirs > mine * 1.8 && w.time > 600 && FACTIONS[0].gold >= TRIBUTE.gold && w.time > (d.demanded ?? 0)
     && w.time - (d.peaceAt ?? -Infinity) > TRIBUTE_PEACE && w.time - (w.tributeAt ?? -Infinity) > TRIBUTE_GAP) {
     // Paid, they keep the peace they sold: a truce no war choice of theirs breaks, and no
@@ -458,7 +471,7 @@ function offerFrom(w, H, d) {
     const mins = Math.round(TRIBUTE.buys / 60);
     d.demanded = w.time + TRIBUTE_EVERY;   // they do not ask again for a long while
     w.tributeAt = w.time;
-    ask(`${H.lord} demands tribute`, `“Pay me ${TRIBUTE.gold} gold and my men will stay home.” ${H.name} is ${strengthWords(w, h)}. Paying buys ${mins} minutes of peace with ${H.name}. Refuse, and ${H.lord} may come for it.`,
+    ask('tribute', `${H.lord} demands tribute`, `“Pay me ${TRIBUTE.gold} gold and my men will stay home.” ${H.name} is ${strengthWords(w, h)}. Paying buys ${mins} minutes of peace with ${H.name}. Refuse, and ${H.lord} may come for it.`,
       () => {
         if (FACTIONS[0].gold < TRIBUTE.gold) { w.log(`You no longer have ${TRIBUTE.gold} gold for ${H.name}.`, 1); console.warn('tribute: purse too light'); return { ok: false, text: `You have only ${Math.floor(FACTIONS[0].gold)} gold.` }; }
         FACTIONS[0].gold -= TRIBUTE.gold; d.opinion += 15;
