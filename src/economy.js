@@ -438,9 +438,14 @@ export const crate = g => CRATE * (BULK[g] || 1);
 // quicker step. The keep's haulers and the villagers without a job carry as ever.
 const CART = { load: 2, speed: 1.15 };
 const carts = v => v.job?.kind === 'storehouse';
-const RUN = 3;   // m/s: a villager's run (the clips' stride, pace.js), a militiaman hurrying back to work
 const holdOf = g => HOLD * (BULK[g] || 1);
+// A fleeing villager is in shelter this near the keep's wall (m): just past where clearVillagers sets people down.
+const SHELTER_AT = 1.4;
 const ARMS = GOOD_GROUPS[2][1];
+// A store's arms, counted in pieces. Arrows and bolts are loose: one man's load of them (his kit, KITS) counts as one,
+// so a few hundred arrows don't read as a few hundred arms (creator, 2026-11-28). Every view that totals arms uses this.
+export const ARMS_LOAD = { arrows: weaponKit('archer').arrows, bolts: weaponKit('crossbow').bolts };
+export const armsCount = stock => ARMS.reduce((n, g) => n + Math.floor((stock?.[g] || 0) / (ARMS_LOAD[g] || 1)), 0);
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 // Distance from p to the segment a-b.
@@ -1181,8 +1186,8 @@ export class Town {
   backToWork(v) {
     const job = v.musterJob, site = v.musterSite;
     v.musterJob = v.musterSite = null;
-    if (site && !site.removed && site.state === 'site') { site.builders.push(v); v.state = 'build'; v.site = site; v.hustle = this.time + dist(v, site) / RUN + 2; }
-    else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; v.hustle = this.time + dist(v, job) / RUN + 2; }
+    if (site && !site.removed && site.state === 'site') { site.builders.push(v); v.state = 'build'; v.site = site; v.hustle = this.time + dist(v, site) / PACE.back + 2; }
+    else if (job && !job.removed && job.state === 'active' && !job.paused && job.workers.length < this.staffed(job)) { job.workers.push(v); v.job = job; v.state = 'work'; v.task = null; v.hustle = this.time + dist(v, job) / PACE.back + 2; }
   }
 
   // Your soldiers at home (the retinue, a garrison, hired men) don't stand at the keep while
@@ -1756,8 +1761,8 @@ export class Town {
 
   walk(v, tx, tz, dt, speed = WALK, side = 0) {
     if (Math.hypot(tx - v.x, tz - v.z) < 0.6) { v.v = 0; return true; }
-    // Back from the militia: at a run until they are at their work (backToWork).
-    if (v.hustle) { if (this.time < v.hustle) speed = Math.max(speed, RUN); else v.hustle = 0; }
+    // Back from the militia: hurrying until they are at their work (backToWork).
+    if (v.hustle) { if (this.time < v.hustle) speed = Math.max(speed, PACE.back); else v.hustle = 0; }
     // By road, when that is quicker: onto it, along it, off it (roadnet.js).
     const r = this.roads.length && this.roadWay(v, tx, tz);
     if (r) {
@@ -1883,7 +1888,10 @@ export class Town {
       }
     }
     if (v.state === 'flee') {
-      if (this.walk(v, this.keep.x + (this.rand() - 0.5) * 4, this.keep.z + (this.rand() - 0.5) * 4, dt, WALK * 1.5)) {
+      // In at the keep's wall: a walk to its middle never ends, since anyone well inside is set back out
+      // (clearVillagers), and they stayed crowded there after the raid was over (creator, 2026-11-28).
+      const there = Math.hypot(v.x - this.keep.x, v.z - this.keep.z) <= this.keep.B.radius + SHELTER_AT;
+      if (there || this.walk(v, this.keep.x + (this.rand() - 0.5) * 4, this.keep.z + (this.rand() - 0.5) * 4, dt, WALK * 1.5)) {
         v.state = 'shelter';
         v.hidden = true;
         if (v.load) this.put(this.keep, v.load.g, v.load.n);
@@ -2544,9 +2552,10 @@ export class Town {
     // (the sum is only said from summer on: in spring the hands are still coming to the fields)
     const mins = pop ? meals / pop : 0, wo = this.season >= 1 ? this.winterOutlook() : null;
     let text = `Stores: ${Math.floor(meals)} meals, enough for ${mins >= 10 ? Math.round(mins) : Math.round(mins * 10) / 10} min at ${pop} mouths`;
-    text += this.winter ? (this.fieldShare() > 0 ? `; winter eases in ${this.springIn()} min` : `; the fields wake in ${this.springIn()} min`) : `; winter in ${Math.max(1, Math.ceil(untilSeason(this.seasonTime, 3) / 60))} min`;
-    if (wo?.short) text += ` (it will take about ${wo.need} meals, and at this rate you will have ${wo.atWinter})`;
-    return { text, meals, mins, short: !!wo?.short };
+    const winter = this.winter ? (this.fieldShare() > 0 ? `winter eases in ${this.springIn()} min` : `the fields wake in ${this.springIn()} min`) : `winter in ${Math.max(1, Math.ceil(untilSeason(this.seasonTime, 3) / 60))} min`;
+    const lacks = wo?.short ? `it will take about ${wo.need} meals, and at this rate you will have ${wo.atWinter}` : '';
+    text += `; ${winter}${lacks ? ` (${lacks})` : ''}`;
+    return { text, meals, mins, short: !!wo?.short, yard: this.yardMeals(), winter, lacks };
   }
 
   foodOutlook() {
@@ -2626,8 +2635,28 @@ export class Town {
     const why = this.repute(), name = Math.max(0.3, Math.min(2, 1 + why.reduce((n, [k]) => n + k, 0)));
     const room = this.population < this.housing && !this.underAttack;
     const few = this.population < FEW, rate = room ? settleRate(larder, this.mood, name, few) : 0;
-    const block = this.population >= this.housing ? 'no room: build houses' : this.underAttack ? 'under attack' : !food && !few ? 'not enough food to spare' : '';
-    return { rate, room, food, mood, name, why, block };
+    const limit = this.settlerLimit(rate, few ? Math.max(0.5, food) : food, mood, name, why);
+    // (why none come, for the Realm screen and the keep's panel)
+    return { rate, room, food, mood, name, why, limit, block: rate > 0.05 ? '' : limit?.why || '' };
+  }
+
+  // What holds newcomers back, in a word or two (state) and a sentence (why); null when nothing much does. No room or
+  // an attack stops them; otherwise it is whichever of the food in store, the mood and the village's name takes the
+  // most off settleRate, each against its ordinary best (a Content village with a thin larder was told it was
+  // unhappy: creator, 2026-11-28).
+  settlerLimit(rate, food, mood, name, why) {
+    if (this.population >= this.housing) return { key: 'room', state: 'no room', why: 'no room: build houses' };
+    if (this.underAttack) return { key: 'attack', state: 'under attack', why: 'the village is under attack' };
+    const [key, share] = [['food', food], ['mood', (0.4 + mood) / 1.6], ['name', Math.min(1, name)]].sort((a, b) => a[1] - b[1])[0];
+    if (rate > 0.05 && share > 0.6) return null;
+    if (key === 'mood') return { key, state: 'low mood', why: `the mood is low (${Math.round(this.mood)} of 100): a happier village draws more` };
+    if (key === 'name') {
+      const ill = why.filter(([n]) => n < 0).map(([, w]) => w);
+      return { key, state: ill.includes('cold hearths') ? 'cold hearths' : 'raided', why: `the village's name: ${ill.join(' and ')}` };
+    }
+    if (this.hungry) return { key, state: 'meals missed', why: 'people have missed a meal: nobody settles until the stores feed everyone' };
+    const yard = this.yardMeals();
+    return { key, state: 'thin larder', why: `the larder is thin: ${Math.round(this.larder * 10) / 10} min of meals stored (they come above 1, fastest from 4)${yard >= 1 ? `; ${yard} more at the farms` : ''}` };
   }
 
   // Meals, newcomers and the dead.

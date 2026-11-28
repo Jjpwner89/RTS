@@ -335,6 +335,14 @@ body:has(:is(#deploy, #terms, #duel).open) #log { top: calc(138px / var(--hud));
 
 /* The tax line explains itself on hover, and when tapped (townhud.js taxWhy). */
 #stock [data-s="gold"] { cursor: help; }
+/* Newcomers and the food in store: icon, number, a small bar, and a word or two of state; reasons on hover. */
+#stock .stat { flex: 1; display: flex; align-items: center; gap: 6px; cursor: help; white-space: nowrap; }
+#stock .stat b { font-variant-numeric: tabular-nums; }
+#stock .stat em { margin-left: auto; font-style: normal; font-weight: 400; font-size: 12px; color: var(--dim); }
+#stock .stat.bad :is(b, em) { color: var(--bad); }
+#stock .stat .reserve { width: 48px; height: 6px; border-radius: 3px; background: rgba(60, 40, 20, 0.18); overflow: hidden; }
+#stock .stat .reserve i { display: block; height: 100%; background: var(--good); }
+#stock .stat.bad .reserve i { background: var(--bad); }
 #stock .taxnote { margin: 2px 0 6px; font-size: 12px; line-height: 1.45; }
 #stock .taxnote b { color: var(--ink, inherit); font-weight: 600; }
 

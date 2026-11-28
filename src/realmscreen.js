@@ -11,7 +11,7 @@
 //   Treasury  where the gold comes from and where it goes
 // Actions here are the same ones the map panels use (world.vassalAct, supply.js sendRun).
 import { FACTIONS, headcount, seenAs } from './world/world.js';
-import { GOOD_GROUPS, TAXES } from './economy.js';
+import { TAXES, armsCount, ARMS_LOAD } from './economy.js';
 import { living, prisoners, holdingsOf, opinion, outlook, powerOf, factionView, arrestOdds, yourMen, seatHolder, seatPower,
   moodWord as vassalWord, TEMPERS, DUES, LEVIES, WANTS, KNACKS, SEATS, TITLES, TITLED, titleCap, titleName, duesShare, levyShare, GIFT, RECONCILE, HONOUR_EVERY, DEMAND_MIN,
   suitors, matchCost, claimant, kinWar, kingGift, KIN_WARMTH, WAR_ON_KIN, MATCH_WARM } from './world/vassals.js';
@@ -26,7 +26,11 @@ import { claimOn, isGreat, CLAIM, GREAT } from './world/claims.js';
 import { unlocked } from './ui/unlocks.js';
 
 const TABS = [['realm', 'Realm'], ['villages', 'Villages'], ['supplies', 'Supplies'], ['vassals', 'Vassals'], ['council', 'Council'], ['houses', 'Houses'], ['treasury', 'Treasury']];
-const ARMS = GOOD_GROUPS[2][1];
+// Arms in a stock or a wagon load (economy.js armsCount), with the loose arrows and bolts said apart.
+const armsNote = (...stocks) => {
+  const loose = g => Math.floor(stocks.reduce((n, s) => n + (s?.[g] || 0), 0));
+  return `Weapons and armour. A man's load of arrows or bolts (${ARMS_LOAD.arrows}) counts as one: ${loose('arrows')} arrows and ${loose('bolts')} bolts here.`;
+};
 const STUCK = /^(No workers|No haulers|Waiting for|Yard full|Store full|Deposit worked out|Game hunted out|No trees left|Nothing left)/;
 const townMood = m => m >= 80 ? 'Joyful' : m >= 62 ? 'Content' : m >= 45 ? 'Settled' : m >= 30 ? 'Uneasy' : m >= 18 ? 'Unhappy' : 'Miserable';
 const houseFeel = n => n >= 50 ? 'Friendly' : n >= 15 ? 'Warm' : n > -15 ? 'Cool' : n > -50 ? 'Hostile' : 'Bitter';
@@ -47,7 +51,7 @@ export function villageRow(w, p) {
   if (!t) {
     const e = p.eco, s = e?.stock || {}, pop = e?.pop ?? 0;
     return { p, v, pop, food: pop ? ((s.food || 0) + (s.bread || 0)) / pop : 0, wood: s.wood || 0, stone: s.stone || 0, iron: s.iron || 0,
-      arms: ARMS.reduce((n, g) => n + (s[g] || 0), 0), men: headcount(p.garrison || []), tax: 0, mood: v ? opinion(w, v).total : 0, trouble: vassalTrouble(w, v) };
+      arms: armsCount(s), stock: s, men: headcount(p.garrison || []), tax: 0, mood: v ? opinion(w, v).total : 0, trouble: vassalTrouble(w, v) };
   }
   const stores = t.stores();
   const meals = stores.reduce((n, b) => n + (b.store.food || 0) + (b.store.bread || 0), 0);
@@ -65,7 +69,7 @@ export function villageRow(w, p) {
   return {
     p, v, t, pop: t.population, room: t.housing, newcomers: rate.rate, newWhy: rate.block, mood: t.mood,
     food: t.population ? meals / t.population : 0, wood: t.free('wood'), stone: t.free('stone'), iron: s.iron || 0,
-    arms: ARMS.reduce((n, g) => n + (s[g] || 0), 0), men, tax: w.taxOf(p) * 60, governor: t.governor !== false, trouble,
+    arms: armsCount(s), stock: s, vets: t.veterans().length, men, tax: w.taxOf(p) * 60, governor: t.governor !== false, trouble,
   };
 }
 
@@ -395,7 +399,7 @@ export class RealmScreen {
   tab_villages() {
     const w = this.w;
     const rows = w.pois.filter(p => p.owner === 0).map(p => villageRow(w, p));
-    const by = { name: r => r.p.name, pop: r => -r.pop, mood: r => r.t ? r.mood : 999, food: r => r.food, tax: r => -r.tax, men: r => -r.men, needs: r => -Math.max(0, ...r.trouble.map(t => t[1])) }[this.sort] || (r => -r.pop);
+    const by = { name: r => r.p.name, pop: r => -r.pop, mood: r => r.t ? r.mood : 999, food: r => r.food, tax: r => -r.tax, men: r => -r.men, vets: r => -(r.vets || 0), needs: r => -Math.max(0, ...r.trouble.map(t => t[1])) }[this.sort] || (r => -r.pop);
     rows.sort((a, b) => (b.p === w.home) - (a.p === w.home) || (!!a.v - !!b.v) || (by(a) < by(b) ? -1 : by(a) > by(b) ? 1 : 0));
     const tot = k => rows.filter(r => r.t).reduce((n, r) => n + (r[k] || 0), 0);
     const head = (k, label, tip = '') => `<th title="${tip}">${k ? `<button class="sort${this.sort === k ? ' on' : ''}" data-act="sort:${k}">${label}</button>` : label}</th>`;
@@ -409,16 +413,16 @@ export class RealmScreen {
       return `<tr class="${r.v ? 'vas' : ''}"><th>${r.v ? shield(r.v) : ''}<b>${esc(r.p.name)}</b><br><small>${who}</small></th>
         <td title="${r.t ? (r.newcomers > 0.05 ? `About ${r.newcomers.toFixed(1)} newcomers a minute` : `No newcomers${r.newWhy ? `: ${r.newWhy}` : ''}`) : ''}">${num(r.pop)}${r.t ? `<small>/${num(r.room)}</small>${r.newcomers > 0.05 ? ` <small class="good">+${r.newcomers.toFixed(1)}</small>` : ''}` : ''}${room}</td>
         ${mood}
-        <td class="${r.food < 1 ? 'bad' : r.food < 3 ? 'warn' : ''}" title="Food in the stores lasts this long: each person eats once a minute">${Math.round(r.food)} min</td>
-        <td class="goods">${ico('wood')}${num(r.wood)} ${ico('stone')}${num(r.stone)} ${ico('iron')}${num(r.iron)} ${ico('swords')}${num(r.arms)}</td>
-        <td>${num(r.men)}</td><td>${r.t ? r.tax.toFixed(0) : r.v ? '<small>dues</small>' : ''}</td>
+        <td class="${r.food < 1 ? 'bad' : r.food < 3 ? 'warn' : ''}" title="Food in the stores lasts this long: each person eats once a minute${r.t?.yardMeals() ? `. ${r.t.yardMeals()} more meals lie at the farms` : ''}">${Math.round(r.food)} min</td>
+        <td class="goods">${ico('wood')}${num(r.wood)} ${ico('stone')}${num(r.stone)} ${ico('iron')}${num(r.iron)} <span title="${armsNote(r.stock)}">${ico('swords')}${num(r.arms)}</span></td>
+        <td>${num(r.men)}</td><td>${r.vets === undefined ? '' : num(r.vets)}</td><td>${r.t ? r.tax.toFixed(0) : r.v ? '<small>dues</small>' : ''}</td>
         <td class="trouble">${T}</td>
         <td class="acts">${r.t && !r.v ? `<button data-act="go:${r.p.id}">Go</button>` : ''}${r.v ? `<button data-act="pick:${r.v.id}">Vassal</button>` : ''}<button data-act="map:${r.p.id}">Map</button>${r.t && !r.v && runs.length > 1 ? `<button data-act="supply:${r.p.id}" title="Send a wagon of goods from ${esc(r.p.name)} to another village">Send</button>` : ''}</td></tr>`;
     };
     return `<table class="villages"><thead><tr>${head('name', 'Place')}${head('pop', 'People', 'People / homes, and newcomers a minute')}${head('mood', 'Mood')}${head('food', 'Food', 'How long the stores feed everyone')}
-      <th title="Wood, stone and iron free in store; weapons and armour">Goods</th>${head('men', 'Men', 'Soldiers in and around it')}${head('tax', 'Tax', 'Tax gold a minute')}${head('needs', 'Needs')}<th></th></tr></thead>
+      <th title="Wood, stone and iron free in store; weapons and armour">Goods</th>${head('men', 'Men', 'Soldiers in and around it')}${head('vets', 'Veterans', 'Villagers at home who have fought as levies: they can drill or train as elite men')}${head('tax', 'Tax', 'Tax gold a minute')}${head('needs', 'Needs')}<th></th></tr></thead>
       <tbody>${rows.map(tr).join('')}</tbody>
-      <tfoot><tr><th>${plural(runs.length, 'village')} you run</th><td>${num(tot('pop'))}</td><td></td><td></td><td class="goods">${ico('wood')}${num(tot('wood'))} ${ico('stone')}${num(tot('stone'))} ${ico('iron')}${num(tot('iron'))} ${ico('swords')}${num(tot('arms'))}</td><td>${num(tot('men'))}</td><td>${tot('tax').toFixed(0)}</td><td></td><td></td></tr></tfoot></table>
+      <tfoot><tr><th>${plural(runs.length, 'village')} you run</th><td>${num(tot('pop'))}</td><td></td><td></td><td class="goods">${ico('wood')}${num(tot('wood'))} ${ico('stone')}${num(tot('stone'))} ${ico('iron')}${num(tot('iron'))} <span title="${armsNote(...rows.filter(r => r.t).map(r => r.stock))}">${ico('swords')}${num(tot('arms'))}</span></td><td>${num(tot('men'))}</td><td>${num(tot('vets'))}</td><td>${tot('tax').toFixed(0)}</td><td></td><td></td></tr></tfoot></table>
       <p class="note">Click a column to sort. Food is how long the stores feed everyone. "Stuck" buildings wait on workers, haulers or goods: go there to see why above them. A vassal's place shows its tally and the vassal's opinion of you.</p>`;
   }
 
@@ -469,9 +473,9 @@ export class RealmScreen {
     }).join('') : '<p class="note">No wagons on the road.</p>'}</section>`;
 
     const spare = `<section class="box wide"><h4>What each village can spare</h4><table><thead><tr><th>Village</th>${[['Food', 'food'], ['Wood', 'wood'], ['Planks', 'planks'], ['Stone', 'stone'], ['Ore', 'ore'], ['Iron', 'iron']].map(([h, g]) => `<th title="A wagon takes at most ${runCap(0, g)}">${h}</th>`).join('')}<th title="Flax, hides, feathers, string, leather and flour">Other crafting</th><th title="A wagon takes arms for at most ${runCap(0, 'spears')} men">Arms</th><th title="A wagon takes four families">Families</th><th></th></tr></thead><tbody>${runs.map(p => {
-      const L = runLoad(p), A = runLoad(p, 'arms'), n = g => L.goods[g] || 0, sum = G => Object.values(G).reduce((k, v) => k + v, 0);
+      const L = runLoad(p), A = runLoad(p, 'arms'), n = g => L.goods[g] || 0;
       const other = RUN_GROUPS.craft.filter(g => g !== 'ore' && g !== 'iron').reduce((k, g) => k + n(g), 0), busy = w.armies.filter(a => a.wagon?.run && !a.wagon.bought && a.wagon.from === p && !a.gone).length >= tier.out;
-      return `<tr><th><b>${esc(p.name)}</b></th><td>${n('food') + n('bread')}</td><td>${n('wood')}</td><td>${n('planks')}</td><td>${n('stone')}</td><td>${n('ore')}</td><td>${n('iron')}</td><td>${other}</td><td>${sum(A.goods)}</td><td>${L.people || '<small>none</small>'}</td>
+      return `<tr><th><b>${esc(p.name)}</b></th><td>${n('food') + n('bread')}</td><td>${n('wood')}</td><td>${n('planks')}</td><td>${n('stone')}</td><td>${n('ore')}</td><td>${n('iron')}</td><td>${other}</td><td title="${armsNote(A.goods)}">${armsCount(A.goods)}</td><td>${L.people || '<small>none</small>'}</td>
         <td class="acts">${busy ? '<small>wagon out</small>' : `<button data-act="supply:${p.id}">Send from here</button>`}</td></tr>`;
     }).join('')}</tbody></table><p class="note">A wagon takes half of what a village has spare, up to a limit on each good (hover a heading).</p></section>`;
     return `<div class="boxes">${form}${wagons}${shortBox}${road}</div>${spare}`;

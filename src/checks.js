@@ -3591,6 +3591,93 @@ async function noticeChecks() {
   });
 }
 
+// The village screen and the villagers behind it (the creator's playtest, 2026-11-28). Each on a throwaway village.
+async function villageChecks(w) {
+  const E = await import('./economy.js'), H = await import('./townhud.js'), { PACE } = await import('./pace.js');
+  const { villageRow } = await import('./realmscreen.js');
+  group = 'Village screen';
+  const real = w.pois.find(q => q.owner === 0 && q.town) || w.home;
+  if (!real) return;
+  const village = async fn => {
+    const copy = { ...real, id: 'checks-village', name: 'Panelby', ban: undefined, vassal: undefined, town: null };
+    const t = w.makeTown(copy, { villagers: 8, retinue: false, stock: { wood: 100 } });
+    copy.town = t;
+    try { return await fn(t, copy); } finally { t.lost = true; }
+  };
+  const meals = (t, n) => { for (const b of t.holders()) { delete b.store.food; delete b.store.bread; } t.put(t.keep, 'food', n); t.stockCache = null; };
+  const step = (t, secs) => { for (let i = 0; i < secs * 20; i++) { t.battle.step(0.05); t.update(0.05); } };
+
+  await check('a villager who flees to the keep gets in, and comes out again once it is safe', () => village(t => {
+    meals(t, 100);
+    const men = t.villagers.slice(0, 4);
+    men.forEach((v, i) => { t.release(v); const a = i * Math.PI / 2; Object.assign(v, { x: Math.sin(a) * 45, z: Math.cos(a) * 45, state: 'flee' }); });
+    step(t, 40);
+    return men.filter(v => v.state === 'flee' || v.state === 'shelter' || v.hidden)
+      .map(v => `40 s after fleeing with no enemy about, a villager is still ${v.state}${v.hidden ? ' (hidden)' : ''}, ${Math.round(Math.hypot(v.x, v.z))} m from the keep`);
+  }));
+  await check('a militiaman hurries back to work at a quarter over his old 3 m/s', () => village(t => {
+    const v = t.villagers[0], job = t.keep;
+    t.release(v);
+    Object.assign(v, { x: 60, z: 0, musterJob: job });
+    t.backToWork(v);
+    if (!v.hustle) return ['he was not sent back to the job he left'];
+    const x = v.x, z = v.z;
+    t.walk(v, 60, 40, 0.1);
+    const speed = Math.hypot(v.x - x, v.z - z) / 0.1;
+    return PACE.back >= 3.7 && PACE.back <= 3.8 && Math.abs(speed - PACE.back) < 0.05 ? [] : [`he goes at ${speed.toFixed(2)} m/s (the table says ${PACE.back})`];
+  }));
+  await check('the newcomers line names what really holds them back', () => village(t => {
+    const out = [], set = (food, mood) => { meals(t, food); t.mood = mood; t.hungry = false; };
+    const want = (what, key, state) => {
+      const d = t.settlers(), L = H.newcomerLine(t);
+      if (d.limit?.key !== key || L.state !== state) out.push(`${what}: the line says "${L.num} ${L.state}" (limit ${d.limit?.key || 'none'}), not "${state}"`);
+      if (state.split(' ').length > 2) out.push(`"${state}" is more than two words`);
+    };
+    t.lastRaid = -1e9;
+    set(t.population * 1.1, 69);
+    want('Content (69) with 1.1 minutes of meals', 'food', 'thin larder');
+    if (/unhappy/i.test(H.newcomerLine(t).tip) || !/1\.1 min/.test(H.newcomerLine(t).tip)) out.push(`with a thin larder the tooltip says "${H.newcomerLine(t).tip}"`);
+    set(t.population * 20, 30);
+    want('plenty of food and mood 30', 'mood', 'low mood');
+    set(t.population * 20, 80);
+    if (t.settlers().limit) out.push(`a fed, happy village is held back by "${t.settlers().limit.why}"`);
+    t.lastRaid = t.time;
+    want('fed and happy but just raided', 'name', 'raided');
+    while (t.population < t.housing) t.addVillager(20, 20);
+    set(t.population * 20, 80);
+    want('every home filled', 'room', 'no room');
+    return out;
+  }));
+  await check('food at the farms and a low store are said together', () => village(t => {
+    const out = [];
+    let farm = null;
+    for (let r = 30; r < 80 && !farm; r += 5) for (let a = 0; a < 6.3 && !farm; a += 0.4) farm = t.place('farm', Math.cos(a) * r, Math.sin(a) * r, { ready: true, free: true }).building;
+    if (!farm) return ['could not place a farm in the test village'];
+    meals(t, t.population);
+    t.put(farm, 'food', 60);
+    t.stockCache = null;
+    const L = H.storesLine(t);
+    if (L.state !== '60 at farms') out.push(`with 60 meals at the farm and a minute in store the line says "${L.num} ${L.state}"`);
+    if (!L.tip.includes(`${t.population} meals, and 60 at the farms`)) out.push(`the tooltip does not give both counts: "${L.tip}"`);
+    return out;
+  }));
+  await check('arrows and bolts count by the man\'s load, not one arm each', () => village((t, copy) => {
+    const out = [], stock = { spears: 4, bows: 2, arrows: 300, bolts: 25 }, want = 4 + 2 + 300 / E.KITS.archer.kit.arrows + Math.floor(25 / E.KITS.crossbow.kit.bolts);
+    if (E.armsCount(stock) !== want) out.push(`4 spears, 2 bows, 300 arrows and 25 bolts count as ${E.armsCount(stock)} arms, not ${want}`);
+    const tally = villageRow(w, { id: 'checks-tally', name: 'Tallyby', owner: 0, eco: { stock, pop: 10 }, garrison: [] });
+    if (tally.arms !== want) out.push(`the Realm screen gives a place with that store ${tally.arms} arms`);
+    for (const [g, n] of Object.entries(stock)) t.put(t.keep, g, n);
+    t.stockCache = null;
+    if (villageRow(w, copy).arms !== want) out.push(`the Realm screen gives a village with that store ${villageRow(w, copy).arms} arms`);
+    return out;
+  }));
+  await check('the Realm screen counts each village\'s veterans', () => village((t, copy) => {
+    t.villagers.slice(0, 3).forEach(v => { v.xp = E.HALL.veteran; });
+    const n = villageRow(w, copy).vets;
+    return n === 3 ? [] : [`three veterans at home are counted as ${n}`];
+  }));
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -3610,6 +3697,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await scoutChecks(window.game.world);
   if (window.game?.world?.pois) await seasonChecks(window.game.world);
   if (window.game?.world?.pois) await firstHourChecks(window.game.world);
+  if (window.game?.world?.pois) await villageChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
   if (page === 'battle.html') await orderChecks();
   if (!quick) {

@@ -8,6 +8,7 @@ export const PACE = {
   horse: 1.8,     // a slow trot: a horse has no walk clip yet, and its trot (2.28) can't slow below ~1.4
   dog: 1.8,       // a dog trots alongside the men (its trot strides 1.67)
   wander: 1.0,    // a villager strolling with nothing to do: slow enough to read as idle, still a walk round a corner
+  back: 3.75,     // a militiaman hurrying back to work: brisker than any walk, short of the muster's run (creator, 2026-11-28: it was 3)
 };
 // The walking speed of a battle unit type: its kind's pace, never faster than it can run. Engines crawl at
 // their own speed either way.

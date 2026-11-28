@@ -28,12 +28,37 @@ const put = (el, html) => { if (el.dataset.was !== html) { el.dataset.was = html
 const goldIco = () => ico('gold', '#e8c45a', 'gold');
 const moodWord = m => m >= 80 ? 'Joyful' : m >= 62 ? 'Content' : m >= 45 ? 'Settled' : m >= 30 ? 'Uneasy' : m >= 18 ? 'Unhappy' : 'Miserable';
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-// What draws newcomers, in a sentence.
+const upper = s => s[0].toUpperCase() + s.slice(1);
+// What draws newcomers, line by line (the panel's tooltip and the keep's notes).
 const settlerWhy = (t, d) => {
   const food = d.food >= 1 ? 'plenty of food to spare' : d.food > 0 ? 'a little food to spare' : 'no food to spare';
   const name = d.why.length ? d.why.map(([n, w]) => `${n > 0 ? '+' : ''}${Math.round(n * 100)}% ${w}`).join(', ') : 'nothing known of it yet';
-  return `${d.rate > 0.05 ? `About ${d.rate.toFixed(1)} a minute` : `None now${d.block ? `: ${d.block}` : ''}`}. Food: ${food} (${t.larder.toFixed(1)} meals a head). Mood: ${moodWord(t.mood).toLowerCase()}. The village's name: ${name}. Houses only make room; newcomers come for food, mood and name, as working adults.`;
+  return [d.rate > 0.05 ? `Newcomers: about ${d.rate.toFixed(1)} a minute` : 'Newcomers: none for now',
+    ...(d.limit ? [`Held back: ${d.limit.why}`] : []),
+    // (the held-back line has already said the food)
+    ...(d.limit?.key === 'food' ? [] : [`Food: ${food} (${t.larder.toFixed(1)} meals a head)`]),
+    `Mood: ${moodWord(t.mood).toLowerCase()}`,
+    `The village's name: ${name}`];
 };
+// The town panel's two short lines: a number, a word or two of state, and the reasons in the tooltip.
+export function newcomerLine(t) {
+  const d = t.settlers(), coming = d.rate > 0.05;
+  return { num: coming ? `+${d.rate.toFixed(1)}/min` : '0/min', state: d.limit?.state || '', bad: !coming, tip: settlerWhy(t, d).join('\n') };
+}
+export function storesLine(t) {
+  const L = t.larderForecast(), mins = L.mins >= 10 ? Math.round(L.mins) : Math.round(L.mins * 10) / 10, meals = Math.floor(L.meals);
+  // Meals lying at the farms while the stores run low: say so on the line itself.
+  const piled = L.yard >= Math.max(10, t.population / 2) && L.mins < 4;
+  const state = t.starving ? 'hungry' : piled ? `${L.yard} at farms` : L.mins < 1.5 ? 'low' : L.short ? 'winter short' : '';
+  const tip = [`Food in the stores: ${meals} meals${L.yard >= 1 ? `, and ${L.yard} at the farms` : ''}`,
+    `Lasts ${mins} min at ${t.population} mouths (a meal each a minute)`,
+    ...(L.yard >= 1 ? ['Only stored meals are eaten and draw newcomers: haulers carry the rest in'] : []),
+    ...(t.starving ? [upper(t.hungerWhy().why)] : []),
+    `${upper(L.winter)}${L.lacks ? `: ${L.lacks}` : ''}`].join('\n');
+  // (the bar fills at four minutes in store, where newcomers come fastest)
+  return { num: `${mins} min`, state, bad: t.starving || L.mins < 1.5 || L.short, fill: Math.max(0, Math.min(1, L.mins / 4)), tip };
+}
+const statHtml = (icon, L) => `${ico(icon)}<b>${L.num}</b>${L.fill === undefined ? '' : `<i class="reserve"><i style="width:${Math.round(L.fill * 20) * 5}%"></i></i>`}<em>${L.state}</em>`;
 
 // Build hotkeys: B, then a letter. Each building takes the first letter of its name that
 // no earlier building has (C for carpenter, H for house), shown on its button.
@@ -150,8 +175,8 @@ export class TownHud {
       <div class="people mood"><span data-s="mood"></span><span class="tax">${lever(-1, 'Lower taxes', '−')}<span data-s="tax"></span>${lever(1, 'Raise taxes', '+')}</span></div>
       <div class="people"><span data-s="gold"></span></div>
       <p class="note taxnote" data-s="taxnote" hidden></p>
-      <div class="people"><span data-s="settlers"></span></div>
-      <div class="people"><span data-s="larder"></span></div>
+      <div class="people"><span data-s="settlers" class="stat"></span></div>
+      <div class="people"><span data-s="larder" class="stat"></span></div>
       <div class="warn" data-s="hunger"></div>
       <div class="raid" data-s="raid"></div>
       <button data-act="muster" class="wide muster" hidden><span>Muster the militia</span><small></small></button>
@@ -317,7 +342,9 @@ export class TownHud {
     const set = (k, v) => put(this.stockEl.querySelector(`[data-s="${k}"]`), v);
     const armed = t.underArms;
     set('pop', `${ico('people')} ${t.population} / ${t.housing}${armed ? ` <small>(${armed} under arms)</small>` : ''}`);
-    set('idle', `${t.hauling} carrying · ${t.idle} without a job`);
+    // Veterans, where you plan with them (creator, 2026-11-28: only a selected barracks or hall said how many).
+    const vets = t.veterans().length;
+    set('idle', `${t.hauling} carrying · ${t.idle} without a job${vets || this.can('drill') ? ` · <span data-tip="Veterans at home: villagers who fought as levies and came back. They can drill at a barracks or train in a knights' hall. Those still under arms count once they are home."><b>${vets}</b> veteran${vets === 1 ? '' : 's'}</span>` : ''}`);
     const m = Math.round(t.mood);
     set('mood', `<span class="${m < 30 ? 'bad' : m >= 62 ? 'good' : ''}">${moodWord(m)} (${m})</span>`);
     this.stockEl.querySelector('[data-s="mood"]').title = t.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join('\n') || 'Nothing much either way';
@@ -331,12 +358,14 @@ export class TownHud {
     const note = this.stockEl.querySelector('[data-s="taxnote"]');
     note.hidden = !this.taxOpen;
     if (this.taxOpen) put(note, `<b>${W.hint}</b><br>${W.lines.join('<br>')}`);
-    const draw = t.settlers();
-    set('settlers', `Newcomers: ${draw.rate > 0.05 ? `about ${draw.rate.toFixed(1)} a minute` : `none (${draw.block || 'the village is unhappy'})`}`);
-    this.stockEl.querySelector('[data-s="settlers"]').title = settlerWhy(t, draw);
-    // The stores in a line, with winter ahead (economy.js larderForecast); red when they will not see it through.
-    { const L = t.larderForecast?.(); if (L) { set('larder', `<span class="${L.short || L.mins < 1.5 ? 'bad' : ''}">${L.text}</span>`); } }
-    set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.starving ? `Meals are short: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? `The hearths are cold: ${Math.round(t.hearthWood())} wood in the stores, ${Math.ceil(t.hearths * 1.5 / 2)} needed. Woodcutters and haulers need hands.` : t.population >= t.housing ? 'No room: build houses to grow.' : '');
+    // Newcomers and the food in store, a short line each (newcomerLine, storesLine); the reasons on hover.
+    for (const [k, icon, L] of [['settlers', 'people', newcomerLine(t)], ['larder', 'food', storesLine(t)]]) {
+      set(k, statHtml(icon, L));
+      const el = this.stockEl.querySelector(`[data-s="${k}"]`);
+      if (el.dataset.tip !== L.tip) { el.dataset.tip = L.tip; el.setAttribute('aria-label', L.tip); }
+      el.classList.toggle('bad', L.bad);
+    }
+    set('hunger', t.misery > 30 ? `The village is close to revolt! Lift the mood within ${Math.max(0, Math.ceil(120 - t.misery))} s.` : t.mood < 20 ? 'The village is miserable: families are leaving.' : t.starving ? `Meals are short: ${t.hungerWhy().why}. Nobody new will settle.` : t.coldNow ? `The hearths are cold: ${Math.round(t.hearthWood())} wood in the stores, ${Math.ceil(t.hearths * 1.5 / 2)} needed. Woodcutters and haulers need hands.` : '');
     set('raid', t.underAttack ? `${ico('battle', '#ff8a5a')} Under attack! <u>Show me</u>` : t.timedRaids ? `Bandits expected in ${clock(t.raid.next)}` : 'At peace');
     this.stockEl.querySelector('.raid').classList.toggle('now', t.underAttack);
     const mb = this.stockEl.querySelector('[data-act="muster"]'), sb = this.stockEl.querySelector('[data-act="standdown"]');
@@ -573,7 +602,7 @@ export class TownHud {
       const left = near.reduce((n, d) => n + Math.max(0, d.left ?? 0), 0), next = left > 0 ? null : this.town.nextDeposit(b);
       return `Left in reach: ${Math.round(left)} ${g.node === 'rock' ? 'stone' : 'ore'} in ${near.filter(d => (d.left ?? 1) > 0).length} ${g.node === 'rock' ? 'outcrop' : 'deposit'}(s). ${left > 0 ? 'It runs out. ' : `Worked out.${next ? ` The next deposit is ${next.m} m ${next.to}.` : ' No other deposit is left in your land.'} `}Mines sharing a deposit strip it faster.`;
     }
-    if (f === 'settlers') return settlerWhy(this.town, this.town.settlers());
+    if (f === 'settlers') return `${settlerWhy(this.town, this.town.settlers()).join('. ')}.`;
     if (f === 'mood') return `${moodWord(this.town.mood)} (${Math.round(this.town.mood)}): ${this.town.moodWhy.map(([n, w]) => `${n > 0 ? '+' : ''}${n} ${w}`).join(', ') || 'nothing much either way'}. A happy village grows faster and pays more tax; a miserable one loses families.`;
     if (f === 'racks') {
       const n = this.town.levyMax?.() || 20;
