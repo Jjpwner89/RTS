@@ -2320,7 +2320,7 @@ export function seenAs(a) {
 
 // What each rank brings (the crown has its own moment).
 const RANKS = {
-  Lord: { title: 'a lord', tools: 'You may give villages to vassals to run for you, lay out whole quarters from town templates, call the banners, and drill veterans at a barracks into serjeants and yeoman archers.',
+  Lord: { title: 'a lord', tools: 'You may give villages to vassals to run for you, lay out whole quarters from town templates, muster a host from all your places, and drill veterans at a barracks into serjeants and yeoman archers.',
     trouble: 'Vassals have minds of their own: watch what they think of you.' },
   Count: { title: 'a count', tools: 'Your villages with a strong keep may raise a knights\' hall for elite men.',
     trouble: 'The great houses take you seriously now, and a slighted vassal may stop paying.' },

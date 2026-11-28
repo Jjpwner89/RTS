@@ -661,7 +661,7 @@ export class TownHud {
       return b.kind === 'keep' || b.B.storage ? `In this store: ${here}. The stock panel counts every store.` : `Holds: ${here}`;
     }
     if (f === 'hp') return `Condition: ${Math.ceil(b.hp)} / ${b.B.hp}`;
-    if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : r.until ? ' (arrière-ban: home after ten minutes)' : ''}`;
+    if (f === 'men') return `${r.alive} men${r.levy ? ' (villagers)' : r.until ? ' (arrière-ban: home when their time is up)' : ''}`;
     if (f === 'gear') return r.T.engine ? '' : `${gearText(gearOf(r))}${r.battles ? ` · ${r.battles} battle${r.battles > 1 ? 's' : ''}` : ''}`;
     if (f === 'morale') return this.hooks.moraleLabel(r);
     return '';

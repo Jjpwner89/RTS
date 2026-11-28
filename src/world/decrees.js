@@ -8,7 +8,7 @@ export const DECREES = {
     good: 'Your vassals may not feud, and outlaws keep away from your places.',
     bad: 'Vassals resent having their swords bound (−5 opinion).' },
   levy: { name: 'The great levy', icon: 'spears',
-    good: 'Calling the banners raises men down to a third of each village, not half, and vassals send half again as many.',
+    good: 'A muster raises men down to a third of each village, not half, and vassals send half again as many.',
     bad: 'Every village of yours grumbles (−8 mood), and vassals like it no better (−5 opinion).' },
   tithe: { name: 'The royal tithe', icon: 'gold',
     good: 'A quarter more gold from the taxes of every village you run.',

@@ -9,7 +9,7 @@ import { updateGoals } from './goals.js';
 
 export const TEST_RANKS = {
   lord: { name: 'Lord', places: 2, minutes: 10, gold: 800, people: 35,
-    blurb: 'Two places, at minute 10: vassals, town templates and calling the banners.' },
+    blurb: 'Two places, at minute 10: vassals, town templates and mustering a host.' },
   count: { name: 'Count', places: 5, minutes: 24, gold: 2000, people: 60, vassals: 1,
     blurb: 'Five places, at minute 24, one held by a vassal: the knights\' hall, and the great houses take notice.' },
   duke: { name: 'Duke', places: 11, minutes: 42, gold: 4000, people: 80, vassals: 3,
