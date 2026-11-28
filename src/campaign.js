@@ -347,6 +347,24 @@ function visitVassal(p) {
 
 function showWorld() { setMode('world', null); }
 
+// The first village you stand in says how to look round it, once (a trackpad player had nothing
+// on screen about the camera: the scout, 2026-11-28).
+const LOOK_KEY = 'rts.lookSeen';
+export const lookText = () => `Look round: arrows or WASD, the screen edges, or two fingers on a trackpad. Pinch or the wheel zooms; Q, E or ${/Mac/.test(navigator.platform) ? 'Option' : 'Alt'}-drag turns.`;
+function lookHint(show) {
+  let el = $('lookhint');
+  if (!show) { el?.remove(); return; }
+  try { if (localStorage.getItem(LOOK_KEY)) return; } catch { return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'lookhint';
+    el.innerHTML = `<span></span><button title="Got it">✓</button>`;
+    el.querySelector('button').onclick = () => { try { localStorage.setItem(LOOK_KEY, '1'); } catch { /* not kept */ } el.remove(); };
+    document.body.append(el);
+  }
+  el.querySelector('span').textContent = lookText();
+}
+
 // ---- the first goals ----
 // A short list in the corner of the map, the next step lit; finishing one says so wherever you are.
 const goalSeen = { visited: !!loaded };
@@ -419,12 +437,14 @@ function setMode(m, b) {
   // banner over the map); the next view's HUD opens what its battle calls for.
   for (const id of ['deploy', 'duel', 'terms']) $(id)?.classList.remove('open');
   hud = townHud = null;
+  if (m === 'world') lookHint(false);
   if (m === 'world') stage.use(worldView.scene);
   else {
     stage.use(b.scene);
     b.controls.enabled = true;
     hud = new Hud(b.battle || b.town.battle, b.hooks, { endPanel: false, fresh: true });
     if (m === 'town') townHud = new TownHud(b.town, b.hooks);
+    lookHint(m === 'town' && !b.look && !b.town.hostile);
   }
 }
 
@@ -1116,7 +1136,7 @@ function worldPanel() {
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the cart until it arrives. A raider must beat it first.">${ico('caravan', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide" title="${capWhy(world.rank)}">Join with ${o.name} (${Math.min(headcount(o.units), Math.max(0, world.armyCap - headcount(it.units)))} of ${headcount(o.units)} fit)</button>`).join('') : '')
-      + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
+      + (own ? `<p class="note">To march: click a place and press <b>March</b> on its card, or right-click it. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
     else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><div data-f="hosts"></div><div data-f="march" class="marchbtns"></div><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
@@ -1139,7 +1159,7 @@ function worldPanel() {
           <button data-act="visit" class="wide" title="See their village as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button>
           <div class="row"><button data-act="revoke" class="warn" title="You get the village back as it stands. Every other vassal will remember it.">Take it back</button></div>`
         : world.overseer(it) ? `<button data-act="visit" class="wide" title="See it as it stands. You can look, not build or give orders.">${ico('village')} Look round ${it.name}</button><p class="note">${FACTIONS[it.owner].name} is sworn to you: its places and armies light the map for you.</p><div data-f="intel" class="intel"></div>`
-        : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Or select one of your armies and right-click here to march on it.</p>`);
+        : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">With an army in the field, a March button appears here (or select it and right-click).</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
   if (it) set('hosts', hostCards(world, it));

@@ -1,6 +1,7 @@
 // The world map camera and mouse: click an army or place to select it, right-click
 // a place to send the selected army there, double-click one of your villages to enter.
 import { WORLD_HALF } from './worldview.js';
+import { wheelMeaning, zoomStep, swipePan } from '../ui/wheel.js';
 
 export class WorldControls {
   constructor(camera, dom, view, hooks) {
@@ -47,7 +48,9 @@ export class WorldControls {
 
   onWheel(e) {
     e.preventDefault();
-    this.cam.dist = Math.max(80, Math.min(1500, this.cam.dist * Math.pow(1.0015, e.deltaY)));
+    const kind = wheelMeaning(e);
+    if (kind === 'pan') { swipePan(this.cam, e, this.cam.dist / 700); return; }
+    this.cam.dist = Math.max(80, Math.min(1500, this.cam.dist * zoomStep(e, kind)));
   }
 
   onKey(e, down) {
@@ -64,7 +67,8 @@ export class WorldControls {
   onDown(e) {
     // Left drag pans the map, middle drag turns it; a click without moving selects.
     if (e.button === 0) this.drag = { kind: 'pan', x: e.clientX, y: e.clientY, cx: this.cam.x, cz: this.cam.z, moved: false };
-    if (e.button === 1) { e.preventDefault(); this.drag = { kind: 'rotate', x: e.clientX, yaw: this.cam.yaw, moved: true }; }
+    // (Alt or Option with the left button turns too, for a trackpad)
+    if (e.button === 1 || (e.button === 0 && e.altKey)) { e.preventDefault(); this.drag = { kind: 'rotate', x: e.clientX, yaw: this.cam.yaw, moved: true, held: e.button === 1 ? 4 : 1 }; }
     if (e.button === 2) {
       // An army marker over a place doesn't swallow the order: it goes to the place under it.
       const hit = this.view.pick(...this.local(e), 'place');
@@ -85,7 +89,7 @@ export class WorldControls {
       return;
     }
     // The button came up somewhere that swallowed the mouseup (a panel): the drag is over.
-    if (!(e.buttons & (d.kind === 'pan' ? 1 : 4))) { this.drag = null; return; }
+    if (!(e.buttons & (d.kind === 'pan' ? 1 : d.held))) { this.drag = null; return; }
     if (d.kind === 'rotate') { this.cam.yaw = d.yaw - (e.clientX - d.x) * 0.006; return; }
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
     if (Math.hypot(dx, dy) > 5) d.moved = true;

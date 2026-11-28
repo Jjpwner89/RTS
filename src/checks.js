@@ -4393,6 +4393,74 @@ async function musterChecks() {
   }));
 }
 
+async function trackpadChecks() {
+  group = 'Trackpad';
+  const W = await import('./ui/wheel.js'), C = await import('./controls.js'), g = window.game;
+  const ev = (o, at = 0) => ({ deltaX: 0, deltaY: 0, deltaMode: 0, ctrlKey: false, timeStamp: at, preventDefault() {}, clientX: innerWidth / 2, clientY: innerHeight / 2, ...o });
+  const fresh = () => ({ at: -1e9, swipe: false });
+  await check('a mouse wheel zooms, a pinch zooms, a two-finger swipe pans', () => {
+    const out = [], want = (what, e, kind, mode = 'pan') => { const got = W.wheelMeaning(e, fresh(), mode); if (got !== kind) out.push(`${what}: ${got}, not ${kind}`); };
+    want('a wheel notch on Windows', ev({ deltaY: 100, wheelDeltaY: -120 }), 'zoom');
+    want('a wheel notch on a Mac', ev({ deltaY: 4.000244140625, wheelDeltaY: -120 }), 'zoom');
+    want('a wheel notch in Safari', ev({ deltaY: -4.000244140625, wheelDeltaY: 12 }), 'zoom');
+    want('a wheel in Firefox, in lines', ev({ deltaY: 3, deltaMode: 1 }), 'zoom');
+    want('a swipe up', ev({ deltaY: -3, wheelDeltaY: 9 }), 'pan');
+    want('a swipe sideways', ev({ deltaX: 12, wheelDeltaY: 0 }), 'pan');
+    want('a swipe with fractional steps', ev({ deltaY: 1.5 }), 'pan');
+    want('a pinch', ev({ deltaY: -2.5, ctrlKey: true }), 'pinch');
+    want('a swipe with swipes set to zoom', ev({ deltaY: -3, wheelDeltaY: 9 }), 'zoom', 'zoom');
+    const one = fresh();
+    W.wheelMeaning(ev({ deltaY: 3, wheelDeltaY: -9 }, 1000), one, 'pan');
+    if (W.wheelMeaning(ev({ deltaY: 80, wheelDeltaY: -240 }, 1016), one, 'pan') !== 'pan') out.push('a swipe gathering speed turned into a zoom');
+    if (W.wheelMeaning(ev({ deltaY: 100, wheelDeltaY: -120 }, 3000), one, 'pan') !== 'zoom') out.push('a wheel after a swipe did not zoom');
+    if (W.zoomStep(ev({ deltaY: 100 }), 'zoom') !== Math.pow(1.0015, 100)) out.push('the mouse wheel no longer zooms as it did');
+    return out;
+  });
+  await check('the camera on screen answers them so', () => {
+    const c = g?.world ? (g.mode === 'world' ? g.worldControls : g.current?.controls) : g?.controls;
+    if (!c || W.swipeMode() !== 'pan') return null;
+    const keep = { ...c.cam }, out = [];
+    // (each a second apart, so none counts as part of the gesture before it)
+    let at = performance.now();
+    const run = o => { Object.assign(c.cam, keep, { dist: 120 + (g?.mode === 'world' ? 300 : 0) }); const was = { ...c.cam }; c.onWheel(ev(o, at += 1000)); return { moved: Math.hypot(c.cam.x - was.x, c.cam.z - was.z), zoomed: c.cam.dist / was.dist }; };
+    const swipe = run({ deltaX: 40, deltaY: 0 }), wheel = run({ deltaY: 100, wheelDeltaY: -120 }), pinch = run({ deltaY: 5, ctrlKey: true });
+    Object.assign(c.cam, keep);
+    if (!(swipe.moved > 1 && swipe.zoomed === 1)) out.push(`a swipe moved ${swipe.moved.toFixed(1)} and zoomed ×${swipe.zoomed.toFixed(2)}`);
+    if (!(wheel.zoomed > 1.1)) out.push(`a wheel notch zoomed ×${wheel.zoomed.toFixed(2)}`);
+    if (!(pinch.zoomed > 1.02)) out.push(`a pinch zoomed ×${pinch.zoomed.toFixed(2)}`);
+    return out;
+  });
+  await check('Move and Attack, then a click, give the orders a right-click would', () => {
+    if (document.querySelector('body.order-move, body.order-attack')) return null;
+    const out = [], reg = { side: 0, T: {}, cx: 0, cz: 0, angle: 0, gone: false }, foe = { side: 1 };
+    const give = (kind, under) => {
+      const did = [];
+      const me = { drag: null, selection: new Set([reg]), hooks: {}, view: {}, lastOrder: null, cam: { yaw: 0 },
+        battle: { walls: { any: false }, orderMove: (s, x, z) => did.push(`move ${x},${z}`), orderAttack: () => did.push('attack'), event: () => did.push('asked'), hurry() {} },
+        groundAt: () => ({ x: 30, z: 40 }), structAt: () => null, regAt: () => under };
+      C.askOrder(kind);
+      C.Controls.prototype.onDown.call(me, ev({ button: 0 }));
+      C.Controls.prototype.onUp.call(me, ev({ button: 0 }));
+      const still = C.askedOrder();
+      C.askOrder(null);
+      return `${did.join(' ')}${still ? ' (still asking)' : ''}`;
+    };
+    for (const [what, kind, under, want] of [['Move on open ground', 'move', null, 'move 30,40'], ['Move onto an enemy', 'move', foe, 'move 30,40'], ['Attack on an enemy', 'attack', foe, 'attack'], ['Attack on open ground', 'attack', null, 'asked (still asking)']]) {
+      const got = give(kind, under);
+      if (got !== want) out.push(`${what}: "${got}", not "${want}"`);
+    }
+    return out;
+  });
+  await check('the orders bar has Move and Attack, and Controls says how to turn without a middle button', async () => {
+    const out = [], { controlsFor } = await import('./ui/controlslist.js');
+    const bar = document.getElementById('orders');
+    if (bar && !(bar.querySelector('[data-c="move"]') && bar.querySelector('[data-c="attack"]'))) out.push('no Move or Attack button on the orders bar');
+    const rows = controlsFor().flatMap(([, r]) => r.map(([k]) => k)).join(' | ');
+    if (!/(Alt|Option)-drag/.test(rows) || !/pinch/i.test(rows)) out.push(`Controls lists: ${rows}`);
+    return out;
+  });
+}
+
 // ---- running them ----
 
 export async function checks({ quick = false, quiet = false } = {}) {
@@ -4419,6 +4487,7 @@ export async function checks({ quick = false, quiet = false } = {}) {
   if (window.game?.world?.pois) await musterChecks();
   if (window.game?.world?.pois) await newcomerSmallChecks(window.game.world);
   if (window.game?.world?.pois && !quick) await slotChecks(window.game.world);
+  if (window.game) await trackpadChecks();
   if (page === 'battle.html') await orderChecks();
   if (!quick) {
     await assetChecks();

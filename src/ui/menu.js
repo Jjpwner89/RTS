@@ -15,6 +15,7 @@
 // nobody used. Checks and tests can drive it through window.gameMenu.
 import { why } from './why.js';
 import { controlsFor } from './controlslist.js';
+import { swipeMode, setSwipeMode } from './wheel.js';
 import { BUILD } from '../version.js';
 
 const MENU_PAGE = 'index.html';
@@ -114,8 +115,9 @@ function render(focus) {
       list.append(sec);
     });
     card.append(list, el('div', { className: 'gm-items' }));
+    card.lastChild.append(button(`Two-finger swipe: ${swipeMode() === 'pan' ? 'pans' : 'zooms'}`, () => { setSwipeMode(swipeMode() === 'pan' ? 'zoom' : 'pan'); render('#gm-swipe'); }, { id: 'gm-swipe', title: 'What two fingers sliding on a trackpad do. Change it if a swipe or your mouse wheel does the wrong thing; a pinch always zooms' }));
     card.lastChild.append(button('Back', () => { view = 'main'; render('#gm-resume'); }, { id: 'gm-back', primary: true }));
-    card.querySelector('#gm-back').focus();
+    card.querySelector(focus || '#gm-back').focus();
     return;
   }
   card.append(el('h2', {}, 'Game menu'));

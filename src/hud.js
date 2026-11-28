@@ -3,6 +3,7 @@ import { drawIcon, SIDE_COLORS } from './view.js';
 import { FORMATIONS, WEATHER, ARMOUR, VET_RANKS, canShield, hasShield } from './battle.js';
 import { ico } from './icons.js';
 import { why } from './ui/why.js';
+import { askedOrder, askOrder } from './controls.js';
 
 // The badge on a card's icon: rank as gold chevrons (none for green men) beside the armour
 // level, and a mark when men who could carry shields have none. Two regiments in the same
@@ -63,7 +64,7 @@ export class Hud {
     let el = document.getElementById('deploy');
     if (!el) { el = document.createElement('div'); el.id = 'deploy'; document.body.append(el); }
     el.innerHTML = `<b>Deploy your army</b>
-      <span>Select regiments and right-click to place them anywhere on the lit ground. Set formations, hold or targets now.</span>
+      <span>Select regiments, then press Move (or right-click) to place them anywhere on the lit ground. Set formations, hold or targets now.</span>
       <span class="left"></span>
       <button class="go" title="Start the fight (Enter)">Begin battle</button>`;
     el.querySelector('.go').onclick = () => { this.battle.beginBattle(); if (this.paused) this.hooks.togglePause(); };
@@ -76,7 +77,9 @@ export class Hud {
     let el = document.getElementById('orders');
     if (!el) { el = document.createElement('div'); el.id = 'orders'; document.body.append(el); }
     const f = Object.entries(FORMATIONS).map(([k, F]) => `<button data-f="${k}" title="${F.desc || 'The standard line'} (${F.key.toUpperCase()})">${F.name}<kbd>${F.key.toUpperCase()}</kbd></button>`).join('');
-    el.innerHTML = `<span class="group">${f}</span><span class="group">
+    el.innerHTML = `<span class="ask"></span><span class="group">
+      <button data-c="move" title="Press, then click the ground to move there; drag to set the line they form. The same as a right-click">Move</button>
+      <button data-c="attack" title="Press, then click an enemy regiment or wall. The same as a right-click on it">Attack</button></span><span class="group">${f}</span><span class="group">
       <button data-c="charge" title="Charge the target, or the nearest enemy ahead (C)">Charge<kbd>C</kbd></button>
       <button data-c="hold" title="Stand fast: fight only whoever reaches you (G)">Hold<kbd>G</kbd></button>
       <button data-c="fire" title="Bows loose at will at anything in range (R)">Fire at will<kbd>R</kbd></button>
@@ -89,6 +92,7 @@ export class Hud {
       if (!btn || !this.selection?.size) return;
       const sel = [...this.selection], b = this.battle;
       if (btn.dataset.f) b.setFormation(sel, btn.dataset.f);
+      if (btn.dataset.c === 'move' || btn.dataset.c === 'attack') askOrder(askedOrder() === btn.dataset.c ? null : btn.dataset.c);
       if (btn.dataset.c === 'charge') b.orderCharge(sel);
       if (btn.dataset.c === 'hold') b.setHold(sel, !sel.every(r => r.hold));
       if (btn.dataset.c === 'fire') b.setFireAtWill(sel, !sel.every(r => r.fireAtWill));
@@ -114,7 +118,11 @@ export class Hud {
       if (y) top = `${Math.round((y + 4) / (parseFloat(getComputedStyle(this.ordersEl).zoom) || 1))}px`;
     }
     if (this.ordersEl.style.top !== top) this.ordersEl.style.top = top;
-    if (!sel.length) return;
+    if (!sel.length) { askOrder(null); return; }
+    const asked = askedOrder();
+    for (const k of ['move', 'attack']) this.ordersEl.querySelector(`[data-c="${k}"]`).classList.toggle('on', asked === k);
+    const ask = this.ordersEl.querySelector('.ask'), text = asked === 'move' ? 'Click the ground to move there; drag to set the line. Esc cancels.' : asked === 'attack' ? 'Click an enemy to attack. Esc cancels.' : '';
+    if (ask.textContent !== text) ask.textContent = text;
     for (const btn of this.ordersEl.querySelectorAll('[data-f]')) {
       const f = btn.dataset.f;
       btn.classList.toggle('on', sel.every(r => r.formation === f));

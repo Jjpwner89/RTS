@@ -1,8 +1,15 @@
 // Camera rig and mouse/keyboard orders, in the familiar battle-RTS scheme:
 // left click or drag to select, right click to move or attack, right drag to set a front line.
+// Without a right button: the Move and Attack buttons on the orders bar, then a click (hud.js
+// marks the page order-move or order-attack). Camera on a trackpad: ui/wheel.js; Alt-drag turns.
 import * as THREE from 'three';
 import { pickGround, HALF } from './terrain.js';
 import { FORMATIONS } from './battle.js';
+import { wheelMeaning, zoomStep, swipePan } from './ui/wheel.js';
+
+// The order waiting for its click, if any.
+export const askedOrder = () => ['move', 'attack'].find(k => document.body.classList.contains(`order-${k}`)) || null;
+export const askOrder = kind => { for (const k of ['move', 'attack']) document.body.classList.toggle(`order-${k}`, k === kind); };
 
 // Shift, or Cmd / Ctrl, adds to the selection (or takes a regiment back out of it).
 const adding = e => e.shiftKey || e.metaKey || (e.ctrlKey && !/Mac/.test(navigator.platform));
@@ -80,8 +87,9 @@ export class Controls {
 
   onWheel(e) {
     e.preventDefault();
-    const c = this.cam, before = c.dist;
-    c.dist = Math.max(18, Math.min(420, c.dist * Math.pow(1.0015, e.deltaY)));
+    const c = this.cam, before = c.dist, kind = wheelMeaning(e);
+    if (kind === 'pan') { swipePan(c, e, c.dist * 0.0013); return; }
+    c.dist = Math.max(18, Math.min(420, c.dist * zoomStep(e, kind)));
     // Zoom in toward whatever is under the cursor.
     if (c.dist < before) {
       const g = this.groundAt(e.clientX, e.clientY);
@@ -102,6 +110,8 @@ export class Controls {
     if (key === 'f') this.focus(this.selection);
     if (key === 'escape') {
       // an Esc that did something is not for the game menu (ui/menu.js)
+      // an order waiting for its click is put away first, and the selection kept
+      if (askedOrder()) { askOrder(null); e.escUsed = true; return; }
       const mining = document.body.classList.contains('mining'), had = this.selection.size;
       document.body.classList.remove('mining');
       const placed = this.hooks.cancelPlacement?.();
@@ -248,6 +258,7 @@ export class Controls {
     if (!add) this.selection.clear();
     if (this.watchOnly) regs = [];
     for (const r of regs) if (r.side === 0 && !r.gone) this.selection.add(r);
+    if (!this.selection.size) askOrder(null);
     this.hooks.selectionChanged(this.selection);
   }
 
@@ -257,6 +268,10 @@ export class Controls {
   // cancelPlacement(), hover(ground), pickBuilding(ground).
   onDown(e) {
     if (e.button === 2 && this.hooks.cancelPlacement?.()) { this.hooks.toastOff?.(); this.drag = null; return; }
+    // Alt (Option) and drag turns the view, for a pointer with no middle button.
+    if (e.button === 0 && e.altKey) { e.preventDefault(); this.drag = { kind: 'rotate', x: e.clientX, y: e.clientY, yaw: this.cam.yaw }; return; }
+    if (e.button === 0 && askedOrder() && this.selection.size) { this.drag = { kind: 'order', ask: askedOrder(), x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false }; return; }
+    if (e.button === 2) askOrder(null);
     if (e.button === 0 && this.hooks.dragPlacing?.()) { this.drag = { kind: 'place', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false }; return; }
     if (e.button === 0) this.drag = { kind: 'select', x: e.clientX, y: e.clientY, moved: false };
     if (e.button === 2) this.drag = { kind: 'order', x: e.clientX, y: e.clientY, start: this.groundAt(e.clientX, e.clientY), moved: false };
@@ -269,7 +284,7 @@ export class Controls {
     if (!d && e.target === this.dom) this.hooks.hover?.(this.groundAt(e.clientX, e.clientY));
     if (!d) {
       const hover = e.target === this.dom ? this.regAt(e.clientX, e.clientY) : null;
-      this.dom.style.cursor = hover && hover.side === 1 && this.selection.size ? 'crosshair' : hover && hover.side === 0 ? 'pointer' : 'default';
+      this.dom.style.cursor = askedOrder() || hover && hover.side === 1 && this.selection.size ? 'crosshair' : hover && hover.side === 0 ? 'pointer' : 'default';
       return;
     }
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) d.moved = true;
@@ -335,6 +350,12 @@ export class Controls {
       this.view.preview = [];
       const sel = [...this.selection];
       if (!sel.length) return;
+      // From the Attack button: only an enemy will do, and the button stays pressed until one is clicked.
+      if (d.ask === 'attack') {
+        const hit = this.structAt(e.clientX, e.clientY), foe = this.regAt(e.clientX, e.clientY, !!hit);
+        if (!(foe && foe.side === 1) && !(hit && hit.struct.side !== 0)) { this.battle.event(0, 'Click an enemy regiment or wall to attack it (Esc cancels).'); return; }
+      }
+      if (d.ask) askOrder(null);
       // A second right-click on the same spot straight after: the same order, at a run.
       const now = performance.now(), last = this.lastOrder;
       this.lastOrder = { t: now, x: e.clientX, y: e.clientY };
@@ -346,13 +367,14 @@ export class Controls {
       }
       // Ladders, rams and engines go for an enemy wall even with its defenders standing on it.
       const hit = !d.moved && this.structAt(e.clientX, e.clientY);
-      const target = hit && hit.struct.side !== 0 && sel.every(r => r.T.engine) ? null : this.regAt(e.clientX, e.clientY, !!hit);
+      // (the Move button goes to the ground even with an enemy standing there)
+      const target = d.ask === 'move' || (hit && hit.struct.side !== 0 && sel.every(r => r.T.engine)) ? null : this.regAt(e.clientX, e.clientY, !!hit);
       if (target && target.side === 1) { this.battle.orderAttack(sel, target); this.view.fx?.ordered('attack', sel, target); return; }
       // Onto your own wall, or against the enemy's.
       const mining = document.body.classList.contains('mining');
       document.body.classList.remove('mining');
       if (hit && mining && hit.struct.side !== 0) { this.battle.orderMine(sel, hit.struct); return; }
-      if (hit) {
+      if (hit && !(d.ask === 'move' && hit.struct.side !== 0)) {
         this.view.fx?.ordered('wall', sel, hit);
         if (hit.struct.side === 0) this.battle.orderMan(sel, hit.struct, hit.x, hit.z);
         else this.battle.orderAttackWall(sel, hit.struct, hit.x, hit.z);
