@@ -16,7 +16,7 @@ export const ICONS = (
   'flaxfield flour food ford gold hall hides horses house hunter invader iron keep lances leather mail map market ' +
   'mill mine monastery no-shield ore pass people pick planks quarry raid retreat ropemaker shields siege siegeworks ' +
   'smelter spears stable stone storehouse string stump swords tanner village wall warcamp warning watchtower ' +
-  'weaponsmith well wood woodcutter'
+  'weaponsmith well wood woodcutter palisade stonewall woodtower stonetower gate'
 ).split(' ');
 
 // One icon's file as a data address, asked for again until it comes. A file that is not there

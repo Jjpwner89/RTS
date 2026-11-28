@@ -7,16 +7,17 @@ import { SiegeView } from './siegeview.js';
 import { drawDeployZone } from './fieldview.js';
 import { GOODS, MASONS } from './economy.js';
 import { why } from './ui/why.js';
+import { ico } from './icons.js';
 
 const costText = cost => Object.entries(cost).map(([g, n]) => `${n} ${GOODS[g]?.name.toLowerCase() || g}`).join(', ');
 
 // `does` is the line on the button, `tip` the longer tooltip, `hint` what to do once it is picked.
-const TOOLS = [
-  { key: 'wall:wood', name: 'Palisade', cost: WALL_COSTS.wood.wall, per: ' per 10 m', does: 'Quick and cheap; fire and axes get through', tip: 'Drag a line. Cheap and quick; axes and fire get through it.', hint: 'Drag a line across the ground; it is laid out in pieces and crews raise them.' },
-  { key: 'wall:stone', name: 'Stone wall', cost: WALL_COSTS.stone.wall, per: ' per 10 m', does: 'Only rams and stone-throwers break it', tip: 'Drag a line. Only rams and stone-throwers break it.', hint: 'Drag a line across the ground; it is laid out in pieces and crews raise them.' },
-  { key: 'tower:wood', name: 'Wooden tower', cost: WALL_COSTS.wood.tower, does: 'Archers on top shoot far', tip: 'Click on a wall or anywhere. Archers on top shoot furthest. Your men climb onto the walls by towers and gates.', hint: 'Click on a wall, or anywhere, to set a tower. Shift-click sets several.' },
-  { key: 'tower:stone', name: 'Stone tower', cost: WALL_COSTS.stone.tower, does: 'Holds twelve archers', tip: 'Click on a wall or anywhere. Holds twelve archers.', hint: 'Click on a wall, or anywhere, to set a tower. Shift-click sets several.' },
-  { key: 'gate', name: 'Gate', cost: WALL_COSTS.wood.gate, does: 'Opens for your people, shut to the foe', tip: 'Click a stretch of wall. Opens for your people, shut to the enemy until rammed or forced.', hint: 'Click a stretch of wall at least 6 m long to turn it into a gate.' },
+export const TOOLS = [
+  { key: 'wall:wood', name: 'Palisade', icon: 'palisade', cost: WALL_COSTS.wood.wall, per: ' per 10 m', does: 'Quick and cheap; fire and axes get through', tip: 'Drag a line. Cheap and quick; axes and fire get through it.', hint: 'Drag a line across the ground; it is laid out in pieces and crews raise them.' },
+  { key: 'wall:stone', name: 'Stone wall', icon: 'stonewall', cost: WALL_COSTS.stone.wall, per: ' per 10 m', does: 'Only rams and stone-throwers break it', tip: 'Drag a line. Only rams and stone-throwers break it.', hint: 'Drag a line across the ground; it is laid out in pieces and crews raise them.' },
+  { key: 'tower:wood', name: 'Wooden tower', icon: 'woodtower', cost: WALL_COSTS.wood.tower, does: 'Archers on top shoot far', tip: 'Click on a wall or anywhere. Archers on top shoot furthest. Your men climb onto the walls by towers and gates.', hint: 'Click on a wall, or anywhere, to set a tower. Shift-click sets several.' },
+  { key: 'tower:stone', name: 'Stone tower', icon: 'stonetower', cost: WALL_COSTS.stone.tower, does: 'Holds twelve archers', tip: 'Click on a wall or anywhere. Holds twelve archers.', hint: 'Click on a wall, or anywhere, to set a tower. Shift-click sets several.' },
+  { key: 'gate', name: 'Gate', icon: 'gate', cost: WALL_COSTS.wood.gate, does: 'Opens for your people, shut to the foe', tip: 'Click a stretch of wall. Opens for your people, shut to the enemy until rammed or forced.', hint: 'Click a stretch of wall at least 6 m long to turn it into a gate.' },
 ];
 const WALLS_ABOUT = 'Walls keep raiders off your stores and your people. Your men climb onto them by towers and gates. Pick a tool, then drag (walls) or click (towers, gates): crews raise it on their own.';
 
@@ -62,8 +63,8 @@ export function attachSiege(b, { scene, town, heightAt, flash }) {
   el.owner = ui;
   selKey = null;
   el.innerHTML = `<h4>Defences</h4><div class="items">${TOOLS.map(t => `
-    <button data-tool="${t.key}" title="${t.tip}">${t.name}<small>${costText(t.cost)}${t.per || ''}</small><small class="does">${t.does}</small></button>`).join('')}</div>
-    <button data-act="masons" class="masons" title="For ${Math.round(MASONS.secs / 60)} minutes: twice the crews on new and broken walls, and damaged walls and towers mended while no one is fighting">Hire masons<small>${MASONS.gold} gold</small></button>
+    <button data-tool="${t.key}" title="${t.tip}">${ico(t.icon)}${t.name}<small>${costText(t.cost)}${t.per || ''}</small><small class="does">${t.does}</small></button>`).join('')}</div>
+    <button data-act="masons" class="masons" title="For ${Math.round(MASONS.secs / 60)} minutes: twice the crews on new and broken walls, and damaged walls and towers mended while no one is fighting">${ico('pick')}Hire masons<small>${MASONS.gold} gold</small></button>
     <p class="walls-hint"></p>
     <div class="sel" hidden></div>`;
   selEl = el.querySelector('.sel');

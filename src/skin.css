@@ -153,6 +153,7 @@ button:disabled[data-why] { cursor: help; }
 #build #defences h4 { display: none; }
 #build #defences .items { min-height: 0; grid-auto-rows: auto; }
 #build #defences .items button { font-size: 12px; padding: 4px 6px; }
+#build #defences button .ico { width: 24px; height: 24px; margin-right: 5px; vertical-align: -7px; color: var(--icon); }
 #build #defences .items small, #build #defences .masons small { font-size: 11px; }
 #build.no-masons #defences .masons { display: none; }
 body.town.has-defences #cards, body.campaign.mode-town.has-defences #cards { left: 372px; }

@@ -3617,6 +3617,13 @@ async function iconChecks() {
     box.remove();
     return out;
   });
+  await check('every wall piece has its own icon', async () => {
+    const { TOOLS } = await import('./siegeui.js');
+    const out = TOOLS.filter(t => !t.icon || !ICONS.includes(t.icon) || !iconData(t.icon)).map(t => `${t.name} has no icon`);
+    if (new Set(TOOLS.map(t => t.icon)).size < TOOLS.length) out.push('two wall pieces share one icon');
+    for (const b of document.querySelectorAll('#defences [data-tool]')) if (!b.querySelector('.ico')) out.push(`the ${b.dataset.tool} button shows none`);
+    return out;
+  });
   await check('no icon on screen is waiting on its file', () => [...new Set([...document.querySelectorAll('.ico')]
     .filter(i => !(getComputedStyle(i).maskImage || getComputedStyle(i).webkitMaskImage).includes('data:'))
     .map(i => i.dataset.i || i.getAttribute('style')))].map(n => `'${n}'`));
