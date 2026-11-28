@@ -136,6 +136,9 @@ function prebuild(town, kinds, rand, near = 25) {
   }
 }
 
+// A fight this lopsided (strength to one) settles itself, `wait` seconds of play after it is joined (World.ask).
+export const ONE_SIDED = { ratio: 5, wait: 8 };
+
 export class World {
   // hooks: watching() → the place on screen, ask(encounter), townAttacked(place, army),
   // fell(place), captured(place), ended(winner), herald({ house, title, text })
@@ -996,7 +999,32 @@ export class World {
     if (enc.enemy) enc.enemy.halted = true;
     if (enc.kind === 'field' && enc.enemy) this.lend(enc.enemy, enc.army);
     enc.defenders = enc.kind === 'assault' ? enc.poi.garrison : enc.enemy.units;
+    if (this.oneSided(enc)) enc.auto = this.time + ONE_SIDED.wait;
     this.hooks.ask(enc);
+  }
+
+  // A fight with nothing in doubt does not stop the game (scout, 2026-11-28: 862 men against 68 raised a prompt):
+  // at ONE_SIDED.ratio to one or better, by the strength the prompt's own odds go by, it settles itself after a
+  // few seconds, unless you take command first (enc.auto = undefined). The same for you, the houses and the north.
+  // A hopeless storm of your own is still put to you: you can pull back from it.
+  oneSided(enc) {
+    const { D, bonus } = this.autoSides(enc), a = power(enc.army.units), d = power(D) * bonus;
+    return a >= d * ONE_SIDED.ratio || (enc.kind === 'field' && d >= a * ONE_SIDED.ratio);
+  }
+  settleItself(enc) {
+    const a = enc.army, e = enc.enemy;
+    if (a.gone || e?.gone) {   // nothing left to fight
+      this.encounter = null;
+      a.halted = false;
+      if (e) { e.halted = false; this.unlend(e); }
+      return;
+    }
+    const o = this.autoOdds(enc), where = enc.poi?.name || 'the road';
+    const foe = enc.kind === 'assault' ? `${o.them} holding it` : `${e.name.replace(/^The /, 'the ')} (${o.them})`;
+    const won = this.autoResolve(enc);
+    const text = `${won ? 'Won' : 'Lost'} at ${where} without you: your ${o.us} against ${foe}.`;
+    this.log(text, won ? 0 : 1);
+    this.hooks.settled?.(enc, text, won);
   }
 
   // ---- sieges without storming ----
@@ -1977,6 +2005,7 @@ export class World {
     if (this.sightClock <= 0) { this.sightClock = 0.5; this.updateVision(); }
     thinkHouses(this, dt);
     thinkDiplomacy(this, dt);
+    if (this.encounter?.auto !== undefined && this.time >= this.encounter.auto) this.settleItself(this.encounter);
   }
 
   // ---- vassals ----

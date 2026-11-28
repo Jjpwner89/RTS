@@ -3777,7 +3777,7 @@ function walledSquare(t) {
 }
 
 async function lateChecks(w) {
-  const E = await import('./economy.js'), S = await import('./world/save.js');
+  const E = await import('./economy.js'), S = await import('./world/save.js'), { ONE_SIDED } = await import('./world/world.js');
   group = 'Late game';
   const real = w.pois.find(q => q.owner === 0 && q.town) || w.home;
   if (!real) return;
@@ -3786,6 +3786,7 @@ async function lateChecks(w) {
     const copy = { ...real, id: 'checks-late', name: 'Lateby', ban: undefined, vassal: undefined, town: null };
     const t = w.makeTown(copy, { villagers: 8, retinue: false, stock: { wood: 100, food: 200 } });
     copy.town = t;
+    t.onNote = null;   // (nothing from the test village in your news)
     const warn = console.warn, warned = [];
     console.warn = (...a) => warned.push(a.join(' '));
     try { return await fn(t, warned); } finally { console.warn = warn; t.lost = true; t.attackers = []; }
@@ -3920,6 +3921,37 @@ async function lateChecks(w) {
     offers.at(-1).decline();
     turn(s.time + D.DECLINED_REST + 5);
     if (offers.length !== 3) out.push('it did not ask again after the rest');
+    return out;
+  }));
+  await check('a one-sided fight settles itself after a few seconds, and says so; a close one is put to you', () => league((s, a, hs) => {
+    const out = [], said = [], asked = [], unit = a.units[0];
+    s.coalition = null;   // (its host is cleared away below)
+    s.hooks = new Proxy({ watching: () => null }, { get: (o, k) => (k === 'ask' ? e => asked.push(e) : k === 'settled' ? (e, text) => said.push(text) : k in o ? o[k] : () => {}) });
+    const meet = (yours, theirs) => {
+      s.encounter = null;
+      s.armies = [];
+      const mine = s.spawnArmy(0, [{ ...unit, count: yours, name: 'Mine' }], s.home, 'Your army');
+      const foe = s.spawnArmy(hs[0], [{ ...unit, count: theirs, name: 'Theirs' }], s.home, 'Test band');
+      s.ask({ kind: 'field', army: mine, enemy: foe, poi: s.home });
+      return { mine, foe };
+    };
+    const run = secs => { for (let i = 0; i < secs; i++) s.update(1); };
+    meet(100, 90);
+    run(ONE_SIDED.wait + 2);
+    if (!s.encounter) out.push('a close fight settled itself');
+    for (const [yours, theirs, who] of [[300, 20, 'yours'], [20, 300, 'theirs']]) {
+      const { mine, foe } = meet(yours, theirs), n = said.length;
+      if (asked.at(-1).auto === undefined) { out.push(`${yours} against ${theirs} waits for you`); continue; }
+      run(ONE_SIDED.wait - 2);
+      if (!s.encounter) out.push(`${yours} against ${theirs} settled before its time`);
+      run(4);
+      if (s.encounter || said.length !== n + 1) out.push(`${yours} against ${theirs} (${who} the stronger) was not settled and said`);
+      else if (!said.at(-1).startsWith(yours > theirs ? 'Won' : 'Lost')) out.push(`"${said.at(-1)}"`);
+    }
+    meet(300, 20);
+    asked.at(-1).auto = undefined;   // you take command
+    run(ONE_SIDED.wait + 4);
+    if (!s.encounter) out.push('it settled itself though you had taken command');
     return out;
   }));
   await check('no portrait is asked for that is not painted', async () => {

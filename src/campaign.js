@@ -20,7 +20,7 @@ import { addCopses, makeRiver, carveRiver, pickWeather } from './battlefield.js'
 import { landMask, drawCover } from './scenery.js';
 import { FieldView } from './fieldview.js';
 import { rng } from './noise.js';
-import { World, headcount, ownerOf, FACTIONS, walledPlace, capWhy } from './world/world.js';
+import { World, headcount, ownerOf, FACTIONS, walledPlace, capWhy, ONE_SIDED } from './world/world.js';
 import { why } from './ui/why.js';
 import { fedAt, homeland, foodLeft, wagonFrom, sendWagon, cartsNear, escort, runCheck, sendRun, loadText, spareFood, winterAbroad, WINTER_EAT, CARRY } from './world/supply.js';
 import { worksAt, startWork, WORKS } from './world/works.js';
@@ -100,12 +100,22 @@ const bundles = new Map();              // place → its drawn village, made on 
 
 const hooks = {
   watching: () => (mode === 'town' ? current.poi : null),
-  ask: enc => { asks.push({ kind: 'encounter', enc }); },
+  // A fight with nothing in doubt is a notice, not a halt (World.oneSided); the rest are put to you.
+  ask: enc => { if (enc.auto !== undefined) oneSidedNotice(enc); else asks.push({ kind: 'encounter', enc }); },
+  settled: (enc, text, won) => { const n = notices.get(enc); if (n) n.settle(text, won); else notify(text, { good: won }); },
   townAttacked: p => {
     audio.play('horn'); // audio: horn
+    const here = mode === 'town' && current.poi === p, t = p.town;
+    // A band your men there outweigh many times over does not stop the game: a notice, and the way there if you want it.
+    const theirs = t.strength(t.lastRegs || []), ours = t.strength(t.garrison());
+    if (!here && ours >= theirs * ONE_SIDED.ratio) {
+      const n = (t.lastRegs || []).reduce((k, r) => k + r.alive, 0);
+      notify(`${n} men attack ${p.name}; your garrison there far outweighs them.`, { button: 'Take command', run: () => enterTown(p), secs: 12 });
+      return;
+    }
     // A raid at 4× can be over in six real seconds: drop to 1× and say so (QC round 3).
     if (speed > 1) { speed = 1; flash(`${p.name} is attacked: the game drops to normal speed.`); }
-    if (!(mode === 'town' && current.poi === p)) asks.push({ kind: 'alarm', poi: p });
+    if (!here) asks.push({ kind: 'alarm', poi: p });
   },
   fell: p => {
     if (mode === 'town' && current.poi === p) showWorld();
@@ -936,6 +946,62 @@ function levyLine(a) {
   return ` · ${n} levies home in ${Math.max(1, Math.ceil((t - world.time) / 60))} min`;
 }
 
+// ---- notices ----
+// Small cards above the toast that do not stop the game: a line, and perhaps one button. `secs`: real seconds a
+// card with nothing pending stays. A one-sided fight's card waits as long as the fight does (World.oneSided).
+const notices = new Map();   // encounter → its card
+function notify(text, { button = null, run = null, secs = 7, good = true } = {}) {
+  let box = $('notices');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'notices';
+    box.style.cssText = 'position:fixed;bottom:250px;left:50%;transform:translateX(-50%);z-index:30;display:flex;flex-direction:column;gap:6px;align-items:center;zoom:var(--hud)';
+    document.body.append(box);
+  }
+  const el = document.createElement('div'), line = document.createElement('span');
+  el.style.cssText = 'display:flex;gap:12px;align-items:center;max-width:min(560px,calc(100vw - 32px));padding:6px 12px;background:var(--panel);border:1px solid var(--edge);border-radius:8px;color:var(--ink);font-size:13px';
+  line.textContent = text;
+  el.append(line);
+  let timer = null;
+  const card = {
+    el,
+    close: () => { clearTimeout(timer); el.remove(); },
+    settle: (words, won) => { line.textContent = words; el.querySelector('button')?.remove(); el.style.borderColor = won ? 'var(--good)' : 'var(--bad)'; clearTimeout(timer); timer = setTimeout(card.close, 7000); },
+  };
+  if (button) {
+    const b = document.createElement('button');
+    b.textContent = button;
+    b.style.flex = 'none';
+    b.onclick = () => { card.close(); run(); };
+    el.append(b);
+  }
+  if (secs) timer = setTimeout(card.close, secs * 1000);
+  box.append(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  return card;
+}
+function oneSidedNotice(enc) {
+  const o = world.autoOdds(enc), where = enc.poi ? enc.poi.name : 'the road';
+  const text = enc.kind === 'assault'
+    ? `${enc.army.name} (${o.us}) comes on ${where}, held by ${o.them}: it will settle itself.`
+    : `${enc.army.name} (${o.us}) meets ${enc.enemy.name.replace(/^The /, 'the ')} (${o.them}) at ${where}: it will settle itself.`;
+  const card = notify(text, { button: 'Take command', secs: 0, run: () => {
+    notices.delete(enc);
+    if (world.encounter !== enc || mode === 'field') return;
+    enc.auto = undefined;
+    if (enc.kind === 'assault') { world.storm(enc); enterTown(enc.poi); } else startField(enc);
+  } });
+  notices.set(enc, card);
+}
+// Cards whose fight is over, however it ended, go.
+function tickNotices() {
+  for (const [enc, card] of notices) {
+    if (world.encounter === enc && enc.auto !== undefined) continue;
+    notices.delete(enc);
+    if (card.el.querySelector('button')) card.close();   // (a settled card says how it went, and goes by itself)
+  }
+}
+
 function flash(text, good = false) {
   const t = $('toast');
   for (const line of $('log').children) if (line.textContent === text) line.remove();   // said once, below
@@ -1481,6 +1547,7 @@ function frame(now) {
   }
   if (mode === 'world') labels.hide();
   topBar();
+  tickNotices();
   news.tick(world);
   goals();
   goalNudge();
