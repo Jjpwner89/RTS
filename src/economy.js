@@ -3154,27 +3154,53 @@ export class Town {
     const face = Math.atan2(-entry.x, -entry.z);
     const added = [];
     for (const sp of specs) {
-      const from = [];
-      for (let i = 0; i < sp.count; i++) from.push({ x: entry.x + (this.rand() - 0.5) * 14, z: entry.z + (this.rand() - 0.5) * 14 });
       const fit = carry(sp);
-      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, from, xp: sp.xp || 0, ...fit });
+      const r = this.battle.addRegiment(0, sp.key, entry.x, entry.z, face, { count: sp.count, name: sp.name, xp: sp.xp || 0, ...fit });
       added.push(r);
       Object.assign(r, fit);
       if (this.underAttack && !this.hostile) r.relief = true;   // arrived while the village was being raided: help the raiders can see coming
       r.levy = sp.levy || null;
       r.retinue = !!sp.retinue;
       r.elite = !!sp.elite;
-      if (r.levy) {
-        r.soldiers.forEach(s => {
-          const v = this.addVillager(s.x, s.z);
-          v.state = 'soldier'; v.soldier = s; s.villager = v; v.xp = sp.xp || 0;
-        });
+    }
+    // up the road toward the keep, to form up together beside it (`formUp`); the quickest are given
+    // the front lines, so none has to march through a slower one
+    const pace = r => this.battle.gaitPace(r) * this.battle.paceOf(r);
+    this.formUp([...added].sort((a, b) => pace(b) - pace(a)), angle, standAt);
+    if (parade) lineUp(this, added, angle);
+    else this.comeIn(added, angle);
+    added.forEach((r, i) => {
+      if (r.levy) r.soldiers.forEach(s => {
+        const v = this.addVillager(s.x, s.z);
+        v.state = 'soldier'; v.soldier = s; s.villager = v; v.xp = specs[i].xp || 0;
+      });
+    });
+    return added;
+  }
+
+  // An army coming in by road starts with every regiment in its own block, set out as the ground it is
+  // making for is (formUp), only further out toward the road's end: they come in side by side and no two
+  // ever stand on each other (creator, 2026-11-23: five regiments came in as one knot on the road). Where
+  // others still stand out that way, they start nearer in, clear of them.
+  comeIn(regs, angle) {
+    const B = this.battle, sin = Math.sin(angle), cos = Math.cos(angle), face = angle + Math.PI;
+    const set = regs.filter(r => r.dest);
+    if (!set.length) return;
+    const end = Math.hypot(this.edgePoint(angle).x, this.edgePoint(angle).z);
+    // the block it will stand in, moved `d` m out, now facing the keep (so its front is the inner edge)
+    const at = (r, d) => { const back = this.block(r, 0, 0, 0).back - 1; return { x: r.dest.x + sin * (d - back), z: r.dest.z + cos * (d - back) }; };
+    const others = B.regs.filter(o => !regs.includes(o) && o.side === 0 && !o.gone).map(o => this.block(o, o.x, o.z, o.angle));
+    const clear = d => set.every(r => { const p = at(r, d); return this.blockPoints(this.block(r, p.x, p.z, face), 0.5).every(q => !others.some(o => this.inBlock(o, q, 1))); });
+    let d = Math.max(0, end - Math.max(...set.map(r => r.dest.x * sin + r.dest.z * cos)));
+    while (d > 0 && !clear(d)) d = Math.max(0, d - 4);
+    for (const r of set) {
+      const p = at(r, d);
+      Object.assign(r, { x: p.x, z: p.z, cx: p.x, cz: p.z, angle: face, via: null });
+      for (const s of r.soldiers) {
+        const q = B.slotPos(r, s.slot);
+        s.x = s.lx = q.x; s.z = s.lz = q.z; s.y = B.heightAt(s.x, s.z); s.yaw = face; s.vx = s.vz = s.v = 0;
       }
     }
-    // up the road toward the keep, to form up together beside it (`formUp`)
-    this.formUp(added, angle, standAt);
-    if (parade) lineUp(this, added, angle);
-    return added;
   }
 
   // A regiment's block standing at (x, z) facing `angle`: half its width, and how far its

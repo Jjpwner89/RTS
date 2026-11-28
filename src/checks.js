@@ -1422,6 +1422,46 @@ async function worldChecks(w) {
     return out;
   }));
 
+  // An army coming into your village keeps its regiments apart (creator, 2026-11-23: five came in as one knot).
+  await check('an army coming into your village: no two regiments on top of each other, on arrival, on the march in or standing', () => scratch(async make => {
+    const out = [], s = make();
+    const p = s.home, t = p.town, b = t.battle;
+    const host = [['cav', 20], ['knight', 10], ['sword', 20], ['sword', 11], ['archer', 20], ['spear', 40]].map(([key, count], i) => ({ key, count, name: `Test ${key} ${i}` }));
+    const mine = () => b.regs.filter(r => r.side === 0 && !r.gone && r.name.startsWith('Test '));
+    // the closest two men of different regiments
+    const nearest = regs => {
+      let best = [Infinity, ''];
+      for (let i = 0; i < regs.length; i++) for (let j = i + 1; j < regs.length; j++) for (const x of regs[i].soldiers) for (const y of regs[j].soldiers) {
+        const d = Math.hypot(x.x - y.x, x.z - y.z);
+        if (d < best[0]) best = [d, `${regs[i].name} and ${regs[j].name}`];
+      }
+      return best;
+    };
+    let clock = 0;
+    const run = secs => { for (let i = 0; i < secs * 20; i++) { b.step(0.05); t.update(0.05); if ((clock += 0.05) >= 1) { clock = 0; t.thinkAttackers(); } } };
+    const come = (units, name) => {
+      const a = s.spawnArmy(0, units.map(u => ({ ...u })), p.links[0], name, 'march');
+      a.last = p.links[0]; a.food = 0;
+      s.arrive(a, p, p.links[0]);
+    };
+    come(host, 'Test army');
+    if (mine().length !== host.length) return [`${mine().length} of ${host.length} regiments came in`];
+    let [d, who] = nearest(mine());
+    if (d < 1) out.push(`on arrival ${who} stand ${d.toFixed(2)} m apart`);
+    let worst = [Infinity, ''];
+    for (let k = 0; k < 40; k++) { run(5); const n = nearest(mine()); if (n[0] < worst[0]) worst = [n[0], `${n[1]} ${(k + 1) * 5} s in`]; if (mine().every(r => !r.dest)) break; }
+    if (worst[0] < 0.6) out.push(`on the march in ${worst[1]} came within ${worst[0].toFixed(2)} m`);
+    if (mine().some(r => r.dest)) out.push('200 s on, some had still not reached their places');
+    [d, who] = nearest(mine());
+    if (d < 1) out.push(`standing, ${who} are ${d.toFixed(2)} m apart`);
+    // and a second army hard on the heels of a first
+    for (const r of mine()) b.disband(r);
+    come(host.slice(0, 3), 'First'); run(1); come(host.slice(3), 'Second');
+    [d, who] = nearest(mine());
+    if (d < 1) out.push(`two armies together: ${who} arrive ${d.toFixed(2)} m apart`);
+    return out;
+  }));
+
   // The houses raise walls by your rules (Orchestrator, 2026-11-22): a palisade where a place is
   // threatened once it has the wood, stone at a seat with the stone and gold, at what yours cost,
   // built by its people over time; turtlers soon, raiders rarely.
