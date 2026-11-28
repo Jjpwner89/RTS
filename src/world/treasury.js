@@ -59,15 +59,15 @@ function paidOf(w, side) {
   for (const p of w.pois) {
     if (p.owner !== side || p.vassal) continue;
     if (p.town && !p.town.hostile) {
-      add(p.town.battle.regs.filter(r => r.side === 0 && !r.gone && r.alive > 0 && !r.until)
+      add(p.town.battle.regs.filter(r => r.side === 0 && !r.gone && r.alive > 0 && !r.until && r.vas === undefined)
         .map(r => ({ n: r.alive, key: r.T.key, name: r.name, elite: !!r.elite, pay: payOf(r.T.key, r.armour, r.elite), off: () => p.town.disband(r) })), p.name, HOME_GUARD);
     } else {
-      add(p.garrison.filter(u => !u.until).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { p.garrison = p.garrison.filter(o => o !== u); } })), p.name, HOME_GUARD);
+      add(p.garrison.filter(u => !u.until && u.vas === undefined).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { p.garrison = p.garrison.filter(o => o !== u); } })), p.name, HOME_GUARD);
     }
   }
   for (const a of w.armies) {
-    if (a.side !== side || a.gone || a.wagon || a.vassal) continue;   // (a vassal pays his own men)
-    add(a.units.filter(u => !u.until).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { a.units = a.units.filter(o => o !== u); } })), a.name, 0);
+    if (a.side !== side || a.gone || a.wagon) continue;
+    add(a.units.filter(u => !u.until && u.vas === undefined).map(u => ({ n: u.count, key: u.key, name: u.name, elite: !!u.elite, pay: payOf(u.key, u.armour, u.elite), off: () => { a.units = a.units.filter(o => o !== u); } })), a.name, 0);
   }
   return out;
 }

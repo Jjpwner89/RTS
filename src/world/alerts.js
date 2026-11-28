@@ -9,6 +9,7 @@ import { FACTIONS, headcount, seenAs } from './world.js';
 import { foodLeft } from './supply.js';
 import { living, opinion } from './vassals.js';
 import { armyStep } from './march.js';
+import { hostStatus } from './muster.js';
 
 const mins = s => s < 60 ? 'under a minute' : `${Math.round(s / 60)} min`;
 
@@ -78,6 +79,12 @@ export function alerts(w) {
     add(4, `${S.name}${S.men ? ` (${S.men})` : ''} ${raid ? 'raiding toward' : 'marching on'} ${to.name}, ${mins(eta)} away`, a, raid ? 'raid' : 'invader');
   }
 
+  // A host still gathering (specs/MUSTER.md): one line, not one a column.
+  for (const H of w.hosts || []) {
+    const S = hostStatus(w, H);
+    if (S.coming && S.at) add(1, `${H.name}: ${S.here} of ${S.here + S.coming} here, the rest in ${S.eta < 60 ? 'under a minute' : `about ${mins(S.eta)}`}`, S.at, 'crown');
+  }
+
   // Your own armies: storming, hungry.
   for (const p of w.pois) if (p.town?.hostile) add(3, `Your men are storming ${p.name}`, p, 'castle');
   for (const a of w.armies) {
@@ -106,7 +113,7 @@ export function alerts(w) {
 
   // Good to know: an army of yours standing idle away from home.
   for (const a of w.armies) {
-    if (a.gone || a.side !== 0 || a.wagon || a.path.length || !a.at || a.at.owner === 0) continue;
+    if (a.gone || a.side !== 0 || a.wagon || a.musterFor || a.parted || a.path.length || !a.at || a.at.owner === 0) continue;
     if (a.siege) { const p = w.byId[a.siege.p]; add(1, `${a.name} besieges ${a.at.name}${p?.siegeFood <= 0 ? ': it is starving' : ''}`, a, 'siege'); continue; }
     add(1, `${a.name} waits for orders at ${a.at.name}`, a, 'map');
   }

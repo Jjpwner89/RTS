@@ -10,7 +10,7 @@
 
 import { FACTIONS, power, headcount } from './world.js';
 import { housing, kits, takeKit, stewardSpare, AT_WORK } from './holdings.js';
-import { priceShare, glut, noteTrade } from '../economy.js';
+import { priceShare, glut, noteTrade, sameCall } from '../economy.js';
 import { workDone } from './works.js';
 import { rankOf } from './arriere.js';
 import { SLOW } from './march.js';
@@ -118,10 +118,10 @@ export function takeFood(town, n) {
 export function wound(a, before) {
   a.wounded = a.wounded || [];
   for (const u of before) {
-    const now = a.units.filter(o => o.key === u.key && o.name === u.name).reduce((n, o) => n + o.count, 0);
+    const now = a.units.filter(o => o.key === u.key && o.name === u.name && sameCall(o, u)).reduce((n, o) => n + o.count, 0);
     const lost = Math.max(0, u.count - now), n = Math.round(lost * 0.35);
     if (n < 1) continue;
-    const w = a.wounded.find(o => o.key === u.key && o.name === u.name);
+    const w = a.wounded.find(o => o.key === u.key && o.name === u.name && sameCall(o, u));
     if (w) w.count += n; else a.wounded.push({ ...u, count: n });
   }
 }
@@ -132,7 +132,7 @@ export function heal(a, share = 1) {
     const n = share >= 1 ? w.count : Math.min(w.count, Math.ceil(w.count * share));
     if (n < 1) continue;
     w.count -= n;
-    const u = a.units.find(o => o.key === w.key && o.name === w.name);
+    const u = a.units.find(o => o.key === w.key && o.name === w.name && sameCall(o, w));
     if (u) u.count += n;
     else { const { count, ...rest } = w; a.units.push({ ...rest, count: n }); }
   }

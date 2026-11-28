@@ -12,6 +12,7 @@
 // other's id) and look to you to judge it; the discontented band into one faction
 // (w.faction) with a demand, and rise if you refuse it. A vassal may be imprisoned
 // (v.prison) and later pardoned, landless (v.landless) until you give him a village.
+import { musterHost, musterRows } from './muster.js';
 import { worksPride } from './works.js';
 import { decreeOpinion, decreed } from './decrees.js';
 import { PAINTED } from './events.js';
@@ -237,13 +238,13 @@ export function yourMen(w) {
   if (menAt === w.time) return menMine;
   menAt = w.time;
   menMine = w.pois.filter(p => p.owner === 0 && !p.vassal).reduce((n, p) => n + (p.town ? p.town.garrison().reduce((k, r) => k + r.alive, 0) : (p.garrison || []).reduce((k, u) => k + u.count, 0)), 0)
-    + w.armies.filter(a => a.side === 0 && !a.wagon && !a.gone && !a.vassal).reduce((n, a) => n + a.units.reduce((k, u) => k + u.count, 0), 0);
+    + w.armies.filter(a => a.side === 0 && !a.wagon && !a.gone).reduce((n, a) => n + a.units.reduce((k, u) => k + (u.vas === undefined ? u.count : 0), 0), 0);
   return menMine;
 }
 export function powerOf(w, v) {
   const held = holdingsOf(w, v);
   const men = held.reduce((n, p) => n + (p.garrison || []).reduce((k, u) => k + u.count, 0), 0)
-    + w.armies.filter(a => a.vassal === v.id && !a.gone).reduce((n, a) => n + a.units.reduce((k, u) => k + u.count, 0), 0);
+    + w.armies.filter(a => !a.gone && a.side === 0).reduce((n, a) => n + a.units.reduce((k, u) => k + (u.vas === v.id ? u.count : 0), 0), 0);
   const people = held.reduce((n, p) => n + (p.eco?.pop || 0), 0);
   return { men, people: Math.round(people), gold: Math.floor(v.gold || 0), places: held.length, share: men / Math.max(20, yourMen(w)) };
 }
@@ -532,8 +533,9 @@ export function interact(w, v, act, arg) {
     return { ok: true, text: `${v.name} pays ${n} gold, with a sour face.` };
   }
   if (act === 'arms') {
-    const r = w.callToArms(v, arg || w.home);
-    return r.ok ? { ok: true, text: `${v.name} sends ${r.men} men to ${r.to.name}.` } : { ok: false, text: r.why };
+    // One vassal's share, mustered as any host is (world/muster.js).
+    const to = arg || w.home, r = musterHost(w, to, new Set([`vas:${v.id}`]));
+    return r.ok ? { ok: true, text: `${v.name} sends ${r.men} men to ${to.name}.` } : { ok: false, text: musterRows(w, to).find(x => x.key === `vas:${v.id}`)?.why || r.why };
   }
   if (act === 'seat' || act === 'unseat') {
     if (act === 'unseat') {

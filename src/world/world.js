@@ -8,7 +8,7 @@ import { makeVassal, vassalOf, holdingsOf, living, mark, remember as recall, opi
 import { tickCompanies, tickHousehold, companiesIn, MOOD as COMPANY_MOOD } from './companies.js';
 import { assignCaptain, releaseCaptain, tickRansoms, captainOf } from './captains.js';
 import { seedEconomy, runEconomy, buyFood, housing, kits, arm, feedMen, standDown, AT_WORK, keepAtWork, pressedAt, fromTown, burn, stores, report, worth, WEALTH } from './holdings.js';
-import { Town, setWinter, winterFromUrl, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, armourWeight, power, HOPELESS, LEVY_KINDS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
+import { Town, setWinter, winterFromUrl, devTax, noteTrade, settleTrade, MARKET_DUES, DRILLED, trainsAt, canShield, gearOf, carry, marks, sameCall, armourWeight, power, HOPELESS, LEVY_KINDS, value, outfit, outfitKit, ARMOUR_GOOD, baseArmour, weaponKit } from '../economy.js';
 import { rng } from '../noise.js';
 import { thinkAI, thinkSiegeAttack } from '../ai.js';
 import { ground, layPlace, layoutOf, walledPlace, remember, grownLevels, keepLevelFor } from './places.js';
@@ -25,6 +25,7 @@ import { tickWorks, cathedralRule, cathedralDone, workDone } from './works.js';
 import { tickDecrees, decreeMood, decreed } from './decrees.js';
 import { MARCH_LIVE, armyStep } from './march.js';
 import { tickArriere, rankOf, banArrived, unmarked } from './arriere.js';
+import { hostArrive, gatherIn, hostEntered, partedArrive, pruneHosts } from './muster.js';
 import * as ban from './ban.js';
 import { callHeard, sendRelief } from './threat.js';
 import { RELIEF, hostsFor, summary as reliefSummary, warnRelief, chase, addLoot, arriveHome, takeBack, breaksOff } from './relief.js';
@@ -58,7 +59,10 @@ const NEWS_MEN = 300, CHRON_MEN = 600;
 // one every twelve), and families settle in its houses as they do in yours.
 const SMITHY = 1 / 90, ARRIVALS = 1 / 18;
 const LORD_HERE = 8;          // mood in the village where your lord is
-const BANNER_GUARD = 20;      // men every village keeps home when the banners are called
+export const BANNER_GUARD = 20;      // men every village keeps home when the banners are called
+// Which regiments a village keeps first: those that must stay, then bows and spears before horse; the retinue last.
+const KEEP = ['crossbow', 'archer', 'spear', 'sword', 'maa', 'lightcav', 'cav', 'knight'];
+export const keepRank = c => (c.stays ? -1 : c.retinue ? 99 : KEEP.includes(c.key ?? c.T?.key) ? KEEP.indexOf(c.key ?? c.T.key) : 50);
 const KNIGHT_LEVEL = 3;       // a captain of this level may be knighted with a village
 const LADIES = new Set(['Ada', 'Bryony', 'Elswyth', 'Gunnora', 'Hawise', 'Joan', 'Mabel']);
 const SIEGE_MEAL = 160;       // seconds a unit of food feeds one mouth in a besieged place
@@ -276,7 +280,7 @@ export class World {
       if (!theirs) continue;
       if (a.siege) this.liftSiege(a, this.byId[a.siege.p]);
       if (this.encounter && (this.encounter.army === a || this.encounter.enemy === a)) this.encounter = null;
-      a.joins = a.wing = a.meets = a.chasing = a.gather = null;
+      a.joins = a.wing = a.meets = a.chasing = null;
       if (a.side === 0) this.log(`${a.name} break off and make for home: you are at peace with ${FACTIONS[foe].name}.`);
       else if (foe === 0) this.log(`${a.name} break off and march home.`);
       this.retreat(a);
@@ -629,7 +633,7 @@ export class World {
     a.target = dest;
     a.at = null;
     // A march of yours abroad in winter says what it will cost (supply.js WINTER_EAT).
-    if (a.side === 0 && this.winter && !a.wagon && a.food > 0 && a.winterTold !== Math.floor(this.time / 1200) && !homeland(this, { side: 0, x: dest.x, z: dest.z })) { a.winterTold = Math.floor(this.time / 1200); this.log(`${a.name} marches in winter: your men eat half again as much outside your lands, so its food lasts about ${Math.max(1, Math.round(a.food / (mouths(a) * EAT * WINTER_EAT * 60)))} min there.`); }
+    if (a.side === 0 && this.winter && !a.wagon && !a.musterFor && !a.parted && a.food > 0 && a.winterTold !== Math.floor(this.time / 1200) && !homeland(this, { side: 0, x: dest.x, z: dest.z })) { a.winterTold = Math.floor(this.time / 1200); this.log(`${a.name} marches in winter: your men eat half again as much outside your lands, so its food lasts about ${Math.max(1, Math.round(a.food / (mouths(a) * EAT * WINTER_EAT * 60)))} min there.`); }
     return true;
   }
 
@@ -649,11 +653,16 @@ export class World {
     if (a.path.length && (a.side !== 0 || a.retreating) && to.owner === null && a.target !== to) return;
     a.at = to;
     this.arrive(a, to, came);
+    gatherIn(this, a);   // a host's columns waiting where its army halts fall in (muster.js)
   }
 
   arrive(a, p, came) {
     a.path = [];
     a.retreating = false;
+    // Men of yours going home after a host is disbanded, and columns on their way to join one.
+    if (a.side === 0 && a.parted && p.owner === 0) return partedArrive(this, a, p);
+    if (a.side === 0 && a.musterFor && !p.town?.hostile && (p.owner === 0 || !this.canAttack(0, p))) return hostArrive(this, a, p);
+    if (a.side === 0) a.musterFor = a.parted = null;
     // Sent to march with a partner's host (rivals.js joinMarch): it waits outside the muster,
     // and outside the place they march on until the host comes; with no host coming, home.
     if (a.joins && (p.id === a.joins.from || p.id === a.joins.to)) {
@@ -682,13 +691,7 @@ export class World {
       if (a.loot) arriveHome(this, a, p);
       banArrived(this, a.units);   // levies' time starts here (arriere.js)
       if (a.side !== 0) { mergeInto(p.garrison, a.units.map(unmarked)); this.removeArmy(a); }
-      else if (p.town) { a.gather = null; this.enterTown(a, p, came); }
-      else if (a.gather === p.id) {
-        // Called to gather here: the armies already waiting take it in.
-        a.gather = null;
-        const o = this.armies.find(x => x !== a && x.side === 0 && !x.gone && !x.wagon && x.at === p && !x.path.length && !x.halted);
-        if (o) this.join(o, a);
-      }
+      else if (p.town) this.enterTown(a, p, came);
       return;
     }
     // Sent to join a partner's host (rivals.js meetHost), it waits outside its place, and its
@@ -721,21 +724,23 @@ export class World {
   // A partner's men waiting outside p for host a (rivals.js joinMarch).
   joinersOf(a, p) { return this.armies.filter(x => x !== a && !x.gone && !x.retreating && x.joins?.host === a.id && x.joins.to === p.id && x.at === p && !x.path.length); }
 
-  enterTown(a, p, came) {
+  enterTown(a, p, came, quiet = false) {
     heal(a);
     if (a.food > 0) p.town.put(p.town.keep, 'food', Math.floor(a.food));
-    p.town.addTroops(a.units, this.angle(p, came === p ? p.links[0] : came));
+    p.town.addTroops(a.units, this.angle(p, came === p ? p.links[0] : came || p.links[0]));
     this.removeArmy(a);
-    this.log(`Your army has marched into ${p.name}.`);
+    if (quiet) return;
+    hostEntered(this, a.units, p);
+    this.log(`${a.units.some(u => u.hostId !== undefined) ? a.name : 'Your army'} has marched into ${p.name}.`);
   }
 
-  // Call the banners (ruling, 2026-11-21): your villages send their spare men and your
+  // The banners (ruling, 2026-11-21): your villages send their spare men and your
   // vassals their share, and nothing else. An army already in the field is never pulled
   // in, and every village keeps its guard: the men on its walls, its militia, and at
   // least BANNER_GUARD men in all, bows and spears first. Each barracks also raises what
   // it can arm, keeping half its people at work (a third under the levy decree).
-  // bannerPlan works out who would come without moving anyone, so the call can be
-  // shown before it is made; callBanners carries out that same plan.
+  // bannerPlan works out who would come without moving anyone: the one reckoning the Muster
+  // shows and carries out (world/muster.js).
   // Places a column may march through on its way to your banners: your own, and those of
   // anyone you are not at war with. Never through a free or enemy place, which would stop
   // it and set it on alone.
@@ -747,8 +752,6 @@ export class World {
   bannerPlan(dest) {
     // (the strongest levies first; never a trained kind: economy.js LEVY_KINDS)
     const BEST = [...LEVY_KINDS].sort((a, b) => value(b) - value(a));
-    const KEEP = ['crossbow', 'archer', 'spear', 'sword', 'maa', 'lightcav', 'cav', 'knight'];
-    const rankOf = c => c.stays ? -1 : c.retinue ? 99 : KEEP.includes(c.key) ? KEEP.indexOf(c.key) : 50;
     const plan = { dest, villages: [], vassals: [], men: 0, raised: 0, from: 0, guard: BANNER_GUARD };
     for (const p of this.pois) {
       const t = p.town;
@@ -770,9 +773,10 @@ export class World {
       }
       const men = r => r.soldiers.filter(s => s.alive && !s.gone).length;
       const all = [
-        ...t.garrison().map(r => ({ reg: r, key: r.T.key, men: men(r), retinue: !!r.retinue, stays: !!(r.posts || r.T.militia || r.routing || r.regrouping) })),
+        // (a host's regiments are its own: they stay where they are, and count toward the guard)
+        ...t.garrison().map(r => ({ reg: r, key: r.T.key, men: men(r), retinue: !!r.retinue, stays: !!(r.posts || r.T.militia || r.routing || r.regrouping || r.hostId !== undefined) })),
         ...raise.map(l => ({ levy: l, key: l.key, men: l.n })),
-      ].filter(c => c.men > 0).sort((x, y) => rankOf(x) - rankOf(y));
+      ].filter(c => c.men > 0).sort((x, y) => keepRank(x) - keepRank(y));
       const v = { p, raise, raised: raise.reduce((n, l) => n + l.n, 0), keep: 0, keptLevies: 0, send: [], men: 0, retinue: 0 };
       // The retinue is the lord's own household, not the village's guard: it always answers
       // (Manager, 2026-11-21: on the Lord test the guard of 20 kept it home, and the call
@@ -806,62 +810,10 @@ export class World {
     return plan;
   }
 
-  callBanners(dest) {
-    const plan = this.bannerPlan(dest), safe = this.friendlyRoad();
-    let men = 0, from = 0;
-    const staged = [];   // [army, its village] with no friendly road to dest
-    for (const v of plan.villages) {
-      const t = v.p.town;
-      for (const l of v.raise) l.reg = t.raise(l.key, l.b).reg;
-      const regs = v.send.map(c => c.reg || c.levy.reg).filter(r => r && !r.gone);
-      if (!regs.length) continue;
-      const a = this.muster(v.p, regs);
-      if (!a) continue;
-      a.name = `Banners of ${v.p.name}`;
-      if (!this.order(a, dest, safe)) { staged.push([a, v.p]); continue; }
-      men += headcount(a.units);
-      from++;
-    }
-    const { stage, cut, there: gathered } = this.stageColumns(staged, dest);
-    let there = gathered;
-    for (const { v, p, refusing, kin } of plan.vassals) {
-      if (refusing) { this.log(kin ? `${v.name} won't march against their spouse's kin, ${kin.name}: nobody from ${p.name}.` : `${v.name} sends nobody from ${p.name}.`, 1); continue; }
-      let n = this.vassalMen(v, p, dest);
-      if (n) { men += n; from++; continue; }
-      if (stage && p !== stage && (n = this.vassalMen(v, p, stage))) there += n;
-    }
-    if (from || !there) this.log(from ? `The banners are called: ${men} men march for ${dest.name} from ${from} place${from > 1 ? 's' : ''}, to join ${plan.here} there.` : `The banners are called, but no other place has men to spare. ${plan.here} stand ready at ${dest.name}.`);
-    if (there) this.log(`No road through friendly land reaches ${dest.name} from every place: ${there} men gather at ${stage.name} instead. Muster them there and march as one host.`, 1);
-    if (cut.length) this.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their men stay' : 'its men stay'} at home.`, 1);
-    callHeard(this, 0, dest, { kind: 'banners' });   // the houses around you hear of it (threat.js)
-    return { men, from, there, stage };
-  }
-
-  // Columns with no friendly road to dest gather instead at the place of yours that most
-  // of them can reach through friendly land, nearest dest: one host, not a string of
-  // small ones each stopped and beaten at the first enemy place on the way. staged holds
-  // [army, its place]; those that reach no stage wait at home (cut, by place name).
-  // The banners and the arrière-ban (arriere.js) both gather this way.
-  stageColumns(staged, dest) {
-    const safe = this.friendlyRoad(), cut = [];
-    let stage = null, there = 0;
-    if (staged.length) {
-      const reach = q => staged.filter(([a]) => a.at === q || Number.isFinite(this.route(a.at, q, safe).length)).length;
-      stage = this.pois.filter(q => q.owner === 0 && q !== dest && q.town && !q.town.hostile)
-        .map(q => [q, reach(q), this.route(q, dest).length]).sort((x, y) => y[1] - x[1] || x[2] - y[2])[0]?.[0] || null;
-      for (const [a, p] of staged) {
-        if (stage && p === stage) { this.waitAt(a, p); there += headcount(a.units); continue; }
-        if (stage && this.order(a, stage, safe)) { there += headcount(a.units); continue; }
-        this.waitAt(a, p);
-        cut.push(p.name);
-      }
-    }
-    return { stage, there, cut };
-  }
   // An army waits at a place of yours: inside its village, or in its garrison if it has none.
   waitAt(a, p) {
     banArrived(this, a.units);   // (a stage counts as the muster, arriere.js)
-    if (p.town) return this.enterTown(a, p, p);
+    if (p.town) return this.enterTown(a, p, p, true);
     mergeInto(p.garrison, a.units);
     this.removeArmy(a);
   }
@@ -879,48 +831,32 @@ export class World {
       .map(u => ({ ...unit(u.key, u.count, `${p.name} ${TYPES[u.key].name.toLowerCase()}`), ...gearFields(u) }));
   }
 
-  // A vassal's share of the men at one of their places marches for dest, as an army of
-  // yours that remembers whose men they are (a.vassal). Returns how many went.
+  // A vassal's share of the men at one of their places marches for dest, a column of your host
+  // (world/muster.js), each man marked as theirs (vas). Returns how many went.
   // A vassal raises a host for the call as a house does (Orchestrator, 2026-11-22): the same
-  // share of the people his place can spare from work, armed from its own stores, marches too.
-  vassalMen(v, p, dest) {
-    const units = [...takeUnits(p.garrison, this.vassalWant(v, p)), ...this.vassalDraft(v, p)];
+  // share of the people their place can spare from work, armed from its own stores, marches too.
+  vassalMen(v, p, dest, hostId) {
+    const units = [...takeUnits(p.garrison, this.vassalWant(v, p)), ...this.vassalDraft(v, p)].map(u => ({ ...u, hostId, src: p.id, vas: v.id }));
     if (!units.length) return 0;
-    const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
-    a.vassal = v.id;
     const n = headcount(units);
-    if (!this.order(a, dest, this.friendlyRoad())) { mergeInto(p.garrison, units); this.removeArmy(a); return 0; }
+    if (p === dest) { mergeInto(p.garrison, units); return n; }
+    const a = this.spawnArmy(0, units, p, `${v.name}'s men`);
+    a.musterFor = hostId;
+    if (!this.order(a, dest, this.friendlyRoad())) { console.warn(`[muster] no road from ${p.name} to ${dest.name}: ${v.name}'s men stay`); for (const u of units) { delete u.hostId; delete u.src; delete u.vas; } mergeInto(p.garrison, units); this.removeArmy(a); return 0; }
     v.sent += n;
-    recall(this, v, `Sent ${n} men to your banners at ${dest.name}`);
     return n;
-  }
-
-  // One vassal called to arms: their share of men from every place they hold marches to
-  // dest. Called again too soon they grumble, unless they want a war.
-  callToArms(v, dest) {
-    if (!v || v.gone || v.prison || v.landless) return { ok: false, why: 'Holds no land to raise men from' };
-    if (v.refusing) return { ok: false, why: `${v.name} refuses to send anyone` };
-    const kin = kinWar(this, v);
-    if (kin) return { ok: false, why: `${v.name} won't march against their spouse's kin, ${kin.name}` };
-    if (!dest || dest.owner !== 0) return { ok: false, why: 'Call them to a place of yours' };
-    let men = 0;
-    for (const p of holdingsOf(this, v)) if (p !== dest) men += this.vassalMen(v, p, dest);
-    if (!men) return { ok: false, why: 'They have too few men to spare' };
-    if (v.want !== 'glory' && this.time - (v.calledAt ?? -1e9) < 600) mark(this, v, -6, 'Called to arms again so soon', 900);
-    v.calledAt = this.time;
-    this.log(`${v.name} answers your call: ${men} men march for ${dest.name}.`);
-    return { ok: true, men, to: dest };
   }
 
   // Two armies of yours waiting at the same place become one, up to the cap: men beyond it
   // stay in b, which stays an army of its own. Returns how many moved.
-  join(a, b) {
+  // `quiet`: columns of a host falling in with it say nothing (world/muster.js).
+  join(a, b, quiet = false) {
     const add = u => {
-      const same = a.units.find(o => o.key === u.key && o.name === u.name && sameGear(o, u));
+      const same = a.units.find(o => o.key === u.key && o.name === u.name && sameGear(o, u) && sameCall(o, u) && (o.levy || null) === (u.levy || null));
       if (same) { same.xp = Math.round(((same.xp || 0) * same.count + (u.xp || 0) * u.count) / Math.max(1, same.count + u.count) * 10) / 10; same.count += u.count; same.battles = Math.max(same.battles || 0, u.battles || 0); } else a.units.push({ ...u });
     };
     const room = this.armyCap - headcount(a.units), all = headcount(b.units);
-    if (room <= 0) { this.log(`${a.name} is full. ${capWhy(this.rank)}`, 1); return 0; }
+    if (room <= 0) { if (!quiet) this.log(`${a.name} is full. ${capWhy(this.rank)}`, 1); return 0; }
     if (all > room) {
       const moved = [];
       let k = room;
@@ -930,7 +866,7 @@ export class World {
       b.food = (b.food || 0) - food;
       a.food = (a.food || 0) + food;
       for (const u of moved) add(u);
-      this.log(`${room} of ${b.name} join ${a.name}: ${headcount(a.units)} men, the most it may hold. ${all - room} stay with ${b.name}.`);
+      this.log(`${room} of ${b.name} join ${a.name}: ${headcount(a.units)} men, the most it may hold. ${all - room} stay with ${b.name}.`, quiet ? 1 : 0);
       return room;
     }
     for (const u of b.units) add(u);
@@ -941,40 +877,29 @@ export class World {
     const ca = this.captains.find(c => c.id === a.captain), cb = this.captains.find(c => c.id === b.captain);
     if (cb && (!ca || cb.xp > ca.xp)) { if (ca) ca.army = null; a.captain = cb.id; cb.army = a.id; b.captain = null; }
     else if (!ca) assignCaptain(this, a);
-    this.log(`${b.name} joins ${a.name}: ${headcount(a.units)} men.`);
+    if (!quiet) this.log(`${b.name} joins ${a.name}: ${headcount(a.units)} men.`);
     this.removeArmy(b);
     return all;
-  }
-
-  // A duke plans campaigns from the map: every free army of yours marches to one place of
-  // yours and joins into one host there (in a village, they go inside, to march out as one).
-  gatherable(p) {
-    return this.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.halted && !a.retreating && !a.siege && !a.escort && a.at !== p && a.units.length);
-  }
-  gatherAt(p) {
-    if (!['Duke', 'King'].includes(this.rank) || p.owner !== 0) return 0;
-    let n = 0;
-    for (const a of this.gatherable(p)) if (this.order(a, p, this.friendlyRoad())) { a.gather = p.id; n++; }
-    if (n) this.log(`${n} ${n > 1 ? 'armies march' : 'army marches'} to gather at ${p.name}.`);
-    return n;
   }
 
   get armyCap() { return ARMY_CAP[this.rank]; }
 
   // Regiments leave a village of yours and become an army on the map, as many as one army of
-  // your rank may hold (ARMY_CAP); the rest stay in the village.
-  muster(p, regs) {
+  // your rank may hold (ARMY_CAP); the rest stay in the village. `quiet`: a column of a host
+  // (world/muster.js says one word for the whole call).
+  muster(p, regs, { quiet = false, name = null } = {}) {
     const cap = this.armyCap, size = r => r.alive ?? 0;
     let n = 0;
     const go = regs.filter(r => { if (n && n + size(r) > cap) return false; n += size(r); return true; });
     const left = regs.filter(r => !go.includes(r)).reduce((k, r) => k + size(r), 0);
     regs = go;
-    if (left) this.log(`${left} men stay at ${p.name}. ${capWhy(this.rank)}`, 1);
+    if (left && !quiet) this.log(`${left} men stay at ${p.name}. ${capWhy(this.rank)}`, 1);
     const units = p.town.takeTroops(regs);
     if (!units.length) return null;
-    const a = this.spawnArmy(0, units, p, `Army of ${p.name}`);
+    const a = this.spawnArmy(0, units, p, name || `Army of ${p.name}`);
     // The carts are loaded from the village stores, as far as they go.
     a.food = takeFood(p.town, capacity(a));
+    if (quiet) return a;
     const mins = Math.floor(a.food / Math.max(1, headcount(units)) * 2);
     if (mins < 1) this.log(`${a.name} has mustered ${headcount(units)} men, but ${p.name} has no food to load on the carts. Your villages will feed them in your own lands; beyond them they will desert within the minute, so send a wagon after them.`, 1);
     else this.log(`${a.name} has mustered: ${headcount(units)} men, with food for ${mins} minute${mins > 1 ? 's' : ''} beyond your lands.${this.winter ? ` Winter: your men eat half again as much outside your lands, so about ${Math.max(1, Math.floor(mins / WINTER_EAT))}.` : ''}`);
@@ -1359,6 +1284,7 @@ export class World {
     p.eco = null;
     town.addTroops(a.units, this.angle(p, a.last === p ? p.links[0] : a.last), { parade: true });   // a victory march (parade.js)
     this.removeArmy(a);
+    hostEntered(this, a.units, p);   // a host stays a host (muster.js)
     this.hooks.captured(p, was);
     this.checkBroken(was);
   }
@@ -1400,7 +1326,7 @@ export class World {
     if (owner === 0 && was !== null && was !== 0) for (const o of living(this)) {
       mark(this, o, 4, 'Your victories', 900);
       // Those whose men are in the field with you share the glory.
-      if (this.armies.some(a => a.vassal === o.id && !a.gone)) { o.glory = this.time; mark(this, o, 6, `Fought beside you for ${p.name}`, 1800); recall(this, o, `Fought beside you when you took ${p.name}`); }
+      if (this.armies.some(a => !a.gone && a.units.some(u => u.vas === o.id))) { o.glory = this.time; mark(this, o, 6, `Fought beside you for ${p.name}`, 1800); recall(this, o, `Fought beside you when you took ${p.name}`); }
     }
     if (was !== null && FACTIONS[was]?.seat === p) {
       // (its castle stays standing when the seat moves on: the place keeps the layout it has)
@@ -2000,7 +1926,7 @@ export class World {
     this.supplyClock = (this.supplyClock || 0) - dt;
     if (this.supplyClock <= 0) { this.supplyClock = 1; supplyArmies(this, 1); catchWagons(this, MEET); }
     this.ecoClock -= dt;
-    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickHousehold(this); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); tickArriere(this); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
+    if (this.ecoClock <= 0) { this.ecoClock = 5; this.tickHoldings(5); this.collectTaxes(5); this.tickSpies(); tickVassals(this, 5); tickCompanies(this, 5); tickHousehold(this); payElites(this, 5); tickMarkets(this, 5); tickEvents(this, 5); tickTrade(this, 5); tickWorks(this, 5); tickDecrees(this, 5); tickArriere(this); pruneHosts(this); this.tickSieges(5); if (Math.floor(this.time) % 30 < 5) tickRansoms(this); this.checkRank(); }
     this.reliefClock = (this.reliefClock || 0) - dt;
     if (this.reliefClock <= 0) { this.reliefClock = 5; warnRelief(this); }
     this.sightClock -= dt;
@@ -2434,7 +2360,7 @@ function lookouts(p) {
 
 // Men in different armour stay in different regiments (one level to a regiment).
 const sameGear = (a, b) => { const x = gearOf(a), y = gearOf(b); return x.armour === y.armour && x.shield === y.shield; };
-const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...(u.until ? { until: u.until } : {}), ...(u.home !== undefined ? { home: u.home } : {}), ...(u.src !== undefined && u.src !== null ? { src: u.src } : {}) });
+const gearFields = u => ({ ...(u.armour !== undefined || u.shield !== undefined ? gearOf(u) : {}), ...(u.battles ? { battles: u.battles } : {}), ...(u.xp ? { xp: u.xp } : {}), ...(u.elite ? { elite: true } : {}), ...marks(u) });
 
 export function mergeInto(garrison, units) {
   for (const u of units) recruit(garrison, u.key, u.count, u.name, null, gearFields(u));
@@ -2444,7 +2370,7 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
   const size = TYPES[key]?.count || 40;
   const like = { key, ...gear };
   while (n > 0) {
-    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && (u.until || 0) === (gear.until || 0) && (u.home ?? -1) === (gear.home ?? -1) && (u.src ?? -1) === (gear.src ?? -1));
+    let g = garrison.find(u => u.key === key && u.count < size && sameGear(u, like) && !!u.elite === !!gear.elite && sameCall(u, gear));
     if (!g) garrison.push(g = { ...unit(key, 0, name || `${house ? house.short + ' ' : ''}${(TYPES[key]?.name || key).toLowerCase()}`), ...gear, xp: 0 });
     const k = Math.min(n, size - g.count);
     if (gear.battles) g.battles = Math.max(g.battles || 0, gear.battles);
@@ -2460,7 +2386,7 @@ export function recruit(garrison, key, n, name, house, gear = {}) {
 // must stay (on the walls, militia, broken), then the fewest extra men that make up
 // `guard`, regiments being sent whole. `all` comes sorted best-to-keep first (bows and
 // spears before horse); a large garrison simply keeps in that order.
-function guardOf(all, guard) {
+export function guardOf(all, guard) {
   const keep = new Set(all.filter(c => c.stays));
   let need = guard - [...keep].reduce((n, c) => n + c.men, 0);
   const rest = all.filter(c => !c.stays);

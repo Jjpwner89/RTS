@@ -288,8 +288,13 @@ export const gearOf = u => ({ armour: u.armour ?? baseArmour(u.key ?? u.T?.key),
 // (r.battles, the short service record on its card).
 // An arrière-ban levy also carries the time it goes home (world/arriere.js).
 // An armed ban man also carries the place he came from (world/ban.js), so he goes home to it.
-// Men raised for a call carry their origin (src, a place's id; world/arriere.js, world/muster.js).
-export const carry = u => ({ ...gearOf(u), battles: u.battles || 0, ...(u.until ? { until: u.until } : {}), ...(u.home !== undefined ? { home: u.home } : {}), ...(u.src !== undefined && u.src !== null ? { src: u.src } : {}) });
+// Men raised for a call carry their host (hostId), the place they were raised from (src) and, a
+// vassal's, whose they are (vas): world/muster.js. marks() is the one list of what a man carries
+// beside his kit; sameCall says whether two units may be counted as one.
+export const MARKS = ['home', 'src', 'hostId', 'vas'];
+export const marks = u => { const o = u.until ? { until: u.until } : {}; for (const k of MARKS) if (u[k] !== undefined && u[k] !== null) o[k] = u[k]; return o; };
+export const sameCall = (a, b) => (a.until || 0) === (b.until || 0) && MARKS.every(k => (a[k] ?? null) === (b[k] ?? null));
+export const carry = u => ({ ...gearOf(u), battles: u.battles || 0, ...marks(u) });
 export { value };   // a man's worth (battle.js), what power() counts
 export const armourWeight = u => { const g = gearOf(u); return ARMOUR_WEIGHT[g.armour] / ARMOUR_WEIGHT[baseArmour(u.key)] * (canShield(u.key) && !g.shield ? 0.93 : 1); };
 // A band's or a garrison's strength, the sum auto-resolve and the attack ask reckon with (world.js).

@@ -4245,13 +4245,35 @@ function marchIn(s, secs = 30) {
   }
 }
 
+// The same world with your places as villages, each with spare men under arms (and bows to levy at one),
+// and, with `vassal`, the last of them held for you by a vassal.
+async function hostWorld(fn, { more = 3, vassal = true } = {}) {
+  return musterWorld(more, (make, FACTIONS) => fn(() => {
+    const s = make(), [home, ...others] = s.held;
+    s.notices = [];
+    s.hooks = new Proxy({ watching: () => null, notice: t => s.notices.push(t) }, { get: (o, k) => (k in o ? o[k] : () => {}) });
+    others.forEach(p => {
+      p.eco.pop = 60;
+      const a = s.spawnArmy(0, [{ key: 'spear', count: 30, name: 'Spears' }, { key: 'archer', count: 24, name: 'Bows' }], p, 'Settlers');
+      s.capture(p, a, 'yielded', []);
+    });
+    if (vassal) s.grant(others.at(-1), null);
+    s.rankSeen = s.rank;
+    s.logs.length = 0;
+    return s;
+  }, FACTIONS));
+}
+const HOSTMEN = async s => { const M = await import('./world/muster.js'); return [...M.yours(s)].filter(x => !x.wounded && x.u.hostId !== undefined); };
+const sizes = list => list.reduce((n, x) => n + (x.u.count ?? x.u.alive), 0);
+
 async function musterChecks() {
   const A = await import('./world/arriere.js'), { headcount } = await import('./world/world.js');
   group = 'Muster';
-  await check('the ban is kept per place: calling one leaves the next ready; its clock starts on arrival, or five minutes on; sent home, it rests', () => musterWorld(3, make => {
+  await check('the ban is kept per place: calling one leaves the next ready; its clock starts on arrival, or five minutes on; sent home, it rests', () => musterWorld(3, async make => {
     const s = make(), out = [], [home, B, C] = s.held, R = A.ARRIERE, per = R.per[s.rank], of = p => A.yourLevies(s).filter(u => u.src === p.id);
     const men = p => of(p).reduce((n, u) => n + (u.count ?? u.alive), 0);
-    const first = A.callArriere(s, home, [B]);
+    const M = await import('./world/muster.js'), call = (at, p) => M.musterHost(s, at, new Set([`ban:${p.id}`]));
+    const first = call(home, B);
     if (!first.ok) return [`calling ${B.name} was refused: ${first.why}`];
     if (men(B) !== per) out.push(`${B.name} sent ${men(B)} men, not ${per}`);
     if (A.banState(s, B).is !== 'out') out.push(`${B.name} is ${A.banState(s, B).is} after being called`);
@@ -4260,7 +4282,7 @@ async function musterChecks() {
     marchIn(s, 40);
     if (of(B).some(u => Math.abs(u.until - s.time - R.serve) > 1e-6)) out.push(`on arrival its time left is ${of(B).map(u => Math.round(u.until - s.time))}, not ${R.serve}`);
     if (Math.abs(A.banState(s, B).secs - R.serve) > 1e-6) out.push(`${B.name} reads ${Math.round(A.banState(s, B).secs)} s to go, its men ${R.serve}`);
-    const second = A.callArriere(s, home, [home]);
+    const second = call(home, home);
     if (!second.ok || of(home).some(u => Math.abs(u.until - s.time - R.serve) > 1e-6)) out.push('men called at the muster itself do not start their clock at once');
     A.sendBanHome(s, [B]);
     if (men(B)) out.push(`${men(B)} of ${B.name}'s men still serve after being sent home`);
@@ -4269,6 +4291,82 @@ async function musterChecks() {
     if (A.arrierePlan(s, home).places.some(p => p === B || p === home)) out.push('a place out or resting is offered again');
     s.time += R.rest + 1;
     if (A.banState(s, B).is !== 'ready') out.push(`${B.name} is not ready after its rest`);
+    return out;
+  }));
+  const M = await import('./world/muster.js');
+  const picksOf = (s, home, groups) => new Set(M.musterRows(s, home).filter(r => r.ok && groups.includes(r.group)).map(r => r.key));
+  const MIX = ['here', 'villages', 'vassals', 'ban'];
+  await check('the plan\'s total is what the call raises, in men and gold: banners, the ban and a mix', () => hostWorld(async (make) => {
+    const out = [];
+    for (const groups of [['villages', 'vassals'], ['ban'], MIX]) {
+      const s = make(), home = s.held[0], picks = picksOf(s, home, groups), P = M.musterPlan(s, home, picks);
+      const { FACTIONS } = await import('./world/world.js'), gold = FACTIONS[0].gold;
+      if (!P.ok) { out.push(`${groups}: refused, ${P.why}`); continue; }
+      const r = M.musterHost(s, home, picks), got = sizes(await HOSTMEN(s));
+      if (got !== P.men || r.men !== P.men) out.push(`${groups}: the plan said ${P.men} men; ${got} bear the host's mark, the call says ${r.men}`);
+      if (Math.abs(gold - FACTIONS[0].gold - P.gold) > 1e-6) out.push(`${groups}: the plan said ${P.gold} gold; it cost ${gold - FACTIONS[0].gold}`);
+      for (const g of groups) if (!P.picked.some(x => x.group === g)) out.push(`the test world offers nothing in ${g}`);
+    }
+    return out;
+  }));
+  await check('one Muster is one host: every man of it marked, one log line and one notice, and March the host takes it out as one army', () => hostWorld(async make => {
+    const out = [], s = make(), home = s.held[0], r = M.musterHost(s, home, picksOf(s, home, MIX));
+    if (!r.ok) return [r.why];
+    if (s.logs.length !== 1) out.push(`${s.logs.length} log lines for one call: ${s.logs.map(l => l[0]).join(' | ')}`);
+    if (s.notices.length !== 1) out.push(`${s.notices.length} notices for one call`);
+    const ids = new Set((await HOSTMEN(s)).map(x => x.u.hostId));
+    if (ids.size !== 1) out.push(`${ids.size} host marks from one call`);
+    if (!s.armies.some(a => a.musterFor === r.host.id)) out.push('no column set out');
+    marchIn(s, 40);
+    if (s.armies.some(a => a.side === 0 && !a.gone && a.musterFor)) out.push('a column is still on its way after arriving');
+    if (s.logs.some(l => / marched into | joins /.test(l[0]))) out.push(`a column said so on arrival: ${s.logs.map(l => l[0]).join(' | ')}`);
+    const after = sizes(await HOSTMEN(s));
+    if (after !== r.men) out.push(`${r.men} mustered, ${after} still bear the mark once in`);
+    const st = M.hostStatus(s, r.host);
+    if (st.here !== r.men || st.coming) out.push(`it reads ${st.here} here and ${st.coming} coming of ${r.men}`);
+    const army = M.marchHost(s, r.host.id, home);
+    if (!army) return [...out, 'March the host gave no army'];
+    const others = s.armies.filter(a => a !== army && !a.gone && a.side === 0 && a.units.some(u => u.hostId === r.host.id));
+    if (others.length) out.push(`${others.length + 1} armies, not one`);
+    const n = army.units.reduce((k, u) => k + u.count, 0);
+    if (n !== Math.min(r.men, s.armyCap) && !(r.men > s.armyCap && n <= s.armyCap)) out.push(`the army holds ${n} of ${r.men}`);
+    if (army.name !== r.host.name) out.push(`the army is called ${army.name}`);
+    return out;
+  }));
+  await check('a host stays a host: it takes a place, marches on less the garrison left, is saved, and is disbanded home', () => hostWorld(async make => {
+    const out = [], s = make(), home = s.held[0], r = M.musterHost(s, home, picksOf(s, home, MIX));
+    marchIn(s, 40);
+    const army = M.marchHost(s, r.host.id, home), size = army.units.reduce((n, u) => n + u.count, 0);
+    const target = s.held.flatMap(p => p.links).find(q => q.owner !== 0 && q.kind !== 'camp' && q.eco);
+    if (!target) return ['no place beside yours to take in the test world'];
+    army.last = home;
+    s.capture(target, army, 'yielded', []);
+    const inTown = () => target.town.garrison().filter(g => g.hostId === r.host.id).reduce((n, g) => n + g.alive, 0);
+    if (inTown() !== size) out.push(`${size} went in, ${inTown()} bear the mark there`);
+    if (r.host.at !== target.id) out.push('the host is not reckoned to be where it went in');
+    const MP = M.marchPlan(s, r.host, target);
+    if (MP.stay < 20) out.push(`the default garrison is ${MP.stay} men, less than the guard`);
+    if (MP.men + MP.stay !== size) out.push(`${MP.men} to march and ${MP.stay} to stay of ${size}`);
+    const on = M.marchHost(s, r.host.id, target), n = on?.units.reduce((k, u) => k + u.count, 0);
+    if (n !== MP.men) out.push(`March the host on took ${n}, not ${MP.men}`);
+    if (s.armies.filter(a => !a.gone && a.side === 0 && a.units.some(u => u.hostId === r.host.id)).length !== 1) out.push('it marched on as more than one army');
+    // a save keeps every mark
+    const { snapshot, loadGame } = await import('./world/save.js');
+    const tally = async w2 => (await HOSTMEN(w2)).map(x => `${x.u.hostId}/${x.u.src ?? '-'}/${x.u.vas ?? '-'}/${x.u.until ? 'ban' : '-'}:${x.u.count ?? x.u.alive}`).sort().join(' ');
+    const before = await tally(s), s2 = loadGame(JSON.parse(JSON.stringify(snapshot(s))), s.hooks);
+    if (await tally(s2) !== before) out.push('a save and reload changed the marks');
+    if (!s2.hosts?.some(h => h.id === r.host.id && h.name === r.host.name && h.marched)) out.push('a save lost the host');
+    // disbanded: no mark left; the ban home at once, the rest on their way
+    const lv = (await HOSTMEN(s2)).filter(x => x.u.until).length;
+    const d = M.disbandHost(s2, r.host.id);
+    if (!d.ok) return [...out, d.why];
+    if ((await HOSTMEN(s2)).length) out.push('men still bear the mark after it was disbanded');
+    if (lv && A.yourLevies(s2).length) out.push('the ban still serves after the host was disbanded');
+    const going = s2.armies.filter(a => a.parted && !a.gone);
+    if (!going.length) out.push('nobody set out for home');
+    marchIn(s2, 400);
+    if (s2.armies.some(a => a.parted && !a.gone)) out.push('men going home never got there');
+    if ((s2.hosts || []).length) out.push('the disbanded host is still on the books');
     return out;
   }));
   await check('a house\'s ban is kept per place on the same rules: called nearest first, clock on arrival', () => musterWorld(0, (make, FACTIONS) => {

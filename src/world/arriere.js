@@ -71,7 +71,7 @@ export function musterPlace(w) {
   const mine = w.pois.filter(p => p.owner === 0 && p.kind !== 'camp' && !p.town?.hostile && !p.town?.underAttack && !p.town?.revolt);
   if (!mine.length) return w.home;
   const d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z), nearest = to => mine.reduce((b, p) => (d(p, to) < d(b, to) ? p : b));
-  const army = w.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !isLevyHost(a)).sort((a, b) => headcount(b.units) - headcount(a.units))[0];
+  const army = w.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.musterFor && !a.parted && !isLevyHost(a)).sort((a, b) => headcount(b.units) - headcount(a.units))[0];
   if (army) return nearest(army);
   // Outlaws are not a front.
   const foe = s => s !== null && s !== 0 && s !== w.bandits && w.atWar(0, s);
@@ -82,31 +82,19 @@ export function musterPlace(w) {
   return best;
 }
 
-// Each place's men march for dest by friendly roads; columns with no such road gather where
-// the banners would (World.stageColumns). Those called to dest itself go straight in.
-export function callArriere(w, dest, only = null) {
-  const plan = arrierePlan(w, dest, only);
-  if (!plan.ok) return { ok: false, why: plan.why };
-  FACTIONS[0].gold -= plan.gold;
-  const safe = w.friendlyRoad(), staged = [];
-  let men = 0, from = 0;
-  for (const p of plan.places) {
-    setOut(p, w.time + (p === dest ? 0 : ARRIERE.late) + ARRIERE.serve);
-    const units = banUnits(p, plan.per, `Arrière-ban of ${p.name}`, p.banState.until);
-    if (p === dest) { home(w, p, units); men += plan.per; continue; }
-    const a = w.spawnArmy(0, units, p, `Arrière-ban of ${p.name}`);
-    // Their carts are loaded from the place's stores, as far as they go; a vassal's feeds its own.
-    if (p.town) a.food = takeFood(p.town, capacity(a));
-    if (!w.order(a, dest, safe)) { staged.push([a, p]); continue; }
-    men += plan.per; from++;
-  }
-  const { stage, there, cut } = w.stageColumns(staged, dest);
-  w.log(`The arrière-ban is called for ${plan.gold} gold: ${men} men of the countryside make for ${dest.name}${from ? ` from ${from} place${from > 1 ? 's' : ''}` : ''}. They serve ${plan.mins} minutes from the day they arrive, then go home.`);
-  if (there) w.log(`No road through friendly land reaches ${dest.name} from every place: ${there} of the arrière-ban gather at ${stage.name} instead.`, 1);
-  if (cut.length) w.log(`No road through friendly land joins ${cut.join(', ')} to ${stage ? stage.name : dest.name}: ${cut.length > 1 ? 'their levies wait' : 'its levies wait'} at home.`, 1);
-  w.chron(`You called the arrière-ban: ${plan.men} men of the countryside.`);
-  callHeard(w, 0, dest, { kind: 'arriere' });   // the houses around you hear of it (threat.js)
-  return { ok: true, men, there, stage };
+// One place's call, for your host (world/muster.js): its men go straight in if the host gathers
+// there, else march for `to` by friendly roads as a column. Returns how many.
+export function banColumn(w, p, n, to, hostId) {
+  setOut(p, w.time + (p === to ? 0 : ARRIERE.late) + ARRIERE.serve);
+  const units = banUnits(p, n, `Arrière-ban of ${p.name}`, p.banState.until).map(u => ({ ...u, hostId }));
+  const men = headcount(units);
+  if (p === to) { home(w, p, units); return men; }
+  const a = w.spawnArmy(0, units, p, `Arrière-ban of ${p.name}`);
+  // Their carts are loaded from the place's stores, as far as they go; a vassal's feeds its own.
+  if (p.town) a.food = takeFood(p.town, capacity(a));
+  a.musterFor = hostId;
+  if (!w.order(a, to, w.friendlyRoad())) { console.warn(`[muster] no road from ${p.name} to ${to.name}: its levies wait at home`); a.musterFor = null; w.waitAt(a, p); }
+  return men;
 }
 
 // Send your levies of these places home now (or, `units` given, just those): they go as when

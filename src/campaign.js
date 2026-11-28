@@ -27,7 +27,9 @@ import { worksAt, startWork, WORKS } from './world/works.js';
 import { WARES, buyCheck, buy, isMarket, priceAt, elitePay } from './world/treasury.js';
 import { stageOf, STANCE } from './world/rivals.js';
 import { DECREES, decreeCheck, toggleDecree, canDecree } from './world/decrees.js';
-import { ARRIERE, arrierePlan, callArriere, musterPlace, banState } from './world/arriere.js';
+import { ARRIERE, arrierePlan, musterPlace, banState } from './world/arriere.js';
+import { musterHost, musterRows } from './world/muster.js';
+import { hostCards, hostClick } from './mustersheet.js';
 import { canSave, saveGame, exportCurrent, loadSlot, loadGame, clearSave, snapshot as saveData, markClean, lastSaved, unsaved, unsavedNotice } from './world/save.js';
 import { menu } from './ui/menu.js';
 import { TEST_RANKS, makeTestCampaign } from './world/testsaves.js';
@@ -102,6 +104,7 @@ const hooks = {
   watching: () => (mode === 'town' ? current.poi : null),
   // A fight with nothing in doubt is a notice, not a halt (World.oneSided); the rest are put to you.
   ask: enc => { if (enc.auto !== undefined) oneSidedNotice(enc); else asks.push({ kind: 'encounter', enc }); },
+  notice: text => notify(text),
   settled: (enc, text, won) => { const n = notices.get(enc); if (n) n.settle(text, won); else notify(text, { good: won }); },
   townAttacked: p => {
     audio.play('horn'); // audio: horn
@@ -214,6 +217,7 @@ function orderTo(p) {
   // Already waiting outside a place it may now attack (war declared since): attack it.
   if (selected.at === p && !selected.path.length && world.canAttack(0, p)) { world.arrive(selected, p); return; }
   if (!world.order(selected, p)) flash(selected.retreating ? 'They are falling back and will not turn yet.' : 'They are already there.');
+  else selected.musterFor = selected.parted = null;   // your order now: no longer a column of a muster (world/muster.js)
 }
 
 let worldView = new WorldView(stage, world);
@@ -962,12 +966,17 @@ function askBanners(dest) {
   lines.push(plan.men ? `In all, ${plan.men} men march for ${dest.name}, to join the ${plan.here} there. Armies in the field stay where they are.` : `Nobody has men to spare past their guard: ${plan.here} stand ready at ${dest.name}.`);
   const ok = plan.men > 0 || plan.raised > 0;
   asks.unshift({ kind: 'choice', ev: { title: `Call the banners to ${dest.name}`, text: lines.join(' '), at: dest, choices: [
-    { label: plan.men ? `Call them (${plan.men} men)` : 'Raise the levies', ok, why: 'No village or vassal has men to spare', run: () => { world.callBanners(dest); } },
+    { label: plan.men ? `Call them (${plan.men} men)` : 'Raise the levies', ok, why: 'No village or vassal has men to spare', run: () => { muster(dest, 'villages', 'vassals'); } },
     { label: 'Not now', ok: true, run: () => {} },
   ] } });
 }
 
 // The arrière-ban shows its men and its price before it is called (ruling, 2026-11-21).
+// (the rows of the Muster in these groups, called as one host)
+function muster(dest, ...groups) {
+  const r = musterHost(world, dest, new Set(musterRows(world, dest).filter(x => x.ok && groups.includes(x.group)).map(x => x.key)));
+  if (!r.ok) flash(r.why);
+}
 function askArriere(dest) {
   const P = arrierePlan(world, dest), n = P.places.length, f = x => x.toLocaleString('en-GB');
   const busy = P.all.filter(p => !P.places.includes(p)).map(p => { const s = banState(world, p); return `${p.name} (${s.is === 'out' ? 'out, home' : 'resting, again'} in ${Math.max(1, Math.ceil(s.secs / 60))} min)`; });
@@ -976,7 +985,7 @@ function askArriere(dest) {
     + `They serve ${P.mins} minutes from the day they reach the muster, then go home, and that place's countryside rests ${ARRIERE.rest / 60} minutes before it answers again.${busy.length ? `\n\nNot ready: ${busy.join(', ')}.` : ''}`
     : P.per ? `${P.why}.${busy.length ? ` ${busy.join(', ')}.` : ''}` : 'A reeve has no countryside to call. From the rank of Lord, every place you hold sends men from its fields.';
   asks.unshift({ kind: 'choice', ev: { title: `Call the arrière-ban to ${dest.name}`, text, at: dest, choices: [
-    { label: `Call ${f(P.men)} men for ${f(P.gold)} gold`, ok: P.ok, why: P.why, run: () => { const r = callArriere(world, dest); if (!r.ok) flash(r.why); } },
+    { label: `Call ${f(P.men)} men for ${f(P.gold)} gold`, ok: P.ok, why: P.why, run: () => { muster(dest, 'ban'); } },
     { label: 'Not now', ok: true, run: () => {} },
   ] } });
 }
@@ -1102,14 +1111,14 @@ function worldPanel() {
     else if (it.wagon?.house) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">A house's cart, bringing food (and sometimes arms) to a place of theirs that is short. Meet it on the road at war, and the food is yours.</p>`;
     else if (it.wagon?.run) el.innerHTML = `<h3>${ico('village')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Spare goods and a few families for another of your villages. A raider who meets it on the road seizes the lot; one of your armies can ride with it.</p>`;
     else if (it.wagon) el.innerHTML = `<h3>${ico('food')} ${it.name}</h3><p data-f="men"></p><p class="status" data-f="status"></p><p class="note">Wagons drive straight for their army. Enemy armies that meet one on the way take its food.</p>`;
-    else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p>`
+    else if (it.units) el.innerHTML = `<h3 data-f="name"></h3><p data-f="men"></p><p data-f="units" class="units"></p><p data-f="food"></p><p class="note" data-f="captain"></p><p class="status" data-f="status"></p><div data-f="hosts"></div>`
       + (own ? `<button data-act="ride" class="wide" data-f="ride"></button>` : '')
       + (own ? `<button data-act="wagon" class="wide" data-f="wagon"></button>` : '')
       + carts.map(c => `<button data-act="escort:${c.id}" class="wide" title="The army rides beside the cart until it arrives. A raider must beat it first.">${ico('caravan', '#e8c45a')} Escort the ${c.name.replace(/^(Caravan|Supply)/, m => m.toLowerCase())}</button>`).join('')
       + (own && waitingAt ? world.armies.filter(o => o !== it && o.side === 0 && !o.wagon && o.at === waitingAt && !o.path.length).map(o => `<button data-act="join:${o.id}" class="wide" title="${capWhy(world.rank)}">Join with ${o.name} (${Math.min(headcount(o.units), Math.max(0, world.armyCap - headcount(it.units)))} of ${headcount(o.units)} fit)</button>`).join('') : '')
       + (own ? `<p class="note">Right-click a place to march there. Your own villages take the army in; any other place means a fight.</p>` : '')
       + (own && waitingAt?.town ? `<button data-act="garrison" class="wide">Enter ${waitingAt.name}</button>` : '');
-    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><div data-f="march" class="marchbtns"></div><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
+    else el.innerHTML = `<h3>${ico(KINDS[it.kind].icon)} ${it.name}</h3>${it.epithet ? `<p class="note"><i>${it.name}, ${it.epithet}</i></p>` : ''}<p data-f="owner"></p><p data-f="men"></p><p class="scout" data-f="scout"></p><p class="status" data-f="status"></p><div data-f="hosts"></div><div data-f="march" class="marchbtns"></div><p class="note">${KINDS[it.kind].name}: ${KINDS[it.kind].about}</p><div class="works" data-f="works"></div><div class="market" data-f="market"></div>`
       + (it.town ? `<div class="row"><button data-act="enter">Go to ${it.name}</button><button data-act="muster">Muster the garrison</button></div>`
         + (own && world.rank !== 'Reeve' ? `<button data-act="banners" class="wide" title="See who would come here: every village's spare men, past a guard of 20, and your vassals' share">${ico('crown')} Call the banners here</button><button data-act="arriere" class="wide" title="Every place you hold calls up men from its countryside, beyond its village people: gold to call them, food to keep them, home after ten minutes. See the cost first">${ico('spears')} Call the arrière-ban here</button>` : '')
         + (own && ['Duke', 'King'].includes(world.rank) ? `<button data-act="gather" class="wide" data-f="gather" title="Every free army of yours in the field marches here and goes inside, to march out again as one host (Muster the garrison)"></button>` : '')
@@ -1133,6 +1142,7 @@ function worldPanel() {
         : `<div data-f="intel" class="intel"></div><button data-act="spy" class="wide" data-f="spy"></button><p class="note">Or select one of your armies and right-click here to march on it.</p>`);
   }
   const set = (f, v) => { const e = el.querySelector(`[data-f="${f}"]`); if (e && e.dataset.was !== v) { e.dataset.was = v; e.innerHTML = v; } };
+  if (it) set('hosts', hostCards(world, it));
   if (!it) {
     const held = world.pois.filter(p => p.owner === 0);
     const men = held.reduce((n, p) => n + (p.town ? p.town.garrison().reduce((k, r) => k + r.alive, 0) : headcount(p.garrison)), 0)
@@ -1218,7 +1228,7 @@ function worldPanel() {
     set('owner', whoText + (it.visible || !it.seen || who === 0 ? '' : ' (last seen)'));
     set('works', worksBox(it));
     set('market', marketBox(it));
-    if (it.owner === 0) { const n = world.gatherable(it).length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); why(el.querySelector('[data-f="gather"]'), n ? '' : 'None of your armies is free to march here.'); }
+    if (it.owner === 0) { const n = musterRows(world, it).filter(x => x.ok && x.group === 'armies').length; set('gather', `${ico('battle')} Gather your armies here${n ? ` (${n})` : ''}`); why(el.querySelector('[data-f="gather"]'), n ? '' : 'None of your armies is free to march here.'); }
     if (it.town) {
       const can = world.canGrant(it);
       for (const b of el.querySelectorAll('[data-act^="grant"], [data-act^="knight"]')) { b.disabled = !can.ok; b.title = can.ok ? can.warn || '' : can.why; b.classList.toggle('warn', !!can.warn); }
@@ -1268,7 +1278,7 @@ function worldPanel() {
 // A March button for each of your nearest armies, on the card of a place you have seen: the right-click, spelled out.
 function marchButtons(p) {
   if (!p.seen || p.owner === 0) return '';
-  const free = world.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.escort && a.units && !a.retreating && !(a.at === p && !a.path.length && !world.canAttack(0, p)));
+  const free = world.armies.filter(a => a.side === 0 && !a.gone && !a.wagon && !a.escort && !a.musterFor && !a.parted && a.units && !a.retreating && !(a.at === p && !a.path.length && !world.canAttack(0, p)));
   free.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
   return free.slice(0, 3).map(a => {
     const attack = world.canAttack(0, p);
@@ -1325,6 +1335,14 @@ $('wpanel').onclick = e => {
     panelKey = null;
     return;
   }
+  const host = e.target.closest('[data-host]');
+  if (host && !host.disabled) {
+    const r = hostClick(world, host.dataset.host, selected);
+    if (r.army) { selected = r.army; worldControls.lookAt(r.army); }
+    if (r.flash) flash(r.flash);
+    panelKey = null;
+    return;
+  }
   const act = e.target.closest('[data-act]')?.dataset.act;
   const it = selected;
   if (act === 'back') { selected = null; return; }
@@ -1364,7 +1382,7 @@ $('wpanel').onclick = e => {
   if (act === 'arriere') { askArriere(it && !it.units && it.owner === 0 ? it : musterPlace(world)); panelKey = null; }
   if (act === 'ride' && it?.units) { const r = ride(world, it); flash(r.ok ? r.text : r.why, r.ok); }
   if (act?.startsWith('join:')) { const o = world.armies.find(a => a.id === +act.slice(5)); if (o && !o.gone) world.join(it, o); panelKey = null; }
-  if (act === 'gather' && it && !it.units) { const n = world.gatherAt(it); flash(n ? `${n} ${n > 1 ? 'armies are' : 'army is'} on the way to ${it.name}.` : 'No army of yours is free to come.', !!n); }
+  if (act === 'gather' && it && !it.units) muster(it, 'armies');
   if (act?.startsWith('decree:')) { const r = toggleDecree(world, act.slice(7)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('work:')) { const r = startWork(world, it, act.slice(5)); if (!r.ok) flash(r.why); }
   if (act?.startsWith('buy:') && it) { const r = buy(world, it, act.slice(4)); flash(r.ok ? r.text : r.why, r.ok); }
