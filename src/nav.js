@@ -74,8 +74,27 @@ export class Nav {
       // Its own side uses the stairs, so for them the tower is a postern rather than a block.
       this.disc(1 - t.side, t.x, t.z, t.M.towerR + 0.7);
     }
+    // What has fallen is a way through, for both sides: a gate between two towers is narrower
+    // than their rounded feet and a cell of this grid, so breaking it opened nothing (Cranholm
+    // Castle: raiders inside had no way out).
+    for (const p of this.walls.pieces) if (p.state === 'broken') this.throughway(p);
     this.box = box;
     if (box) for (let side = 0; side < 2; side++) { this.label(side); this.findOpenings(side); }
+  }
+
+  // Clears a straight walk across the middle of a fallen stretch, from clear of its towers on
+  // one side to clear of them on the other. (Wider than a cell's diagonal, so it joins up.)
+  throughway(p) {
+    const len = Math.hypot(p.b.x - p.a.x, p.b.z - p.a.z) || 1;
+    const nx = -(p.b.z - p.a.z) / len, nz = (p.b.x - p.a.x) / len;   // across the wall
+    const reach = Math.max(p.M.towerR, p.M.thick) + 2, half = 1.6;
+    const mx = (p.a.x + p.b.x) / 2, mz = (p.a.z + p.b.z) / 2;
+    for (let d = -reach; d <= reach; d += 0.5) for (let o = -half; o <= half; o += 0.5) {
+      const c = this.cellOf(mx + nx * d - nz * o, mz + nz * d + nx * o);
+      if (c < 0) continue;
+      const q = this.centre(c), along = (q.x - mx) * nx + (q.z - mz) * nz, off = (q.x - mx) * -nz + (q.z - mz) * nx;
+      if (Math.abs(along) <= reach && Math.abs(off) <= half) this.blocked[0][c] = this.blocked[1][c] = 0;
+    }
   }
 
   // Connected regions of open ground, per side.
